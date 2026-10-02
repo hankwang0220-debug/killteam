@@ -137,7 +137,7 @@ export function buyPloy(g, side, ploy) {
   if (g.cp[side] < ploy.cp || hasPloy(g, side, ploy.id)) return false;
   g.cp[side] -= ploy.cp;
   g.ploys[side].push(ploy.id);
-  log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}」`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"` }, `side${side}`);
+  log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}（${ploy.name.en}）」`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"` }, `side${side}`);
   return true;
 }
 
@@ -321,7 +321,8 @@ export function doMove(g, op, kind, path) {
 export function opName(op, lang) {
   const t = tpl(op);
   const sameKind = TEAM_MAP[op.team].ops.find((o) => o.id === op.tplId).count > 1;
-  return t.name[lang] + (sameKind ? ` #${op.num}` : '');
+  const name = lang === 'zh' ? `${t.name.zh}（${t.name.en}）` : t.name.en;
+  return name + (sameKind ? ` #${op.num}` : '');
 }
 
 // ---------- line of sight ----------
@@ -471,7 +472,7 @@ export function resolveShoot(g, op, weapon, target) {
   const before = target.wounds;
   const killed = applyDamage(g, op, target, block.dmg);
   log(g, {
-    zh: `${opName(op, 'zh')} 以${weapon.name.zh}射擊 ${opName(target, 'zh')}：${block.dmg} 傷害`,
+    zh: `${opName(op, 'zh')} 以${weapon.name.zh}（${weapon.name.en}）射擊 ${opName(target, 'zh')}：${block.dmg} 傷害`,
     en: `${opName(op, 'en')} shoots ${opName(target, 'en')} with ${weapon.name.en}: ${block.dmg} damage`,
   }, `side${op.side}`);
   return {

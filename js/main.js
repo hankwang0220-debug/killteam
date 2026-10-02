@@ -75,7 +75,7 @@ function homeView() {
       ${TEAMS.map((t) => `<article class="teamcard" style="--tc:${t.color}">
         <h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
         <p>${esc(tx(t.blurb))}</p>
-        <p class="rule"><b>${esc(tx(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
+        <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
       </article>`).join('')}
     </section>
   </main>`;
@@ -101,8 +101,8 @@ function setupView() {
 
 function roster(t) {
   return `<div class="roster">
-    <p class="rule"><b>${esc(tx(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
-    ${t.ops.map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(tx(o.name))}</span>
+    <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
+    ${t.ops.map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
       <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>`).join('')}
   </div>`;
 }
@@ -173,13 +173,13 @@ function strategyPanel() {
     const t = team(g, s);
     if (g.ai === s) {
       return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} 🤖</h3>
-        <p class="hint">${g.ploys[s].length ? g.ploys[s].map((id) => esc(tx(t.ploys.find((p) => p.id === id).name))).join('、') : L('未使用計謀', 'No ploys')}</p></div>`;
+        <p class="hint">${g.ploys[s].length ? g.ploys[s].map((id) => esc(bi(t.ploys.find((p) => p.id === id).name))).join('、') : L('未使用計謀', 'No ploys')}</p></div>`;
     }
     return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} · CP ${g.cp[s]}</h3>
       ${t.ploys.map((p) => {
         const on = g.ploys[s].includes(p.id);
         return `<button class="ploy ${on ? 'on' : ''}" data-act="ploy" data-side="${s}" data-ploy="${p.id}" ${on || g.cp[s] < p.cp ? 'disabled' : ''}>
-          <b>${esc(tx(p.name))}</b> <span class="cp">${p.cp}CP</span><small>${esc(tx(p.desc))}</small></button>`;
+          <b>${esc(bi(p.name))}</b> <span class="cp">${p.cp}CP</span><small>${esc(tx(p.desc))}</small></button>`;
       }).join('')}</div>`;
   };
   const ini = team(g, g.initiative);
@@ -277,15 +277,15 @@ function modeView(op) {
       ${tpl(op).weapons.map((w, i) => (w.type === type ? `<button class="weapon" data-act="weapon" data-i="${i}">${weaponLine(w)}</button>` : '')).join('')}
       <div class="row">${cancel}</div></div>`;
   }
-  if (m.kind === 'shoot') return `<div class="mode"><h3>${esc(tx(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}</p><div class="row">${cancel}</div></div>`;
-  if (m.kind === 'fight') return `<div class="mode"><h3>${esc(tx(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人。', 'Tap an engaged enemy.')}</p><div class="row">${cancel}</div></div>`;
+  if (m.kind === 'shoot') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}</p><div class="row">${cancel}</div></div>`;
+  if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人。', 'Tap an engaged enemy.')}</p><div class="row">${cancel}</div></div>`;
   if (m.kind === 'mark') return `<div class="mode"><h3>${L('標記', 'Mark')}</h3><p class="hint">${L('點擊一個可見敵人進行標記。', 'Tap a visible enemy to mark it.')}</p><div class="row">${cancel}</div></div>`;
   return '';
 }
 
 function ruleText(rules) {
   return Object.entries(rules).filter(([k]) => RULE_LABELS[k]).map(([k, v]) => {
-    const lab = tx(RULE_LABELS[k]);
+    const lab = bi(RULE_LABELS[k]);
     if (v === true) return lab;
     if (k === 'range') return `${lab} ${v}"`;
     if (k === 'lethal') return `${lab} ${v}+`;
@@ -294,7 +294,7 @@ function ruleText(rules) {
 }
 
 function weaponLine(w) {
-  return `<span class="wname">${w.type === 'ranged' ? '⌖' : '⚔'} ${esc(tx(w.name))}</span>
+  return `<span class="wname">${w.type === 'ranged' ? '⌖' : '⚔'} ${esc(bi(w.name))}</span>
     <span class="wstats">A${w.atk} · ${w.hit}+ · ${w.dmg[0]}/${w.dmg[1]}</span>
     ${ruleText(w.rules) ? `<span class="wrules">${esc(ruleText(w.rules))}</span>` : ''}`;
 }
@@ -315,7 +315,7 @@ function datacard(op) {
     </div>
     ${flags.length ? `<div class="flags">${flags.join('')}</div>` : ''}
     <table class="weapons"><tr><th></th><th>ATK</th><th>HIT</th><th>DMG</th></tr>
-    ${t.weapons.map((w) => `<tr><td>${w.type === 'ranged' ? '⌖' : '⚔'} ${esc(tx(w.name))}${ruleText(w.rules) ? `<div class="wrules">${esc(ruleText(w.rules))}</div>` : ''}</td>
+    ${t.weapons.map((w) => `<tr><td>${w.type === 'ranged' ? '⌖' : '⚔'} ${esc(bi(w.name))}${ruleText(w.rules) ? `<div class="wrules">${esc(ruleText(w.rules))}</div>` : ''}</td>
       <td>${w.atk}</td><td>${w.hit}+</td><td>${w.dmg[0]}/${w.dmg[1]}</td></tr>`).join('')}</table>
   </section>`;
 }
@@ -347,7 +347,7 @@ function fightView() {
     const p = f[k];
     const chips = '<span class="die crit small">★</span>'.repeat(p.c) + '<span class="die norm small">✓</span>'.repeat(p.n);
     return `<div class="fside ${!f.done && f.turn === k ? 'now' : ''}" style="--tc:${col(k)}">
-      <div class="fhead">${who(k)} <small>${esc(tx(fightWeapon(g, k).name))} · ${f[k].hit}+ · ${fightWeapon(g, k).dmg.join('/')}${p.brutal ? ` · ${L('殘暴', 'Brutal')}` : ''}</small></div>
+      <div class="fhead">${who(k)} <small>${esc(bi(fightWeapon(g, k).name))} · ${f[k].hit}+ · ${fightWeapon(g, k).dmg.join('/')}${p.brutal ? ` · ${bi(RULE_LABELS.brutal)}` : ''}</small></div>
       <div class="dicerow ${f.steps.length ? 'still' : ''}"><label>${k === 'A' ? L('攻方擲骰', 'Attacker roll') : L('守方擲骰', 'Defender roll')}</label>${p.dice.map(die).join('')}</div>
       <div class="remain">${L('剩餘成功骰', 'Unresolved')}：${chips || '—'}</div>
       <div class="wounds">${L('生命', 'Wounds')} ${ops[k].wounds}/${ops[k].maxW}${ops[k].dead ? ' ☠' : ''}</div>
@@ -389,7 +389,7 @@ function resultView(r) {
     if (r.pierce) notes.push(L(`穿甲：少擲 ${r.pierce} 顆`, `Piercing: ${r.pierce} fewer dice`));
     const rt = ruleText(Object.fromEntries(Object.entries(r.rules).filter(([k]) => k !== 'range')));
     return `<h2>⌖ ${L('射擊', 'Shooting')}</h2>
-      <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b> · ${esc(tx(r.weapon.name))}</p>
+      <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b> · ${esc(bi(r.weapon.name))}</p>
       ${rt ? `<p class="hint small">${esc(rt)}</p>` : ''}
       <div class="dicerow"><label>${L('攻擊', 'Attack')} (${r.hit}+)</label>${r.attack.dice.map(die).join('')}
         <em>${L(`${r.attack.crits} 暴擊 / ${r.attack.norms} 命中`, `${r.attack.crits} crit / ${r.attack.norms} hit`)}</em></div>
