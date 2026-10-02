@@ -3,7 +3,7 @@ import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
   ACTIONS, activate, activeOp, autoDeploy, availableActions, buyPloy, deployOk, doMark, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, markCheck, moveAllowance, moveStat, newGame, opName,
-  counterCandidates, passCounter, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
+  counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, startFirefight, team, totalVP, tpl, MAX_TP,
 } from './game.js';
 import { renderBoard } from './board.js';
@@ -238,6 +238,8 @@ function firefightPanel() {
   // Active operative
   const apMax = op.counter ? 1 : tpl(op).apl;
   html += `<div class="activehead"><b>${nm(op)}${op.counter ? ` <small>${L('（反擊）', '(counteract)')}</small>` : ''}</b><span class="ap">${'●'.repeat(op.ap)}${'○'.repeat(Math.max(0, apMax - op.ap))} AP</span></div>`;
+  if (ui.notice) html += `<p class="bad small">${esc(ui.notice)}</p>`;
+  else if (canSwitchActive(g)) html += `<p class="hint small">${L('執行第一個動作前，點其他己方特工可以改啟動它。', 'Until the first action, tap another of your operatives to activate it instead.')}</p>`;
   if (!op.orderSet) {
     html += `<div class="orders">
       <button class="${op.order === 'engage' ? 'on' : ''}" data-act="order" data-order="engage">⚔ ${L('交戰 Engage', 'Engage')}</button>
@@ -425,6 +427,7 @@ function scheduleAI() {
 }
 
 function afterChange() {
+  ui.notice = null;
   // Auto-end a player activation with no AP left (after a move or mark).
   const a = activeOp(g);
   if (a && !ui.result && !g.fight && g.ai !== g.turn && (a.ap <= 0 || a.dead)) { endActivation(g); ui.sel = null; }
@@ -459,6 +462,7 @@ function onBoardClick(evt) {
   if (g.phase !== 'firefight') { if (clicked) { ui.sel = clicked.uid; render(); } return; }
   const myTurn = g.ai !== g.turn;
 
+  if (clicked && trySelectOwn(clicked)) return;
   if (op && ui.mode && myTurn) {
     const m = ui.mode;
     if (m.kind === 'move') return previewMove(op, m.action, p);
@@ -474,11 +478,32 @@ function onBoardClick(evt) {
     if (clicked) { ui.sel = clicked.uid; render(); }
     return;
   }
-  if (clicked) {
-    ui.sel = clicked.uid;
-    if (!op && myTurn && clicked.side === g.turn && clicked.ready && evt.detail >= 2) return doActivate(clicked);
-    render();
+  if (clicked) { ui.sel = clicked.uid; render(); }
+}
+
+/**
+ * Clicking one of your own operatives that may act makes it the active one, so the action
+ * panel always follows the operative you picked. Switching is only allowed before the
+ * current operative's first action. Returns true if the click was handled.
+ */
+function trySelectOwn(clicked) {
+  if (g.phase !== 'firefight' || g.ai === g.turn || clicked.side !== g.turn || g.fight) return false;
+  const op = activeOp(g);
+  if (op && op.uid === clicked.uid) return false;
+  const eligible = g.counter ? counterCandidates(g, g.turn).includes(clicked) : clicked.ready;
+  if (!eligible) return false;
+  if (op) {
+    if (!canSwitchActive(g)) {
+      ui.sel = clicked.uid;
+      ui.notice = L(`${opName(op, 'zh')} 已執行動作，請先「結束啟動」才能換 ${opName(clicked, 'zh')}。`,
+        `${opName(op, 'en')} has already acted — end its activation before switching to ${opName(clicked, 'en')}.`);
+      render();
+      return true;
+    }
+    deactivate(g);
   }
+  doActivate(clicked);
+  return true;
 }
 
 function previewMove(op, action, p) {
@@ -506,7 +531,7 @@ function previewMove(op, action, p) {
 
 function doActivate(op) {
   activate(g, op);
-  ui.sel = op.uid; ui.mode = null; ui.path = null;
+  ui.sel = op.uid; ui.mode = null; ui.path = null; ui.notice = null;
   afterChange();
 }
 
@@ -548,7 +573,7 @@ function handle(act, d) {
       return afterChange();
     }
     case 'firefight': startFirefight(g); return afterChange();
-    case 'pickop': ui.sel = d.uid; return render();
+    case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
     case 'passcounter': passCounter(g); ui.sel = null; return afterChange();
     case 'order': setOrder(g, op, d.order); return afterChange();

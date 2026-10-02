@@ -159,7 +159,24 @@ export function activate(g, op) {
   } else {
     op.ap = tpl(op).apl;
     op.orderSet = false;
+    op.prevOrder = op.order;
   }
+}
+
+/** You may pick a different operative to activate (or counteract with) until its first action. */
+export function canSwitchActive(g) {
+  const op = activeOp(g);
+  return !!op && Object.keys(op.acted).length === 0;
+}
+
+/** Undo an activation (or counteract) that hasn't done anything yet. */
+export function deactivate(g) {
+  const op = activeOp(g);
+  if (!op) return;
+  if (op.counter) op.counter = false;
+  else { if (op.prevOrder) op.order = op.prevOrder; op.orderSet = false; }
+  op.ap = 0; op.acted = {};
+  g.active = null;
 }
 
 export function setOrder(g, op, order) {
