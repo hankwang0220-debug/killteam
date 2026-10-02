@@ -1,6 +1,6 @@
 import {
-  activate, activeOp, availableActions, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMark, doMove, edgeDist, endActivation,
-  engagedEnemies, injuredPenalty, isInjured, living, markCheck, moveAllowance, radius, resolveShoot, shootCheck, startFight, team, tpl,
+  activate, activeOp, availableActions, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
+  engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
 } from './game.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -13,14 +13,15 @@ export function aiStrategy(g, side) {
 
 function shootOptions(g, op) {
   const opts = [];
-  const hitMod = injuredPenalty(g, op) ? 1 : 0;
+  const hitMod = statPenalty(g, op) ? 1 : 0;
   for (const w of tpl(op).weapons.filter((x) => x.type === 'ranged')) {
     for (const t of living(g, 1 - op.side)) {
       const c = shootCheck(g, op, t, w);
       if (!c.ok) continue;
       // Don't Blast a target next to friendly operatives.
       if (w.rules.blast && living(g, op.side).some((f) => f !== op && edgeDist(t, f) <= w.rules.blast)) continue;
-      let score = avgDmg(w, hitMod - (t.marked ? 1 : 0)) * (1 - (7 - tpl(t).save) / 6 * 0.5) * (c.cover ? 0.75 : 1);
+      const ml = mlLevel(g, op, w, t);
+      let score = avgDmg(w, hitMod - (ml >= 2 ? 1 : 0)) * (1 - (7 - tpl(t).save) / 6 * 0.5) * (c.cover && !ml ? 0.75 : 1);
       if (score >= t.wounds) score += 10; // likely kill
       score += (1 - t.wounds / t.maxW) * 2;
       opts.push({ w, t, score });
@@ -105,6 +106,26 @@ export function aiStep(g) {
   if (op.dead) { endActivation(g); return null; }
   const can = Object.fromEntries(availableActions(g, op).map((a) => [a.id, a.ok]));
 
+  if (can.dakkaDash && shootOptions(g, op).length) { doDakkaDash(g, op); return null; }
+  if (can.stunGrenade) {
+    // Throw it at the enemy with the most other enemies within 1".
+    const ts = TARGET_ACTIONS.stunGrenade.targets(g, op);
+    const near = (t) => living(g, 1 - op.side).filter((o) => edgeDist(o, t) <= 1).length - living(g, op.side).filter((o) => edgeDist(o, t) <= 1).length;
+    const t = ts.sort((a, b) => near(b) - near(a))[0];
+    if (t && near(t) >= 2 && op.ap >= 2) { doTargetAction(g, op, 'stunGrenade', t); return null; }
+  }
+  // Flail when it hits enemies but no friendlies.
+  if (can.flail && !flailTargets(g, op).some((t) => t.side === op.side)) { doFlail(g, op); return null; }
+  if (can.vitality) {
+    const t = TARGET_ACTIONS.vitality.targets(g, op).filter((o) => o.maxW - o.wounds >= 4).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'vitality', t); return null; }
+  }
+  if (can.miasma) {
+    // Poisoned enemies take 3 damage; otherwise poison the toughest.
+    const ts = TARGET_ACTIONS.miasma.targets(g, op);
+    const t = ts.filter((e) => e.poison).sort((a, b) => a.wounds - b.wounds)[0] || ts.sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'miasma', t); return null; }
+  }
   if (can.fight) {
     // The fight is resolved die by die (g.fight); the UI lets a human defender choose.
     const t = engagedEnemies(g, op).sort((a, b) => a.wounds - b.wounds)[0];
@@ -116,9 +137,12 @@ export function aiStep(g) {
     const p = pathToward(g, op, 'fallBack', away);
     if (p) { doMove(g, op, 'fallBack', p); return null; }
   }
-  if (can.mark) {
-    const t = living(g, 1 - op.side).filter((e) => !e.marked && markCheck(g, op, e)).sort((a, b) => b.maxW - a.maxW)[0];
-    if (t && op.ap >= 2) { doMark(g, op, t); return null; }
+  if (can.markerlight) {
+    // Mark the target it's about to shoot (Shoot and Markerlight must share a target); marker drones mark the toughest enemy.
+    const targets = TARGET_ACTIONS.markerlight.targets(g, op).filter((e) => (e.ml || 0) < 4);
+    const best = can.shoot ? shootOptions(g, op)[0]?.t : null;
+    const t = best && targets.includes(best) ? best : !can.shoot ? targets.sort((a, b) => b.wounds - a.wounds)[0] : null;
+    if (t && (op.ap >= 2 || !can.shoot)) { doTargetAction(g, op, 'markerlight', t); return null; }
   }
   if (can.shoot && !prefersMelee(op)) {
     const best = shootOptions(g, op)[0];

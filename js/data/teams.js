@@ -1,7 +1,7 @@
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
-// weapons ATK / HIT / DMG normal/crit). Angels of Death use the official online
-// datacards (stats only, ability text paraphrased); the other teams are original
-// archetypes so you can tune or replace them with your own datacards.
+// weapons ATK / HIT / DMG normal/crit). Angels of Death, Pathfinders, Plague Marines and Kommandos use
+// the official online datacards (stats only, ability text paraphrased); Imperial Troopers is an original
+// archetype you can tune or replace with your own datacards.
 //
 // Operative stats: apl, move, save, wounds, base (mm).
 //
@@ -25,6 +25,28 @@
 //   severe          if no critical success is retained, change one normal success to a critical
 //   torrent: n      also shoot every other valid target within n" of the first (not near friendlies)
 //   blast: n        also shoot every other operative visible to and within n" of the first
+//   limited: n      the operative can use this weapon n times per battle
+//   hot             after use roll a D6: below the Hit stat, the shooter takes double the result
+//   seek            a Concealed target can't use any terrain for cover when picking targets
+//   fixedHit        changes to the Hit stat are ignored (Inertial Dampener)
+//   noMarkerlight   Markerlight tokens give no benefit (fusion grenade)
+//   psychic         PSYCHIC weapon (Plague Marines' Astartes rule)
+//   poison          damaging an enemy gives it a Poison token (1 damage whenever it's activated)
+//   toxic           +1 to both Dmg against an enemy poisoned at the start of the action
+//   shock           (melee) the first crit strike also discards an unresolved enemy success
+//   stun            if any crit is retained, the target gets -1 APL until the end of its next activation
+//   punishing       if any crit is retained, one fail becomes a normal success
+//   firstShotOnly   usable only the first time the operative performs the Shoot action in the battle
+//
+// Operative flags (Kommandos): krumpin (two Fight actions), support: 'getItDun' | 'listenIn' (+1 APL),
+// dakkaDash, datAllYouGot (D3 damage after fighting), wotNotz (Boy: Stun Grenade once per TP).
+//
+// Operative flags (Plague Marines): blessing (Grandfather's Blessing), flail (Flail action),
+// iconBearer (+1 APL for control, Contagion free in enemy territory), miasma / vitality (Plaguecaster actions).
+//
+// Operative flags (Pathfinders): markerlight: n tokens per Markerlight action, drone: [allowed actions],
+// signal / systemJam / medikit (unique actions), medic (Medic!), multiVision (enemies can't be obscured),
+// droneController (+2" Move for drones), veteran (Blooded: Mont'ka and Kauyon both apply).
 //
 // Weapon `group` marks profiles of the same physical weapon (e.g. the sniper rifle's rounds).
 
@@ -49,19 +71,66 @@ const chainswordA = W('chainswordA', '鏈鋸劍', 'Chainsword', 'melee', 5, 3, 4
 const chainswordSgt = W('chainswordSgt', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5);
 const fistsA = W('fistsA', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
 
-// ---- Greenskins ----
+// ---- Kommandos ----
 const slugga = W('slugga', '粗製手槍', 'Slugga', 'ranged', 4, 4, 3, 4, { range: 8 });
-const burna = W('burna', '噴火器', 'Burna', 'ranged', 4, 2, 3, 3, { range: 6, ignoreCover: true });
-const rokkit = W('rokkit', '火箭發射器', 'Rokkit launcha', 'ranged', 4, 4, 5, 6, { piercing: 1, heavy: true });
 const choppa = W('choppa', '劈砍刀', 'Choppa', 'melee', 4, 3, 4, 5);
-const bigChoppa = W('bigChoppa', '大劈刀', 'Big choppa', 'melee', 5, 3, 5, 6, { brutal: true });
-const fistsO = W('fistsO', '拳頭', 'Fists', 'melee', 3, 4, 2, 3);
+const powerKlaw = W('powerKlaw', '動力爪', 'Power klaw', 'melee', 4, 3, 5, 7, { brutal: true, shock: true });
+const burnaStd = W('burnaStd', '噴火器（標準）', 'Burna (standard)', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 }, 'burna');
+// Torrent 0": no secondary targets.
+const burnaDeluge = W('burnaDeluge', '噴火器（洪流）', 'Burna (deluge)', 'ranged', 4, 2, 3, 3, { range: 4, saturate: true, seek: true }, 'burna');
+const dakkaShort = W('dakkaShort', '達卡槍（近距離）', 'Dakka shoota (short range)', 'ranged', 5, 4, 3, 4, { range: 9, ceaseless: true }, 'dakka');
+const dakkaLong = W('dakkaLong', '達卡槍（遠距離）', 'Dakka shoota (long range)', 'ranged', 5, 4, 3, 4, {}, 'dakka');
+const breachaRam = W('breachaRam', '破門錘', 'Breacha ram', 'melee', 4, 4, 5, 5, { brutal: true, severe: true, shock: true });
+const shokkaPistol = W('shokkaPistol', '震擊手槍', 'Shokka pistol', 'ranged', 6, 4, 1, 0, { range: 8, devastating: 2, severe: true, stun: true });
+const rokkitAimed = W('rokkitAimed', '火箭發射器（瞄準）', 'Rokkit launcha (aimed)', 'ranged', 6, 4, 4, 5, { blast: 1, ceaseless: true, heavy: 'dash' }, 'rokkit');
+const rokkitMobile = W('rokkitMobile', '火箭發射器（機動）', 'Rokkit launcha (mobile)', 'ranged', 6, 4, 4, 5, { blast: 1 }, 'rokkit');
+// Concealed Position: only the first time the operative performs the Shoot action in the battle.
+const snipaConcealed = W('snipaConcealed', '瞄準大口徑槍（隱蔽）', 'Scoped big shoota (concealed)', 'ranged', 5, 3, 3, 3, { devastating: 2, heavy: true, silent: true, firstShotOnly: true }, 'snipa');
+const snipaStationary = W('snipaStationary', '瞄準大口徑槍（定點）', 'Scoped big shoota (stationary)', 'ranged', 5, 3, 3, 3, { devastating: 2, heavy: true }, 'snipa');
+const snipaSweeping = W('snipaSweeping', '瞄準大口徑槍（掃射）', 'Scoped big shoota (sweeping)', 'ranged', 5, 3, 3, 4, { heavy: 'dash', torrent: 1 }, 'snipa');
+const throwingKnives = W('throwingKnives', '飛刀', 'Throwing knives', 'ranged', 4, 3, 2, 5, { range: 6, silent: true });
+const twinChoppas = W('twinChoppas', '雙劈砍刀', 'Twin choppas', 'melee', 4, 3, 4, 5, { ceaseless: true, lethal: 5 });
+const fistsO = W('fistsO', '拳頭', 'Fists', 'melee', 3, 3, 3, 4);
 
 // ---- Pathfinders ----
 const pulseCarbine = W('pulseCarbine', '脈衝卡賓槍', 'Pulse carbine', 'ranged', 4, 4, 4, 5);
-const railRifle = W('railRifle', '軌道步槍', 'Rail rifle', 'ranged', 4, 4, 4, 4, { lethal: 5, piercing: 1, heavy: true });
-const ionRifle = W('ionRifle', '離子步槍', 'Ion rifle', 'ranged', 5, 4, 4, 5, { piercingCrits: 1 });
-const fistsT = W('fistsT', '槍托', 'Gun butt', 'melee', 3, 5, 1, 2);
+const pulseCarbineSgt = W('pulseCarbineSgt', '脈衝卡賓槍', 'Pulse carbine', 'ranged', 4, 3, 4, 5);
+const suppressedCarbine = W('suppressedCarbine', '消音脈衝卡賓槍', 'Suppressed pulse carbine', 'ranged', 4, 3, 4, 5, { silent: true });
+const twinPulseCarbine = W('twinPulseCarbine', '雙聯脈衝卡賓槍', 'Twin pulse carbine', 'ranged', 4, 4, 4, 5, { ceaseless: true });
+// Fusion grenade: Markerlights don't apply to it.
+const fusionGrenade = W('fusionGrenade', '融合手雷', 'Fusion grenade', 'ranged', 4, 3, 4, 3, { range: 6, devastating: 2, limited: 1, piercing: 2, saturate: true, noMarkerlight: true });
+// Grenadier Specialist: universal frag/krak grenades with Hit improved by 1 (3+), not limited for this operative.
+// They're equipment, not datacard weapons, so Markerlights don't apply.
+const fragGrenadeT = W('fragGrenadeT', '破片手雷', 'Frag grenade', 'ranged', 4, 3, 2, 4, { range: 6, blast: 2, saturate: true, noMarkerlight: true });
+const krakGrenadeT = W('krakGrenadeT', '穿甲手雷', 'Krak grenade', 'ranged', 4, 3, 4, 5, { range: 6, piercing: 1, saturate: true, noMarkerlight: true });
+// Inertial Dampener: changes to the marksman rail rifle's Hit stat are ignored.
+const marksmanRail = W('marksmanRail', '神射手軌道步槍（標準）', 'Marksman rail rifle (standard)', 'ranged', 4, 3, 4, 4, { devastating: 2, lethal: 5, piercing: 1, fixedHit: true }, 'marksmanRail');
+const marksmanDart = W('marksmanDart', '神射手軌道步槍（飛鏢彈）', 'Marksman rail rifle (dart round)', 'ranged', 4, 3, 3, 4, { piercing: 1, silent: true, fixedHit: true }, 'marksmanRail');
+const ionStandard = W('ionStandard', '離子步槍（標準）', 'Ion rifle (standard)', 'ranged', 5, 4, 4, 5, { piercingCrits: 1 }, 'ionRifle');
+const ionOvercharge = W('ionOvercharge', '離子步槍（超載）', 'Ion rifle (overcharge)', 'ranged', 5, 4, 4, 5, { hot: true, lethal: 5, piercing: 1 }, 'ionRifle');
+const railRifle = W('railRifle', '軌道步槍', 'Rail rifle', 'ranged', 4, 4, 4, 4, { devastating: 2, lethal: 5, piercing: 1 });
+const fistsT = W('fistsT', '槍托', 'Gun butt', 'melee', 3, 5, 2, 3);
+const gunButtSgt = W('gunButtSgt', '槍托', 'Gun butt', 'melee', 3, 4, 2, 3);
+const bionicArm = W('bionicArm', '仿生手臂', 'Bionic arm', 'melee', 3, 4, 3, 4);
+const ram = W('ram', '撞擊', 'Ram', 'melee', 3, 5, 2, 3);
+const fistsC = W('fistsC', '徒手格鬥', 'Fists', 'melee', 3, 5, 2, 3);
+
+// ---- Plague Marines ----
+const boltgunPM = W('boltgunPM', '爆彈槍', 'Boltgun', 'ranged', 4, 3, 3, 4);
+const boltPistolPM = W('boltPistolPM', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const plasmaPistolStd = W('plasmaPistolStd', '等離子手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistol');
+const plasmaPistolSup = W('plasmaPistolSup', '等離子手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 3, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistol');
+const plagueSpewer = W('plagueSpewer', '瘟疫噴吐器', 'Plague spewer', 'ranged', 5, 2, 3, 3, { range: 7, saturate: true, severe: true, torrent: 2, poison: true });
+// Bombardier (Grenadier): blight and krak grenades with Hit improved by 1; blight grenades also have Toxic.
+const blightGrenade = W('blightGrenade', '枯萎手雷', 'Blight grenade', 'ranged', 4, 3, 2, 4, { range: 6, blast: 2, saturate: true, severe: true, poison: true, toxic: true });
+const krakGrenadePM = W('krakGrenadePM', '穿甲手雷', 'Krak grenade', 'ranged', 4, 3, 4, 5, { range: 6, piercing: 1, saturate: true });
+const entropy = W('entropy', '熵', 'Entropy', 'ranged', 4, 3, 3, 7, { psychic: true, range: 7, saturate: true, severe: true, poison: true });
+const plagueWind = W('plagueWind', '瘟疫之風', 'Plague wind', 'ranged', 6, 3, 2, 3, { psychic: true, saturate: true, severe: true, torrent: 1, poison: true });
+const plagueSword = W('plagueSword', '瘟疫之劍', 'Plague sword', 'melee', 5, 3, 4, 5, { severe: true, poison: true, toxic: true });
+const flail = W('flail', '腐化連枷', 'Flail of Corruption', 'melee', 5, 3, 4, 5, { brutal: true, severe: true, shock: true, poison: true });
+const corruptedStaff = W('corruptedStaff', '腐化法杖', 'Corrupted staff', 'melee', 4, 3, 3, 4, { psychic: true, severe: true, shock: true, stun: true, poison: true });
+const plagueKnife5 = W('plagueKnife5', '瘟疫匕首', 'Plague knife', 'melee', 5, 3, 3, 4, { severe: true, poison: true });
+const fistsPM = W('fistsPM', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
 
 // ---- Troopers ----
 const lasgun = W('lasgun', '雷射槍', 'Lasgun', 'ranged', 4, 4, 2, 3);
@@ -132,61 +201,140 @@ export const TEAMS = [
     ],
   },
   {
-    id: 'greenskin',
-    name: { zh: '綠皮突擊隊', en: 'Greenskin Raiders' },
+    id: 'kommandos',
+    name: { zh: '歐克蠻人', en: 'Kommandos' },
     color: '#4f9a2b',
-    style: { zh: '近戰・衝鋒・蠻力', en: 'Melee · Charge · Brute force' },
+    style: { zh: '射擊隊・潛行・突襲', en: 'Shooting · Stealth · Ambush' },
     blurb: {
-      zh: '10 名粗暴的綠皮。射擊不準，但衝進近戰就是屠殺。學習衝鋒與近戰格擋的好選擇。',
-      en: '10 brutal greenskins. Poor shots, but devastating once they get stuck in. Learn charging and melee.',
+      zh: '10 名狡猾的歐克突擊隊。隱蔽指令下也能衝鋒，配上各種專家武器，擅長潛入後突然發難。',
+      en: '10 cunning Ork Kommandos. They can Charge while Concealed and bring a specialist for every job — sneak in, then strike.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '滲透', en: 'Infiltration' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能，這些模型都已成為大桌單位', en: 'Yes, the models are now Warhammer 40,000 units' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games.' },
     },
     rule: {
-      name: { zh: '衝啊！', en: "'Ere We Go!" },
+      name: { zh: '割喉者', en: 'Throat Slittas' },
       desc: {
-        zh: '衝鋒距離額外 +1"；本次啟動中執行過衝鋒的操作員，其近戰武器獲得「無休」。粗皮厚肉：受到 4 點以上的普通傷害時 -1。',
-        en: '+1" to Charge distance. Operatives that Charged this activation gain Ceaseless on melee weapons. Thick hide: normal damage of 4+ is reduced by 1.',
+        zh: '友方在隱蔽指令下也能執行「衝鋒」。',
+        en: 'Friendly operatives can perform the Charge action while they have a Conceal order.',
       },
     },
+    concealCharge: true, // engine flag for Throat Slittas
     ploys: [
-      { id: 'waaagh', cp: 1, name: { zh: '哇！！！', en: 'Waaagh!' },
-        desc: { zh: '本回合友方近戰武器 ATK +1。', en: 'This TP, friendly melee weapons get +1 ATK.' } },
-      { id: 'sneakyGits', cp: 1, name: { zh: '鬼祟傢伙', en: 'Sneaky Gits' },
-        desc: { zh: '本回合友方處於掩護時，可保留 2 顆掩護豁免（而非 1 顆）。', en: 'This TP, friendly operatives in cover retain 2 cover saves instead of 1.' } },
+      { id: 'dakkaDakka', cp: 1, name: { zh: '達卡！達卡！達卡！', en: 'Dakka! Dakka! Dakka!' },
+        desc: { zh: '本回合友方遠程武器獲得「懲罰」。', en: 'This TP, friendly ranged weapons have Punishing.' } },
+      { id: 'waaagh', cp: 1, name: { zh: '哇啊啊！', en: 'Waaagh!' },
+        desc: { zh: '本回合友方近戰武器獲得「平衡」。', en: 'This TP, friendly melee weapons have Balanced.' } },
+      { id: 'skulkAbout', cp: 1, name: { zh: '鬼祟潛行', en: 'Skulk About' },
+        desc: { zh: '本回合隱蔽指令的友方被射擊時，可多保留 1 顆防禦骰作為普通成功（可與掩護豁免疊加）。', en: 'This TP, a friendly operative with a Conceal order being shot retains one extra defence die as a normal success (on top of any cover save).' } },
     ],
     ops: [
-      op('boss', '頭目', 'Boss', { apl: 2, move: 6, save: 4, wounds: 14, base: 32 }, [slugga, bigChoppa]),
-      op('burna', '噴火小子', 'Burna Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 28 }, [burna, choppa]),
-      op('rokkit', '火箭小子', 'Rokkit Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 28 }, [rokkit, fistsO]),
-      op('boy', '小子', 'Boy', { apl: 2, move: 6, save: 5, wounds: 11, base: 28 }, [slugga, choppa], 7),
+      op('nob', '頭目', 'Boss Nob', { apl: 3, move: 6, save: 5, wounds: 14, base: 32, krumpin: true, support: 'getItDun' }, [slugga, powerKlaw]),
+      op('breacha', '破門小子', 'Breacha Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [slugga, breachaRam]),
+      op('burna', '噴火小子', 'Burna Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [burnaStd, burnaDeluge, fistsO]),
+      op('comms', '通訊小子', 'Comms Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, support: 'listenIn' }, [shokkaPistol, fistsO]),
+      op('dakka', '達卡小子', 'Dakka Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, dakkaDash: true }, [dakkaShort, dakkaLong, fistsO]),
+      op('rokkit', '火箭小子', 'Rokkit Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [rokkitAimed, rokkitMobile, fistsO]),
+      op('slasha', '劈砍小子', 'Slasha Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, datAllYouGot: true }, [throwingKnives, twinChoppas]),
+      op('snipa', '狙擊小子', 'Snipa Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [snipaConcealed, snipaStationary, snipaSweeping, fistsO]),
+      op('boy', '小子', 'Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, wotNotz: true }, [slugga, choppa], 2),
     ],
   },
   {
-    id: 'pathfinders',
-    name: { zh: '光矛探路者', en: 'Pulse Pathfinders' },
+    id: 'tauPathfinders',
+    name: { zh: '探路者', en: 'Pathfinders' },
     color: '#d0922f',
-    style: { zh: '遠程・標記・脆弱', en: 'Ranged · Markers · Fragile' },
+    style: { zh: '射擊隊・標記光・脆弱', en: 'Shooting · Markerlights · Fragile' },
     blurb: {
-      zh: '10 名射手。用標記光鎖定目標再集火，但被近身就很危險。學習視線與掩護的好選擇。',
-      en: '10 marksmen. Mark a target, then focus fire — but fragile up close. Learn line of sight and cover.',
+      zh: '12 名鈦族偵察兵與無人機。先用標記光疊加標記，再集中火力；單兵脆弱，要善用掩體與距離。',
+      en: '12 T\'au scouts and drones. Stack Markerlight tokens, then focus fire; fragile alone, so use cover and range.',
     },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '滲透', en: 'Infiltration' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '能，但可能要多一盒來做無人機和普通單位', en: 'Yes, but you may want a second box for drones and rank-and-file' },
+      buyable: { zh: 'KT 盒與大桌盒都已停售；板件目前在鈦族戰鬥巡邏包（Combat Patrol）裡，只能從那邊購買', en: 'The KT box and the big-table box are discontinued; the sprues are in the current T\'au Combat Patrol, the only way to buy them' },
+    },
+    markerlights: true, // engine flag for the Markerlights faction rule
     rule: {
-      name: { zh: '標記光', en: 'Markerlight' },
+      name: { zh: '標記光', en: 'Markerlights' },
       desc: {
-        zh: '獨特動作「標記」(1AP)：選擇一個可見敵人。本回合友方對其射擊時命中 +1（改善），且目標無法獲得掩護。',
-        en: 'Unique action Mark (1AP): pick a visible enemy. This TP, friendly shooting against it improves HIT by 1 and ignores cover.',
+        zh: '獨特動作「標記光」(1AP)：可見的敵人獲得 1 個標記光標記（最多 4 個，跨回合保留）。友方探路者射擊有標記的敵人時依數量累加：1 飽和＋平衡；2 命中改善 1（最佳 3+）；3 目標不能被遮蔽；4 搜尋（輕型）；5 搜尋。同一次啟動中射擊與標記光必須是同一目標。有標記的敵人每次啟動中第一次移動會移除 1 個。',
+        en: 'Unique action Markerlight (1AP): a visible enemy gains a Markerlight token (max 4, kept between TPs). Friendly Pathfinders shooting it gain, cumulatively: 1 Saturate + Balanced; 2 Hit improved by 1 (to 3+); 3 target cannot be obscured; 4 Seek Light; 5 Seek. Shoot and Markerlight in the same activation must pick the same target. A marked enemy loses one token the first time it moves in each activation.',
       },
     },
     ploys: [
-      { id: 'fireDiscipline', cp: 1, name: { zh: '射擊紀律', en: 'Fire Discipline' },
-        desc: { zh: '本回合友方遠程武器獲得「無休」。', en: 'This TP, friendly ranged weapons gain Ceaseless.' } },
-      { id: 'strikeFade', cp: 1, name: { zh: '打帶跑', en: 'Strike and Fade' },
-        desc: { zh: '本回合友方「撤退」動作只需 1AP。', en: 'This TP, Fall Back costs 1AP for friendly operatives.' } },
+      { id: 'suppressingFire', cp: 1, name: { zh: '壓制射擊', en: 'Suppressing Fire' },
+        desc: { zh: '本回合敵人射擊時，若目標不是最近的有效目標，不能重擲攻擊骰。', en: 'This TP, when an enemy shoots a target that isn\'t the closest valid target, it can\'t re-roll attack dice.' } },
+      { id: 'bonded', cp: 1, name: { zh: '血盟', en: 'Bonded' },
+        desc: { zh: '本回合友方（無人機除外）射擊時，若 3" 內有另一名友方（無人機除外），遠程武器獲得「精準 1」。', en: 'This TP, a friendly non-drone shooting within 3" of another friendly non-drone has Accurate 1.' } },
+      { id: 'takeCover', cp: 1, name: { zh: '尋找掩護', en: 'Take Cover' },
+        desc: { zh: '本回合友方被射擊時，若能保留掩護豁免，豁免值改善 1。', en: 'This TP, when a friendly operative is shot and can retain cover saves, its Save improves by 1.' } },
+      // Shas'ui Art of War: once per battle each, one per turning point, while the Shas'ui is in the killzone.
+      { id: 'montka', group: 'artOfWar', oncePerBattle: true, needs: 'shasui', cp: 0, name: { zh: '兵法：蒙卡', en: "Art of War: Mont'ka" },
+        desc: { zh: '本回合友方 Move +1"。（整場一次，需要小隊長在場）', en: 'This TP, friendly operatives get +1" Move. (Once per battle; needs the Shas\'ui)' } },
+      { id: 'kauyon', group: 'artOfWar', oncePerBattle: true, needs: 'shasui', cp: 0, name: { zh: '兵法：考陽', en: 'Art of War: Kauyon' },
+        desc: { zh: '本回合隱蔽指令的友方啟動時可免費執行標記光。（整場一次，需要小隊長在場）', en: 'This TP, friendly operatives with a Conceal order can Markerlight for free. (Once per battle; needs the Shas\'ui)' } },
     ],
     ops: [
-      op('shasui', '小隊長', 'Team Leader', { apl: 2, move: 6, save: 5, wounds: 8, base: 25 }, [pulseCarbine, fistsT]),
-      op('rail', '軌道槍手', 'Rail Gunner', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [railRifle, fistsT]),
-      op('ion', '離子槍手', 'Ion Gunner', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [ionRifle, fistsT]),
-      op('pf', '探路者', 'Pathfinder', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [pulseCarbine, fistsT], 7),
+      op('shasui', '鈦衛小隊長', "Shas'ui", { apl: 2, move: 6, save: 5, wounds: 8, base: 25, markerlight: 1 }, [pulseCarbineSgt, gunButtSgt]),
+      op('grenadier', '突擊擲彈兵', 'Assault Grenadier', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1 }, [fusionGrenade, fragGrenadeT, krakGrenadeT, pulseCarbine, fistsT]),
+      op('blooded', '老兵', 'Blooded', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, markerlight: 1, veteran: true }, [suppressedCarbine, bionicArm]),
+      op('comms', '通訊專家', 'Comms Specialist', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, signal: true }, [pulseCarbine, fistsC]),
+      op('controller', '無人機操控員', 'Drone Controller', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, droneController: true }, [pulseCarbine, fistsT]),
+      op('marksman', '神射手', 'Marksman', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [marksmanRail, marksmanDart, fistsT]),
+      op('medic', '醫療技師', 'Medical Technician', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, medic: true, medikit: true }, [pulseCarbine, fistsT]),
+      op('transpectral', '跨光譜干擾兵', 'Transpectral Interference', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, systemJam: true, multiVision: true }, [pulseCarbine, fistsT]),
+      op('ionExpert', '武器專家（離子）', 'Weapons Expert (ion)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [ionStandard, ionOvercharge, fistsT]),
+      op('railExpert', '武器專家（軌道）', 'Weapons Expert (rail)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [railRifle, fistsT]),
+      op('gunDrone', 'MV1 槍械無人機', 'MV1 Gun Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: ['charge', 'dash', 'fallBack', 'fight', 'reposition', 'shoot'] }, [twinPulseCarbine, ram]),
+      op('markerDrone', 'MV7 標記無人機', 'MV7 Marker Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, markerlight: 2, drone: ['charge', 'dash', 'fallBack', 'fight', 'markerlight', 'reposition'] }, [ram]),
+    ],
+  },
+  {
+    id: 'plagueMarines',
+    name: { zh: '瘟疫戰士', en: 'Plague Marines' },
+    color: '#8a9a3a',
+    style: { zh: '混合隊・耐打・中毒', en: 'Mixed · Resilient · Poison' },
+    blurb: {
+      zh: '6 名納垢的混沌星際戰士。移動慢但極為耐打，用中毒標記削弱敵人，再以劇毒武器收割。',
+      en: '6 Chaos Space Marines of Nurgle. Slow but extremely tough; poison the enemy, then finish them with Toxic weapons.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能，在 KT 初始包', en: 'Yes, in the Kill Team starter set' },
+    },
+    astartes: true, // engine flag for the Astartes faction rule
+    resilient: true, // Disgustingly Resilient
+    rule: {
+      name: { zh: '中毒・令人作嘔的韌性・阿斯塔特', en: 'Poison · Disgustingly Resilient · Astartes' },
+      desc: {
+        zh: '中毒：用有「中毒」的武器造成傷害時，敵人獲得中毒標記；有中毒標記的特工每次啟動時受到 1 傷害。劇毒：對行動開始時已中毒的敵人，武器兩個傷害值都 +1。令人作嘔的韌性：每顆攻擊骰造成 3 以上傷害時擲 D6，4+ 傷害 -1。阿斯塔特：每次啟動可兩次射擊（至少一次用爆彈手槍、爆彈槍或靈能武器，同一把靈能遠程武器不能用兩次）或兩次近戰；不論指令都能反擊。',
+        en: 'Poison: damaging an enemy with a Poison weapon gives it a Poison token; an operative with one takes 1 damage whenever it is activated. Toxic: +1 to both Dmg against an enemy poisoned at the start of the action. Disgustingly Resilient: whenever an attack die inflicts 3+ damage, roll a D6: on a 4+ it deals 1 less. Astartes: two Shoots (one with a bolt pistol, boltgun or Psychic weapon; not the same Psychic ranged weapon twice) or two Fights per activation; can counteract regardless of order.',
+      },
+    },
+    ploys: [
+      { id: 'contagion', cp: 1, name: { zh: '傳染', en: 'Contagion' },
+        desc: { zh: '本回合敵人若中毒且在友方 3" 內可見，或在掌旗手 3" 內可見：Move -2"、武器命中變差 1（不與受傷累加）。掌旗手在敵方領域時 0CP。', en: 'This TP, an enemy that is poisoned and visible within 3" of a friendly operative, or visible within 3" of the Icon Bearer, gets -2" Move and worsens its weapons\' Hit by 1 (not cumulative with injured). 0CP while the Icon Bearer is in enemy territory.' } },
+      { id: 'lumbering', cp: 1, name: { zh: '笨重死神', en: 'Lumbering Death' },
+        desc: { zh: '本回合友方在本次啟動移動不超過 3" 時射擊或近戰，以及反擊時，武器獲得「無休」。', en: 'This TP, friendly weapons have Ceaseless when shooting or fighting in an activation in which the operative moved no more than 3", and when retaliating.' } },
+    ],
+    ops: [
+      op('champion', '瘟疫戰士冠軍', 'Plague Marine Champion', { apl: 3, move: 5, save: 3, wounds: 15, base: 32, blessing: true }, [plasmaPistolStd, plasmaPistolSup, plagueSword]),
+      op('bombardier', '瘟疫戰士轟炸兵', 'Plague Marine Bombardier', { apl: 3, move: 5, save: 3, wounds: 14, base: 32 }, [boltgunPM, blightGrenade, krakGrenadePM, fistsPM]),
+      op('fighter', '瘟疫戰士鬥士', 'Plague Marine Fighter', { apl: 3, move: 5, save: 3, wounds: 14, base: 32, flail: true }, [boltPistolPM, flail]),
+      op('heavyGunner', '瘟疫戰士重火力手', 'Plague Marine Heavy Gunner', { apl: 3, move: 5, save: 3, wounds: 14, base: 32 }, [boltPistolPM, plagueSpewer, fistsPM]),
+      op('icon', '瘟疫戰士掌旗手', 'Plague Marine Icon Bearer', { apl: 3, move: 5, save: 3, wounds: 14, base: 32, iconBearer: true }, [boltPistolPM, plagueKnife5]),
+      op('caster', '惡毒瘟疫術士', 'Malignant Plaguecaster', { apl: 3, move: 5, save: 3, wounds: 14, base: 32, miasma: true, vitality: true }, [entropy, plagueWind, corruptedStaff]),
     ],
   },
   {
@@ -241,6 +389,18 @@ export const RULE_LABELS = {
   severe: { zh: '嚴厲', en: 'Severe' },
   torrent: { zh: '洪流', en: 'Torrent' },
   blast: { zh: '爆炸', en: 'Blast' },
+  limited: { zh: '限用', en: 'Limited' },
+  hot: { zh: '過熱', en: 'Hot' },
+  seek: { zh: '搜尋', en: 'Seek' },
+  fixedHit: { zh: '慣性阻尼（命中不受修正）', en: 'Inertial Dampener (Hit unchanged)' },
+  noMarkerlight: { zh: '不受標記光影響', en: 'No Markerlight bonus' },
+  psychic: { zh: '靈能', en: 'Psychic' },
+  poison: { zh: '中毒', en: 'Poison' },
+  toxic: { zh: '劇毒', en: 'Toxic' },
+  shock: { zh: '震撼', en: 'Shock' },
+  stun: { zh: '昏迷', en: 'Stun' },
+  punishing: { zh: '懲罰', en: 'Punishing' },
+  firstShotOnly: { zh: '隱蔽陣地（只限第一次射擊）', en: 'Concealed Position (first Shoot only)' },
 };
 
 /** A ranged weapon with "bolt" in its name (Angels of Death rules). */

@@ -80,7 +80,12 @@ export function renderBoard(g, ui) {
     s.push(`<rect x="${f(-w / 2)}" y="${f(r + 0.08)}" width="${f(w)}" height="0.16" class="wbg"/>`);
     s.push(`<rect x="${f(-w / 2)}" y="${f(r + 0.08)}" width="${f(w * pct)}" height="0.16" class="wfg ${isInjured(o) ? 'inj' : ''}"/>`);
     if (o.order === 'conceal') s.push(`<text x="${f(r * 0.75)}" y="${f(-r * 0.55)}" class="badge">◐</text>`);
-    if (o.marked) s.push(`<circle cx="${f(-r * 0.75)}" cy="${f(-r * 0.7)}" r="0.16" class="mark"/>`);
+    if (o.poison) s.push(`<circle cx="${f(-r * 0.75)}" cy="${f(r * 0.55)}" r="0.16" class="poisontok"/>`); // Poison token
+    if (o.ml) {
+      // Markerlight tokens: red dot with the count.
+      s.push(`<circle cx="${f(-r * 0.75)}" cy="${f(-r * 0.7)}" r="0.2" class="mark"/>`);
+      s.push(`<text x="${f(-r * 0.75)}" y="${f(-r * 0.7 + 0.11)}" class="marktxt">${o.ml}</text>`);
+    }
     if (hl === 'cover') s.push(`<text x="${f(-r - 0.15)}" y="${f(-r)}" class="badge cov">🛡</text>`);
     s.push('</g>');
   }

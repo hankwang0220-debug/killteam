@@ -5,12 +5,13 @@ import { TEAM_MAP } from './data/teams.js';
 const HISTORY_KEY = 'kt.history';
 const MAX_HISTORY = 10;
 
-const DEAD = 1, READY = 2, CONCEAL = 4, MARKED = 8, COUNTERED = 16;
+const DEAD = 1, READY = 2, CONCEAL = 4, COUNTERED = 16, POISON = 32;
 const r2 = (n) => Math.round(n * 100) / 100;
 
+// [x, y, wounds, flags, Markerlight tokens]
 function encodeOps(g) {
   return g.ops.map((o) => [r2(o.x), r2(o.y), o.wounds,
-    (o.dead ? DEAD : 0) | (o.ready ? READY : 0) | (o.order === 'conceal' ? CONCEAL : 0) | (o.marked ? MARKED : 0) | (o.counteracted ? COUNTERED : 0)]);
+    (o.dead ? DEAD : 0) | (o.ready ? READY : 0) | (o.order === 'conceal' ? CONCEAL : 0) | (o.counteracted ? COUNTERED : 0) | (o.poison ? POISON : 0), o.ml || 0]);
 }
 
 function ensureReplay(g) {
@@ -64,10 +65,10 @@ export function viewAt(rep, i) {
     cp: s.cp, vp: s.vp, kills: s.kills, ploys: s.ploys || [[], []], log: [], fight: s.fight || null,
     winner: null,
     ops: b.ops.map((o, k) => {
-      const [x, y, wounds, f] = s.o[k];
+      const [x, y, wounds, f, ml = 0] = s.o[k];
       return {
         ...o, x, y, wounds, dead: !!(f & DEAD), ready: !!(f & READY), order: f & CONCEAL ? 'conceal' : 'engage',
-        marked: !!(f & MARKED), counteracted: !!(f & COUNTERED), acted: {}, ap: 0,
+        ml, poison: !!(f & POISON), counteracted: !!(f & COUNTERED), acted: {}, ap: 0,
       };
     }),
   };

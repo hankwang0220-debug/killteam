@@ -20,7 +20,7 @@ export const HELP = {
   </table>
   <p><b>控制範圍</b>：1" 以內。<b>受傷</b>：生命低於起始一半時，Move -2"，武器命中值變差 1。</p>
   <h3>反擊 (Counteract)</h3>
-  <p>當你已沒有準備中的特工、對手還有時，在對手每次啟動之間，你可以選一名<b>已行動、交戰指令（死亡天使不限指令）、本回合未反擊過</b>的特工，免費執行一個 1AP 動作，移動不超過 2"。</p>
+  <p>當你已沒有準備中的特工、對手還有時，在對手每次啟動之間，你可以選一名<b>已行動、交戰指令（死亡天使與瘟疫戰士不限指令）、本回合未反擊過</b>的特工，免費執行一個 1AP 動作，移動不超過 2"。</p>
   <h3>射擊結算</h3>
   <ol>
     <li>攻擊方擲 ATK 顆骰：≥ HIT 為命中，6 為<b>暴擊</b>，1 必定失敗。</li>
@@ -63,11 +63,20 @@ export const HELP = {
     <tr><td>毀滅 X</td><td>每個暴擊成功額外造成 X 傷害（該骰之後仍照常結算）。</td></tr>
     <tr><td>飽和</td><td>防禦方不能保留掩護豁免。</td></tr>
     <tr><td>搜尋（輕型）</td><td>選擇目標時，隱蔽的敵人不能用輕型地形當掩護（仍保有掩護豁免）。</td></tr>
+    <tr><td>搜尋</td><td>選擇目標時，隱蔽的敵人不能用任何地形當掩護。</td></tr>
     <tr><td>無聲</td><td>隱蔽指令下也能用這把武器射擊。</td></tr>
+    <tr><td>限用 X</td><td>每名特工整場只能使用 X 次。</td></tr>
+    <tr><td>過熱</td><td>使用後擲 1 顆 D6，若小於武器命中值，射手受到點數 ×2 的傷害。</td></tr>
+    <tr><td>中毒</td><td>用這把武器造成傷害時，敵人獲得中毒標記；有中毒標記的特工每次啟動時受到 1 傷害。</td></tr>
+    <tr><td>劇毒</td><td>對行動開始時已中毒的敵人，兩個傷害值都 +1。</td></tr>
+    <tr><td>震撼</td><td>近戰時第一次用暴擊打擊，同時移除對方一個未結算的普通成功（沒有則移除暴擊）。</td></tr>
+    <tr><td>昏迷</td><td>有暴擊成功時，目標下次啟動 APL -1。</td></tr>
+    <tr><td>靈能</td><td>靈能武器（瘟疫戰士的阿斯塔特規則會用到）。</td></tr>
+    <tr><td>懲罰</td><td>有暴擊成功時，可把 1 顆失敗骰改為普通成功。</td></tr>
     <tr><td>洪流 X</td><td>射擊主要目標後，也射擊其 X" 內其他有效目標（不能在己方控制範圍內），各自擲骰。</td></tr>
     <tr><td>爆炸 X</td><td>射擊主要目標後，也射擊其 X" 內可見的所有特工（包括己方、無視隱蔽），掩護與遮蔽沿用主要目標。</td></tr>
   </table>
-  <p class="hint small">本 App 為非官方粉絲作品。死亡天使使用官方線上資料卡的數值（能力文字為改寫）；其他隊伍為暫定範例，可在 js/data/teams.js 修改。</p>`,
+  <p class="hint small">本 App 為非官方粉絲作品。死亡天使、探路者、瘟疫戰士與歐克蠻人使用官方線上資料卡的數值（能力文字為改寫）；帝國衛兵小隊為暫定範例，可在 js/data/teams.js 修改。</p>`,
 
   en: `<h2>Quick Rules</h2>
   <h3>Game sequence</h3>
@@ -89,7 +98,7 @@ export const HELP = {
   </table>
   <p><b>Control range</b>: within 1". <b>Injured</b>: below half starting wounds, -2" Move and Hit worsens by 1.</p>
   <h3>Counteract</h3>
-  <p>When you have no ready operatives but your opponent does, between their activations you may pick an <b>expended, Engage-order</b> (Angels of Death: any order) operative that hasn't counteracted this TP to perform one free 1AP action, moving no more than 2".</p>
+  <p>When you have no ready operatives but your opponent does, between their activations you may pick an <b>expended, Engage-order</b> (Angels of Death and Plague Marines: any order) operative that hasn't counteracted this TP to perform one free 1AP action, moving no more than 2".</p>
   <h3>Shooting</h3>
   <ol>
     <li>Attacker rolls ATK dice: ≥ HIT is a hit, 6 is a <b>critical</b>, 1 always fails.</li>
@@ -132,9 +141,18 @@ export const HELP = {
     <tr><td>Devastating X</td><td>Each retained crit also inflicts X damage (and still resolves as normal).</td></tr>
     <tr><td>Saturate</td><td>The defender cannot retain cover saves.</td></tr>
     <tr><td>Seek Light</td><td>When picking targets, Concealed enemies can't use Light terrain for cover (they keep the cover save).</td></tr>
+    <tr><td>Seek</td><td>When picking targets, Concealed enemies can't use any terrain for cover.</td></tr>
     <tr><td>Silent</td><td>Can shoot with this weapon while on a Conceal order.</td></tr>
+    <tr><td>Limited X</td><td>Each operative can use it X times per battle.</td></tr>
+    <tr><td>Hot</td><td>After use, roll a D6: if it's below the weapon's Hit, the shooter takes twice the result in damage.</td></tr>
+    <tr><td>Poison</td><td>Damaging an enemy with it gives a Poison token; a poisoned operative takes 1 damage whenever it's activated.</td></tr>
+    <tr><td>Toxic</td><td>+1 to both Dmg against an enemy poisoned at the start of the action.</td></tr>
+    <tr><td>Shock</td><td>In a fight, the first crit strike also discards an unresolved enemy normal success (or a crit if none).</td></tr>
+    <tr><td>Stun</td><td>With any crit retained, the target gets -1 APL until the end of its next activation.</td></tr>
+    <tr><td>Psychic</td><td>A Psychic weapon (used by the Plague Marines' Astartes rule).</td></tr>
+    <tr><td>Punishing</td><td>With any crit retained, one fail becomes a normal success.</td></tr>
     <tr><td>Torrent X</td><td>After the first target, also shoot other valid targets within X" of it (not within friendly control range), rolling separately.</td></tr>
     <tr><td>Blast X</td><td>After the first target, also shoot every operative visible within X" of it — friends included, Conceal ignored; cover and obscured follow the first target.</td></tr>
   </table>
-  <p class="hint small">Unofficial fan project. Angels of Death use the stats from the official online datacards (ability text paraphrased); the other teams are placeholders — edit js/data/teams.js.</p>`,
+  <p class="hint small">Unofficial fan project. Angels of Death, Pathfinders, Plague Marines and Kommandos use the stats from the official online datacards (ability text paraphrased); Imperial Troopers is a placeholder — edit js/data/teams.js.</p>`,
 };

@@ -1,11 +1,12 @@
 import { TEAMS, TEAM_MAP, RULE_LABELS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
-  ACTIONS, activate, activeOp, autoDeploy, availableActions, buyPloy, deployOk, doMark, doMove, endActivation,
-  engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, markCheck, moveAllowance, moveStat, newGame, opName,
+  ACTIONS, activate, activeOp, autoDeploy, availableActions, buyPloy, deployOk, doMove, endActivation,
+  engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName,
+  TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
-  ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty,
+  ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending,
 } from './game.js';
 import { renderBoard } from './board.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -21,11 +22,11 @@ let g = null;
 const ui = {
   screen: 'home',
   sel: null,          // inspected / selected operative uid
-  mode: null,         // {kind:'move', action} | {kind:'shoot', weapon} | {kind:'fight', weapon} | {kind:'mark'}
+  mode: null,         // {kind:'move', action} | {kind:'shoot', weapon} | {kind:'fight', weapon} | {kind:'target', action}
   path: null,         // movement preview
   result: null,       // dice dialog
   help: false,
-  setup: { teams: ['angels', 'greenskin'], ai: 1, tactics: [null, null] },
+  setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null] },
 };
 let aiTimer = null;
 
@@ -296,6 +297,7 @@ function teamInfo(t) {
     <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.ops.reduce((n, o) => n + o.count, 0)}</dd>
     <dt>${L('一盒成軍', 'One box')}</dt><dd>${esc(tx(i.oneBox))}</dd>
     <dt>${L('目前可購買', 'Available')}</dt><dd>${esc(tx(i.buyable))}</dd>
+    ${i.note ? `<dt>${L('備註', 'Note')}</dt><dd class="bad">${esc(tx(i.note))}</dd>` : ''}
   </dl>`;
 }
 
@@ -441,14 +443,16 @@ function boardUi() {
     b.highlight = new Map();
     for (const t of living(g, 1 - op.side)) {
       const c = shootCheck(g, op, t, ui.mode.weapon);
-      if (c.ok) b.highlight.set(t.uid, c.cover && !t.marked && !ui.mode.weapon.rules.ignoreCover ? 'cover' : 'target');
+      if (!c.ok) continue;
+      const r = effectiveRules(g, op, ui.mode.weapon, t);
+      b.highlight.set(t.uid, c.cover && !r.ignoreCover && !r.saturate ? 'cover' : 'target');
     }
   }
   if (op && ui.mode?.kind === 'fight') {
     b.highlight = new Map(engagedEnemies(g, op).map((e) => [e.uid, 'target']));
   }
-  if (op && ui.mode?.kind === 'mark') {
-    b.highlight = new Map(living(g, 1 - op.side).filter((e) => markCheck(g, op, e)).map((e) => [e.uid, 'target']));
+  if (op && ui.mode?.kind === 'target') {
+    b.highlight = new Map(TARGET_ACTIONS[ui.mode.action].targets(g, op).map((e) => [e.uid, 'target']));
   }
   return b;
 }
@@ -551,8 +555,8 @@ function firefightPanel() {
   }
 
   // Active operative
-  const apMax = op.counter ? 1 : tpl(op).apl;
-  html += `<div class="activehead"><b>${nm(op)}${op.counter ? ` <small>${L('（反擊）', '(counteract)')}</small>` : ''}</b><span class="ap">${'●'.repeat(op.ap)}${'○'.repeat(Math.max(0, apMax - op.ap))} AP</span></div>`;
+  const apMax = op.counter ? 1 : aplNow(g, op);
+  html += `<div class="activehead"><b>${nm(op)}${op.counter ? ` <small>${L('（反擊）', '(counteract)')}</small>` : ''}</b><span class="ap">${'●'.repeat(Math.max(0, op.ap))}${'○'.repeat(Math.max(0, apMax - op.ap))} AP</span></div>`;
   if (ui.notice) html += `<p class="bad small">${esc(ui.notice)}</p>`;
   else if (canSwitchActive(g)) html += `<p class="hint small">${L('執行第一個動作前，點其他己方特工可以改啟動它。', 'Until the first action, tap another of your operatives to activate it instead.')}</p>`;
   if (!op.orderSet) {
@@ -605,7 +609,20 @@ function modeView(op) {
     return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}${area}</p><div class="row">${cancel}</div></div>`;
   }
   if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人。', 'Tap an engaged enemy.')}</p><div class="row">${cancel}</div></div>`;
-  if (m.kind === 'mark') return `<div class="mode"><h3>${L('標記', 'Mark')}</h3><p class="hint">${L('點擊一個可見敵人進行標記。', 'Tap a visible enemy to mark it.')}</p><div class="row">${cancel}</div></div>`;
+  if (m.kind === 'target') {
+    const hint = {
+      markerlight: L('點擊一個可見的敵人，讓它獲得標記光標記。', 'Tap a visible enemy to give it Markerlight tokens.'),
+      signal: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
+      systemJam: L('點擊一個可見的敵人，它下次啟動 APL -1。', 'Tap a visible enemy: -1 APL for its next activation.'),
+      medikit: L('點擊控制範圍內受傷的友方（無人機除外），回復 2D3 生命。', 'Tap a wounded friendly (not a drone) in control range to regain 2D3 wounds.'),
+      miasma: L('點擊 7" 內可見（或可射擊）的敵人：未中毒則中毒，已中毒則受到 3 傷害。', 'Tap an enemy visible within 7" (or a valid target): it is poisoned, or takes 3 damage if it already was.'),
+      getItDun: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
+      listenIn: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
+      stunGrenade: L('點擊 6" 內可見的敵人：它與 1" 內的每個特工擲 D6，3+ 下次啟動 APL -1。', 'Tap an enemy visible within 6": it and every operative within 1" roll a D6 — on a 3+, -1 APL next activation.'),
+      vitality: L('點擊 3" 內可見、受傷的友方：擲 2D6，總和 7 回復 7 生命，否則回復較高的那顆骰。', 'Tap a wounded friendly visible within 3": roll 2D6 — a 7 regains 7 wounds, otherwise the highest die.'),
+    }[m.action];
+    return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${hint}</p><div class="row">${cancel}</div></div>`;
+  }
   return '';
 }
 
@@ -644,8 +661,12 @@ function datacard(op, extra = '') {
   const flags = [];
   if (injuredPenalty(g, op)) flags.push(`<span class="flag inj">${L('受傷：Move -2"、命中 -1', 'Injured: -2" Move, -1 to hit')}</span>`);
   else if (isInjured(op)) flags.push(`<span class="flag inj">${L('受傷（無所畏懼：無減益）', 'Injured (Know No Fear: no penalty)')}</span>`);
+  if (!injuredPenalty(g, op) && statPenalty(g, op)) flags.push(`<span class="flag inj">${L('傳染：Move -2"、命中 -1', 'Contagion: -2" Move, -1 to hit')}</span>`);
+  if (op.poison) flags.push(`<span class="flag poison">${L('中毒', 'Poisoned')}</span>`);
   if (op.optics) flags.push(`<span class="flag mk">${L('光學瞄準', 'Optics')}</span>`);
-  if (op.marked) flags.push(`<span class="flag mk">${L('已被標記', 'Marked')}</span>`);
+  if (op.ml) flags.push(`<span class="flag mk">${L(`標記光 ×${op.ml}`, `Markerlight ×${op.ml}`)}</span>`);
+  if (op.aplNext) flags.push(`<span class="flag ${op.aplNext < 0 ? 'inj' : ''}">${L(`下次啟動 APL ${op.aplNext > 0 ? '+' : ''}${op.aplNext}`, `Next activation APL ${op.aplNext > 0 ? '+' : ''}${op.aplNext}`)}</span>`);
+  if (tpl(op).drone) flags.push(`<span class="flag">${L('無人機', 'Drone')}</span>`);
   if (op.order === 'conceal') flags.push(`<span class="flag">◐ ${L('隱蔽', 'Concealed')}</span>`);
   if (g.phase === 'firefight' && !op.ready && g.active !== op.uid) flags.push(`<span class="flag">${L('已行動', 'Expended')}</span>`);
   return `<section class="card datacard" style="--tc:${tm.color}">
@@ -659,7 +680,44 @@ function datacard(op, extra = '') {
     <table class="weapons"><tr><th></th><th>ATK</th><th>HIT</th><th>DMG</th></tr>
     ${t.weapons.map((w) => `<tr><td>${w.type === 'ranged' ? '⌖' : '⚔'} ${esc(bi(w.name))}${ruleText(w.rules) ? `<div class="wrules">${esc(ruleText(w.rules))}</div>` : ''}</td>
       <td>${w.atk}</td><td>${w.hit}+</td><td>${w.dmg[0]}/${w.dmg[1]}</td></tr>`).join('')}</table>
+    ${abilityList(t)}
   </section>`;
+}
+
+// Short descriptions of operative abilities, keyed by the operative flag in teams.js.
+const ABILITIES = {
+  markerlight: (v) => [`標記光${v > 1 ? '（高強度）' : ''}`, `Markerlight${v > 1 ? ' (high-intensity)' : ''}`, `1AP：可見敵人獲得 ${v} 個標記光標記。`, `1AP: a visible enemy gains ${v} Markerlight token(s).`],
+  signal: () => ['信號', 'Signal', '1AP：6" 內可見的另一名友方下次啟動 APL +1。', '1AP: another visible friendly within 6" gets +1 APL next activation.'],
+  systemJam: () => ['系統干擾', 'System Jam', '1AP（非隱蔽）：可見敵人下次啟動 APL -1。', '1AP (not Concealed): a visible enemy gets -1 APL next activation.'],
+  medikit: () => ['醫療包', 'Medikit', '1AP：控制範圍內受傷的友方（無人機除外）回復 2D3 生命。', '1AP: a wounded friendly (not a drone) in control range regains 2D3 wounds.'],
+  medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將失去戰鬥能力時改為剩 1 生命，雙方下次啟動 APL -1。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation.'],
+  multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
+  droneController: () => ['無人機操控員', 'Drone Controller', '在場時友方無人機 Move +2"。', 'While it is in the killzone, friendly drones get +2" Move.'],
+  veteran: () => ['老兵', 'Veteran', '使用蒙卡或考陽的回合，兩者效果都適用於它。', "In a TP with Mont'ka or Kauyon, it gets both."],
+  drone: (v) => ['無人機', 'Drone', `只能執行：${v.map((a) => ACTIONS[a].name.zh).join('、')}；控制目標時 APL 視為 -1。`, `Only: ${v.map((a) => ACTIONS[a].name.en).join(', ')}; counts as 1 APL lower for objective control.`],
+  camoCloak: () => ['迷彩斗篷', 'Camo Cloak', '被射擊時無視飽和，並擁有「隱匿」戰團戰術。', 'Ignores Saturate when shot and has the Stealthy tactic.'],
+  optics: () => ['光學瞄準', 'Optics', '1AP：直到下次啟動，射擊時敵人不能被遮蔽。', '1AP: until its next activation, enemies cannot be obscured when it shoots.'],
+  doctrineWarfare: () => ['教條戰', 'Doctrine Warfare', '毀滅與戰術教條整場各一次 0CP。', 'Devastator and Tactical doctrines cost 0CP once per battle each.'],
+  blessing: () => ['祖父的祝福', "Grandfather's Blessing", '7" 內中毒的敵人失去生命時，回復同等生命（每回合最多 3）。', 'When a poisoned enemy within 7" loses wounds, regains as many (max 3 per TP).'],
+  flail: () => ['連枷', 'Flail', '1AP（視為近戰，非隱蔽）：2" 內可見的其他特工（包括己方）各受 D3+2 傷害；敵人 D3 擲出 3 時中毒。', '1AP (counts as Fight, not Concealed): every other operative visible within 2" (friends too) takes D3+2; an enemy rolling a 3 on the D3 is poisoned.'],
+  iconBearer: () => ['掌旗手', 'Icon Bearer', '控制目標時 APL 視為 +1；在敵方領域時「傳染」0CP。', 'Counts as +1 APL for objective control; Contagion costs 0CP while it is in enemy territory.'],
+  miasma: () => ['毒瘴', 'Poisonous Miasma', '1AP（靈能）：7" 內可見的敵人中毒；已中毒則受到 3 傷害。', '1AP (Psychic): an enemy visible within 7" is poisoned, or takes 3 damage if it already was.'],
+  krumpin: () => ["揍人時間", "Krumpin' Time", '每次啟動可執行兩次近戰。', 'Can perform two Fight actions per activation.'],
+  support: (v) => (v === 'getItDun'
+    ? ['快去做！', 'Get It Dun!', '1AP（支援，不能在反擊時）：6" 內可見的另一名友方下次啟動 APL +1。', '1AP (Support, not while counteracting): another visible friendly within 6" gets +1 APL next activation.']
+    : ['聽好了', 'Listen In', '1AP（支援）：6" 內可見的另一名友方下次啟動 APL +1。', '1AP (Support): another visible friendly within 6" gets +1 APL next activation.']),
+  dakkaDash: () => ['達卡衝刺', 'Dakka Dash', '1AP（非隱蔽）：免費衝刺一次並用達卡槍免費射擊一次，順序不限。', '1AP (not Concealed): a free Dash and a free dakka shoota Shoot, in either order.'],
+  datAllYouGot: () => ['就這樣？', 'Dat All You Got?', '近戰或反擊後若還站著，對方受到 D3 傷害。', 'After fighting or retaliating, if still standing, the enemy takes D3 damage.'],
+  wotNotz: () => ['戰術小玩意', 'Taktical Wot-notz', '每回合一次，一名小子可丟震撼手雷：6" 內可見的敵人及其 1" 內的特工擲 D6，3+ 下次啟動 APL -1。', 'Once per TP, one Boy can throw a Stun Grenade: an enemy visible within 6" and every operative within 1" of it roll a D6 — on a 3+, -1 APL next activation.'],
+  vitality: () => ['腐敗活力', 'Putrescent Vitality', '1AP（靈能，每回合一次）：3" 內可見的友方擲 2D6，7 回復 7，否則回復較高的骰。', '1AP (Psychic, once per TP): a friendly visible within 3" rolls 2D6 — 7 regains 7, otherwise the highest die.'],
+};
+
+function abilityList(t) {
+  const items = Object.keys(ABILITIES).filter((k) => t[k]).map((k) => {
+    const [zh, en, dzh, den] = ABILITIES[k](t[k]);
+    return `<li><b>${L(zh, en)}</b>：${L(dzh, den)}</li>`;
+  });
+  return items.length ? `<ul class="abilities">${items.join('')}</ul>` : '';
 }
 
 function logView() {
@@ -696,7 +754,12 @@ function fightView(readonly = false) {
     </div>`;
   };
   const stepTxt = (s) => {
-    if (s.act === 'strike') return `<li>${who(s.side)} ${L('打擊', 'strikes')}${s.crit ? L('（暴擊）', ' (crit)') : ''} → ${s.dmg} ${L('傷害', 'dmg')}${s.killed ? ' ☠' : ''}</li>`;
+    if (s.act === 'strike') {
+      const extra = [];
+      if (s.resil) extra.push(L(`韌性擲 ${s.resil.roll}${s.resil.saved ? '，-1' : ''}`, `Resilient rolled ${s.resil.roll}${s.resil.saved ? ', -1' : ''}`));
+      if (s.shocked) extra.push(L(`震撼：移除對方一個${s.shocked === 'c' ? '暴擊' : '普通'}`, `Shock: discards an enemy ${s.shocked === 'c' ? 'crit' : 'normal'}`));
+      return `<li>${who(s.side)} ${L('打擊', 'strikes')}${s.crit ? L('（暴擊）', ' (crit)') : ''} → ${s.dmg} ${L('傷害', 'dmg')}${s.killed ? ' ☠' : ''}${extra.length ? ` <small>(${extra.join(' · ')})</small>` : ''}</li>`;
+    }
     return `<li>${who(s.side)} ${L('格擋', 'parries')}${s.crit ? L('（用暴擊）', ' (with a crit)') : ''} ${s.blocked ? L('對方一個暴擊', 'an enemy crit') : L('對方一個普通', 'an enemy normal')}</li>`;
   };
   let action;
@@ -719,14 +782,14 @@ function fightView(readonly = false) {
   }
   return `<h2>⚔ ${L('近戰', 'Fight')}</h2>
     <div class="fsides">${pool('A')}${pool('D')}</div>
-    <ol class="steps">${f.steps.map(stepTxt).join('') || (f.done ? `<li>${L('雙方都沒有成功骰', 'No successes on either side')}</li>` : '')}</ol>
+    <ol class="steps">${f.steps.map(stepTxt).join('') || (f.done ? `<li>${L('雙方都沒有成功骰', 'No successes on either side')}</li>` : '')}${f.datAllYouGot ? `<li>${who(f.datAllYouGot.side)} ${L(`「就這樣？」→ ${f.datAllYouGot.dmg} 傷害`, `"Dat All You Got?" → ${f.datAllYouGot.dmg} dmg`)}</li>` : ''}</ol>
     ${action}`;
 }
 
-const DIE_NOTES = { rr: ['重擲', 'Re-rolled'], rend: ['撕裂', 'Rending'], sev: ['嚴厲', 'Severe'], indo: ['帝國征程', 'Indomitus'], auto: ['精準', 'Accurate'] };
+const DIE_NOTES = { rr: ['重擲', 'Re-rolled'], rend: ['撕裂', 'Rending'], sev: ['嚴厲', 'Severe'], indo: ['帝國征程', 'Indomitus'], auto: ['精準', 'Accurate'], pun: ['懲罰', 'Punishing'] };
 const die = (d) => {
   const marks = Object.keys(DIE_NOTES).filter((k) => d[k]);
-  const cls = marks.map((k) => (k === 'sev' || k === 'indo' || k === 'auto' ? 'rend' : k)).join(' ');
+  const cls = marks.map((k) => (k === 'rr' ? 'rr' : 'rend')).join(' ');
   return `<span class="die ${d.res} ${cls}" title="${marks.map((k) => L(...DIE_NOTES[k])).join(', ')}">${d.v}</span>`;
 };
 
@@ -738,9 +801,15 @@ function resultView(r, readonly = false) {
       const st = getOp(g, s.target);
       return `<h3 class="sub">${L('次要目標', 'Secondary target')}：<b style="color:${team(g, st.side).color}">${nm(st)}</b></h3>${shotView(s, st)}`;
     }).join('');
+    const ml = r.weapon.rules.noMarkerlight ? 0 : t.ml || 0;
+    const pre = [];
+    if (ml && team(g, a.side).markerlights) pre.push(L(`標記光 ×${ml}`, `Markerlight ×${ml}`));
+    if (r.suppressed) pre.push(L('壓制射擊：不能重擲攻擊骰', 'Suppressing Fire: no attack re-rolls'));
+    const hot = r.hot ? `<p class="hint small ${r.hot.dmg ? 'bad' : ''}">${L(`過熱：擲 ${r.hot.roll}`, `Hot: rolled ${r.hot.roll}`)} → ${r.hot.dmg ? L(`自身受到 ${r.hot.dmg} 傷害${r.hot.killed ? ' ☠' : ''}`, `takes ${r.hot.dmg} damage${r.hot.killed ? ' ☠' : ''}`) : L('沒事', 'no damage')}</p>` : '';
     return `<h2>⌖ ${L('射擊', 'Shooting')}</h2>
       <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b> · ${esc(bi(r.weapon.name))}${r.ap > 1 ? ` · ${r.ap}AP` : ''}</p>
-      ${shotView(r, t)}${extra}
+      ${pre.length ? `<p class="hint small">${pre.join(' · ')}</p>` : ''}
+      ${shotView(r, t)}${extra}${hot}
       ${readonly ? '' : `<button class="primary wide" data-act="closeresult">${L('繼續', 'Continue')}</button>`}`;
   }
   return '';
@@ -754,6 +823,14 @@ function shotView(s, t) {
   else if (s.saturated) notes.push(L('飽和：無法保留掩護豁免', 'Saturate: no cover saves'));
   if (s.pierce) notes.push(L(`穿甲：少擲 ${s.pierce} 顆`, `Piercing: ${s.pierce} fewer dice`));
   if (s.dev) notes.push(L(`毀滅：額外 ${s.dev} 傷害`, `Devastating: ${s.dev} extra damage`));
+  if (s.tox) notes.push(L('劇毒：傷害 +1', 'Toxic: +1 damage'));
+  if (s.skulk) notes.push(L('鬼祟潛行：多保留 1 顆防禦骰', 'Skulk About: one extra defence die retained'));
+  if (s.resilient?.length) {
+    const saved = s.resilient.filter((x) => x.saved).length;
+    notes.push(L(`令人作嘔的韌性：擲 ${s.resilient.map((x) => x.roll).join('、')}，減免 ${saved} 傷害`, `Disgustingly Resilient: rolled ${s.resilient.map((x) => x.roll).join(', ')}, ${saved} damage prevented`));
+  }
+  if (s.poisoned) notes.push(L('目標中毒', 'Target poisoned'));
+  if (s.stunned) notes.push(L('昏迷：目標下次啟動 APL -1', 'Stun: -1 APL next activation'));
   const rt = ruleText(Object.fromEntries(Object.entries(s.rules).filter(([k]) => k !== 'range')));
   return `${rt ? `<p class="hint small">${esc(rt)}</p>` : ''}
     <div class="dicerow"><label>${L('攻擊', 'Attack')} (${s.hit}+)</label>${s.attack.dice.map(die).join('')}
@@ -790,7 +867,7 @@ function afterChange() {
   ui.notice = null;
   // Auto-end a player activation with no AP left (after a move or mark).
   const a = activeOp(g);
-  if (a && !ui.result && !g.fight && g.ai !== g.turn && (a.ap <= 0 || a.dead)) { endActivation(g); ui.sel = null; }
+  if (a && !ui.result && !g.fight && g.ai !== g.turn && ((a.ap <= 0 && !freePending(a)) || a.dead)) { endActivation(g); ui.sel = null; }
   if (g.phase === 'strategy' && g.ai === ployChooser(g)) {
     aiStrategy(g, g.ai);
     finishPloys(g);
@@ -824,7 +901,8 @@ function onBoardClick(evt) {
   if (g.phase !== 'firefight') { if (clicked) { ui.sel = clicked.uid; render(); } return; }
   const myTurn = g.ai !== g.turn;
 
-  if (clicked && trySelectOwn(clicked)) return;
+  // While picking a friendly for Signal / Medikit, tapping your own operative doesn't switch activation.
+  if (clicked && ui.mode?.kind !== 'target' && trySelectOwn(clicked)) return;
   if (op && ui.mode && myTurn) {
     const m = ui.mode;
     if (m.kind === 'move') return previewMove(op, m.action, p);
@@ -835,7 +913,9 @@ function onBoardClick(evt) {
       if (m.kind === 'fight' && m.weapon && engagedEnemies(g, op).includes(clicked)) {
         startFight(g, op, m.weapon, clicked); ui.mode = null; return afterChange();
       }
-      if (m.kind === 'mark' && markCheck(g, op, clicked)) { doMark(g, op, clicked); ui.mode = null; return afterChange(); }
+    }
+    if (clicked && m.kind === 'target' && TARGET_ACTIONS[m.action].targets(g, op).includes(clicked)) {
+      doTargetAction(g, op, m.action, clicked); ui.mode = null; return afterChange();
     }
     if (clicked) { ui.sel = clicked.uid; render(); }
     return;
@@ -982,8 +1062,10 @@ function handle(act, d) {
         const type = d.id === 'shoot' ? 'ranged' : 'melee';
         const ws = tpl(op).weapons.filter((w) => w.type === type);
         ui.mode = { kind: d.id, weapon: ws.length === 1 ? ws[0] : null };
-      } else if (d.id === 'mark') ui.mode = { kind: 'mark' };
+      } else if (TARGET_ACTIONS[d.id]) ui.mode = { kind: 'target', action: d.id };
       else if (d.id === 'optics') { doOptics(g, op); return afterChange(); }
+      else if (d.id === 'flail') { doFlail(g, op); return afterChange(); }
+      else if (d.id === 'dakkaDash') { doDakkaDash(g, op); return afterChange(); }
       ui.path = null;
       return render();
     }

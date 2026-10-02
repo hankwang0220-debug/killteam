@@ -89,6 +89,8 @@ button.wide { width: 100%; margin-top: 10px; }
 .roster { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 .rrow { display: flex; justify-content: space-between; gap: 8px; font-size: .88rem; padding: 2px 0; }
 .stats { color: var(--muted); white-space: nowrap; }
+.abilities { margin: 8px 0 0; padding-left: 18px; font-size: .8rem; color: var(--muted); }
+.abilities b { color: var(--text); }
 .teaminfo { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 8px; font-size: .84rem; }
 .teaminfo dt { color: var(--muted); }
 .teaminfo dd { margin: 0; }
@@ -119,6 +121,8 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .wfg.inj { fill: var(--bad); }
 #board .badge { font-size: .42px; fill: #fff; text-anchor: middle; pointer-events: none; }
 #board .mark { fill: #ff3b30; stroke: #fff; stroke-width: .04; }
+#board .poisontok { fill: #8fd14f; stroke: #1b1b1b; stroke-width: .04; }
+#board .marktxt { font-size: .3px; font-weight: 700; text-anchor: middle; fill: #fff; pointer-events: none; }
 #board .selRing { fill: none; stroke: #fff; stroke-width: .07; opacity: .8; }
 #board .activeRing { fill: none; stroke: var(--brass); stroke-width: .1; }
 #board .tgt { fill: rgba(224, 86, 79, .18); stroke: var(--bad); stroke-width: .08; animation: pulse 1s ease-in-out infinite; }
@@ -199,6 +203,7 @@ button.wide { width: 100%; margin-top: 10px; }
 .flag { font-size: .75rem; padding: 1px 7px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); }
 .flag.inj { border-color: var(--bad); color: var(--bad); }
 .flag.mk { border-color: #ff3b30; }
+.flag.poison { border-color: #8fd14f; color: #8fd14f; }
 table.weapons, table.final { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .85rem; }
 table.weapons th, table.final th { color: var(--muted); font-weight: 400; font-size: .75rem; text-align: center; }
 table.weapons td, table.final td { padding: 4px 2px; border-top: 1px solid var(--line); text-align: center; }
