@@ -129,6 +129,14 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .mhint { font-size: .38px; text-anchor: middle; fill: #5ad1ff; }
 
 .boardbox { position: relative; width: 100%; }
+.boardtools { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.boardtools button { padding: 8px 12px; min-height: 40px; }
+.boardtools.on { justify-content: space-between; background: rgba(90, 209, 255, .08); border: 1px solid #5ad1ff; border-radius: 10px; padding: 6px 8px; }
+.boardtools.on span { color: #5ad1ff; font-size: .9rem; flex: 1 1 100%; }
+.boardtools.on span b { color: #fff; font-size: 1.1rem; }
+.boardtools.on span small { color: var(--muted); }
+.boardtools.on button { flex: 1; }
+@media (min-width: 600px) { .boardtools.on span { flex: 1 1 auto; } .boardtools.on button { flex: 0 0 auto; } }
 .inspect { position: absolute; width: min(300px, 64%); max-height: 94%; overflow-y: auto; z-index: 3; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.6); }
 .inspect.left { left: 8px; } .inspect.right { right: 8px; }
 .inspect.top { top: 8px; } .inspect.bottom { bottom: 8px; }

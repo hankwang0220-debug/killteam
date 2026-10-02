@@ -45,6 +45,7 @@ export const HELP = {
   <p>目標點的控制：控制範圍內己方特工 APL 總和大於敵方即控制。關鍵任務 (Crit Op) 計分尚未加入。</p>
   <h3>測量距離</h3>
   <p>隨時可用：在棋盤上按<b>滑鼠右鍵</b>新增測量點，<b>Esc</b> 回到上一個測量點，<b>左鍵</b>取消測量。點在特工上會吸附到該特工，並以底座邊緣計算距離。</p>
+  <p><b>手機／觸控</b>：按棋盤下方的「📏 測量距離」進入測量模式，點棋盤新增測量點（不會移動或選取特工），可用「上一點」「清除」，按「結束」離開。總長與各段距離會顯示在工具列。</p>
   <h3>武器規則</h3>
   <table>
     <tr><td>穿甲 X</td><td>防禦方少擲 X 顆骰。暴擊穿甲：有暴擊時才生效。</td></tr>
@@ -102,6 +103,7 @@ export const HELP = {
   <p>Objective control: friendly operatives control a marker if the total APL of those contesting it is greater than the enemy's. Crit Op scoring is not added yet.</p>
   <h3>Measuring</h3>
   <p>Available at any time: <b>right-click</b> the board to add a measuring point, <b>Esc</b> to go back one point, <b>left-click</b> to clear. Points on an operative snap to it and measure from the base edge.</p>
+  <p><b>Phone / touch</b>: tap "📏 Measure" below the board to enter measuring mode. Taps on the board add points (without moving or selecting operatives); use Undo and Clear, and Done to leave. The total and each segment are shown in the toolbar.</p>
   <h3>Weapon rules</h3>
   <table>
     <tr><td>Piercing X</td><td>Defender rolls X fewer dice. Piercing Crits: only if a crit was scored.</td></tr>

@@ -38,7 +38,7 @@ const nm = (op) => esc(opName(op, lang()));
 
 // ---------- render root ----------
 function render() {
-  if (ui.screen !== 'game') { measure.pts = []; measure.cursor = null; }
+  if (ui.screen !== 'game') { measure.pts = []; measure.cursor = null; measure.mode = false; }
   if (ui.screen === 'home') app.innerHTML = homeView();
   else if (ui.screen === 'setup') app.innerHTML = setupView();
   else app.innerHTML = gameView();
@@ -50,7 +50,26 @@ function render() {
 // ---------- measuring tool ----------
 // Right-click adds a point, Esc removes the last one, left-click clears. Points on an operative snap
 // to it and distances are measured from base edges, like on the tabletop. Usable at any time.
-const measure = { pts: [], cursor: null };
+// On touch screens the 📏 button turns on measuring mode, where taps on the board add points.
+const measure = { pts: [], cursor: null, mode: false };
+
+function measureBar() {
+  if (!measure.mode) {
+    return `<div class="boardtools"><button class="ghost" data-act="mstart">📏 ${L('測量距離', 'Measure')}</button></div>`;
+  }
+  // Board labels are tiny on a phone, so the toolbar repeats the numbers.
+  const segs = measure.pts.slice(1).map((p, i) => segLen(measure.pts[i], p));
+  const total = segs.reduce((a, b) => a + b, 0);
+  const info = segs.length
+    ? `${L('總長', 'Total')} <b>${total.toFixed(1)}"</b>${segs.length > 1 ? ` <small>(${segs.map((d) => `${d.toFixed(1)}"`).join(' + ')})</small>` : ''}`
+    : measure.pts.length ? L('再點一個位置', 'Tap another point') : L('點棋盤新增測量點', 'Tap the board to add points');
+  return `<div class="boardtools on">
+    <span>📏 ${info}</span>
+    <button data-act="mundo" ${measure.pts.length ? '' : 'disabled'}>↶ ${L('上一點', 'Undo')}</button>
+    <button data-act="mclear" ${measure.pts.length ? '' : 'disabled'}>${L('清除', 'Clear')}</button>
+    <button class="primary" data-act="mend">✕ ${L('結束', 'Done')}</button>
+  </div>`;
+}
 
 function measurePoint(evt) {
   const opEl = evt.target.closest?.('[data-uid]');
@@ -65,6 +84,8 @@ const segLen = (a, b) => Math.max(0, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.
 function drawMeasure() {
   const layer = document.getElementById('measure');
   if (!layer) return;
+  const bar = document.querySelector('.boardtools');
+  if (bar) bar.outerHTML = measureBar();
   if (!measure.pts.length) { layer.innerHTML = ''; return; }
   const last = measure.pts[measure.pts.length - 1], c = measure.cursor;
   const pts = c && Math.hypot(c.x - last.x, c.y - last.y) > 0.05 ? [...measure.pts, c] : measure.pts;
@@ -80,7 +101,7 @@ function drawMeasure() {
   for (const p of measure.pts) s.push(`<circle cx="${f(p.x)}" cy="${f(p.y)}" r="${p.r ? f(p.r + 0.12) : 0.14}" class="mpt ${p.r ? 'snap' : ''}"/>`);
   const end = pts[pts.length - 1];
   if (pts.length > 1) s.push(`<text x="${f(end.x)}" y="${f(end.y - (end.r || 0) - 0.35)}" class="mtotal">${total.toFixed(1)}"</text>`);
-  s.push(`<text x="15" y="-0.15" class="mhint">${esc(L('測量：右鍵 新增點 · Esc 上一點 · 左鍵 取消', 'Measure: right-click add point · Esc undo · left-click clear'))}</text>`);
+  if (!measure.mode) s.push(`<text x="15" y="-0.15" class="mhint">${esc(L('測量：右鍵 新增點 · Esc 上一點 · 左鍵 取消', 'Measure: right-click add point · Esc undo · left-click clear'))}</text>`);
   layer.innerHTML = s.join('');
 }
 
@@ -94,7 +115,8 @@ app.addEventListener('contextmenu', (e) => {
   drawMeasure();
 });
 app.addEventListener('pointermove', (e) => {
-  if (!measure.pts.length || !e.target.closest('#board')) return;
+  // Touch has no hover, so only a mouse draws the live segment to the cursor.
+  if (!measure.pts.length || e.pointerType === 'touch' || !e.target.closest('#board')) return;
   measure.cursor = measurePoint(e);
   drawMeasure();
 });
@@ -104,9 +126,19 @@ document.addEventListener('keydown', (e) => {
   if (!measure.pts.length) measure.cursor = null;
   drawMeasure();
 });
-// Left-click anywhere clears the measurement; on the board that click is used up by the clear.
+// Measuring mode: a tap on the board adds a point and does nothing else.
+// Otherwise a left-click anywhere clears the measurement; on the board that click is used up by the clear.
 document.addEventListener('click', (e) => {
-  if (!measure.pts.length || e.button !== 0) return;
+  if (e.button !== 0) return;
+  if (measure.mode) {
+    if (!e.target.closest('#board')) return;
+    e.stopPropagation();
+    measure.pts.push(measurePoint(e));
+    measure.cursor = null;
+    drawMeasure();
+    return;
+  }
+  if (!measure.pts.length) return;
   const onBoard = !!e.target.closest('#board');
   clearMeasure();
   if (onBoard) e.stopPropagation();
@@ -189,7 +221,7 @@ function gameView() {
   const bar = `<div class="scorebar">${scoreBox(0)}<div class="tp">${tpTxt}</div>${scoreBox(1)}</div>`;
   return `${topBar(bar)}
   <main class="game">
-    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}</div></div>
+    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}</div></div>
     <aside class="panel">${panelView()}${logView()}</aside>
   </main>`;
 }
@@ -654,6 +686,10 @@ function handle(act, d) {
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
     case 'closeinspect': ui.sel = null; return render();
+    case 'mstart': measure.mode = true; measure.pts = []; measure.cursor = null; return drawMeasure();
+    case 'mundo': measure.pts.pop(); return drawMeasure();
+    case 'mclear': measure.pts = []; return drawMeasure();
+    case 'mend': measure.mode = false; measure.pts = []; measure.cursor = null; return drawMeasure();
     case 'passcounter': passCounter(g); ui.sel = null; return afterChange();
     case 'order': setOrder(g, op, d.order); return afterChange();
     case 'action': {
