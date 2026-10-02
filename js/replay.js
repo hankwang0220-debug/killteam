@@ -1,5 +1,6 @@
 // Game recording for replays: a compact snapshot after every change, so each step can be reviewed.
 import { opName, team } from './game.js';
+import { TEAM_MAP } from './data/teams.js';
 
 const HISTORY_KEY = 'kt.history';
 const MAX_HISTORY = 10;
@@ -122,7 +123,8 @@ export function stepNotes(rep, i) {
 
 // ---------- archive of finished games ----------
 export function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
+  // Games with a team that no longer exists (e.g. the old Astartes Strike Team) can't be replayed.
+  try { return (JSON.parse(localStorage.getItem(HISTORY_KEY)) || []).filter((h) => h.teams.every((id) => TEAM_MAP[id])); } catch { return []; }
 }
 
 function saveHistory(list) {

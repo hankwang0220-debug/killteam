@@ -5,6 +5,7 @@ import {
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, markCheck, moveAllowance, moveStat, newGame, opName,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
+  ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty,
 } from './game.js';
 import { renderBoard } from './board.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -24,13 +25,19 @@ const ui = {
   path: null,         // movement preview
   result: null,       // dice dialog
   help: false,
-  setup: { teams: ['astartes', 'greenskin'], ai: 1 },
+  setup: { teams: ['angels', 'greenskin'], ai: 1, tactics: [null, null] },
 };
 let aiTimer = null;
 
 // ---------- persistence ----------
 function save() { try { if (g) localStorage.setItem(SAVE_KEY, JSON.stringify(g)); } catch { /* ignore */ } }
-function loadSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch { return null; } }
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    // A save from a team that no longer exists (e.g. the old Astartes Strike Team) can't be resumed.
+    return s && s.teams.every((id) => TEAM_MAP[id]) ? s : null;
+  } catch { return null; }
+}
 function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ } }
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -236,6 +243,7 @@ function homeView() {
         <h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
         <p>${esc(tx(t.blurb))}</p>
         <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
+        ${teamInfo(t)}
       </article>`).join('')}
     </section>
   </main>`;
@@ -250,6 +258,7 @@ function setupView() {
       <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
     ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>` : ''}
     ${roster(TEAM_MAP[s.teams[side]])}
+    ${tacticsPick(side)}
   </div>`;
   return `${topBar()}
   <main class="setup">
@@ -259,8 +268,40 @@ function setupView() {
   </main>`;
 }
 
+/** Primary + secondary Chapter Tactic for teams that have them (Angels of Death). */
+const setupTactics = (side) => ui.setup.tactics[side] || TEAM_MAP[ui.setup.teams[side]].defaultTactics;
+
+function tacticsPick(side) {
+  const t = TEAM_MAP[ui.setup.teams[side]];
+  if (!t.tactics) return '';
+  const cur = setupTactics(side);
+  const sel = (slot) => `<label>${slot ? L('次要', 'Secondary') : L('主要', 'Primary')}
+    <select data-act="tactic" data-side="${side}" data-slot="${slot}">
+      ${t.tactics.map((x) => `<option value="${x.id}" ${cur[slot] === x.id ? 'selected' : ''} ${cur[1 - slot] === x.id ? 'disabled' : ''}>${esc(bi(x.name))}</option>`).join('')}
+    </select></label>`;
+  const desc = (id) => t.tactics.find((x) => x.id === id);
+  return `<div class="tactics"><h4>${L('戰團戰術', 'Chapter Tactics')}</h4>
+    <div class="row">${sel(0)}${sel(1)}</div>
+    ${cur.map((id) => `<p class="hint small"><b>${esc(tx(desc(id).name))}</b>：${esc(tx(desc(id).desc))}</p>`).join('')}
+  </div>`;
+}
+
+/** Collector notes (archetypes, box, availability) for a team, if any. */
+function teamInfo(t) {
+  const i = t.info;
+  if (!i) return '';
+  return `<dl class="teaminfo">
+    <dt>${L('戰術行動', 'Archetypes')}</dt><dd>${i.archetypes.map((a) => esc(bi(a))).join(' + ')}</dd>
+    <dt>${L('戰鬥類型', 'Play style')}</dt><dd>${esc(tx(i.kind))}</dd>
+    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.ops.reduce((n, o) => n + o.count, 0)}</dd>
+    <dt>${L('一盒成軍', 'One box')}</dt><dd>${esc(tx(i.oneBox))}</dd>
+    <dt>${L('目前可購買', 'Available')}</dt><dd>${esc(tx(i.buyable))}</dd>
+  </dl>`;
+}
+
 function roster(t) {
   return `<div class="roster">
+    ${teamInfo(t)}
     <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
     ${t.ops.map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
       <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>`).join('')}
@@ -451,8 +492,9 @@ function strategyPanel() {
     : `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} ${L('選擇計謀', 'chooses ploys')} · CP ${g.cp[cur]}</h3>
       ${t.ploys.map((p) => {
         const on = g.ploys[cur].includes(p.id);
-        return `<button class="ploy ${on ? 'on' : ''}" data-act="ploy" data-side="${cur}" data-ploy="${p.id}" ${on || g.cp[cur] < p.cp ? 'disabled' : ''}>
-          <b>${esc(bi(p.name))}</b> <span class="cp">${p.cp}CP</span><small>${esc(tx(p.desc))}</small></button>`;
+        const cost = ployCost(g, cur, p);
+        return `<button class="ploy ${on ? 'on' : ''}" data-act="ploy" data-side="${cur}" data-ploy="${p.id}" ${on || ployTaken(g, cur, p) || g.cp[cur] < cost ? 'disabled' : ''}>
+          <b>${esc(bi(p.name))}</b> <span class="cp">${cost < p.cp ? `<s>${p.cp}</s> ` : ''}${cost}CP</span><small>${esc(tx(p.desc))}</small></button>`;
       }).join('')}</div>
       <button class="primary wide" data-act="ploysdone">${g.stratStep ? L('完成，進入交戰階段 ▶', 'Done — Start Firefight ▶') : L(`完成，換 ${esc(bi(team(g, 1 - cur).name))} ▶`, `Done — ${esc(bi(team(g, 1 - cur).name))}'s turn ▶`)}</button>`;
   const ini = team(g, first);
@@ -547,11 +589,21 @@ function modeView(op) {
   }
   if ((m.kind === 'shoot' || m.kind === 'fight') && !m.weapon) {
     const type = m.kind === 'shoot' ? 'ranged' : 'melee';
+    const btn = (w, i) => {
+      if (w.type !== type) return '';
+      const s = type === 'ranged' ? shootWeapon(g, op, w) : { ok: true, ap: 1 };
+      const note = !s.ok ? `<span class="wrules bad">${esc(tx(s.why))}</span>` : s.ap > 1 ? `<span class="wrules">${L(`第二次射擊同一把武器：${s.ap}AP`, `Second Shoot with the same weapon: ${s.ap}AP`)}</span>` : '';
+      return `<button class="weapon" data-act="weapon" data-i="${i}" ${s.ok ? '' : 'disabled'}>${weaponLine(w)}${note}</button>`;
+    };
     return `<div class="mode"><h3>${L('選擇武器', 'Choose weapon')}</h3>
-      ${tpl(op).weapons.map((w, i) => (w.type === type ? `<button class="weapon" data-act="weapon" data-i="${i}">${weaponLine(w)}</button>` : '')).join('')}
+      ${tpl(op).weapons.map(btn).join('')}
       <div class="row">${cancel}</div></div>`;
   }
-  if (m.kind === 'shoot') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}</p><div class="row">${cancel}</div></div>`;
+  if (m.kind === 'shoot') {
+    const area = m.weapon.rules.torrent ? L(`洪流：也會射擊主要目標 ${m.weapon.rules.torrent}" 內其他有效目標。`, ` Torrent: also shoots other valid targets within ${m.weapon.rules.torrent}" of the first.`)
+      : m.weapon.rules.blast ? L(`爆炸：也會射擊主要目標 ${m.weapon.rules.blast}" 內所有可見的特工（包括己方）。`, ` Blast: also shoots every operative visible within ${m.weapon.rules.blast}" of the first — friends included.`) : '';
+    return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}${area}</p><div class="row">${cancel}</div></div>`;
+  }
   if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人。', 'Tap an engaged enemy.')}</p><div class="row">${cancel}</div></div>`;
   if (m.kind === 'mark') return `<div class="mode"><h3>${L('標記', 'Mark')}</h3><p class="hint">${L('點擊一個可見敵人進行標記。', 'Tap a visible enemy to mark it.')}</p><div class="row">${cancel}</div></div>`;
   return '';
@@ -561,7 +613,8 @@ function ruleText(rules) {
   return Object.entries(rules).filter(([k]) => RULE_LABELS[k]).map(([k, v]) => {
     const lab = bi(RULE_LABELS[k]);
     if (v === true) return lab;
-    if (k === 'range') return `${lab} ${v}"`;
+    if (k === 'heavy' && v === 'dash') return `${lab}${L('（僅限衝刺）', ' (Dash only)')}`;
+    if (k === 'range' || k === 'torrent' || k === 'blast') return `${lab} ${v}"`;
     if (k === 'lethal') return `${lab} ${v}+`;
     return `${lab} ${v}`;
   }).join(', ');
@@ -589,7 +642,9 @@ function datacard(op, extra = '') {
   const t = tpl(op);
   const tm = team(g, op.side);
   const flags = [];
-  if (isInjured(op)) flags.push(`<span class="flag inj">${L('受傷：Move -2"、命中 -1', 'Injured: -2" Move, -1 to hit')}</span>`);
+  if (injuredPenalty(g, op)) flags.push(`<span class="flag inj">${L('受傷：Move -2"、命中 -1', 'Injured: -2" Move, -1 to hit')}</span>`);
+  else if (isInjured(op)) flags.push(`<span class="flag inj">${L('受傷（無所畏懼：無減益）', 'Injured (Know No Fear: no penalty)')}</span>`);
+  if (op.optics) flags.push(`<span class="flag mk">${L('光學瞄準', 'Optics')}</span>`);
   if (op.marked) flags.push(`<span class="flag mk">${L('已被標記', 'Marked')}</span>`);
   if (op.order === 'conceal') flags.push(`<span class="flag">◐ ${L('隱蔽', 'Concealed')}</span>`);
   if (g.phase === 'firefight' && !op.ready && g.active !== op.uid) flags.push(`<span class="flag">${L('已行動', 'Expended')}</span>`);
@@ -656,6 +711,7 @@ function fightView(readonly = false) {
       if (o.act === 'strike') return o.die === 'c' ? L(`打擊（暴擊）→ ${o.dmg} 傷害`, `Strike (crit) → ${o.dmg} dmg`) : L(`打擊（普通）→ ${o.dmg} 傷害`, `Strike (normal) → ${o.dmg} dmg`);
       if (o.id === 'parry-c-c') return L('格擋：用暴擊擋掉對方一個暴擊', 'Parry: crit cancels an enemy crit');
       if (o.id === 'parry-c-n') return L('格擋：用暴擊擋掉對方一個普通', 'Parry: crit cancels an enemy normal');
+      if (o.id === 'parry-n-c') return L('格擋（決鬥者）：用普通擋掉對方一個暴擊', 'Parry (Dueller): normal cancels an enemy crit');
       return L('格擋：用普通擋掉對方一個普通', 'Parry: normal cancels an enemy normal');
     };
     action = `<p>${L('輪到', 'Your choice,')} ${who(f.turn)} ${L('選擇：', '')}</p>
@@ -667,29 +723,46 @@ function fightView(readonly = false) {
     ${action}`;
 }
 
-const die = (d) => `<span class="die ${d.res}${d.rr ? ' rr' : ''}${d.rend ? ' rend' : ''}" title="${d.rr ? 'Re-rolled' : ''}">${d.v}</span>`;
+const DIE_NOTES = { rr: ['重擲', 'Re-rolled'], rend: ['撕裂', 'Rending'], sev: ['嚴厲', 'Severe'], indo: ['帝國征程', 'Indomitus'], auto: ['精準', 'Accurate'] };
+const die = (d) => {
+  const marks = Object.keys(DIE_NOTES).filter((k) => d[k]);
+  const cls = marks.map((k) => (k === 'sev' || k === 'indo' || k === 'auto' ? 'rend' : k)).join(' ');
+  return `<span class="die ${d.res} ${cls}" title="${marks.map((k) => L(...DIE_NOTES[k])).join(', ')}">${d.v}</span>`;
+};
 
 function resultView(r, readonly = false) {
   const a = getOp(g, r.attacker), t = getOp(g, r.target);
   const ca = team(g, a.side).color, ct = team(g, t.side).color;
   if (r.kind === 'shoot') {
-    const notes = [];
-    if (r.inCover) notes.push(L(`掩護：保留 ${r.coverSaves} 顆豁免`, `Cover: ${r.coverSaves} save retained`));
-    if (r.pierce) notes.push(L(`穿甲：少擲 ${r.pierce} 顆`, `Piercing: ${r.pierce} fewer dice`));
-    const rt = ruleText(Object.fromEntries(Object.entries(r.rules).filter(([k]) => k !== 'range')));
+    const extra = (r.extra || []).map((s) => {
+      const st = getOp(g, s.target);
+      return `<h3 class="sub">${L('次要目標', 'Secondary target')}：<b style="color:${team(g, st.side).color}">${nm(st)}</b></h3>${shotView(s, st)}`;
+    }).join('');
     return `<h2>⌖ ${L('射擊', 'Shooting')}</h2>
-      <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b> · ${esc(bi(r.weapon.name))}</p>
-      ${rt ? `<p class="hint small">${esc(rt)}</p>` : ''}
-      <div class="dicerow"><label>${L('攻擊', 'Attack')} (${r.hit}+)</label>${r.attack.dice.map(die).join('')}
-        <em>${L(`${r.attack.crits} 暴擊 / ${r.attack.norms} 命中`, `${r.attack.crits} crit / ${r.attack.norms} hit`)}</em></div>
-      <div class="dicerow"><label>${L('防禦', 'Defence')} (${r.save}+)</label>${'<span class="die norm cover">🛡</span>'.repeat(r.coverSaves)}${r.defence.dice.map(die).join('')}
-        <em>${L(`${r.defence.crits} 暴擊豁免 / ${r.defence.norms + r.coverSaves} 豁免`, `${r.defence.crits} crit save / ${r.defence.norms + r.coverSaves} save`)}</em></div>
-      ${notes.length ? `<p class="hint small">${notes.join(' · ')}</p>` : ''}
-      <div class="outcome">${L(`未擋下：${r.remC} 暴擊、${r.remN} 普通 → <b>${r.dmg}</b> 傷害`, `Unblocked: ${r.remC} crit, ${r.remN} normal → <b>${r.dmg}</b> damage`)}
-        <div>${nm(t)}：${r.before} → ${r.after} ${r.killed ? '☠' : ''}</div></div>
+      <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b> · ${esc(bi(r.weapon.name))}${r.ap > 1 ? ` · ${r.ap}AP` : ''}</p>
+      ${shotView(r, t)}${extra}
       ${readonly ? '' : `<button class="primary wide" data-act="closeresult">${L('繼續', 'Continue')}</button>`}`;
   }
   return '';
+}
+
+/** Dice and outcome of one shooting sequence (primary or a Torrent/Blast secondary target). */
+function shotView(s, t) {
+  const crit = s.coverCrit || 0, norm = s.coverSaves - crit;
+  const notes = [];
+  if (s.coverSaves) notes.push(L(`掩護：保留 ${s.coverSaves} 顆豁免${crit ? `（${crit} 顆暴擊）` : ''}`, `Cover: ${s.coverSaves} save retained${crit ? ` (${crit} critical)` : ''}`));
+  else if (s.saturated) notes.push(L('飽和：無法保留掩護豁免', 'Saturate: no cover saves'));
+  if (s.pierce) notes.push(L(`穿甲：少擲 ${s.pierce} 顆`, `Piercing: ${s.pierce} fewer dice`));
+  if (s.dev) notes.push(L(`毀滅：額外 ${s.dev} 傷害`, `Devastating: ${s.dev} extra damage`));
+  const rt = ruleText(Object.fromEntries(Object.entries(s.rules).filter(([k]) => k !== 'range')));
+  return `${rt ? `<p class="hint small">${esc(rt)}</p>` : ''}
+    <div class="dicerow"><label>${L('攻擊', 'Attack')} (${s.hit}+)</label>${s.attack.dice.map(die).join('')}
+      <em>${L(`${s.attack.crits} 暴擊 / ${s.attack.norms} 命中`, `${s.attack.crits} crit / ${s.attack.norms} hit`)}</em></div>
+    <div class="dicerow"><label>${L('防禦', 'Defence')} (${s.save}+)</label>${'<span class="die crit cover">🛡</span>'.repeat(crit)}${'<span class="die norm cover">🛡</span>'.repeat(norm)}${s.defence.dice.map(die).join('')}
+      <em>${L(`${s.defence.crits + crit} 暴擊豁免 / ${s.defence.norms + norm} 豁免`, `${s.defence.crits + crit} crit save / ${s.defence.norms + norm} save`)}</em></div>
+    ${notes.length ? `<p class="hint small">${notes.join(' · ')}</p>` : ''}
+    <div class="outcome">${L(`未擋下：${s.remC} 暴擊、${s.remN} 普通 → <b>${s.dmg}</b> 傷害`, `Unblocked: ${s.remC} crit, ${s.remN} normal → <b>${s.dmg}</b> damage`)}
+      <div>${nm(t)}：${s.before} → ${s.after} ${s.killed ? '☠' : ''}</div></div>`;
 }
 
 // ---------- AI scheduling ----------
@@ -844,6 +917,13 @@ modalRoot.addEventListener('click', (e) => {
 });
 app.addEventListener('change', (e) => {
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
+  if (e.target.dataset.act === 'tactic') {
+    const side = +e.target.dataset.side, slot = +e.target.dataset.slot;
+    const cur = [...setupTactics(side)];
+    cur[slot] = e.target.value;
+    ui.setup.tactics[side] = cur;
+    render();
+  }
 });
 app.addEventListener('input', (e) => {
   if (e.target.dataset.act === 'rseek') { stopReplayPlay(); ui.replay.i = +e.target.value; render(); document.querySelector('.rseek')?.focus(); }
@@ -862,7 +942,7 @@ function handle(act, d) {
     case 'closehelp': ui.help = false; return render();
     case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); return render();
     case 'setup': ui.screen = 'setup'; return render();
-    case 'pick': ui.setup.teams[+d.side] = d.team; return render();
+    case 'pick': ui.setup.teams[+d.side] = d.team; ui.setup.tactics[+d.side] = null; return render();
     case 'resume': g = loadSave(); resetRecorder(); ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; return render();
     case 'replay': return openReplay(g.replay, 'game', teamsTitle(g.teams));
     case 'replayhist': {
@@ -876,7 +956,7 @@ function handle(act, d) {
     case 'start':
       clearSave();
       resetRecorder();
-      g = newGame({ teams: [...ui.setup.teams], ai: ui.setup.ai });
+      g = newGame({ teams: [...ui.setup.teams], ai: ui.setup.ai, tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)) });
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null;
       return afterChange();
     case 'autodeploy': autoDeploy(g, +d.side); return afterChange();
@@ -903,10 +983,15 @@ function handle(act, d) {
         const ws = tpl(op).weapons.filter((w) => w.type === type);
         ui.mode = { kind: d.id, weapon: ws.length === 1 ? ws[0] : null };
       } else if (d.id === 'mark') ui.mode = { kind: 'mark' };
+      else if (d.id === 'optics') { doOptics(g, op); return afterChange(); }
       ui.path = null;
       return render();
     }
-    case 'weapon': ui.mode.weapon = tpl(op).weapons[+d.i]; return render();
+    case 'weapon': {
+      const w = tpl(op).weapons[+d.i];
+      if (w.type === 'ranged' && !shootWeapon(g, op, w).ok) return undefined;
+      ui.mode.weapon = w; return render();
+    }
     case 'cancel': ui.mode = null; ui.path = null; return render();
     case 'confirmmove':
       if (ui.path?.ok) doMove(g, op, ui.mode.action, ui.path);

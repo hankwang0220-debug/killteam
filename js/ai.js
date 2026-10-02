@@ -1,6 +1,6 @@
 import {
   activate, activeOp, availableActions, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMark, doMove, edgeDist, endActivation,
-  engagedEnemies, isInjured, living, markCheck, moveAllowance, radius, resolveShoot, shootCheck, startFight, team, tpl,
+  engagedEnemies, injuredPenalty, isInjured, living, markCheck, moveAllowance, radius, resolveShoot, shootCheck, startFight, team, tpl,
 } from './game.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -13,11 +13,13 @@ export function aiStrategy(g, side) {
 
 function shootOptions(g, op) {
   const opts = [];
-  const hitMod = isInjured(op) ? 1 : 0;
+  const hitMod = injuredPenalty(g, op) ? 1 : 0;
   for (const w of tpl(op).weapons.filter((x) => x.type === 'ranged')) {
     for (const t of living(g, 1 - op.side)) {
       const c = shootCheck(g, op, t, w);
       if (!c.ok) continue;
+      // Don't Blast a target next to friendly operatives.
+      if (w.rules.blast && living(g, op.side).some((f) => f !== op && edgeDist(t, f) <= w.rules.blast)) continue;
       let score = avgDmg(w, hitMod - (t.marked ? 1 : 0)) * (1 - (7 - tpl(t).save) / 6 * 0.5) * (c.cover ? 0.75 : 1);
       if (score >= t.wounds) score += 10; // likely kill
       score += (1 - t.wounds / t.maxW) * 2;

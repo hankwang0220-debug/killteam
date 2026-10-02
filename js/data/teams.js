@@ -1,5 +1,6 @@
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
-// weapons ATK / HIT / DMG normal/crit). Names and ability wording are original
+// weapons ATK / HIT / DMG normal/crit). Angels of Death use the official online
+// datacards (stats only, ability text paraphrased); the other teams are original
 // archetypes so you can tune or replace them with your own datacards.
 //
 // Operative stats: apl, move, save, wounds, base (mm).
@@ -14,17 +15,38 @@
 //   rending         if any crit, upgrade one normal hit to a crit
 //   brutal          (melee) opponent can only block with critical successes
 //   heavy           cannot shoot after moving in the same activation, nor move after shooting it
+//                   ('dash': Heavy (Dash only) — Dash is the one move still allowed)
 //   ignoreCover     target gets no cover save
+//   saturate        the defender cannot retain cover saves
+//   seekLight       a Concealed target can't use Light terrain for cover when picking targets
+//   silent          can shoot while the operative has a Conceal order
+//   devastating: n  each retained critical success also inflicts n damage
+//   accurate: n     retain up to n attack dice as normal successes without rolling them
+//   severe          if no critical success is retained, change one normal success to a critical
+//   torrent: n      also shoot every other valid target within n" of the first (not near friendlies)
+//   blast: n        also shoot every other operative visible to and within n" of the first
+//
+// Weapon `group` marks profiles of the same physical weapon (e.g. the sniper rifle's rounds).
 
-const W = (id, zh, en, type, atk, hit, dn, dc, rules = {}) =>
-  ({ id, name: { zh, en }, type, atk, hit, dmg: [dn, dc], rules });
+const W = (id, zh, en, type, atk, hit, dn, dc, rules = {}, group = id) =>
+  ({ id, name: { zh, en }, type, atk, hit, dmg: [dn, dc], rules, group });
 
-// ---- Astartes ----
+// ---- Angels of Death ----
 const boltRifle = W('boltRifle', '爆彈步槍', 'Bolt rifle', 'ranged', 4, 3, 3, 4, { piercingCrits: 1 });
-const boltPistol = W('boltPistol', '重型爆彈手槍', 'Heavy bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8, piercingCrits: 1 });
-const plasmaInc = W('plasmaInc', '等離子焚化槍', 'Plasma incinerator', 'ranged', 4, 3, 5, 6, { piercing: 1 });
-const powerSword = W('powerSword', '動力劍', 'Power weapon', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const heavyBoltPistol = W('heavyBoltPistol', '重型爆彈手槍', 'Heavy bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8, piercingCrits: 1 });
+const boltPistol = W('boltPistol', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const auxFrag = W('auxFrag', '輔助榴彈發射器（破片）', 'Auxiliary grenade launcher (frag)', 'ranged', 4, 3, 2, 4, { blast: 2 }, 'auxGL');
+const auxKrak = W('auxKrak', '輔助榴彈發射器（穿甲）', 'Auxiliary grenade launcher (krak)', 'ranged', 4, 3, 4, 5, { piercing: 1 }, 'auxGL');
+const hbFocused = W('hbFocused', '重型爆彈槍（集中）', 'Heavy bolter (focused)', 'ranged', 5, 3, 4, 5, { piercingCrits: 1 }, 'heavyBolter');
+const hbSweeping = W('hbSweeping', '重型爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 3, 4, 5, { piercingCrits: 1, torrent: 1 }, 'heavyBolter');
+const sniperExec = W('sniperExec', '爆彈狙擊步槍（處決者）', 'Bolt sniper rifle (executioner)', 'ranged', 4, 2, 3, 4, { heavy: 'dash', saturate: true, seekLight: true, silent: true }, 'sniper');
+const sniperHyper = W('sniperHyper', '爆彈狙擊步槍（超破片）', 'Bolt sniper rifle (hyperfrag)', 'ranged', 4, 2, 2, 4, { blast: 1, heavy: 'dash', silent: true }, 'sniper');
+const sniperMortis = W('sniperMortis', '爆彈狙擊步槍（死神）', 'Bolt sniper rifle (mortis)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: 'dash', piercing: 1, silent: true }, 'sniper');
+// Grenadier: universal frag/krak grenades with Hit improved by 1 (3+), not limited for this operative.
+const fragGrenade = W('fragGrenade', '破片手雷', 'Frag grenade', 'ranged', 4, 3, 2, 4, { range: 6, blast: 2, saturate: true });
+const krakGrenade = W('krakGrenade', '穿甲手雷', 'Krak grenade', 'ranged', 4, 3, 4, 5, { range: 6, piercing: 1, saturate: true });
 const chainswordA = W('chainswordA', '鏈鋸劍', 'Chainsword', 'melee', 5, 3, 4, 5);
+const chainswordSgt = W('chainswordSgt', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5);
 const fistsA = W('fistsA', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
 
 // ---- Greenskins ----
@@ -53,32 +75,60 @@ const op = (id, zh, en, stats, weapons, count = 1) => ({ id, name: { zh, en }, .
 
 export const TEAMS = [
   {
-    id: 'astartes',
-    name: { zh: '星際戰士突擊隊', en: 'Astartes Strike Team' },
+    id: 'angels',
+    name: { zh: '死亡天使', en: 'Angels of Death' },
     color: '#3a78d8',
-    style: { zh: '精英・少數・全能', en: 'Elite · Few · Versatile' },
+    style: { zh: '混合隊・精英・全能', en: 'Mixed · Elite · Versatile' },
     blurb: {
-      zh: '6 名重甲超人戰士。高 APL、高豁免、高傷害，每個損失都很痛。適合新手熟悉規則。',
-      en: '6 armoured super-soldiers. High APL, saves and damage — every loss hurts. Great for learning the rules.',
+      zh: '6 名星際戰士精英。高 APL、高豁免、高傷害，可連開兩槍或連打兩次近戰，並以戰團戰術與戰鬥教條調整打法。',
+      en: '6 elite Space Marines. High APL, saves and damage; they can shoot or fight twice and adapt through Chapter Tactics and Combat Doctrines.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '安全保護', en: 'Security' }, { zh: '搜索與摧毀', en: 'Seek & Destroy' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '勉強：需要起始包，另外還要仲裁者（Intercessors）與突襲仲裁者（Assault Intercessors）兩盒', en: 'Barely: needs the starter set plus the Intercessors and Assault Intercessors boxes' },
+      buyable: { zh: '能', en: 'Yes' },
     },
     rule: {
       name: { zh: '阿斯塔特', en: 'Astartes' },
       desc: {
-        zh: '每次啟動可執行「近戰」動作兩次。',
-        en: 'May perform the Fight action twice per activation.',
+        zh: '每次啟動可執行兩次「射擊」或兩次「近戰」。兩次射擊中至少一次要用爆彈武器；若兩次都用狙擊步槍或重型爆彈槍，第二次多花 1AP。不論指令為何都能反擊。開戰前選擇主要與次要戰團戰術。',
+        en: 'Each activation may perform two Shoot or two Fight actions. With two Shoots, at least one must use a bolt weapon, and the second costs +1AP if both use the bolt sniper rifle or heavy bolter. Can counteract regardless of order. Choose a primary and secondary Chapter Tactic before the battle.',
       },
     },
+    astartes: true, // engine flag for the Astartes faction rule
+    tactics: [
+      { id: 'aggressive', name: { zh: '侵略', en: 'Aggressive' }, desc: { zh: '近戰武器獲得「撕裂」。', en: 'Melee weapons have Rending.' } },
+      { id: 'dueller', name: { zh: '決鬥者', en: 'Dueller' }, desc: { zh: '近戰時，普通成功可格擋對方的暴擊（對方武器有殘暴時除外）。', en: 'When fighting or retaliating, a normal success can block a critical success (not against Brutal).' } },
+      { id: 'resolute', name: { zh: '堅毅', en: 'Resolute' }, desc: { zh: '無視 APL 變化，且不受敵方「震撼」影響。', en: 'Ignores changes to its APL and enemy Shock.' } },
+      { id: 'stealthy', name: { zh: '隱匿', en: 'Stealthy' }, desc: { zh: '被射擊時若能保留掩護豁免，可多保留 1 顆，或把其中 1 顆當成暴擊豁免。', en: 'When shot, if it can retain cover saves: retain one more, or retain one as a critical success.' } },
+      { id: 'mobile', name: { zh: '機動', en: 'Mobile' }, desc: { zh: '「撤退」少 1AP；在敵人控制範圍內也能「衝鋒」。', en: 'Fall Back costs 1 less AP; can Charge while within control range of an enemy.' } },
+      { id: 'hardy', name: { zh: '頑強', en: 'Hardy' }, desc: { zh: '被射擊時，防禦骰 5+ 為暴擊成功。', en: 'When shot, defence dice results of 5+ are critical successes.' } },
+      { id: 'sharpshooter', name: { zh: '神射手', en: 'Sharpshooter' }, desc: { zh: '本次啟動未移動、衝鋒或撤退時，爆彈武器獲得「精準 1」與「嚴厲」。', en: 'If it hasn\'t Repositioned, Charged or Fallen Back this activation, its bolt weapons have Accurate 1 and Severe.' } },
+      { id: 'siege', name: { zh: '攻城專家', en: 'Siege Specialist' }, desc: { zh: '遠程武器獲得「飽和」。', en: 'Ranged weapons have Saturate.' } },
+    ],
+    defaultTactics: ['sharpshooter', 'hardy'],
     ploys: [
-      { id: 'assaultDoctrine', cp: 1, name: { zh: '突擊教條', en: 'Assault Doctrine' },
-        desc: { zh: '本回合友方近戰武器獲得「平衡」。', en: 'This TP, friendly melee weapons gain Balanced.' } },
-      { id: 'devastatorDoctrine', cp: 1, name: { zh: '毀滅教條', en: 'Devastator Doctrine' },
-        desc: { zh: '本回合友方遠程武器獲得「平衡」。', en: 'This TP, friendly ranged weapons gain Balanced.' } },
+      // The three Combat Doctrines are one ploy: only one can be chosen per turning point.
+      { id: 'docDevastator', group: 'doctrine', cp: 1, name: { zh: '戰鬥教條：毀滅', en: 'Combat Doctrine: Devastator' },
+        desc: { zh: '本回合射擊 6" 外的敵人時，武器獲得「平衡」。', en: 'This TP, weapons have Balanced when shooting an enemy more than 6" away.' } },
+      { id: 'docTactical', group: 'doctrine', cp: 1, name: { zh: '戰鬥教條：戰術', en: 'Combat Doctrine: Tactical' },
+        desc: { zh: '本回合射擊 6" 內的敵人時，武器獲得「平衡」。', en: 'This TP, weapons have Balanced when shooting an enemy within 6".' } },
+      { id: 'docAssault', group: 'doctrine', cp: 1, name: { zh: '戰鬥教條：突擊', en: 'Combat Doctrine: Assault' },
+        desc: { zh: '本回合近戰或反擊時，武器獲得「平衡」。', en: 'This TP, weapons have Balanced when fighting or retaliating.' } },
+      { id: 'indomitus', cp: 1, name: { zh: '帝國征程', en: 'Indomitus' },
+        desc: { zh: '本回合友方被射擊時，若防禦骰失敗 2 顆以上，可把其中 1 顆改為普通成功。', en: 'This TP, when a friendly operative is shot and rolls two or more failed defence dice, one becomes a normal success.' } },
+      { id: 'noFear', cp: 1, name: { zh: '無所畏懼', en: 'And They Shall Know No Fear' },
+        desc: { zh: '本回合友方無視受傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
     ],
     ops: [
-      op('sgt', '小隊長', 'Sergeant', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [boltRifle, powerSword]),
-      op('gunner', '等離子槍手', 'Plasma Gunner', { apl: 3, move: 6, save: 3, wounds: 13, base: 32 }, [plasmaInc, fistsA]),
-      op('assault', '突擊兵', 'Assault Warrior', { apl: 3, move: 6, save: 3, wounds: 13, base: 32 }, [boltPistol, chainswordA]),
-      op('warrior', '戰士', 'Warrior', { apl: 3, move: 6, save: 3, wounds: 13, base: 32 }, [boltRifle, fistsA], 3),
+      op('sgt', '仲裁者士官', 'Intercessor Sergeant', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, doctrineWarfare: ['docDevastator', 'docTactical'] }, [boltRifle, chainswordSgt]),
+      op('assault', '突襲仲裁者戰士', 'Assault Intercessor Warrior', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [heavyBoltPistol, chainswordA]),
+      op('grenadier', '突襲仲裁者擲彈兵', 'Assault Intercessor Grenadier', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [heavyBoltPistol, fragGrenade, krakGrenade, chainswordA]),
+      op('gunner', '仲裁者槍手', 'Intercessor Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [boltRifle, auxFrag, auxKrak, fistsA]),
+      op('heavy', '重裝仲裁者槍手', 'Heavy Intercessor Gunner', { apl: 3, move: 5, save: 3, wounds: 18, base: 40 }, [boltPistol, hbFocused, hbSweeping, fistsA]),
+      op('sniper', '清除者狙擊手', 'Eliminator Sniper', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, camoCloak: true, optics: true }, [boltPistol, sniperExec, sniperHyper, sniperMortis, fistsA]),
     ],
   },
   {
@@ -183,4 +233,15 @@ export const RULE_LABELS = {
   brutal: { zh: '殘暴', en: 'Brutal' },
   heavy: { zh: '重型', en: 'Heavy' },
   ignoreCover: { zh: '無視掩護', en: 'Ignores cover' },
+  saturate: { zh: '飽和', en: 'Saturate' },
+  seekLight: { zh: '搜尋（輕型）', en: 'Seek Light' },
+  silent: { zh: '無聲', en: 'Silent' },
+  devastating: { zh: '毀滅', en: 'Devastating' },
+  accurate: { zh: '精準', en: 'Accurate' },
+  severe: { zh: '嚴厲', en: 'Severe' },
+  torrent: { zh: '洪流', en: 'Torrent' },
+  blast: { zh: '爆炸', en: 'Blast' },
 };
+
+/** A ranged weapon with "bolt" in its name (Angels of Death rules). */
+export const isBoltWeapon = (w) => w.type === 'ranged' && /bolt/i.test(w.name.en);

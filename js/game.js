@@ -1,4 +1,4 @@
-import { TEAM_MAP } from './data/teams.js';
+import { TEAM_MAP, isBoltWeapon } from './data/teams.js';
 import { dist, distPointRect, segRect } from './geometry.js';
 
 export const BOARD = { w: 30, h: 22 };
@@ -25,9 +25,13 @@ export const inEngagement = (a, b) => edgeDist(a, b) <= ER + 0.01;
 export const engagedEnemies = (g, op) => living(g, 1 - op.side).filter((e) => inEngagement(op, e));
 export const isEngaged = (g, op) => engagedEnemies(g, op).length > 0;
 export const d6 = () => 1 + Math.floor(Math.random() * 6);
+/** Injured stat changes apply (And They Shall Know No Fear ignores them). */
+export const injuredPenalty = (g, op) => isInjured(op) && !hasPloy(g, op.side, 'noFear');
+/** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
+export const hasTactic = (g, op, id) => !!g.tactics?.[op.side]?.includes(id) || (id === 'stealthy' && !!tpl(op).camoCloak);
 
 export function moveStat(g, op) {
-  return tpl(op).move - (isInjured(op) ? 2 : 0) + (hasPloy(g, op.side, 'moveMove') ? 1 : 0);
+  return tpl(op).move - (injuredPenalty(g, op) ? 2 : 0) + (hasPloy(g, op.side, 'moveMove') ? 1 : 0);
 }
 export function moveAllowance(g, op, kind) {
   let d = moveStat(g, op);
@@ -59,11 +63,14 @@ function makeTerrain() {
 const OBJECTIVES = [{ x: 15, y: 11 }, { x: 10, y: 4.5 }, { x: 20, y: 4.5 }, { x: 10, y: 17.5 }, { x: 20, y: 17.5 }];
 
 // ---------- setup ----------
-export function newGame({ teams, ai }) {
+export function newGame({ teams, ai, tactics = [] }) {
   const g = {
     v: 1, teams, ai, tp: 0, phase: 'deploy', cp: [2, 2], vp: [0, 0], kills: [0, 0], ploys: [[], []],
     initiative: 0, turn: 0, active: null, log: [], terrain: makeTerrain(),
     objectives: OBJECTIVES.map((o, i) => ({ ...o, id: i })), ops: [], seq: 0,
+    // Chapter Tactics [primary, secondary] for teams that have them; free ploys already used (Doctrine Warfare).
+    tactics: [0, 1].map((s) => (TEAM_MAP[teams[s]].tactics ? tactics[s] || TEAM_MAP[teams[s]].defaultTactics : null)),
+    freePloys: [[], []],
   };
   for (const side of [0, 1]) {
     let n = 0;
@@ -80,7 +87,12 @@ export function newGame({ teams, ai }) {
     }
     autoDeploy(g, side);
   }
-  log(g, { zh: '部署階段：可拖曳己方操作員，或點選後點擊部署區調整位置。', en: 'Deployment: drag your operatives, or select one and click inside your zone, to reposition them.' });
+  for (const side of [0, 1]) {
+    if (!g.tactics[side]) continue;
+    const names = g.tactics[side].map((id) => team(g, side).tactics.find((t) => t.id === id).name);
+    log(g, { zh: `${teamZh(g, side)} 戰團戰術：主要「${names[0].zh}」、次要「${names[1].zh}」`, en: `${team(g, side).name.en} Chapter Tactics: ${names[0].en} (primary), ${names[1].en} (secondary)` }, `side${side}`);
+  }
+  log(g,{ zh: '部署階段：可拖曳己方操作員，或點選後點擊部署區調整位置。', en: 'Deployment: drag your operatives, or select one and click inside your zone, to reposition them.' });
   return g;
 }
 
@@ -146,11 +158,27 @@ export function finishPloys(g) {
   else g.stratStep = 1;
 }
 
+/** An operative whose Doctrine Warfare makes this ploy free (once per battle each), if any. */
+function freePloyOp(g, side, ploy) {
+  if (g.freePloys?.[side]?.includes(ploy.id)) return null;
+  return living(g, side).find((o) => tpl(o).doctrineWarfare?.includes(ploy.id)) || null;
+}
+
+export const ployCost = (g, side, ploy) => (freePloyOp(g, side, ploy) ? 0 : ploy.cp);
+
+/** Already used this ploy, or another from its group (e.g. one Combat Doctrine per turning point). */
+export const ployTaken = (g, side, ploy) => g.ploys[side].some((id) => id === ploy.id
+  || (ploy.group && team(g, side).ploys.find((p) => p.id === id)?.group === ploy.group));
+
 export function buyPloy(g, side, ploy) {
-  if (side !== ployChooser(g) || g.cp[side] < ploy.cp || hasPloy(g, side, ploy.id)) return false;
-  g.cp[side] -= ploy.cp;
+  const cost = ployCost(g, side, ploy);
+  if (side !== ployChooser(g) || g.cp[side] < cost || ployTaken(g, side, ploy)) return false;
+  g.cp[side] -= cost;
   g.ploys[side].push(ploy.id);
-  log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}（${ploy.name.en}）」`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"` }, `side${side}`);
+  const free = cost === 0 && ploy.cp > 0 ? freePloyOp(g, side, ploy) : null;
+  if (free) (g.freePloys[side] ||= []).push(ploy.id);
+  const note = free ? { zh: `（${opName(free, 'zh')} 教條戰：0CP）`, en: ` (${opName(free, 'en')} Doctrine Warfare: 0CP)` } : { zh: '', en: '' };
+  log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}（${ploy.name.en}）」${note.zh}`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"${note.en}` }, `side${side}`);
   return true;
 }
 
@@ -173,6 +201,7 @@ export function activate(g, op) {
     op.ap = tpl(op).apl;
     op.orderSet = false;
     op.prevOrder = op.order;
+    op.optics = false; // Optics lasts until the start of the operative's next activation
   }
 }
 
@@ -197,9 +226,9 @@ export function setOrder(g, op, order) {
   op.order = order;
 }
 
-/** Expended, Engage-order operatives that haven't counteracted this TP. */
+/** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
 export const counterCandidates = (g, side) =>
-  living(g, side).filter((o) => !o.ready && o.order === 'engage' && !o.counteracted);
+  living(g, side).filter((o) => !o.ready && (o.order === 'engage' || TEAM_MAP[o.team].astartes) && !o.counteracted);
 
 export function endActivation(g) {
   const op = activeOp(g);
@@ -287,9 +316,12 @@ const MOVE_ACTIONS = ['reposition', 'charge', 'fallBack'];
 const count = (op, k) => op.acted[k] || 0;
 const moved = (op) => MOVE_ACTIONS.some((k) => count(op, k)) || count(op, 'dash');
 
+// Astartes (Angels of Death): two Shoot or two Fight actions per activation, but not a second of
+// either after doing one of each.
 function attackAllowed(op, kind) {
   if (count(op, kind) === 0) return true;
-  return op.team === 'astartes' && kind === 'fight' && count(op, kind) === 1;
+  const otherKind = kind === 'shoot' ? 'fight' : 'shoot';
+  return !!TEAM_MAP[op.team].astartes && count(op, kind) === 1 && count(op, otherKind) === 0;
 }
 
 export const ACTIONS = {
@@ -300,11 +332,32 @@ export const ACTIONS = {
   shoot: { ap: 1, name: { zh: '射擊', en: 'Shoot' } },
   fight: { ap: 1, name: { zh: '近戰', en: 'Fight' } },
   mark: { ap: 1, name: { zh: '標記', en: 'Mark' } },
+  optics: { ap: 1, name: { zh: '光學瞄準', en: 'Optics' } },
 };
 
 export function actionCost(g, op, id) {
-  if (id === 'fallBack' && hasPloy(g, op.side, 'strikeFade')) return 1;
+  if (id === 'fallBack' && (hasPloy(g, op.side, 'strikeFade') || hasTactic(g, op, 'mobile'))) return 1;
   return ACTIONS[id].ap;
+}
+
+// The second Shoot of an Astartes activation costs +1AP if both use the sniper rifle or heavy bolter.
+const DOUBLE_SHOT_GROUPS = ['sniper', 'heavyBolter'];
+
+/** Can the active operative shoot with this weapon now? {ok, ap, why} */
+export function shootWeapon(g, op, w) {
+  const no = (zh, en) => ({ ok: false, ap: 1, why: { zh, en } });
+  if (w.type !== 'ranged') return no('不是遠程武器', 'Not a ranged weapon');
+  if (op.order === 'conceal' && !w.rules.silent) return no('隱蔽指令無法射擊（需「無聲」）', 'Concealed (needs Silent)');
+  const reMoved = MOVE_ACTIONS.some((k) => count(op, k));
+  if (w.rules.heavy === 'dash' ? reMoved : w.rules.heavy && moved(op)) return no('本次已移動，不能用重型武器', 'Moved — cannot use a Heavy weapon');
+  let ap = 1;
+  if (count(op, 'shoot')) {
+    const first = op.acted.shotWith;
+    if (!isBoltWeapon(w) && !op.acted.shotBolt) return no('兩次射擊至少一次要用爆彈武器', 'One of the two Shoots must use a bolt weapon');
+    if (first === w.group && DOUBLE_SHOT_GROUPS.includes(w.group)) ap = 2;
+  }
+  if (op.ap < ap) return { ok: false, ap, why: { zh: 'AP 不足', en: 'Not enough AP' } };
+  return { ok: true, ap, why: null };
 }
 
 /** Returns [{id, ap, ok, why}] for the active operative. */
@@ -324,21 +377,34 @@ export function availableActions(g, op) {
   const CONC = { zh: '隱蔽指令無法執行', en: 'Not while Concealed' };
   // Official combinations: Reposition ✕ Fall Back/Charge; Dash ✕ Charge; Charge ✕ Reposition/Dash/Fall Back.
   const COMBO = { zh: '本次啟動已執行衝突的移動動作', en: 'Conflicts with a move already made' };
-  // Heavy: an operative cannot move in an activation or counteraction in which it used a Heavy weapon.
+  // Heavy: an operative cannot move in an activation or counteraction in which it used a Heavy weapon
+  // (Heavy (Dash only): Dash is still allowed).
   const HEAVY = { zh: '本次已使用重型武器，不能移動', en: 'Used a Heavy weapon, cannot move' };
-  const heavy = !!count(op, 'heavy');
+  const heavy = !!count(op, 'heavy'), heavyAll = heavy && op.acted.heavy !== 'dash';
+  // Mobile: may Charge while within control range of an enemy.
+  const chargeEngaged = engaged && !hasTactic(g, op, 'mobile');
   add('reposition', !engaged && !heavy && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : heavy ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
-  add('dash', !engaged && !heavy && !did('dash', 'charge'), engaged ? ENG : heavy ? HEAVY : count(op, 'dash') ? DONE : COMBO);
-  add('charge', !engaged && !conceal && !heavy && !did('charge', 'reposition', 'dash', 'fallBack'), engaged ? ENG : conceal ? CONC : heavy ? HEAVY : count(op, 'charge') ? DONE : COMBO);
+  add('dash', !engaged && !heavyAll && !did('dash', 'charge'), engaged ? ENG : heavyAll ? HEAVY : count(op, 'dash') ? DONE : COMBO);
+  add('charge', !chargeEngaged && !conceal && !heavy && !did('charge', 'reposition', 'dash', 'fallBack'), chargeEngaged ? ENG : conceal ? CONC : heavy ? HEAVY : count(op, 'charge') ? DONE : COMBO);
   add('fallBack', engaged && !heavy && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : heavy ? HEAVY : count(op, 'fallBack') ? DONE : COMBO);
-  add('shoot', hasRanged && !engaged && !conceal && attackAllowed(op, 'shoot'), engaged ? ENG : conceal ? CONC : DONE);
+  const shots = tpl(op).weapons.filter((w) => w.type === 'ranged').map((w) => shootWeapon(g, op, w));
+  const shootWhy = engaged ? ENG : !attackAllowed(op, 'shoot') ? DONE : (shots.find((s) => !s.ok)?.why || DONE);
+  add('shoot', hasRanged && !engaged && attackAllowed(op, 'shoot') && shots.some((s) => s.ok), shootWhy);
   add('fight', engaged && attackAllowed(op, 'fight'), !engaged ? { zh: '沒有交戰中的敵人', en: 'No enemy in engagement' } : DONE);
   if (op.team === 'pathfinders') add('mark', !count(op, 'mark'), DONE);
+  if (tpl(op).optics) add('optics', !engaged && !count(op, 'optics'), engaged ? ENG : DONE);
   return list;
 }
 
-export function spend(g, op, id) {
-  op.ap -= actionCost(g, op, id);
+/** Optics (Eliminator Sniper): until its next activation, enemies can't be obscured when it shoots. */
+export function doOptics(g, op) {
+  spend(g, op, 'optics');
+  op.optics = true;
+  log(g, { zh: `${opName(op, 'zh')} 使用光學瞄準：敵人無法被遮蔽`, en: `${opName(op, 'en')} uses Optics: enemies cannot be obscured` }, `side${op.side}`);
+}
+
+export function spend(g, op, id, ap = actionCost(g, op, id)) {
+  op.ap -= ap;
   op.acted[id] = count(op, id) + 1;
   op.orderSet = true;
 }
@@ -370,7 +436,11 @@ function targetPoints(t) {
   return pts;
 }
 
-export function visibility(g, from, to) {
+/**
+ * opts.noObscure: Heavy terrain never obscures (Optics).
+ * opts.ignoreLight: Light terrain gives no cover (Seek Light, when picking valid targets).
+ */
+export function visibility(g, from, to, opts = {}) {
   const rf = radius(from), rt = radius(to);
   const close = edgeDist(from, to) <= 2;
   let visible = false;
@@ -379,8 +449,11 @@ export function visibility(g, from, to) {
     for (const t of g.terrain) {
       if (!segRect(from, p, t)) continue;
       const dt = distPointRect(to, t) - rt, ds = distPointRect(from, t) - rf;
-      if (t.kind === 'heavy' && dt > 1 && ds > 1) { obscured = true; break; }
-      if (dt <= 1 && !close) cover = true;
+      if (t.kind === 'heavy' && dt > 1 && ds > 1) {
+        if (opts.noObscure) continue;
+        obscured = true; break;
+      }
+      if (dt <= 1 && !close && !(opts.ignoreLight && t.kind === 'light')) cover = true;
     }
     if (obscured) continue;
     if (!cover) return { visible: true, cover: false };
@@ -393,15 +466,27 @@ export function inRange(op, target, weapon) {
   return weapon.rules.range == null || edgeDist(op, target) <= weapon.rules.range + 0.01;
 }
 
+const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, target, { noObscure: !!op.optics, ...extra });
+
+/** Is target a valid target for op with this weapon (visible, and not a Concealed operative in cover)? */
+function validTarget(g, op, target, weapon) {
+  const v = shotVisibility(g, op, target, weapon);
+  if (!v.visible) return null;
+  if (target.order === 'conceal') {
+    const vt = weapon.rules.seekLight ? shotVisibility(g, op, target, weapon, { ignoreLight: true }) : v;
+    if (vt.cover) return null;
+  }
+  return v;
+}
+
 /** Can op shoot target with weapon? Returns {ok, cover} */
 export function shootCheck(g, op, target, weapon) {
   if (target.dead || target.side === op.side) return { ok: false };
-  const v = visibility(g, op, target);
-  if (!v.visible) return { ok: false };
-  if (target.order === 'conceal' && v.cover) return { ok: false };
+  if (!shootWeapon(g, op, weapon).ok) return { ok: false };
+  const v = validTarget(g, op, target, weapon);
+  if (!v) return { ok: false };
   if (living(g, op.side).some((f) => inEngagement(f, target))) return { ok: false };
   if (!inRange(op, target, weapon)) return { ok: false };
-  if (weapon.rules.heavy && moved(op)) return { ok: false };
   return { ok: true, cover: v.cover };
 }
 
@@ -421,20 +506,28 @@ export function doMark(g, op, target) {
 export function effectiveRules(g, op, weapon, target) {
   const r = { ...weapon.rules };
   if (weapon.type === 'melee') {
-    if (hasPloy(g, op.side, 'assaultDoctrine')) r.balanced = true;
+    if (hasPloy(g, op.side, 'docAssault')) r.balanced = true;
     if (hasPloy(g, op.side, 'waaagh')) r.atkBonus = (r.atkBonus || 0) + 1;
     if (op.team === 'greenskin' && count(op, 'charge')) r.ceaseless = true;
+    if (hasTactic(g, op, 'aggressive')) r.rending = true;
   } else {
-    if (hasPloy(g, op.side, 'devastatorDoctrine') || hasPloy(g, op.side, 'takeAim')) r.balanced = true;
+    if (hasPloy(g, op.side, 'takeAim')) r.balanced = true;
+    if (target && hasPloy(g, op.side, edgeDist(op, target) > 6 ? 'docDevastator' : 'docTactical')) r.balanced = true;
     if (hasPloy(g, op.side, 'fireDiscipline')) r.ceaseless = true;
     if (op.team === 'troopers' && target?.damagedTP) r.ceaseless = true;
     if (target?.marked) { r.ignoreCover = true; r.hitMod = (r.hitMod || 0) - 1; }
+    if (hasTactic(g, op, 'siege')) r.saturate = true;
+    if (hasTactic(g, op, 'sharpshooter') && isBoltWeapon(weapon) && !MOVE_ACTIONS.some((k) => count(op, k))) {
+      r.accurate = Math.max(r.accurate || 0, 1); r.severe = true;
+    }
   }
   return r;
 }
 
 function rollPool(n, success, critOn, rules = {}) {
-  const dice = Array.from({ length: n }, () => ({ v: d6(), rr: false }));
+  // Accurate x: retain up to x dice as normal successes without rolling them.
+  const auto = Math.min(n, rules.accurate || 0);
+  const dice = Array.from({ length: n - auto }, () => ({ v: d6(), rr: false }));
   if (rules.ceaseless) for (const d of dice) if (d.v === 1) { d.v = d6(); d.rr = true; }
   if (rules.balanced) {
     const f = dice.filter((d) => !d.rr && d.v < success).sort((a, b) => a.v - b.v)[0];
@@ -442,9 +535,14 @@ function rollPool(n, success, critOn, rules = {}) {
   }
   for (const d of dice) d.res = d.v >= critOn && d.v >= success ? 'crit' : d.v >= success ? 'norm' : 'miss';
   dice.sort((a, b) => b.v - a.v);
+  for (let k = 0; k < auto; k++) dice.push({ v: '✓', res: 'norm', auto: true });
   let crits = dice.filter((d) => d.res === 'crit').length;
   let norms = dice.filter((d) => d.res === 'norm').length;
-  if (rules.rending && crits > 0 && norms > 0) {
+  if (rules.severe && crits === 0 && norms > 0) {
+    // Severe: no critical success retained, so one normal success becomes critical (Rending then doesn't apply).
+    const d = dice.find((x) => x.res === 'norm'); d.res = 'crit'; d.sev = true;
+    crits++; norms--;
+  } else if (rules.rending && crits > 0 && norms > 0) {
     const d = dice.find((x) => x.res === 'norm'); d.res = 'crit'; d.rend = true;
     crits++; norms--;
   }
@@ -476,44 +574,97 @@ function applyDamage(g, src, target, dmg) {
   target.damagedTP = true;
   if (target.wounds <= 0) {
     target.wounds = 0; target.dead = true; target.ready = false;
-    const before = killGrade(g, src.side);
-    g.kills[src.side]++;
+    // Kill op counts enemy operatives incapacitated, whoever caused it (e.g. a Blast hitting a friendly).
+    const scorer = 1 - target.side;
+    const before = killGrade(g, scorer);
+    g.kills[scorer]++;
     log(g, { zh: `☠ ${opName(target, 'zh')} 失去戰鬥能力！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
-    const after = killGrade(g, src.side);
-    if (after > before) log(g, { zh: `${teamZh(g, src.side)} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, src.side).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
+    const after = killGrade(g, scorer);
+    if (after > before) log(g, { zh: `${teamZh(g, scorer)} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, scorer).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
     return true;
   }
   return false;
 }
 
-export function resolveShoot(g, op, weapon, target) {
+/** One shooting sequence (attack dice, defence dice, damage) against one target. */
+function shootSequence(g, op, weapon, target, cover) {
   const rules = effectiveRules(g, op, weapon, target);
-  const vis = visibility(g, op, target);
-  const hit = clampHit(weapon.hit + (isInjured(op) ? 1 : 0) + (rules.hitMod || 0));
+  const hit = clampHit(weapon.hit + (injuredPenalty(g, op) ? 1 : 0) + (rules.hitMod || 0));
   const atk = weapon.atk + (rules.atkBonus || 0);
   const a = rollPool(atk, hit, rules.lethal || 6, rules);
-  const inCover = vis.cover && !rules.ignoreCover;
+  const inCover = cover && !rules.ignoreCover;
   const pierce = (rules.piercing || 0) + (a.crits > 0 ? rules.piercingCrits || 0 : 0);
   const defDice = Math.max(0, DEFENCE_DICE - pierce);
+  const camo = !!tpl(target).camoCloak; // Camo Cloak ignores Saturate
+  const saturated = rules.saturate && !camo;
   // A Concealed target in cover can't be shot at all, so any target here that's in cover gets the cover save.
-  const coverOk = inCover;
-  const coverSaves = Math.min(defDice, coverOk ? (hasPloy(g, target.side, 'sneakyGits') ? 2 : 1) : 0);
+  const base = inCover && !saturated ? (hasPloy(g, target.side, 'sneakyGits') ? 2 : 1) : 0;
+  let coverN = base, coverC = 0;
+  if (base && hasTactic(g, target, 'stealthy')) {
+    // Stealthy: one more cover save, or one as a critical; Camo Cloak with the Stealthy tactic gets both.
+    if (camo && g.tactics?.[target.side]?.includes('stealthy')) coverC = 1;
+    else if (a.crits > 0) { coverN--; coverC = 1; } else coverN++;
+  }
+  coverC = Math.min(coverC, defDice);
+  coverN = Math.min(coverN, defDice - coverC);
   const save = tpl(target).save;
-  const d = rollPool(defDice - coverSaves, save, 6);
-  const block = bestBlock(a.crits, a.norms, d.crits, d.norms + coverSaves, normalDmg(weapon, target), weapon.dmg[1]);
-  spend(g, op, 'shoot');
-  if (weapon.rules.heavy) op.acted.heavy = 1;
+  const d = rollPool(defDice - coverN - coverC, save, hasTactic(g, target, 'hardy') ? 5 : 6);
+  if (hasPloy(g, target.side, 'indomitus')) {
+    // Indomitus: with two or more fails, discard one to retain another as a normal success.
+    const misses = d.dice.filter((x) => x.res === 'miss');
+    if (misses.length >= 2) { misses[0].res = 'norm'; misses[0].indo = true; d.norms++; }
+  }
+  const block = bestBlock(a.crits, a.norms, d.crits + coverC, d.norms + coverN, normalDmg(weapon, target), weapon.dmg[1]);
+  const dev = (rules.devastating || 0) * a.crits;
+  const dmg = block.dmg + dev;
   const before = target.wounds;
-  const killed = applyDamage(g, op, target, block.dmg);
-  log(g, {
-    zh: `${opName(op, 'zh')} 以${weapon.name.zh}（${weapon.name.en}）射擊 ${opName(target, 'zh')}：${block.dmg} 傷害`,
-    en: `${opName(op, 'en')} shoots ${opName(target, 'en')} with ${weapon.name.en}: ${block.dmg} damage`,
-  }, `side${op.side}`);
+  const killed = applyDamage(g, op, target, dmg);
   return {
-    kind: 'shoot', attacker: op.uid, target: target.uid, weapon, rules, hit, atk, attack: a,
-    save, defDice, coverSaves, inCover: coverOk, pierce, defence: d, dmg: block.dmg, remC: block.remC, remN: block.remN,
+    target: target.uid, rules, hit, atk, attack: a, save, defDice, coverSaves: coverN + coverC, coverCrit: coverC,
+    inCover, saturated: rules.saturate && inCover, pierce, defence: d, dmg, dev, remC: block.remC, remN: block.remN,
     before, after: target.wounds, killed,
   };
+}
+
+/** Other targets hit by Torrent / Blast after the primary target. */
+function secondaryTargets(g, op, weapon, primary) {
+  const { torrent, blast } = weapon.rules;
+  if (torrent) {
+    return living(g, 1 - op.side).filter((t) => t !== primary && edgeDist(primary, t) <= torrent + 0.01
+      && shootCheck(g, op, t, weapon).ok);
+  }
+  if (blast) {
+    // Any operative (friend or foe) visible to and within x of the primary target; Conceal doesn't matter.
+    return g.ops.filter((t) => !t.dead && t !== primary && t !== op && edgeDist(primary, t) <= blast + 0.01
+      && visibility(g, primary, t).visible);
+  }
+  return [];
+}
+
+export function resolveShoot(g, op, weapon, target) {
+  const ap = shootWeapon(g, op, weapon).ap;
+  const vis = shotVisibility(g, op, target, weapon);
+  const others = secondaryTargets(g, op, weapon, target); // chosen before any damage is dealt
+  const main = shootSequence(g, op, weapon, target, vis.cover);
+  spend(g, op, 'shoot', ap);
+  if (weapon.rules.heavy) op.acted.heavy = weapon.rules.heavy === 'dash' && op.acted.heavy !== 1 ? 'dash' : 1;
+  op.acted.shotWith = weapon.group;
+  if (isBoltWeapon(weapon)) op.acted.shotBolt = true;
+  const logShot = (t, s) => log(g, {
+    zh: `${opName(op, 'zh')} 以${weapon.name.zh}（${weapon.name.en}）射擊 ${opName(t, 'zh')}：${s.dmg} 傷害`,
+    en: `${opName(op, 'en')} shoots ${opName(t, 'en')} with ${weapon.name.en}: ${s.dmg} damage`,
+  }, `side${op.side}`);
+  logShot(target, main);
+  const extra = [];
+  for (const t of others) {
+    if (t.dead) continue;
+    // Torrent targets use their own cover; Blast targets are in cover if the primary target was.
+    const cover = weapon.rules.torrent ? shotVisibility(g, op, t, weapon).cover : vis.cover;
+    const s = shootSequence(g, op, weapon, t, cover);
+    logShot(t, s);
+    extra.push(s);
+  }
+  return { kind: 'shoot', attacker: op.uid, weapon, ap, ...main, extra };
 }
 
 export function bestMelee(op) {
@@ -525,7 +676,7 @@ export function avgDmg(w, hitMod = 0) {
   const hit = clampHit(w.hit + hitMod);
   const crit = w.rules.lethal || 6;
   const pc = (7 - crit) / 6, ph = Math.max(0, (7 - hit) / 6 - pc);
-  return w.atk * (pc * w.dmg[1] + ph * w.dmg[0]);
+  return w.atk * (pc * (w.dmg[1] + (w.rules.devastating || 0)) + ph * w.dmg[0]);
 }
 
 // ---------- melee ----------
@@ -539,14 +690,15 @@ export function startFight(g, op, weapon, target) {
   const dWeapon = bestMelee(target);
   const ar = effectiveRules(g, op, weapon, target);
   const dr = effectiveRules(g, target, dWeapon, op);
-  const aHit = clampHit(weapon.hit + (isInjured(op) ? 1 : 0));
-  const dHit = clampHit(dWeapon.hit + (isInjured(target) ? 1 : 0));
+  const aHit = clampHit(weapon.hit + (injuredPenalty(g, op) ? 1 : 0));
+  const dHit = clampHit(dWeapon.hit + (injuredPenalty(g, target) ? 1 : 0));
   const aRoll = rollPool(weapon.atk + (ar.atkBonus || 0), aHit, ar.lethal || 6, ar);
   const dRoll = rollPool(dWeapon.atk + (dr.atkBonus || 0), dHit, dr.lethal || 6, dr);
   spend(g, op, 'fight');
+  // dueller: (Chapter Tactic) a normal success can block a critical success.
   g.fight = {
-    A: { uid: op.uid, w: weapon.id, c: aRoll.crits, n: aRoll.norms, brutal: !!ar.brutal, hit: aHit, dice: aRoll.dice, before: op.wounds },
-    D: { uid: target.uid, w: dWeapon.id, c: dRoll.crits, n: dRoll.norms, brutal: !!dr.brutal, hit: dHit, dice: dRoll.dice, before: target.wounds },
+    A: { uid: op.uid, w: weapon.id, c: aRoll.crits, n: aRoll.norms, brutal: !!ar.brutal, dueller: hasTactic(g, op, 'dueller'), hit: aHit, dice: aRoll.dice, before: op.wounds },
+    D: { uid: target.uid, w: dWeapon.id, c: dRoll.crits, n: dRoll.norms, brutal: !!dr.brutal, dueller: hasTactic(g, target, 'dueller'), hit: dHit, dice: dRoll.dice, before: target.wounds },
     turn: 'A', steps: [], done: false,
   };
   advanceFight(g);
@@ -569,6 +721,7 @@ export function fightOptions(g) {
   if (me.c && foe.c) opts.push({ id: 'parry-c-c', act: 'parry', die: 'c', target: 'c' });
   if (me.c && foe.n) opts.push({ id: 'parry-c-n', act: 'parry', die: 'c', target: 'n' });
   if (me.n && foe.n && !foe.brutal) opts.push({ id: 'parry-n-n', act: 'parry', die: 'n', target: 'n' });
+  if (me.n && foe.c && me.dueller && !foe.brutal) opts.push({ id: 'parry-n-c', act: 'parry', die: 'n', target: 'c' });
   return opts;
 }
 
@@ -623,6 +776,7 @@ export function fightAutoChoice(g) {
   const fw = fightWeapon(g, other(k));
   const threat = foe.c * fw.dmg[1] + foe.n * normalDmg(fw, meOp);
   if (threat >= meOp.wounds) {
+    if (has('parry-n-c')) return 'parry-n-c';
     if (has('parry-c-c')) return 'parry-c-c';
     if (has('parry-n-n')) return 'parry-n-n';
     if (has('parry-c-n') && me.c > 1) return 'parry-c-n';
