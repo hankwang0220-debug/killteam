@@ -46,6 +46,8 @@ export const HELP = {
   <h3>測量距離</h3>
   <p>隨時可用：在棋盤上按<b>滑鼠右鍵</b>新增測量點，<b>Esc</b> 回到上一個測量點，<b>左鍵</b>取消測量。點在特工上會吸附到該特工，並以底座邊緣計算距離。</p>
   <p><b>手機／觸控</b>：按棋盤下方的「📏 測量距離」進入測量模式，點棋盤新增測量點（不會移動或選取特工），可用「上一點」「清除」，按「結束」離開。總長與各段距離會顯示在工具列。</p>
+  <h3>複盤</h3>
+  <p>遊戲中按上方「📜 複盤」可檢視目前為止的每一步；結束的對戰會保存在首頁「對戰紀錄」（最近 10 場）。可逐步前後切換、拖動進度條或自動播放，並查看每一步的紀錄、擲骰與移動軌跡。</p>
   <h3>武器規則</h3>
   <table>
     <tr><td>穿甲 X</td><td>防禦方少擲 X 顆骰。暴擊穿甲：有暴擊時才生效。</td></tr>
@@ -104,6 +106,8 @@ export const HELP = {
   <h3>Measuring</h3>
   <p>Available at any time: <b>right-click</b> the board to add a measuring point, <b>Esc</b> to go back one point, <b>left-click</b> to clear. Points on an operative snap to it and measure from the base edge.</p>
   <p><b>Phone / touch</b>: tap "📏 Measure" below the board to enter measuring mode. Taps on the board add points (without moving or selecting operatives); use Undo and Clear, and Done to leave. The total and each segment are shown in the toolbar.</p>
+  <h3>Replay</h3>
+  <p>During a game, tap "📜 Replay" at the top to review every step so far. Finished games are kept under "Past Games" on the home screen (last 10). Step back and forth, drag the slider or auto-play, and see each step's log, dice and movement trails.</p>
   <h3>Weapon rules</h3>
   <table>
     <tr><td>Piercing X</td><td>Defender rolls X fewer dice. Piercing Crits: only if a crit was scored.</td></tr>

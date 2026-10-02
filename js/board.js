@@ -44,6 +44,13 @@ export function renderBoard(g, ui) {
     s.push(`<text x="${f(end.x)}" y="${f(end.y - ui.path.r - 0.25)}" class="pathlen" pointer-events="none">${ui.path.len.toFixed(1)}"</text>`);
   }
 
+  // Replay: where operatives moved from in this step.
+  for (const t of ui.trails || []) {
+    const op = g.ops.find((o) => o.uid === t.uid);
+    s.push(`<circle cx="${f(t.from.x)}" cy="${f(t.from.y)}" r="${f(radius(op))}" class="trailghost" stroke="${team(g, op.side).color}" pointer-events="none"/>`);
+    s.push(`<line x1="${f(t.from.x)}" y1="${f(t.from.y)}" x2="${f(t.to.x)}" y2="${f(t.to.y)}" class="trail" stroke="${team(g, op.side).color}" pointer-events="none"/>`);
+  }
+
   if (ui.los) {
     s.push(`<line x1="${f(ui.los.a.x)}" y1="${f(ui.los.a.y)}" x2="${f(ui.los.b.x)}" y2="${f(ui.los.b.y)}" class="los" pointer-events="none"/>`);
   }

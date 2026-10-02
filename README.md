@@ -25,6 +25,8 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 - Weapon rules: Piercing, Piercing Crits, Lethal, Balanced, Ceaseless, Rending, Brutal, Heavy, Range
 - Injured state, objective control (by total APL), objective VP, and kill VP
 - Simple AI opponent, autosave, and a quick rules reference
+- Replays: every step is recorded and can be reviewed step by step (log, dice, movement trails); the last 10 finished games are kept
+- Measuring tool (right-click / Esc / left-click, or the 📏 button on touch screens)
 
 ## File structure
 
@@ -35,6 +37,7 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 | `js/path.js` | A* pathfinding and movement validation |
 | `js/ai.js` | Computer opponent |
 | `js/board.js` | SVG board rendering |
+| `js/replay.js` | Replay recording, playback state and the archive of finished games |
 | `js/main.js` | UI and interaction |
 | `js/help.js` | Rules reference text |
 | `sw.js` / `manifest.webmanifest` | PWA offline support and installation |

@@ -111,7 +111,8 @@ export function autoDeploy(g, side) {
 
 // ---------- log ----------
 export function log(g, msg, cls = '') {
-  g.log.push({ msg, cls, tp: g.tp });
+  g.seq = (g.seq || 0) + 1;
+  g.log.push({ msg, cls, tp: g.tp, n: g.seq });
   if (g.log.length > 200) g.log.shift();
 }
 

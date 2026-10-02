@@ -10,6 +10,7 @@ import { renderBoard } from './board.js';
 import { clampPath, findPath, moveCtx } from './path.js';
 import { aiStep, aiStrategy } from './ai.js';
 import { HELP } from './help.js';
+import { archiveGame, deleteHistory, loadHistory, recordStep, resetRecorder, stepNotes, trailsAt, viewAt } from './replay.js';
 
 const app = document.getElementById('app');
 const modalRoot = document.getElementById('modal-root');
@@ -38,9 +39,10 @@ const nm = (op) => esc(opName(op, lang()));
 
 // ---------- render root ----------
 function render() {
-  if (ui.screen !== 'game') { measure.pts = []; measure.cursor = null; measure.mode = false; }
+  if (ui.screen !== 'game' && ui.screen !== 'replay') { measure.pts = []; measure.cursor = null; measure.mode = false; }
   if (ui.screen === 'home') app.innerHTML = homeView();
   else if (ui.screen === 'setup') app.innerHTML = setupView();
+  else if (ui.screen === 'replay') app.innerHTML = replayView();
   else app.innerHTML = gameView();
   drawMeasure();
   renderModal();
@@ -71,9 +73,13 @@ function measureBar() {
   </div>`;
 }
 
+/** The state currently drawn on the board (a replay step, or the live game). */
+const shownState = () => (ui.screen === 'replay' && ui.replay ? viewAt(ui.replay.rep, ui.replay.i) : g);
+
 function measurePoint(evt) {
   const opEl = evt.target.closest?.('[data-uid]');
-  const op = opEl && g ? getOp(g, opEl.dataset.uid) : null;
+  const st = shownState();
+  const op = opEl && st ? getOp(st, opEl.dataset.uid) : null;
   if (op && !op.dead) return { x: op.x, y: op.y, r: radius(op) };
   const p = svgPoint(evt);
   return { x: p.x, y: p.y, r: 0 };
@@ -145,10 +151,13 @@ document.addEventListener('click', (e) => {
 }, true);
 
 function topBar(extra = '') {
+  const replayBtn = ui.screen === 'game' && g?.replay?.snaps.length
+    ? `<button class="ghost" data-act="replay" title="${L('複盤', 'Replay')}">📜 <span class="hidesm">${L('複盤', 'Replay')}</span></button>` : '';
   return `<header class="top">
     <div class="brand" data-act="home">⚔ <span>${L('殺戮小隊 戰術模擬', 'Kill Team Tactics')}</span></div>
     ${extra}
     <div class="topbtns">
+      ${replayBtn}
       <button class="ghost" data-act="help">${L('規則', 'Rules')}</button>
       <button class="ghost" data-act="lang">${L('EN', '中文')}</button>
     </div>
@@ -170,6 +179,7 @@ function homeView() {
         <button class="big ghost" data-act="help">${L('規則速查', 'Quick Rules')}</button>
       </div>
     </section>
+    ${historyView()}
     <section class="teamgrid">
       ${TEAMS.map((t) => `<article class="teamcard" style="--tc:${t.color}">
         <h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
@@ -208,6 +218,116 @@ function roster(t) {
 
 // ---------- game ----------
 function gameView() {
+  return `${topBar(scoreBar())}
+  <main class="game">
+    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}</div></div>
+    <aside class="panel">${panelView()}${logView()}</aside>
+  </main>`;
+}
+
+// ---------- replay viewer ----------
+// ui.replay = { rep, i, from: 'game' | 'home', title, playing }
+let replayTimer = null;
+
+function replayView() {
+  const R = ui.replay;
+  const n = R.rep.snaps.length;
+  const view = viewAt(R.rep, R.i);
+  const snap = R.rep.snaps[R.i];
+  const live = g;
+  g = view; // the shared renderers read the module-level state
+  try {
+    const notes = stepNotes(R.rep, R.i).map((m) => `<li class="note">${esc(tx(m))}</li>`);
+    const msgs = snap.msgs.map((e) => `<li class="${e.cls}">${esc(tx(e.msg))}</li>`);
+    const lines = [...notes, ...msgs];
+    const phase = { deploy: L('部署', 'Deploy'), strategy: L('策略階段', 'Strategy'), firefight: L('交火階段', 'Firefight'), gameover: L('遊戲結束', 'Game over') }[view.phase] || '';
+    const dice = snap.result ? `<div class="rdice">${resultView(snap.result, true)}</div>`
+      : snap.fight ? `<div class="rdice">${fightView(true)}</div>` : '';
+    const sel = ui.sel && view.ops.find((o) => o.uid === ui.sel && !o.dead);
+    return `${topBar(scoreBar())}
+    <main class="game">
+      <div class="boardwrap"><div class="boardbox">${renderBoard(view, { sel: ui.sel, trails: trailsAt(R.rep, R.i) })}${measureBar()}</div></div>
+      <aside class="panel">
+        <section class="card replayctl">
+          <h2>📜 ${L('複盤', 'Replay')} <small>${esc(R.title)}</small></h2>
+          <div class="rstep">${L(`第 <b>${R.i + 1}</b> / ${n} 步`, `Step <b>${R.i + 1}</b> / ${n}`)} · ${view.phase === 'deploy' ? '' : `TP ${view.tp} · `}${phase}</div>
+          <input class="rseek" type="range" min="0" max="${n - 1}" value="${R.i}" data-act="rseek" aria-label="step">
+          <div class="rbtns">
+            <button data-act="rgo" data-to="0" title="${L('第一步', 'First')}">⏮</button>
+            <button data-act="rgo" data-to="${R.i - 1}" ${R.i ? '' : 'disabled'} title="${L('上一步', 'Previous')}">◀</button>
+            <button class="primary" data-act="rplay">${R.playing ? '⏸' : '▶'}</button>
+            <button data-act="rgo" data-to="${R.i + 1}" ${R.i < n - 1 ? '' : 'disabled'} title="${L('下一步', 'Next')}">▶|</button>
+            <button data-act="rgo" data-to="${n - 1}" title="${L('最後一步', 'Last')}">⏭</button>
+          </div>
+          <p class="hint small">${L('鍵盤 ← → 可逐步檢視；點棋子查看資料。', 'Use ← → to step; tap an operative for details.')}</p>
+          <button class="wide" data-act="rexit">${R.from === 'game' ? L('返回遊戲', 'Back to game') : L('返回首頁', 'Back to home')}</button>
+        </section>
+        <section class="card">
+          <h3>${L('這一步', 'This step')}</h3>
+          <ol class="rlines">${lines.join('') || `<li class="note">${L('（狀態更新）', '(state update)')}</li>`}</ol>
+          ${dice}
+        </section>
+        ${sel ? datacard(sel) : ''}
+      </aside>
+    </main>`;
+  } finally {
+    g = live;
+  }
+}
+
+function openReplay(rep, from, title) {
+  if (!rep?.snaps.length) return;
+  stopReplayPlay();
+  ui.replay = { rep, i: rep.snaps.length - 1, from, title, playing: false };
+  ui.screen = 'replay'; ui.sel = null; ui.mode = null; ui.path = null;
+  render();
+}
+
+function replayGo(i) {
+  const R = ui.replay;
+  R.i = Math.max(0, Math.min(R.rep.snaps.length - 1, i));
+  render();
+}
+
+function stopReplayPlay() {
+  clearInterval(replayTimer); replayTimer = null;
+  if (ui.replay) ui.replay.playing = false;
+}
+
+function toggleReplayPlay() {
+  const R = ui.replay;
+  if (R.playing) { stopReplayPlay(); return render(); }
+  if (R.i >= R.rep.snaps.length - 1) R.i = 0;
+  R.playing = true;
+  replayTimer = setInterval(() => {
+    if (ui.screen !== 'replay') return stopReplayPlay();
+    if (R.i >= R.rep.snaps.length - 1) { stopReplayPlay(); return render(); }
+    R.i++; render();
+  }, 900);
+  render();
+}
+
+const teamsTitle = (teams) => teams.map((id) => tx(TEAM_MAP[id].name)).join(' vs ');
+
+function historyView() {
+  const list = loadHistory();
+  if (!list.length) return '';
+  return `<section class="history">
+    <h2>📜 ${L('對戰紀錄', 'Past Games')}</h2>
+    ${list.map((h) => {
+    const d = new Date(h.date);
+    const win = h.winner == null ? L('平手', 'Draw') : L(`${tx(TEAM_MAP[h.teams[h.winner]].name)} 勝`, `${tx(TEAM_MAP[h.teams[h.winner]].name)} won`);
+    return `<div class="hrow">
+        <div><b>${esc(teamsTitle(h.teams))}</b>
+        <small>${d.toLocaleString(lang() === 'zh' ? 'zh-TW' : 'en')} · ${h.score.join(' : ')} · ${esc(win)} · ${h.replay.snaps.length} ${L('步', 'steps')}</small></div>
+        <button class="primary" data-act="replayhist" data-id="${h.id}">${L('複盤', 'Replay')}</button>
+        <button class="ghost" data-act="delhist" data-id="${h.id}" title="${L('刪除', 'Delete')}">🗑</button>
+      </div>`;
+  }).join('')}
+  </section>`;
+}
+
+function scoreBar() {
   const scoreBox = (side) => {
     const t = team(g, side);
     const isTurn = g.phase === 'firefight' && g.turn === side;
@@ -218,12 +338,7 @@ function gameView() {
     </div>`;
   };
   const tpTxt = g.phase === 'deploy' ? L('部署', 'Deploy') : g.phase === 'gameover' ? L('結束', 'End') : `TP ${g.tp}/${MAX_TP}`;
-  const bar = `<div class="scorebar">${scoreBox(0)}<div class="tp">${tpTxt}</div>${scoreBox(1)}</div>`;
-  return `${topBar(bar)}
-  <main class="game">
-    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}</div></div>
-    <aside class="panel">${panelView()}${logView()}</aside>
-  </main>`;
+  return `<div class="scorebar">${scoreBox(0)}<div class="tp">${tpTxt}</div>${scoreBox(1)}</div>`;
 }
 
 function boardUi() {
@@ -297,6 +412,7 @@ function gameOverPanel() {
     <h2>${w == null ? L('平手！', 'Draw!') : L(`${esc(bi(team(g, w).name))} 獲勝！`, `${esc(bi(team(g, w).name))} wins!`)}</h2>
     <table class="final"><tr><th></th><th>${L('擊殺數', 'Kills')}</th><th>${L('擊殺等級', 'Grade')}</th><th>Kill Op</th><th>${L('總分', 'Total')}</th></tr>${line(0)}${line(1)}</table>
     <p class="hint small">${L('擊殺任務：每升一個擊殺等級得 1 VP；結束時擊殺等級較高者再得 1 VP。', 'Kill Op: 1VP per kill grade reached; +1VP at the end for the higher kill grade.')}</p>
+    <button class="wide" data-act="replay">📜 ${L('觀看本場複盤', 'Watch the replay')}</button>
     <button class="primary wide" data-act="setup">${L('再來一場', 'Play Again')}</button>
   </section>`;
 }
@@ -449,7 +565,7 @@ function renderModal() {
   modalRoot.innerHTML = '';
 }
 
-function fightView() {
+function fightView(readonly = false) {
   const f = g.fight;
   const ops = { A: fightOp(g, 'A'), D: fightOp(g, 'D') };
   const col = (k) => team(g, ops[k].side).color;
@@ -469,7 +585,9 @@ function fightView() {
     return `<li>${who(s.side)} ${L('格擋', 'parries')}${s.crit ? L('（用暴擊）', ' (with a crit)') : ''} ${s.blocked ? L('對方一個暴擊', 'an enemy crit') : L('對方一個普通', 'an enemy normal')}</li>`;
   };
   let action;
-  if (f.done) {
+  if (readonly) {
+    action = '';
+  } else if (f.done) {
     action = `<button class="primary wide" data-act="fightdone">${L('繼續', 'Continue')}</button>`;
   } else if (g.ai === fightChooser(g)) {
     action = `<p class="hint">${L('電腦選擇中…', 'Computer is choosing…')}</p>`;
@@ -491,7 +609,7 @@ function fightView() {
 
 const die = (d) => `<span class="die ${d.res}${d.rr ? ' rr' : ''}${d.rend ? ' rend' : ''}" title="${d.rr ? 'Re-rolled' : ''}">${d.v}</span>`;
 
-function resultView(r) {
+function resultView(r, readonly = false) {
   const a = getOp(g, r.attacker), t = getOp(g, r.target);
   const ca = team(g, a.side).color, ct = team(g, t.side).color;
   if (r.kind === 'shoot') {
@@ -509,7 +627,7 @@ function resultView(r) {
       ${notes.length ? `<p class="hint small">${notes.join(' · ')}</p>` : ''}
       <div class="outcome">${L(`未擋下：${r.remC} 暴擊、${r.remN} 普通 → <b>${r.dmg}</b> 傷害`, `Unblocked: ${r.remC} crit, ${r.remN} normal → <b>${r.dmg}</b> damage`)}
         <div>${nm(t)}：${r.before} → ${r.after} ${r.killed ? '☠' : ''}</div></div>
-      <button class="primary wide" data-act="closeresult">${L('繼續', 'Continue')}</button>`;
+      ${readonly ? '' : `<button class="primary wide" data-act="closeresult">${L('繼續', 'Continue')}</button>`}`;
   }
   return '';
 }
@@ -544,6 +662,8 @@ function afterChange() {
     g.aiPloyDone = { ...(g.aiPloyDone || {}), [g.tp]: true };
     aiStrategy(g, g.ai);
   }
+  recordStep(g, ui.result);
+  if (g.phase === 'gameover') archiveGame(g, [totalVP(g, 0), totalVP(g, 1)]);
   save();
   render();
 }
@@ -647,6 +767,12 @@ function doActivate(op) {
 
 // ---------- events ----------
 app.addEventListener('click', (e) => {
+  if (ui.screen === 'replay' && e.target.closest('#board')) {
+    // Replay is read-only: tapping an operative only shows its datacard.
+    const opEl = e.target.closest('[data-uid]');
+    ui.sel = opEl ? opEl.dataset.uid : null;
+    return render();
+  }
   if (e.target.closest('#board')) return onBoardClick(e);
   const b = e.target.closest('[data-act]');
   if (!b) return;
@@ -659,6 +785,14 @@ modalRoot.addEventListener('click', (e) => {
 app.addEventListener('change', (e) => {
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
 });
+app.addEventListener('input', (e) => {
+  if (e.target.dataset.act === 'rseek') { stopReplayPlay(); ui.replay.i = +e.target.value; render(); document.querySelector('.rseek')?.focus(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (ui.screen !== 'replay' || e.target.matches?.('input')) return;
+  if (e.key === 'ArrowLeft') { stopReplayPlay(); replayGo(ui.replay.i - 1); }
+  if (e.key === 'ArrowRight') { stopReplayPlay(); replayGo(ui.replay.i + 1); }
+});
 
 function handle(act, d) {
   const op = g && activeOp(g);
@@ -669,9 +803,19 @@ function handle(act, d) {
     case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); return render();
     case 'setup': ui.screen = 'setup'; return render();
     case 'pick': ui.setup.teams[+d.side] = d.team; return render();
-    case 'resume': g = loadSave(); ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; return render();
+    case 'resume': g = loadSave(); resetRecorder(); ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; return render();
+    case 'replay': return openReplay(g.replay, 'game', teamsTitle(g.teams));
+    case 'replayhist': {
+      const h = loadHistory().find((x) => String(x.id) === d.id);
+      return h && openReplay(h.replay, 'home', teamsTitle(h.teams));
+    }
+    case 'delhist': deleteHistory(+d.id); return render();
+    case 'rgo': stopReplayPlay(); return replayGo(+d.to);
+    case 'rplay': return toggleReplayPlay();
+    case 'rexit': stopReplayPlay(); ui.screen = ui.replay.from; ui.replay = null; ui.sel = null; return render();
     case 'start':
       clearSave();
+      resetRecorder();
       g = newGame({ teams: [...ui.setup.teams], ai: ui.setup.ai });
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null;
       return afterChange();
