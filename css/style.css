@@ -120,6 +120,13 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .ghost { fill: rgba(255,255,255,.12); stroke-width: .07; }
 #board .pathlen { font-size: .5px; text-anchor: middle; fill: #fff; font-weight: 700; paint-order: stroke; stroke: #000; stroke-width: .08px; }
 @keyframes pulse { 50% { opacity: .45; } }
+#board .mline { fill: none; stroke: #5ad1ff; stroke-width: .07; stroke-dasharray: .25 .12; stroke-linejoin: round; }
+#board .mpt { fill: #5ad1ff; }
+#board .mpt.snap { fill: none; stroke: #5ad1ff; stroke-width: .07; }
+#board .mseg, #board .mtotal { text-anchor: middle; font-weight: 700; fill: #fff; paint-order: stroke; stroke: #06202b; stroke-width: .1px; }
+#board .mseg { font-size: .42px; fill: #bfefff; }
+#board .mtotal { font-size: .6px; }
+#board .mhint { font-size: .38px; text-anchor: middle; fill: #5ad1ff; }
 
 .boardbox { position: relative; width: 100%; }
 .inspect { position: absolute; width: min(300px, 64%); max-height: 94%; overflow-y: auto; z-index: 3; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.6); }

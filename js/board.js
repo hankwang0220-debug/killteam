@@ -73,6 +73,7 @@ export function renderBoard(g, ui) {
     if (hl === 'cover') s.push(`<text x="${f(-r - 0.15)}" y="${f(-r)}" class="badge cov">🛡</text>`);
     s.push('</g>');
   }
+  s.push('<g id="measure" pointer-events="none"></g>'); // filled by the measuring tool
   s.push('</svg>');
   return s.join('');
 }

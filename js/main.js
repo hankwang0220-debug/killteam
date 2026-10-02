@@ -38,12 +38,79 @@ const nm = (op) => esc(opName(op, lang()));
 
 // ---------- render root ----------
 function render() {
+  if (ui.screen !== 'game') { measure.pts = []; measure.cursor = null; }
   if (ui.screen === 'home') app.innerHTML = homeView();
   else if (ui.screen === 'setup') app.innerHTML = setupView();
   else app.innerHTML = gameView();
+  drawMeasure();
   renderModal();
   scheduleAI();
 }
+
+// ---------- measuring tool ----------
+// Right-click adds a point, Esc removes the last one, left-click clears. Points on an operative snap
+// to it and distances are measured from base edges, like on the tabletop. Usable at any time.
+const measure = { pts: [], cursor: null };
+
+function measurePoint(evt) {
+  const opEl = evt.target.closest?.('[data-uid]');
+  const op = opEl && g ? getOp(g, opEl.dataset.uid) : null;
+  if (op && !op.dead) return { x: op.x, y: op.y, r: radius(op) };
+  const p = svgPoint(evt);
+  return { x: p.x, y: p.y, r: 0 };
+}
+
+const segLen = (a, b) => Math.max(0, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r);
+
+function drawMeasure() {
+  const layer = document.getElementById('measure');
+  if (!layer) return;
+  if (!measure.pts.length) { layer.innerHTML = ''; return; }
+  const last = measure.pts[measure.pts.length - 1], c = measure.cursor;
+  const pts = c && Math.hypot(c.x - last.x, c.y - last.y) > 0.05 ? [...measure.pts, c] : measure.pts;
+  const f = (n) => +n.toFixed(3);
+  const s = [];
+  s.push(`<polyline points="${pts.map((p) => `${f(p.x)},${f(p.y)}`).join(' ')}" class="mline"/>`);
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], d = segLen(a, b);
+    total += d;
+    if (pts.length > 2) s.push(`<text x="${f((a.x + b.x) / 2)}" y="${f((a.y + b.y) / 2 - 0.2)}" class="mseg">${d.toFixed(1)}"</text>`);
+  }
+  for (const p of measure.pts) s.push(`<circle cx="${f(p.x)}" cy="${f(p.y)}" r="${p.r ? f(p.r + 0.12) : 0.14}" class="mpt ${p.r ? 'snap' : ''}"/>`);
+  const end = pts[pts.length - 1];
+  if (pts.length > 1) s.push(`<text x="${f(end.x)}" y="${f(end.y - (end.r || 0) - 0.35)}" class="mtotal">${total.toFixed(1)}"</text>`);
+  s.push(`<text x="15" y="-0.15" class="mhint">${esc(L('測量：右鍵 新增點 · Esc 上一點 · 左鍵 取消', 'Measure: right-click add point · Esc undo · left-click clear'))}</text>`);
+  layer.innerHTML = s.join('');
+}
+
+function clearMeasure() { measure.pts = []; measure.cursor = null; drawMeasure(); }
+
+app.addEventListener('contextmenu', (e) => {
+  if (!e.target.closest('#board')) return;
+  e.preventDefault();
+  measure.pts.push(measurePoint(e));
+  measure.cursor = null;
+  drawMeasure();
+});
+app.addEventListener('pointermove', (e) => {
+  if (!measure.pts.length || !e.target.closest('#board')) return;
+  measure.cursor = measurePoint(e);
+  drawMeasure();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !measure.pts.length) return;
+  measure.pts.pop();
+  if (!measure.pts.length) measure.cursor = null;
+  drawMeasure();
+});
+// Left-click anywhere clears the measurement; on the board that click is used up by the clear.
+document.addEventListener('click', (e) => {
+  if (!measure.pts.length || e.button !== 0) return;
+  const onBoard = !!e.target.closest('#board');
+  clearMeasure();
+  if (onBoard) e.stopPropagation();
+}, true);
 
 function topBar(extra = '') {
   return `<header class="top">
