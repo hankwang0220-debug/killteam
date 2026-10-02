@@ -2,7 +2,7 @@
 // weapons ATK / HIT / DMG normal/crit). Names and ability wording are original
 // archetypes so you can tune or replace them with your own datacards.
 //
-// Operative stats: apl, move, save, wounds, base (mm), def (defence dice, default 3).
+// Operative stats: apl, move, save, wounds, base (mm).
 //
 // Weapon rules keys:
 //   range: n        max range in inches (edge to edge)

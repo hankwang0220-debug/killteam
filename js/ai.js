@@ -1,5 +1,5 @@
 import {
-  activate, activeOp, availableActions, avgDmg, bestMelee, buyPloy, controller, doMark, doMove, edgeDist, endActivation,
+  activate, activeOp, availableActions, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMark, doMove, edgeDist, endActivation,
   engagedEnemies, isInjured, living, markCheck, moveAllowance, radius, resolveShoot, shootCheck, startFight, team, tpl,
 } from './game.js';
 import { dist } from './geometry.js';
@@ -82,6 +82,15 @@ function chargePath(g, op) {
 export function aiStep(g) {
   const side = g.turn;
   let op = activeOp(g);
+  if (!op && g.counter) {
+    // Counteract only when it buys an attack: shoot (not in control range) or fight (in control range).
+    const pick = counterCandidates(g, side)
+      .map((o) => ({ o, s: engagedEnemies(g, o).length ? 10 : (shootOptions(g, o)[0]?.score || 0) }))
+      .filter((x) => x.s > 0).sort((a, b) => b.s - a.s)[0];
+    if (!pick) { passCounter(g); return null; }
+    activate(g, pick.o);
+    return null;
+  }
   if (!op) {
     const ready = living(g, side).filter((o) => o.ready);
     if (!ready.length) { endActivation(g); return null; }

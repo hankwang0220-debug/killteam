@@ -152,7 +152,7 @@ button.wide { width: 100%; margin-top: 10px; }
 .ploy.on { border-color: var(--ok); }
 
 .datacard { border-top: 3px solid var(--tc); }
-.statline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; }
+.statline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; }
 .statline div { background: var(--panel2); border-radius: 6px; padding: 4px 0; }
 .statline span { display: block; font-size: .65rem; color: var(--muted); letter-spacing: .08em; }
 .statline b { font-size: 1.05rem; }

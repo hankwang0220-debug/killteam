@@ -13,8 +13,7 @@ export const team = (g, side) => TEAM_MAP[g.teams[side]];
 export const tpl = (op) => TEAM_MAP[op.team].ops.find((o) => o.id === op.tplId);
 export const radius = (op) => tpl(op).base / 25.4 / 2;
 export const isInjured = (op) => op.wounds < op.maxW / 2;
-/** Defence stat: number of defence dice (defaults to 3 when a datacard doesn't set it). */
-export const defStat = (op) => tpl(op).def ?? 3;
+export const DEFENCE_DICE = 3;
 export const hasPloy = (g, side, id) => g.ploys[side].includes(id);
 export const living = (g, side) => g.ops.filter((o) => !o.dead && (side == null || o.side === side));
 export const getOp = (g, uid) => g.ops.find((o) => o.uid === uid);
@@ -29,9 +28,10 @@ export function moveStat(g, op) {
   return tpl(op).move - (isInjured(op) ? 2 : 0) + (hasPloy(g, op.side, 'moveMove') ? 1 : 0);
 }
 export function moveAllowance(g, op, kind) {
-  if (kind === 'dash') return 3;
-  if (kind === 'charge') return moveStat(g, op) + 2 + (op.team === 'greenskin' ? 1 : 0);
-  return moveStat(g, op);
+  let d = moveStat(g, op);
+  if (kind === 'dash') d = 3;
+  if (kind === 'charge') d = moveStat(g, op) + 2 + (op.team === 'greenskin' ? 1 : 0);
+  return op.counter ? Math.min(d, 2) : d; // a counteracting operative cannot move more than 2"
 }
 
 // ---------- killzone ----------
@@ -70,8 +70,9 @@ export function newGame({ teams, ai }) {
         n++;
         g.ops.push({
           uid: `${side}-${n}`, side, team: teams[side], tplId: t.id, num: n, x: 0, y: 0,
-          wounds: t.wounds, maxW: t.wounds, order: 'engage', ready: true, ap: 0, acted: {},
-          marked: false, damagedTP: false, dead: false,
+          // Operatives are set up with Conceal orders.
+          wounds: t.wounds, maxW: t.wounds, order: 'conceal', ready: true, ap: 0, acted: {},
+          marked: false, damagedTP: false, dead: false, counteracted: false,
         });
       }
     }
@@ -122,9 +123,11 @@ function startTP(g) {
   do { a = d6(); b = d6(); } while (a === b);
   g.initiative = a > b ? 0 : 1;
   g.initRoll = [a, b];
-  g.cp[0] += 1; g.cp[1] += 1;
-  if (g.tp > 1) g.cp[1 - g.initiative] += 1;
-  for (const o of g.ops) { o.ready = !o.dead; o.acted = {}; o.ap = 0; }
+  // Each player gains 1CP; after the first TP the player without initiative gains 2CP instead.
+  g.cp[g.initiative] += 1;
+  g.cp[1 - g.initiative] += g.tp > 1 ? 2 : 1;
+  g.counter = false;
+  for (const o of g.ops) { o.ready = !o.dead; o.acted = {}; o.ap = 0; o.counteracted = false; }
   log(g, { zh: `── 第 ${g.tp} 回合 ── 主動權擲骰 ${a} : ${b}`, en: `── Turning Point ${g.tp} ── Initiative roll ${a} : ${b}` }, 'tp');
 }
 
@@ -145,9 +148,16 @@ export function hasReady(g, side) { return living(g, side).some((o) => o.ready);
 
 export function activate(g, op) {
   g.active = op.uid;
-  op.ap = tpl(op).apl;
   op.acted = {};
-  op.orderSet = false;
+  if (g.counter) {
+    // Counteract: an expended Engage operative performs one 1AP action for free; order unchanged.
+    op.counter = true;
+    op.ap = 1;
+    op.orderSet = true;
+  } else {
+    op.ap = tpl(op).apl;
+    op.orderSet = false;
+  }
 }
 
 export function setOrder(g, op, order) {
@@ -155,14 +165,37 @@ export function setOrder(g, op, order) {
   op.order = order;
 }
 
+/** Expended, Engage-order operatives that haven't counteracted this TP. */
+export const counterCandidates = (g, side) =>
+  living(g, side).filter((o) => !o.ready && o.order === 'engage' && !o.counteracted);
+
 export function endActivation(g) {
   const op = activeOp(g);
-  if (op) { op.ready = false; op.ap = 0; }
+  const wasCounter = g.counter;
+  if (op) {
+    op.ready = false; op.ap = 0;
+    if (op.counter) { op.counter = false; op.counteracted = true; }
+  }
   g.active = null;
+  g.counter = false;
   if (checkWipe(g)) return;
-  const other = 1 - g.turn;
-  if (hasReady(g, other)) g.turn = other;
-  else if (!hasReady(g, g.turn)) endTP(g);
+  const cur = g.turn, other = 1 - cur;
+  if (wasCounter) {
+    // After a counteract (or passing on one), play returns to the player with ready operatives.
+    if (hasReady(g, other)) g.turn = other;
+    else if (!hasReady(g, cur)) endTP(g);
+    return;
+  }
+  if (hasReady(g, other)) { g.turn = other; return; }
+  if (!hasReady(g, cur)) { endTP(g); return; }
+  // The opponent has no ready operatives: between activations they may counteract.
+  if (counterCandidates(g, other).length) { g.turn = other; g.counter = true; }
+}
+
+/** Decline the chance to counteract. */
+export function passCounter(g) {
+  log(g, { zh: `${team(g, g.turn).name.zh} 放棄反擊`, en: `${team(g, g.turn).name.en} does not counteract` }, `side${g.turn}`);
+  endActivation(g);
 }
 
 export function controller(g, obj) {
@@ -176,22 +209,32 @@ export function controller(g, obj) {
 }
 
 function endTP(g) {
-  for (const obj of g.objectives) {
-    const c = controller(g, obj);
-    if (c != null) g.vp[c]++;
-  }
-  log(g, { zh: `回合結束計分：目標 VP ${g.vp[0]} : ${g.vp[1]}`, en: `End of TP scoring: objective VP ${g.vp[0]} : ${g.vp[1]}` }, 'tp');
+  log(g, { zh: `第 ${g.tp} 回合結束`, en: `End of Turning Point ${g.tp}` }, 'tp');
   g.ploys = [[], []];
   for (const o of g.ops) { o.marked = false; o.damagedTP = false; }
   if (g.tp >= MAX_TP) return gameOver(g);
   startTP(g);
 }
 
-export function killVP(g, side) {
-  const enemyTotal = g.ops.filter((o) => o.side !== side).length;
-  return Math.floor((5 * g.kills[side]) / enemyTotal);
+// ---------- Kill Op (Approved Ops) ----------
+// Enemy operatives that must be incapacitated to reach kill grades 1–5, by the enemy's starting count.
+const KILL_GRADE = {
+  5: [1, 2, 3, 4, 5], 6: [1, 2, 4, 5, 6], 7: [1, 3, 4, 6, 7], 8: [2, 3, 5, 6, 8], 9: [2, 4, 5, 7, 9],
+  10: [2, 4, 6, 8, 10], 11: [2, 4, 7, 9, 11], 12: [2, 5, 7, 10, 12], 13: [3, 5, 8, 10, 13], 14: [3, 6, 8, 11, 14],
+};
+export function killThresholds(g, side) {
+  const start = g.ops.filter((o) => o.side !== side).length;
+  return KILL_GRADE[Math.min(14, Math.max(5, start))];
 }
-export const totalVP = (g, side) => g.vp[side] + killVP(g, side);
+export const killGrade = (g, side) => killThresholds(g, side).filter((n) => g.kills[side] >= n).length;
+
+/** Kill Op VP: 1 per kill grade reached, +1 at the end of the battle for the higher kill grade. */
+export function killOpVP(g, side) {
+  const grade = killGrade(g, side);
+  const bonus = g.phase === 'gameover' && grade > killGrade(g, 1 - side) ? 1 : 0;
+  return grade + bonus;
+}
+export const totalVP = (g, side) => g.vp[side] + killOpVP(g, side);
 
 function checkWipe(g) {
   if (living(g, 0).length && living(g, 1).length) return false;
@@ -235,7 +278,7 @@ export function actionCost(g, op, id) {
 /** Returns [{id, ap, ok, why}] for the active operative. */
 export function availableActions(g, op) {
   const engaged = isEngaged(g, op);
-  const anyMove = MOVE_ACTIONS.some((k) => count(op, k));
+  const did = (...ks) => ks.some((k) => count(op, k));
   const hasRanged = tpl(op).weapons.some((w) => w.type === 'ranged');
   const conceal = op.order === 'conceal';
   const list = [];
@@ -247,10 +290,12 @@ export function availableActions(g, op) {
   const ENG = { zh: '處於交戰中', en: 'Engaged' };
   const DONE = { zh: '本次啟動已執行', en: 'Already done' };
   const CONC = { zh: '隱蔽指令無法執行', en: 'Not while Concealed' };
-  add('reposition', !engaged && !anyMove, engaged ? ENG : DONE);
-  add('dash', !engaged && !count(op, 'dash'), engaged ? ENG : DONE);
-  add('charge', !engaged && !anyMove && !conceal, engaged ? ENG : conceal ? CONC : DONE);
-  add('fallBack', engaged && !anyMove, !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : DONE);
+  // Official combinations: Reposition ✕ Fall Back/Charge; Dash ✕ Charge; Charge ✕ Reposition/Dash/Fall Back.
+  const COMBO = { zh: '本次啟動已執行衝突的移動動作', en: 'Conflicts with a move already made' };
+  add('reposition', !engaged && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : count(op, 'reposition') ? DONE : COMBO);
+  add('dash', !engaged && !did('dash', 'charge'), engaged ? ENG : count(op, 'dash') ? DONE : COMBO);
+  add('charge', !engaged && !conceal && !did('charge', 'reposition', 'dash', 'fallBack'), engaged ? ENG : conceal ? CONC : count(op, 'charge') ? DONE : COMBO);
+  add('fallBack', engaged && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : count(op, 'fallBack') ? DONE : COMBO);
   add('shoot', hasRanged && !engaged && !conceal && attackAllowed(op, 'shoot'), engaged ? ENG : conceal ? CONC : DONE);
   add('fight', engaged && attackAllowed(op, 'fight'), !engaged ? { zh: '沒有交戰中的敵人', en: 'No enemy in engagement' } : DONE);
   if (op.team === 'pathfinders') add('mark', !count(op, 'mark'), DONE);
@@ -278,9 +323,10 @@ export function opName(op, lang) {
 }
 
 // ---------- line of sight ----------
-// Visibility: a line from the shooter (its "head", the base centre) to ANY part of the target.
-// For each such line, intervening terrain within 1" of the target gives cover; intervening heavy
-// terrain more than 1" from the target obscures that line. The shooter uses its best line.
+// Official rules, checked on lines from the shooter to any part of the target (best line is used):
+//  - Cover: intervening terrain within the target's control range (1"), but never while the
+//    target is within 2" of the shooter.
+//  - Obscured: intervening Heavy terrain, unless that terrain is within 1" of either operative.
 function targetPoints(t) {
   const r = radius(t) * 0.95;
   const pts = [{ x: t.x, y: t.y }];
@@ -289,14 +335,16 @@ function targetPoints(t) {
 }
 
 export function visibility(g, from, to) {
-  const rt = radius(to);
+  const rf = radius(from), rt = radius(to);
+  const close = edgeDist(from, to) <= 2;
   let visible = false;
   for (const p of targetPoints(to)) {
     let cover = false, obscured = false;
     for (const t of g.terrain) {
       if (!segRect(from, p, t)) continue;
-      if (distPointRect(to, t) - rt <= 1) cover = true;
-      else if (t.kind === 'heavy') { obscured = true; break; }
+      const dt = distPointRect(to, t) - rt, ds = distPointRect(from, t) - rf;
+      if (t.kind === 'heavy' && dt > 1 && ds > 1) { obscured = true; break; }
+      if (dt <= 1 && !close) cover = true;
     }
     if (obscured) continue;
     if (!cover) return { visible: true, cover: false };
@@ -392,8 +440,11 @@ function applyDamage(g, src, target, dmg) {
   target.damagedTP = true;
   if (target.wounds <= 0) {
     target.wounds = 0; target.dead = true; target.ready = false;
+    const before = killGrade(g, src.side);
     g.kills[src.side]++;
     log(g, { zh: `☠ ${opName(target, 'zh')} 失去戰鬥能力！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
+    const after = killGrade(g, src.side);
+    if (after > before) log(g, { zh: `${team(g, src.side).name.zh} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, src.side).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
     return true;
   }
   return false;
@@ -407,9 +458,9 @@ export function resolveShoot(g, op, weapon, target) {
   const a = rollPool(atk, hit, rules.lethal || 6, rules);
   const inCover = vis.cover && !rules.ignoreCover;
   const pierce = (rules.piercing || 0) + (a.crits > 0 ? rules.piercingCrits || 0 : 0);
-  const defDice = Math.max(0, defStat(target) - pierce);
-  // Cover save: only an Engage-order target in cover (a Concealed one in cover can't be shot at all).
-  const coverOk = inCover && target.order === 'engage';
+  const defDice = Math.max(0, DEFENCE_DICE - pierce);
+  // A Concealed target in cover can't be shot at all, so any target here that's in cover gets the cover save.
+  const coverOk = inCover;
   const coverSaves = Math.min(defDice, coverOk ? (hasPloy(g, target.side, 'sneakyGits') ? 2 : 1) : 0);
   const save = tpl(target).save;
   const d = rollPool(defDice - coverSaves, save, 6);

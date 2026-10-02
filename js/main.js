@@ -2,8 +2,8 @@ import { TEAMS, TEAM_MAP, RULE_LABELS } from './data/teams.js';
 import { L, tx, getLang, setLang } from './i18n.js';
 import {
   ACTIONS, activate, activeOp, autoDeploy, availableActions, buyPloy, deployOk, doMark, doMove, endActivation,
-  engagedEnemies, getOp, isInjured, killVP, living, markCheck, moveAllowance, moveStat, newGame, opName,
-  defStat, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
+  engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, markCheck, moveAllowance, moveStat, newGame, opName,
+  counterCandidates, passCounter, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, startFirefight, team, totalVP, tpl, MAX_TP,
 } from './game.js';
 import { renderBoard } from './board.js';
@@ -194,10 +194,11 @@ function strategyPanel() {
 
 function gameOverPanel() {
   const w = g.winner;
-  const line = (s) => `<tr><td style="color:${team(g, s).color}">${esc(tx(team(g, s).name))}</td><td>${g.vp[s]}</td><td>${killVP(g, s)}</td><td><b>${totalVP(g, s)}</b></td></tr>`;
+  const line = (s) => `<tr><td style="color:${team(g, s).color}">${esc(tx(team(g, s).name))}</td><td>${g.kills[s]}</td><td>${killGrade(g, s)}</td><td>${killOpVP(g, s)}</td><td><b>${totalVP(g, s)}</b></td></tr>`;
   return `<section class="card">
     <h2>${w == null ? L('平手！', 'Draw!') : L(`${tx(team(g, w).name)} 獲勝！`, `${tx(team(g, w).name)} wins!`)}</h2>
-    <table class="final"><tr><th></th><th>${L('目標', 'Obj.')}</th><th>${L('擊殺', 'Kills')}</th><th>${L('總分', 'Total')}</th></tr>${line(0)}${line(1)}</table>
+    <table class="final"><tr><th></th><th>${L('擊殺數', 'Kills')}</th><th>${L('擊殺等級', 'Grade')}</th><th>Kill Op</th><th>${L('總分', 'Total')}</th></tr>${line(0)}${line(1)}</table>
+    <p class="hint small">${L('擊殺任務：每升一個擊殺等級得 1 VP；結束時擊殺等級較高者再得 1 VP。', 'Kill Op: 1VP per kill grade reached; +1VP at the end for the higher kill grade.')}</p>
     <button class="primary wide" data-act="setup">${L('再來一場', 'Play Again')}</button>
   </section>`;
 }
@@ -213,6 +214,17 @@ function firefightPanel() {
     const sel = ui.sel && getOp(g, ui.sel);
     return html + (op ? datacard(op) : sel ? datacard(sel) : '');
   }
+  if (!op && g.counter) {
+    const cands = counterCandidates(g, g.turn);
+    html += `<p><b>${L('反擊機會', 'Counteract')}</b></p>
+      <p class="hint">${L('你已沒有準備中的特工。可選一名已行動、交戰指令且本回合未反擊過的特工，免費執行一個 1AP 動作（移動不超過 2"），或略過。',
+    'You have no ready operatives. Pick an expended Engage-order operative that has not counteracted this TP to perform one free 1AP action (moving no more than 2"), or pass.')}</p>
+      <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`;
+    const sel = ui.sel && getOp(g, ui.sel);
+    if (sel && cands.includes(sel)) html += `<button class="primary wide" data-act="activate" data-uid="${sel.uid}">${L('反擊', 'Counteract with')} ${nm(sel)}</button>`;
+    html += `<button class="wide" data-act="passcounter">${L('略過反擊', 'Pass')}</button></section>`;
+    return html + (sel ? datacard(sel) : '');
+  }
   if (!op) {
     const ready = living(g, g.turn).filter((o) => o.ready);
     html += `<p class="hint">${L('選擇一名「準備中」的操作員啟動（點擊棋子或下方名單）。', 'Choose a ready operative to activate (tap it on the board or below).')}</p>
@@ -224,12 +236,13 @@ function firefightPanel() {
   }
 
   // Active operative
-  html += `<div class="activehead"><b>${nm(op)}</b><span class="ap">${'●'.repeat(op.ap)}${'○'.repeat(Math.max(0, tpl(op).apl - op.ap))} AP</span></div>`;
+  const apMax = op.counter ? 1 : tpl(op).apl;
+  html += `<div class="activehead"><b>${nm(op)}${op.counter ? ` <small>${L('（反擊）', '(counteract)')}</small>` : ''}</b><span class="ap">${'●'.repeat(op.ap)}${'○'.repeat(Math.max(0, apMax - op.ap))} AP</span></div>`;
   if (!op.orderSet) {
     html += `<div class="orders">
       <button class="${op.order === 'engage' ? 'on' : ''}" data-act="order" data-order="engage">⚔ ${L('交戰 Engage', 'Engage')}</button>
       <button class="${op.order === 'conceal' ? 'on' : ''}" data-act="order" data-order="conceal">◐ ${L('隱蔽 Conceal', 'Conceal')}</button>
-    </div><p class="hint small">${L('隱蔽：在掩護中時敵人無法選為目標，但不能射擊或衝鋒。執行第一個動作後鎖定。', 'Conceal: cannot be targeted while in cover, but cannot Shoot or Charge. Locks after the first action.')}</p>`;
+    </div><p class="hint small">${L('隱蔽：在掩體中時敵人無法選為目標，但不能射擊、衝鋒或反擊。執行第一個動作後鎖定。', 'Conceal: cannot be targeted while in cover, but cannot Shoot, Charge or counteract. Locks after the first action.')}</p>`;
   } else {
     html += `<p class="hint">${L('指令', 'Order')}：${op.order === 'engage' ? L('⚔ 交戰', '⚔ Engage') : L('◐ 隱蔽', '◐ Conceal')}</p>`;
   }
@@ -298,7 +311,6 @@ function datacard(op) {
     <h3>${nm(op)} <small>${esc(tx(tm.name))}</small></h3>
     <div class="statline">
       <div><span>APL</span><b>${t.apl}</b></div><div><span>MOVE</span><b>${moveStat(g, op)}"</b></div>
-      <div><span>DEF</span><b>${defStat(op)}</b></div>
       <div><span>SAVE</span><b>${t.save}+</b></div><div><span>WOUNDS</span><b>${op.wounds}/${op.maxW}</b></div>
     </div>
     ${flags.length ? `<div class="flags">${flags.join('')}</div>` : ''}
@@ -538,6 +550,7 @@ function handle(act, d) {
     case 'firefight': startFirefight(g); return afterChange();
     case 'pickop': ui.sel = d.uid; return render();
     case 'activate': return doActivate(getOp(g, d.uid));
+    case 'passcounter': passCounter(g); ui.sel = null; return afterChange();
     case 'order': setOrder(g, op, d.order); return afterChange();
     case 'action': {
       if (['reposition', 'dash', 'charge', 'fallBack'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
