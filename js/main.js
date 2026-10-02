@@ -1,5 +1,5 @@
 import { TEAMS, TEAM_MAP, RULE_LABELS } from './data/teams.js';
-import { L, tx, getLang, setLang } from './i18n.js';
+import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
   ACTIONS, activate, activeOp, autoDeploy, availableActions, buyPloy, deployOk, doMark, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, markCheck, moveAllowance, moveStat, newGame, opName,
@@ -73,7 +73,7 @@ function homeView() {
     </section>
     <section class="teamgrid">
       ${TEAMS.map((t) => `<article class="teamcard" style="--tc:${t.color}">
-        <h3>${esc(tx(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
+        <h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
         <p>${esc(tx(t.blurb))}</p>
         <p class="rule"><b>${esc(tx(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
       </article>`).join('')}
@@ -87,7 +87,7 @@ function setupView() {
   const pick = (side) => `<div class="pick">
     <h3>${side === 0 ? L('玩家 1（藍方/左）', 'Player 1 (left)') : L('玩家 2（右）', 'Player 2 (right)')}</h3>
     <div class="picklist">${TEAMS.map((t) => `<button class="teampick ${s.teams[side] === t.id ? 'on' : ''}" style="--tc:${t.color}" data-act="pick" data-side="${side}" data-team="${t.id}">
-      <b>${esc(tx(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
+      <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
     ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>` : ''}
     ${roster(TEAM_MAP[s.teams[side]])}
   </div>`;
@@ -113,7 +113,7 @@ function gameView() {
     const t = team(g, side);
     const isTurn = g.phase === 'firefight' && g.turn === side;
     return `<div class="score ${isTurn ? 'turn' : ''}" style="--tc:${t.color}">
-      <div class="sname">${esc(tx(t.name))}${g.ai === side ? ' 🤖' : ''}</div>
+      <div class="sname">${esc(tx(t.name))}${g.ai === side ? ' 🤖' : ''}${lang() === 'zh' ? `<small>${esc(t.name.en)}</small>` : ''}</div>
       <div class="snums"><span title="Victory Points">VP <b>${totalVP(g, side)}</b></span><span title="Command Points">CP <b>${g.cp[side]}</b></span>
       <span title="${L('存活', 'Alive')}">👤 ${living(g, side).length}</span></div>
     </div>`;
@@ -172,10 +172,10 @@ function strategyPanel() {
   const side = (s) => {
     const t = team(g, s);
     if (g.ai === s) {
-      return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(tx(t.name))} 🤖</h3>
+      return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} 🤖</h3>
         <p class="hint">${g.ploys[s].length ? g.ploys[s].map((id) => esc(tx(t.ploys.find((p) => p.id === id).name))).join('、') : L('未使用計謀', 'No ploys')}</p></div>`;
     }
-    return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(tx(t.name))} · CP ${g.cp[s]}</h3>
+    return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} · CP ${g.cp[s]}</h3>
       ${t.ploys.map((p) => {
         const on = g.ploys[s].includes(p.id);
         return `<button class="ploy ${on ? 'on' : ''}" data-act="ploy" data-side="${s}" data-ploy="${p.id}" ${on || g.cp[s] < p.cp ? 'disabled' : ''}>
@@ -185,7 +185,7 @@ function strategyPanel() {
   const ini = team(g, g.initiative);
   return `<section class="card">
     <h2>${L(`第 ${g.tp} 回合・策略階段`, `TP ${g.tp} · Strategy Phase`)}</h2>
-    <p>${L('主動權擲骰', 'Initiative roll')}：<b>${g.initRoll[0]}</b> : <b>${g.initRoll[1]}</b> → <b style="color:${ini.color}">${esc(tx(ini.name))}</b> ${L('先手', 'goes first')}</p>
+    <p>${L('主動權擲骰', 'Initiative roll')}：<b>${g.initRoll[0]}</b> : <b>${g.initRoll[1]}</b> → <b style="color:${ini.color}">${esc(bi(ini.name))}</b> ${L('先手', 'goes first')}</p>
     <p class="hint">${L('可花費 CP 使用策略計謀，效果持續到本回合結束。', 'Spend CP on strategy ploys; they last until the end of this Turning Point.')}</p>
     ${side(0)}${side(1)}
     <button class="primary wide" data-act="firefight">${L('進入交戰階段 ▶', 'Start Firefight ▶')}</button>
@@ -194,9 +194,9 @@ function strategyPanel() {
 
 function gameOverPanel() {
   const w = g.winner;
-  const line = (s) => `<tr><td style="color:${team(g, s).color}">${esc(tx(team(g, s).name))}</td><td>${g.kills[s]}</td><td>${killGrade(g, s)}</td><td>${killOpVP(g, s)}</td><td><b>${totalVP(g, s)}</b></td></tr>`;
+  const line = (s) => `<tr><td style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</td><td>${g.kills[s]}</td><td>${killGrade(g, s)}</td><td>${killOpVP(g, s)}</td><td><b>${totalVP(g, s)}</b></td></tr>`;
   return `<section class="card">
-    <h2>${w == null ? L('平手！', 'Draw!') : L(`${tx(team(g, w).name)} 獲勝！`, `${tx(team(g, w).name)} wins!`)}</h2>
+    <h2>${w == null ? L('平手！', 'Draw!') : L(`${esc(bi(team(g, w).name))} 獲勝！`, `${esc(bi(team(g, w).name))} wins!`)}</h2>
     <table class="final"><tr><th></th><th>${L('擊殺數', 'Kills')}</th><th>${L('擊殺等級', 'Grade')}</th><th>Kill Op</th><th>${L('總分', 'Total')}</th></tr>${line(0)}${line(1)}</table>
     <p class="hint small">${L('擊殺任務：每升一個擊殺等級得 1 VP；結束時擊殺等級較高者再得 1 VP。', 'Kill Op: 1VP per kill grade reached; +1VP at the end for the higher kill grade.')}</p>
     <button class="primary wide" data-act="setup">${L('再來一場', 'Play Again')}</button>
@@ -208,7 +208,7 @@ function firefightPanel() {
   const t = team(g, g.turn);
   const aiTurn = g.ai === g.turn;
   let html = `<section class="card turnbanner" style="--tc:${t.color}">
-    <h2>${esc(tx(t.name))} ${L('的回合', '— your move')}</h2>`;
+    <h2>${esc(bi(t.name))} ${L('的回合', '— your move')}</h2>`;
   if (aiTurn) {
     html += `<p class="hint">${L('電腦思考中…', 'Computer is thinking…')}</p></section>`;
     const sel = ui.sel && getOp(g, ui.sel);
@@ -308,7 +308,7 @@ function datacard(op) {
   if (op.order === 'conceal') flags.push(`<span class="flag">◐ ${L('隱蔽', 'Concealed')}</span>`);
   if (g.phase === 'firefight' && !op.ready && g.active !== op.uid) flags.push(`<span class="flag">${L('已行動', 'Expended')}</span>`);
   return `<section class="card datacard" style="--tc:${tm.color}">
-    <h3>${nm(op)} <small>${esc(tx(tm.name))}</small></h3>
+    <h3>${nm(op)} <small>${esc(bi(tm.name))}</small></h3>
     <div class="statline">
       <div><span>APL</span><b>${t.apl}</b></div><div><span>MOVE</span><b>${moveStat(g, op)}"</b></div>
       <div><span>SAVE</span><b>${t.save}+</b></div><div><span>WOUNDS</span><b>${op.wounds}/${op.maxW}</b></div>

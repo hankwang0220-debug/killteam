@@ -15,4 +15,7 @@ export function setLang(l) {
 export const L = (zh, en) => (lang === 'zh' ? zh : en);
 
 /** Translate a {zh, en} object (or pass a plain string through). */
+/** Proper names (e.g. teams): in Chinese, append the English name since translations vary by region. */
+export const bi = (o) => (lang === 'zh' && o?.en ? `${o.zh}（${o.en}）` : tx(o));
+
 export const tx = (o) => (o == null ? '' : typeof o === 'string' ? o : (o[lang] ?? o.en ?? o.zh));

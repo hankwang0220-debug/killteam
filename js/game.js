@@ -10,6 +10,8 @@ export const DEPLOY = [{ x0: 0, x1: 6 }, { x0: 24, x1: 30 }];
 
 // ---------- static helpers ----------
 export const team = (g, side) => TEAM_MAP[g.teams[side]];
+/** Team name for Chinese log lines, with the English name appended. */
+const teamZh = (g, side) => `${team(g, side).name.zh}（${team(g, side).name.en}）`;
 export const tpl = (op) => TEAM_MAP[op.team].ops.find((o) => o.id === op.tplId);
 export const radius = (op) => tpl(op).base / 25.4 / 2;
 export const isInjured = (op) => op.wounds < op.maxW / 2;
@@ -135,7 +137,7 @@ export function buyPloy(g, side, ploy) {
   if (g.cp[side] < ploy.cp || hasPloy(g, side, ploy.id)) return false;
   g.cp[side] -= ploy.cp;
   g.ploys[side].push(ploy.id);
-  log(g, { zh: `${team(g, side).name.zh} 使用計謀「${ploy.name.zh}」`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"` }, `side${side}`);
+  log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}」`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"` }, `side${side}`);
   return true;
 }
 
@@ -194,7 +196,7 @@ export function endActivation(g) {
 
 /** Decline the chance to counteract. */
 export function passCounter(g) {
-  log(g, { zh: `${team(g, g.turn).name.zh} 放棄反擊`, en: `${team(g, g.turn).name.en} does not counteract` }, `side${g.turn}`);
+  log(g, { zh: `${teamZh(g, g.turn)} 放棄反擊`, en: `${team(g, g.turn).name.en} does not counteract` }, `side${g.turn}`);
   endActivation(g);
 }
 
@@ -444,7 +446,7 @@ function applyDamage(g, src, target, dmg) {
     g.kills[src.side]++;
     log(g, { zh: `☠ ${opName(target, 'zh')} 失去戰鬥能力！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
     const after = killGrade(g, src.side);
-    if (after > before) log(g, { zh: `${team(g, src.side).name.zh} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, src.side).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
+    if (after > before) log(g, { zh: `${teamZh(g, src.side)} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, src.side).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
     return true;
   }
   return false;
