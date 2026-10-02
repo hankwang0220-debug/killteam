@@ -6,10 +6,11 @@ const f = (n) => +n.toFixed(3);
 /**
  * ui.highlight: Map uid -> 'target' | 'cover' (valid targets)
  * ui.path: {pts, ok}
+ * ui.canDrag: own operatives can be dragged (deployment)
  */
 export function renderBoard(g, ui) {
   const s = [];
-  s.push(`<svg id="board" viewBox="-0.6 -0.6 ${BOARD.w + 1.2} ${BOARD.h + 1.2}" xmlns="http://www.w3.org/2000/svg">`);
+  s.push(`<svg id="board" class="${ui.canDrag ? 'deploy' : ''}" viewBox="-0.6 -0.6 ${BOARD.w + 1.2} ${BOARD.h + 1.2}" xmlns="http://www.w3.org/2000/svg">`);
   s.push(`<defs>
     <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="var(--grid)" stroke-width="0.03"/></pattern>
     <pattern id="hatch" width="0.4" height="0.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.4" height="0.4" fill="var(--light-t)"/><line x1="0" y1="0" x2="0" y2="0.4" stroke="var(--light-s)" stroke-width="0.15"/></pattern>
@@ -55,12 +56,15 @@ export function renderBoard(g, ui) {
     s.push(`<line x1="${f(ui.los.a.x)}" y1="${f(ui.los.a.y)}" x2="${f(ui.los.b.x)}" y2="${f(ui.los.b.y)}" class="los" pointer-events="none"/>`);
   }
 
+  s.push('<g id="dragghost" pointer-events="none"></g>'); // filled while dragging during deployment
+
   for (const o of g.ops) {
     if (o.dead) continue;
     const r = radius(o);
     const col = team(g, o.side).color;
     const cls = ['op'];
     if (g.phase === 'firefight' && !o.ready && g.active !== o.uid) cls.push('spent');
+    if (ui.canDrag && o.side !== g.ai) cls.push('mine');
     if (ui.sel === o.uid) cls.push('sel');
     if (g.active === o.uid) cls.push('active');
     s.push(`<g class="${cls.join(' ')}" data-uid="${o.uid}" transform="translate(${f(o.x)} ${f(o.y)})">`);

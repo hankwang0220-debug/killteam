@@ -100,6 +100,8 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .light { stroke: var(--light-s); stroke-width: .04; }
 #board .objtxt { font-size: .45px; font-weight: 700; text-anchor: middle; fill: #111; }
 #board .op { cursor: pointer; }
+#board.deploy .op.mine { cursor: grab; touch-action: none; }
+#board .op.dragging { cursor: grabbing; opacity: .85; }
 #board .op .base { stroke: #0b0b0b; stroke-width: .07; }
 #board .op .base.conceal { stroke: #fff; stroke-dasharray: .15 .1; stroke-width: .06; }
 #board .op.spent { opacity: .45; }

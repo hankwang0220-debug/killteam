@@ -13,7 +13,7 @@
 //   ceaseless       re-roll attack dice that rolled 1
 //   rending         if any crit, upgrade one normal hit to a crit
 //   brutal          (melee) opponent can only block with critical successes
-//   heavy           cannot shoot after moving in the same activation
+//   heavy           cannot shoot after moving in the same activation, nor move after shooting it
 //   ignoreCover     target gets no cover save
 
 const W = (id, zh, en, type, atk, hit, dn, dc, rules = {}) =>

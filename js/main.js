@@ -4,7 +4,7 @@ import {
   ACTIONS, activate, activeOp, autoDeploy, availableActions, buyPloy, deployOk, doMark, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, markCheck, moveAllowance, moveStat, newGame, opName,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
-  radius, resolveShoot, setOrder, shootCheck, startBattle, startFirefight, team, totalVP, tpl, MAX_TP,
+  radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
 } from './game.js';
 import { renderBoard } from './board.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -149,6 +149,57 @@ document.addEventListener('click', (e) => {
   clearMeasure();
   if (onBoard) e.stopPropagation();
 }, true);
+
+// ---------- deployment drag ----------
+// Press and drag an own operative to reposition it; its original spot stays visible until it is dropped.
+// An invalid drop (outside the drop zone, on terrain, overlapping) snaps it back.
+let drag = null; // { op, from, start, p, moved, el }
+let dragEndedAt = -Infinity;
+
+// The click that follows a drag must not also act as a board click (or clear the measurement).
+window.addEventListener('click', (e) => {
+  if (performance.now() - dragEndedAt < 400) { e.stopPropagation(); dragEndedAt = -Infinity; }
+}, true);
+
+function drawDrag() {
+  const layer = document.getElementById('dragghost');
+  if (!layer || !drag) return;
+  const { op, from, p } = drag;
+  const f = (n) => +n.toFixed(3), r = radius(op), col = team(g, op.side).color;
+  const ok = deployOk(g, op, p);
+  drag.el.setAttribute('transform', `translate(${f(p.x)} ${f(p.y)})`);
+  layer.innerHTML = `<circle cx="${f(from.x)}" cy="${f(from.y)}" r="${f(r)}" class="trailghost" stroke="${col}"/>
+    <line x1="${f(from.x)}" y1="${f(from.y)}" x2="${f(p.x)}" y2="${f(p.y)}" class="trail" stroke="${col}"/>
+    <circle cx="${f(p.x)}" cy="${f(p.y)}" r="${f(r + 0.12)}" class="ghost ${ok ? 'ok' : 'bad'}"/>
+    <text x="${f(p.x)}" y="${f(p.y - r - 0.3)}" class="pathlen">${Math.hypot(p.x - from.x, p.y - from.y).toFixed(1)}"</text>`;
+}
+
+app.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || measure.mode || ui.screen !== 'game' || g?.phase !== 'deploy') return;
+  const el = e.target.closest('#board [data-uid]');
+  const op = el && getOp(g, el.dataset.uid);
+  if (!op || op.side === g.ai) return;
+  drag = { op, from: { x: op.x, y: op.y }, start: { x: e.clientX, y: e.clientY }, p: { x: op.x, y: op.y }, moved: false, el };
+  document.getElementById('board').setPointerCapture(e.pointerId);
+});
+app.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.start.x, e.clientY - drag.start.y) < 5) return;
+  if (!drag.moved) { drag.moved = true; drag.el.classList.add('dragging'); drag.el.parentNode.appendChild(drag.el); }
+  drag.p = svgPoint(e);
+  drawDrag();
+});
+const endDrag = (e) => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (!d.moved) return; // a plain click: selection is handled by the click event
+  ui.sel = d.op.uid;
+  dragEndedAt = performance.now();
+  if (e.type === 'pointerup' && deployOk(g, d.op, d.p)) { d.op.x = d.p.x; d.op.y = d.p.y; afterChange(); } else render();
+};
+app.addEventListener('pointerup', endDrag);
+app.addEventListener('pointercancel', endDrag);
 
 function topBar(extra = '') {
   const replayBtn = ui.screen === 'game' && g?.replay?.snaps.length
@@ -342,7 +393,7 @@ function scoreBar() {
 }
 
 function boardUi() {
-  const b = { sel: ui.sel, path: ui.path, highlight: null, ring: null, los: null };
+  const b = { sel: ui.sel, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy' };
   const op = activeOp(g);
   if (op && ui.mode?.kind === 'move') b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   if (op && ui.mode?.kind === 'shoot') {
@@ -382,27 +433,36 @@ function deployPanel() {
 }
 
 function strategyPanel() {
-  const side = (s) => {
+  const cur = ployChooser(g), first = g.initiative;
+  const chosen = (s) => {
     const t = team(g, s);
-    if (g.ai === s) {
-      return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} 🤖</h3>
-        <p class="hint">${g.ploys[s].length ? g.ploys[s].map((id) => esc(bi(t.ploys.find((p) => p.id === id).name))).join('、') : L('未使用計謀', 'No ploys')}</p></div>`;
-    }
-    return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} · CP ${g.cp[s]}</h3>
-      ${t.ploys.map((p) => {
-        const on = g.ploys[s].includes(p.id);
-        return `<button class="ploy ${on ? 'on' : ''}" data-act="ploy" data-side="${s}" data-ploy="${p.id}" ${on || g.cp[s] < p.cp ? 'disabled' : ''}>
-          <b>${esc(bi(p.name))}</b> <span class="cp">${p.cp}CP</span><small>${esc(tx(p.desc))}</small></button>`;
-      }).join('')}</div>`;
+    return g.ploys[s].length ? g.ploys[s].map((id) => esc(bi(t.ploys.find((p) => p.id === id).name))).join('、') : L('未使用計謀', 'No ploys');
   };
-  const ini = team(g, g.initiative);
+  // One side chooses at a time: the initiative player first, then the other player.
+  const summary = (s) => {
+    const t = team(g, s);
+    const state = s === cur ? L('選擇中…', 'choosing…') : s === first ? L('已完成', 'done') : L('等待中', 'waiting');
+    return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))}${g.ai === s ? ' 🤖' : ''} · CP ${g.cp[s]} <small>${state}</small></h3>
+      <p class="hint">${chosen(s)}</p></div>`;
+  };
+  const t = team(g, cur);
+  const picker = g.ai === cur
+    ? `<p class="hint">${L('電腦選擇計謀中…', 'Computer is choosing ploys…')}</p>`
+    : `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} ${L('選擇計謀', 'chooses ploys')} · CP ${g.cp[cur]}</h3>
+      ${t.ploys.map((p) => {
+        const on = g.ploys[cur].includes(p.id);
+        return `<button class="ploy ${on ? 'on' : ''}" data-act="ploy" data-side="${cur}" data-ploy="${p.id}" ${on || g.cp[cur] < p.cp ? 'disabled' : ''}>
+          <b>${esc(bi(p.name))}</b> <span class="cp">${p.cp}CP</span><small>${esc(tx(p.desc))}</small></button>`;
+      }).join('')}</div>
+      <button class="primary wide" data-act="ploysdone">${g.stratStep ? L('完成，進入交戰階段 ▶', 'Done — Start Firefight ▶') : L(`完成，換 ${esc(bi(team(g, 1 - cur).name))} ▶`, `Done — ${esc(bi(team(g, 1 - cur).name))}'s turn ▶`)}</button>`;
+  const ini = team(g, first);
   return `<section class="card">
     <h2>${L(`第 ${g.tp} 回合・策略階段`, `TP ${g.tp} · Strategy Phase`)}</h2>
     <p>${L('主動權擲骰', 'Initiative roll')}：<b>${g.initRoll[0]}</b> : <b>${g.initRoll[1]}</b> → <b style="color:${ini.color}">${esc(bi(ini.name))}</b> ${L('先手', 'goes first')}</p>
-    <p class="hint">${L('可花費 CP 使用策略計謀，效果持續到本回合結束。', 'Spend CP on strategy ploys; they last until the end of this Turning Point.')}</p>
-    ${side(0)}${side(1)}
-    <button class="primary wide" data-act="firefight">${L('進入交戰階段 ▶', 'Start Firefight ▶')}</button>
-  </section>`;
+    <p class="hint">${L('雙方輪流花費 CP 使用策略計謀（先手方先選），效果持續到本回合結束。', 'Each side in turn spends CP on strategy ploys (initiative player first); they last until the end of this Turning Point.')}</p>
+    ${summary(first)}${summary(1 - first)}
+  </section>
+  <section class="card turnbanner" style="--tc:${t.color}">${picker}</section>`;
 }
 
 function gameOverPanel() {
@@ -658,9 +718,9 @@ function afterChange() {
   // Auto-end a player activation with no AP left (after a move or mark).
   const a = activeOp(g);
   if (a && !ui.result && !g.fight && g.ai !== g.turn && (a.ap <= 0 || a.dead)) { endActivation(g); ui.sel = null; }
-  if (g.phase === 'strategy' && g.ai != null && !g.aiPloyDone?.[g.tp]) {
-    g.aiPloyDone = { ...(g.aiPloyDone || {}), [g.tp]: true };
+  if (g.phase === 'strategy' && g.ai === ployChooser(g)) {
     aiStrategy(g, g.ai);
+    finishPloys(g);
   }
   recordStep(g, ui.result);
   if (g.phase === 'gameover') archiveGame(g, [totalVP(g, 0), totalVP(g, 1)]);
@@ -826,7 +886,7 @@ function handle(act, d) {
       buyPloy(g, s, team(g, s).ploys.find((p) => p.id === d.ploy));
       return afterChange();
     }
-    case 'firefight': startFirefight(g); return afterChange();
+    case 'ploysdone': if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
     case 'closeinspect': ui.sel = null; return render();

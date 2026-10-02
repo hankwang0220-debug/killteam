@@ -80,7 +80,7 @@ export function newGame({ teams, ai }) {
     }
     autoDeploy(g, side);
   }
-  log(g, { zh: '部署階段：可點選己方操作員並點擊部署區調整位置。', en: 'Deployment: select your operatives and click inside your zone to reposition them.' });
+  log(g, { zh: '部署階段：可拖曳己方操作員，或點選後點擊部署區調整位置。', en: 'Deployment: drag your operatives, or select one and click inside your zone, to reposition them.' });
   return g;
 }
 
@@ -130,12 +130,24 @@ function startTP(g) {
   g.cp[g.initiative] += 1;
   g.cp[1 - g.initiative] += g.tp > 1 ? 2 : 1;
   g.counter = false;
+  g.stratStep = 0;
   for (const o of g.ops) { o.ready = !o.dead; o.acted = {}; o.ap = 0; o.counteracted = false; }
   log(g, { zh: `── 第 ${g.tp} 回合 ── 主動權擲骰 ${a} : ${b}`, en: `── Turning Point ${g.tp} ── Initiative roll ${a} : ${b}` }, 'tp');
 }
 
+/** The side choosing strategy ploys: the initiative player first, then the other player. */
+export const ployChooser = (g) => (g.stratStep ? 1 - g.initiative : g.initiative);
+
+/** The current chooser is done with ploys; after both sides the Firefight phase begins. */
+export function finishPloys(g) {
+  const side = ployChooser(g);
+  log(g, { zh: `${teamZh(g, side)} 完成計謀選擇`, en: `${team(g, side).name.en} is done choosing ploys` }, `side${side}`);
+  if (g.stratStep) startFirefight(g);
+  else g.stratStep = 1;
+}
+
 export function buyPloy(g, side, ploy) {
-  if (g.cp[side] < ploy.cp || hasPloy(g, side, ploy.id)) return false;
+  if (side !== ployChooser(g) || g.cp[side] < ploy.cp || hasPloy(g, side, ploy.id)) return false;
   g.cp[side] -= ploy.cp;
   g.ploys[side].push(ploy.id);
   log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}（${ploy.name.en}）」`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"` }, `side${side}`);
@@ -312,10 +324,13 @@ export function availableActions(g, op) {
   const CONC = { zh: '隱蔽指令無法執行', en: 'Not while Concealed' };
   // Official combinations: Reposition ✕ Fall Back/Charge; Dash ✕ Charge; Charge ✕ Reposition/Dash/Fall Back.
   const COMBO = { zh: '本次啟動已執行衝突的移動動作', en: 'Conflicts with a move already made' };
-  add('reposition', !engaged && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : count(op, 'reposition') ? DONE : COMBO);
-  add('dash', !engaged && !did('dash', 'charge'), engaged ? ENG : count(op, 'dash') ? DONE : COMBO);
-  add('charge', !engaged && !conceal && !did('charge', 'reposition', 'dash', 'fallBack'), engaged ? ENG : conceal ? CONC : count(op, 'charge') ? DONE : COMBO);
-  add('fallBack', engaged && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : count(op, 'fallBack') ? DONE : COMBO);
+  // Heavy: an operative cannot move in an activation or counteraction in which it used a Heavy weapon.
+  const HEAVY = { zh: '本次已使用重型武器，不能移動', en: 'Used a Heavy weapon, cannot move' };
+  const heavy = !!count(op, 'heavy');
+  add('reposition', !engaged && !heavy && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : heavy ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
+  add('dash', !engaged && !heavy && !did('dash', 'charge'), engaged ? ENG : heavy ? HEAVY : count(op, 'dash') ? DONE : COMBO);
+  add('charge', !engaged && !conceal && !heavy && !did('charge', 'reposition', 'dash', 'fallBack'), engaged ? ENG : conceal ? CONC : heavy ? HEAVY : count(op, 'charge') ? DONE : COMBO);
+  add('fallBack', engaged && !heavy && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : heavy ? HEAVY : count(op, 'fallBack') ? DONE : COMBO);
   add('shoot', hasRanged && !engaged && !conceal && attackAllowed(op, 'shoot'), engaged ? ENG : conceal ? CONC : DONE);
   add('fight', engaged && attackAllowed(op, 'fight'), !engaged ? { zh: '沒有交戰中的敵人', en: 'No enemy in engagement' } : DONE);
   if (op.team === 'pathfinders') add('mark', !count(op, 'mark'), DONE);
@@ -487,6 +502,7 @@ export function resolveShoot(g, op, weapon, target) {
   const d = rollPool(defDice - coverSaves, save, 6);
   const block = bestBlock(a.crits, a.norms, d.crits, d.norms + coverSaves, normalDmg(weapon, target), weapon.dmg[1]);
   spend(g, op, 'shoot');
+  if (weapon.rules.heavy) op.acted.heavy = 1;
   const before = target.wounds;
   const killed = applyDamage(g, op, target, block.dmg);
   log(g, {

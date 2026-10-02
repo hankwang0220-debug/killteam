@@ -5,7 +5,7 @@ export const HELP = {
   <ol>
     <li><b>部署</b>：雙方在各自部署區放置特工，所有特工以<b>隱蔽</b>指令開始。每名玩家起始 <b>2 CP</b>。</li>
     <li>共 <b>4 個回合 (Turning Point)</b>。</li>
-    <li><b>策略階段</b>：擲 D6 決定<b>先攻</b>（平手重擲）。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>。接著可花 CP 使用策略計謀。</li>
+    <li><b>策略階段</b>：擲 D6 決定<b>先攻</b>（平手重擲）。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>。接著由先攻方先選擇策略計謀（花費 CP），完成後換另一方選擇。</li>
     <li><b>交火階段</b>：從先攻方開始，雙方<b>輪流啟動</b>一名特工，直到所有特工都行動完畢。</li>
   </ol>
   <h3>啟動與指令</h3>
@@ -55,7 +55,7 @@ export const HELP = {
     <tr><td>平衡</td><td>可重擲 1 顆攻擊骰。</td></tr>
     <tr><td>無休</td><td>重擲所有擲出 1 的攻擊骰。</td></tr>
     <tr><td>殘暴</td><td>對手只能用暴擊格擋。</td></tr>
-    <tr><td>重型</td><td>本次啟動移動過就不能射擊。</td></tr>
+    <tr><td>重型</td><td>本次啟動（或反擊）移動過就不能使用；使用後也不能再移動。</td></tr>
     <tr><td>射程 X</td><td>只能射擊 X" 內的目標。</td></tr>
   </table>
   <p class="hint small">本 App 為非官方粉絲作品。隊伍、能力與計謀目前為暫定範例，可在 js/data/teams.js 修改。</p>`,
@@ -65,7 +65,7 @@ export const HELP = {
   <ol>
     <li><b>Deploy</b> operatives in your drop zone; all start with a <b>Conceal</b> order. Each player starts with <b>2CP</b>.</li>
     <li>The battle lasts <b>4 Turning Points</b>.</li>
-    <li><b>Strategy phase</b>: roll off for <b>initiative</b> (re-roll ties). Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead. Then spend CP on strategic ploys.</li>
+    <li><b>Strategy phase</b>: roll off for <b>initiative</b> (re-roll ties). Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead. Then the initiative player chooses strategic ploys (spending CP), followed by the other player.</li>
     <li><b>Firefight phase</b>: starting with the initiative player, players <b>alternate activating</b> one operative until all are expended.</li>
   </ol>
   <h3>Activations & orders</h3>
@@ -115,7 +115,7 @@ export const HELP = {
     <tr><td>Balanced</td><td>Re-roll one attack die.</td></tr>
     <tr><td>Ceaseless</td><td>Re-roll attack dice showing 1.</td></tr>
     <tr><td>Brutal</td><td>Opponent can only block with crits.</td></tr>
-    <tr><td>Heavy</td><td>Cannot shoot after moving this activation.</td></tr>
+    <tr><td>Heavy</td><td>Cannot be used in an activation (or counteraction) in which the operative moved, and the operative cannot move after using it.</td></tr>
     <tr><td>Range X</td><td>Only targets within X".</td></tr>
   </table>
   <p class="hint small">Unofficial fan project. Teams, abilities and ploys are placeholders — edit js/data/teams.js.</p>`,
