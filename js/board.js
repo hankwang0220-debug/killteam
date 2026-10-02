@@ -1,4 +1,5 @@
-import { BOARD, DEPLOY, OBJ_R, CONTROL, controller, isInjured, radius, team, tpl } from './game.js';
+import { BOARD, DEPLOY, OBJ_R, CONTROL, controller, isInjured, opName, radius, team, tpl } from './game.js';
+import { getLang, tx } from './i18n.js';
 
 const f = (n) => +n.toFixed(3);
 
@@ -56,6 +57,7 @@ export function renderBoard(g, ui) {
     if (ui.sel === o.uid) cls.push('sel');
     if (g.active === o.uid) cls.push('active');
     s.push(`<g class="${cls.join(' ')}" data-uid="${o.uid}" transform="translate(${f(o.x)} ${f(o.y)})">`);
+    s.push(`<title>${opName(o, getLang())} — ${tx(team(g, o.side).name)} · W ${o.wounds}/${o.maxW}</title>`);
     const hl = ui.highlight?.get(o.uid);
     if (hl) s.push(`<circle r="${f(r + 0.32)}" class="tgt ${hl}"/>`);
     if (g.active === o.uid) s.push(`<circle r="${f(r + 0.22)}" class="activeRing"/>`);

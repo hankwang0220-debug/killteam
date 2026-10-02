@@ -122,7 +122,7 @@ function gameView() {
   const bar = `<div class="scorebar">${scoreBox(0)}<div class="tp">${tpTxt}</div>${scoreBox(1)}</div>`;
   return `${topBar(bar)}
   <main class="game">
-    <div class="boardwrap">${renderBoard(g, boardUi())}</div>
+    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}</div></div>
     <aside class="panel">${panelView()}${logView()}</aside>
   </main>`;
 }
@@ -155,7 +155,6 @@ function panelView() {
 }
 
 function deployPanel() {
-  const sel = ui.sel && getOp(g, ui.sel);
   return `<section class="card">
     <h2>${L('部署階段', 'Deployment')}</h2>
     <p class="hint">${L('點選己方操作員，再點擊己方部署區（有顏色的區域）放置。已自動部署，可直接開始。',
@@ -165,7 +164,7 @@ function deployPanel() {
       ${g.ai === 1 ? '' : `<button data-act="autodeploy" data-side="1">${L('重新自動部署 P2', 'Auto-deploy P2')}</button>`}
     </div>
     <button class="primary wide" data-act="begin">${L('開始戰鬥 ▶', 'Begin Battle ▶')}</button>
-  </section>${sel ? datacard(sel) : ''}`;
+  </section>`;
 }
 
 function strategyPanel() {
@@ -211,8 +210,7 @@ function firefightPanel() {
     <h2>${esc(bi(t.name))} ${L('的回合', '— your move')}</h2>`;
   if (aiTurn) {
     html += `<p class="hint">${L('電腦思考中…', 'Computer is thinking…')}</p></section>`;
-    const sel = ui.sel && getOp(g, ui.sel);
-    return html + (op ? datacard(op) : sel ? datacard(sel) : '');
+    return html + (op ? datacard(op) : '');
   }
   if (!op && g.counter) {
     const cands = counterCandidates(g, g.turn);
@@ -223,7 +221,7 @@ function firefightPanel() {
     const sel = ui.sel && getOp(g, ui.sel);
     if (sel && cands.includes(sel)) html += `<button class="primary wide" data-act="activate" data-uid="${sel.uid}">${L('反擊', 'Counteract with')} ${nm(sel)}</button>`;
     html += `<button class="wide" data-act="passcounter">${L('略過反擊', 'Pass')}</button></section>`;
-    return html + (sel ? datacard(sel) : '');
+    return html;
   }
   if (!op) {
     const ready = living(g, g.turn).filter((o) => o.ready);
@@ -232,7 +230,7 @@ function firefightPanel() {
     const sel = ui.sel && getOp(g, ui.sel);
     if (sel && sel.side === g.turn && sel.ready) html += `<button class="primary wide" data-act="activate" data-uid="${sel.uid}">${L('啟動', 'Activate')} ${nm(sel)}</button>`;
     html += '</section>';
-    return html + (sel ? datacard(sel) : '');
+    return html;
   }
 
   // Active operative
@@ -255,8 +253,7 @@ function firefightPanel() {
       ${esc(tx(ACTIONS[a.id].name))} <span class="cp">${a.ap}AP</span></button>`).join('')}</div>`;
   }
   html += `<button class="wide" data-act="endact">${L('結束啟動', 'End Activation')}</button></section>`;
-  const sel = ui.sel && ui.sel !== op.uid ? getOp(g, ui.sel) : null;
-  return html + datacard(op) + (sel ? datacard(sel) : '');
+  return html + datacard(op);
 }
 
 function modeView(op) {
@@ -301,7 +298,19 @@ function weaponLine(w) {
     ${ruleText(w.rules) ? `<span class="wrules">${esc(ruleText(w.rules))}</span>` : ''}`;
 }
 
-function datacard(op) {
+/** Floating card on the board for an inspected (clicked) operative that isn't the active one. */
+function inspectView() {
+  const op = ui.sel && getOp(g, ui.sel);
+  if (!op || op.dead || op.uid === g.active) return '';
+  // Sit in the corner away from the operative so it never covers it.
+  const pos = `${op.x > 15 ? 'left' : 'right'} ${op.y > 11 ? 'top' : 'bottom'}`;
+  const who = g.ai === op.side ? L('敵方（電腦）', 'Enemy (computer)')
+    : g.ai != null ? L('己方', 'Yours')
+      : L(`玩家 ${op.side + 1}`, `Player ${op.side + 1}`);
+  return `<div class="inspect ${pos}">${datacard(op, `<span class="who">${who}</span><button class="ghost close" data-act="closeinspect" aria-label="close">✕</button>`)}</div>`;
+}
+
+function datacard(op, extra = '') {
   const t = tpl(op);
   const tm = team(g, op.side);
   const flags = [];
@@ -310,6 +319,7 @@ function datacard(op) {
   if (op.order === 'conceal') flags.push(`<span class="flag">◐ ${L('隱蔽', 'Concealed')}</span>`);
   if (g.phase === 'firefight' && !op.ready && g.active !== op.uid) flags.push(`<span class="flag">${L('已行動', 'Expended')}</span>`);
   return `<section class="card datacard" style="--tc:${tm.color}">
+    ${extra ? `<div class="cardtop">${extra}</div>` : ''}
     <h3>${nm(op)} <small>${esc(bi(tm.name))}</small></h3>
     <div class="statline">
       <div><span>APL</span><b>${t.apl}</b></div><div><span>MOVE</span><b>${moveStat(g, op)}"</b></div>
@@ -479,6 +489,7 @@ function onBoardClick(evt) {
     return;
   }
   if (clicked) { ui.sel = clicked.uid; render(); }
+  else if (ui.sel && ui.sel !== g.active) { ui.sel = null; render(); } // tap empty board: close the info card
 }
 
 /**
@@ -575,6 +586,7 @@ function handle(act, d) {
     case 'firefight': startFirefight(g); return afterChange();
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
+    case 'closeinspect': ui.sel = null; return render();
     case 'passcounter': passCounter(g); ui.sel = null; return afterChange();
     case 'order': setOrder(g, op, d.order); return afterChange();
     case 'action': {

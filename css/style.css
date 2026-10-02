@@ -121,6 +121,17 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .pathlen { font-size: .5px; text-anchor: middle; fill: #fff; font-weight: 700; paint-order: stroke; stroke: #000; stroke-width: .08px; }
 @keyframes pulse { 50% { opacity: .45; } }
 
+.boardbox { position: relative; width: 100%; }
+.inspect { position: absolute; width: min(300px, 64%); max-height: 94%; overflow-y: auto; z-index: 3; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.6); }
+.inspect.left { left: 8px; } .inspect.right { right: 8px; }
+.inspect.top { top: 8px; } .inspect.bottom { bottom: 8px; }
+.inspect .datacard { padding: 10px; font-size: .85rem; background: color-mix(in srgb, var(--panel) 94%, transparent); }
+.inspect .datacard h3 { font-size: .9rem; }
+.inspect table.weapons { font-size: .78rem; }
+.cardtop { display: flex; justify-content: space-between; align-items: center; margin: -2px 0 4px; }
+.cardtop .who { font-size: .72rem; color: var(--tc); font-weight: 700; letter-spacing: .04em; }
+.cardtop .close { padding: 0 8px; line-height: 1.6; }
+
 .panel { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: calc(100vh - 80px); overflow-y: auto; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .card h2 { font-size: 1.05rem; margin: 0 0 6px; }
