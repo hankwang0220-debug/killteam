@@ -1,5 +1,5 @@
 import {
-  activate, activeOp, actionCost, availableActions, endProxy, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
+  activate, activeOp, actionCost, availableActions, endProxy, setDoctrina, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
@@ -15,6 +15,13 @@ export function aiStrategy(g, side) {
   // Call the Kill / Bring it Down!: mark the enemy with the most wounds.
   if ((team(g, side).justiceMark || living(g, side).some((o) => tpl(o).callTheKill || tpl(o).watchmaster)) && !g.mark?.[side]) {
     setMark(g, side, living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0]);
+  }
+  // Doctrina Imperatives (Hunter Clade): Conqueror when Sicarians are close to the enemy, otherwise Protector;
+  // the Primary Mode's Deprecation is ignored the first time it's picked.
+  if (team(g, side).doctrina && g.doctrina?.[side]?.tp !== g.tp) {
+    const close = living(g, side).some((o) => tpl(o).ruststalker && foes(g, o).some((e) => edgeDist(o, e) <= 8));
+    const mode = close ? 'conqueror' : 'protector';
+    setDoctrina(g, side, mode, mode === g.tactics?.[side]?.[0]);
   }
   // Eye of the Ancestors: Grudge tokens on the toughest enemies. Tactician: the Attack marker on the toughest enemy.
   for (let n = eyeLeft(g, side); n > 0; n--) {

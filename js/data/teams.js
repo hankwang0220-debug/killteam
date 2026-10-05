@@ -359,6 +359,20 @@ const spark = W('spark', '火花', 'Spark', 'ranged', 4, 4, 2, 3, { range: 4, pi
 const atomiser = W('atomiser', '原子化光束', 'Atomiser beam', 'ranged', 4, 4, 3, 4, { range: 6, lethal: 5 });
 const clawsP = W('clawsP', '爪', 'Claws', 'melee', 3, 5, 1, 2);
 
+// ---- Hunter Clade ----
+const chordclawBlades = W('chordclawBlades', '和弦爪與音波刃', 'Chordclaw & transonic blades', 'melee', 5, 3, 4, 6, { balanced: true, rending: true });
+const chordclawRazor = W('chordclawRazor', '和弦爪與音波剃刀', 'Chordclaw & transonic razor', 'melee', 5, 3, 4, 5, { balanced: true });
+const transonicBlades = W('transonicBlades', '音波刃', 'Transonic blades', 'melee', 5, 3, 4, 6, { rending: true });
+const flechette = W('flechette', '鋼針爆能槍', 'Flechette blaster', 'ranged', 5, 3, 2, 2, { range: 8, saturate: true, silent: true });
+const taserGoadS = W('taserGoadS', '電擊刺棒', 'Taser goad', 'melee', 4, 3, 3, 4, { lethal: 5, shock: true });
+const galvanic = W('galvanic', '電流步槍', 'Galvanic rifle', 'ranged', 4, 3, 3, 4, { heavy: 'reposition', piercingCrits: 1 });
+const radiumCarbine = W('radiumCarbine', '鐳卡賓槍', 'Radium carbine', 'ranged', 4, 3, 2, 4, { rending: true });
+const gunButt = W('gunButt', '槍托', 'Gun butt', 'melee', 3, 4, 2, 3);
+const arquebusMobile = W('arquebusMobile', '超鈾火繩槍（機動）', 'Transuranic arquebus (mobile)', 'ranged', 4, 3, 4, 3, { devastating: 2, heavy: 'dash', piercing: 1 }, 'arquebus');
+const arquebusStationary = W('arquebusStationary', '超鈾火繩槍（定點）', 'Transuranic arquebus (stationary)', 'ranged', 4, 2, 4, 3, { devastating: 3, heavy: true, piercing: 1, severe: true }, 'arquebus');
+const caliverStd = W('caliverStd', '電漿短銃（標準）', 'Plasma caliver (standard)', 'ranged', 4, 3, 4, 6, { piercing: 1 }, 'caliver');
+const caliverSuper = W('caliverSuper', '電漿短銃（超載）', 'Plasma caliver (supercharge)', 'ranged', 4, 3, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'caliver');
+
 const shockMaulShield = W('shockMaulShield', '電擊錘與突擊盾', 'Shock maul & assault shield', 'melee', 4, 4, 4, 4, { shock: true, shield: true, repress: true });
 
 const op = (id, zh, en, stats, weapons, count = 1) => ({ id, name: { zh, en }, ...stats, weapons, count });
@@ -1129,6 +1143,64 @@ export const TEAMS = [
       op('guardian', '不朽者衛士', 'Immortal Guardian', { apl: 2, move: 5, save: 3, wounds: 10, base: 32, control: 3, steadfast: true }, [gaussBlaster, bayonetN]),
       op('accelerator', '加速漿體', 'Plasmacyte Accelerator', { apl: 2, move: 7, save: 5, wounds: 5, base: 25, small: true, disengage: true, accelerate: true }, [spark, clawsP]),
       op('reanimator', '復甦漿體', 'Plasmacyte Reanimator', { apl: 2, move: 7, save: 5, wounds: 5, base: 25, small: true, disengage: true, reanimate: true }, [atomiser, clawsP]),
+    ],
+  },
+  {
+    id: 'hunterClade',
+    name: { zh: '獵手之爪', en: 'Hunter Clade' },
+    color: '#b8432f',
+    style: { zh: '混合隊・機械教・教條指令', en: 'Mixed · Adeptus Mechanicus · Doctrina' },
+    blurb: {
+      zh: '機械教的獵殺小隊：遊騎兵與先鋒軍遠距離狙擊、輻射壓制，西卡里安潛行者近身撕碎目標；每回合切換一種教條指令來強化（也削弱）全隊。',
+      en: 'An Adeptus Mechanicus hunting party: Skitarii Rangers and Vanguard shoot and irradiate, Sicarian Ruststalkers shred up close, and each turning point a Doctrina Imperative boosts (and hampers) the whole team.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '偵察', en: 'Recon' }, { zh: '搜索與摧毀', en: 'Seek & Destroy' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '否：至少需要兩盒', en: 'No: you need at least two boxes' },
+      buyable: { zh: '能：這些都是大桌單位', en: 'Yes — these are all Warhammer 40,000 units' },
+      size: { zh: '10 名特工', en: '10 operatives' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotated out of the season in 2025: not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    doctrina: true, // Doctrina Imperatives
+    // The Primary Mode is picked at setup (its Deprecation can be ignored once when it's selected).
+    tacticSlots: 1,
+    tacticsLabel: { zh: '主要模式（教條指令）', en: 'Primary Mode (Doctrina Imperative)' },
+    tactics: [
+      { id: 'protector', name: { zh: '守護者指令', en: 'Protector Imperative' }, desc: { zh: '優化：遠程武器「無休」。劣化：近戰武器命中變差 1。', en: 'Optimisation: ranged weapons have Ceaseless. Deprecation: melee weapons\' Hit worsened by 1.' } },
+      { id: 'conqueror', name: { zh: '征服者指令', en: 'Conqueror Imperative' }, desc: { zh: '優化：近戰武器「無休」。劣化：遠程武器命中變差 1。', en: 'Optimisation: melee weapons have Ceaseless. Deprecation: ranged weapons\' Hit worsened by 1.' } },
+      { id: 'bulwark', name: { zh: '壁壘指令', en: 'Bulwark Imperative' }, desc: { zh: '優化：受到 3 以上的普通傷害時 -1。劣化：Move -1"。', en: 'Optimisation: Normal Dmg of 3+ inflicts 1 less. Deprecation: -1" Move.' } },
+      { id: 'aggressor', name: { zh: '侵攻者指令', en: 'Aggressor Imperative' }, desc: { zh: '優化：Move +1"。劣化：豁免變差 1。', en: 'Optimisation: +1" Move. Deprecation: Save worsened by 1.' } },
+      { id: 'neutral', name: { zh: '中立指令', en: 'Neutral Imperative' }, desc: { zh: '沒有優化也沒有劣化。', en: 'No Optimisation and no Deprecation.' } },
+    ],
+    defaultTactics: ['protector'],
+    rule: {
+      name: { zh: '教條指令', en: 'Doctrina Imperatives' },
+      desc: {
+        zh: '開戰前選一種指令作為「主要模式」。每回合策略階段（策略計謀）選一種指令給全隊，直到下回合準備步驟：同時有它的優化與劣化效果。整場一次，選到主要模式時可以無視它的劣化。',
+        en: 'Before the battle, pick one Imperative as the Primary Mode. Each Strategy phase (strategic gambit) pick an Imperative for the team until the next Ready step: both its Optimisation and Deprecation apply. Once per battle, when you pick the Primary Mode, you can ignore its Deprecation.',
+      },
+    },
+    ploys: [
+      { id: 'debilitating', cp: 1, name: { zh: '衰弱輻射', en: 'Debilitating Irradiation' },
+        desc: { zh: '本回合受「輻射飽和」影響的敵人攻擊友方先鋒軍時，武器普通傷害 -1（最低 3）。', en: 'This TP, an enemy under Rad-Saturation attacking a friendly Vanguard has -1 Normal Dmg (to a minimum of 3).' } },
+      { id: 'neurostatic', cp: 1, name: { zh: '神經靜電干擾', en: 'Neurostatic Interference' },
+        desc: { zh: '本回合友方滲透者 6" 內的敵人射擊、近戰或反擊時，不能重擲攻擊骰（包括指揮重擲）。', en: 'This TP, enemies within 6" of a friendly Infiltrator can\'t re-roll attack dice when shooting, fighting or retaliating (Command Re-roll included).' } },
+      { id: 'accelerant', cp: 1, name: { zh: '加速劑', en: 'Accelerant Agents' },
+        desc: { zh: '本回合友方潛行者每次啟動可以近戰兩次，其中一次免費。', en: 'This TP, each friendly Ruststalker can Fight twice per activation, and one of them is free.' } },
+    ],
+    ops: [
+      op('rsPrinceps', '潛行者首領', 'Sicarian Ruststalker Princeps', { apl: 2, move: 6, save: 4, wounds: 11, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true, canticleDestruction: true }, [chordclawBlades]),
+      op('rsWarrior', '潛行者戰士', 'Sicarian Ruststalker Warrior', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true }, [transonicBlades]),
+      op('rsWarriorC', '潛行者戰士（和弦爪）', 'Sicarian Ruststalker Warrior (chordclaw)', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true }, [chordclawRazor]),
+      op('infWarrior', '滲透者戰士', 'Sicarian Infiltrator Warrior', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, infiltrator: true, sicarian: true }, [flechette, taserGoadS]),
+      op('rgGunner', '遊騎兵槍手', 'Skitarii Ranger Gunner', { apl: 2, move: 6, save: 4, wounds: 7, base: 35, ranger: true, targetingProtocol: true }, [arquebusMobile, arquebusStationary, gunButt]),
+      op('rgDiktat', '遊騎兵傳令官', 'Skitarii Ranger Diktat', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, signal: true }, [galvanic, gunButt]),
+      op('rgSurveyor', '遊騎兵勘測員', 'Skitarii Ranger Surveyor', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, support: 'spot' }, [galvanic, gunButt]),
+      op('rgWarrior', '遊騎兵戰士', 'Skitarii Ranger Warrior', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true }, [galvanic, gunButt]),
+      op('vgGunner', '先鋒軍槍手', 'Skitarii Vanguard Gunner', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true }, [caliverStd, caliverSuper, gunButt]),
+      op('vgWarrior', '先鋒軍戰士', 'Skitarii Vanguard Warrior', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true }, [radiumCarbine, gunButt]),
     ],
   },
 ];

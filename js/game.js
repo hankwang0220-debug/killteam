@@ -42,7 +42,7 @@ const d3 = () => { rolls++; return 1 + Math.floor(Math.random() * 3); };
 /** Injured stat changes apply (And They Shall Know No Fear ignores them). */
 export const injuredPenalty = (g, op) => isInjured(op) && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op);
 /** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
-export const hasTactic = (g, op, id) => !!g.tactics?.[op.side]?.includes(id) || (id === 'stealthy' && !!tpl(op).camoCloak);
+export const hasTactic = (g, op, id) => !!g.tactics?.[op.side]?.includes(id) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).wastelandStalker)); // (Wasteland Stalker: Ruststalkers)
 
 /** Art of War option (Mont'ka / Kauyon) in effect for this operative; the Blooded veteran gets either. */
 export const artOfWar = (g, op, id) => hasPloy(g, op.side, id)
@@ -67,6 +67,8 @@ export function moveStat(g, op) {
   let m = statPenalty(g, op) && !tpl(op).engenderedFocus ? Math.max(Math.min(base, 4), base - 2) : base;
   if (artOfWar(g, op, 'montka')) m += 1;
   if (op.shieldingOn) m -= 2; // Shielding (Trench Sweeper)
+  if (optimised(g, op, 'aggressor')) m += 1; // Aggressor Imperative
+  if (deprecated(g, op, 'bulwark')) m -= 1; // Bulwark Imperative
   if (isDrone(op) && living(g, op.side).some((o) => tpl(o).droneController)) m += 2;
   return m;
 }
@@ -526,6 +528,7 @@ export function activate(g, op) {
   }
   g.chain = null;
   op.acted = {}; // (before Cult Ambush below records whether it started unseen)
+  if (!g.counter && tpl(op).ruststalker && hasPloy(g, op.side, 'accelerant')) op.acted.accelerant = true;
   if (!g.counter) op.jam = false; // System Jam token removed when activated
   if (!g.counter) op.shieldingOn = false; // Shielding lasts until the start of its next activation
   if (!g.counter) op.gongOn = false; // so does Gong Knell
@@ -791,6 +794,8 @@ function gameOver(g) {
 // ---------- actions ----------
 const MOVE_ACTIONS = ['reposition', 'charge', 'fallBack'];
 const count = (op, k) => op.acted[k] || 0;
+// Accelerant Agents (Hunter Clade ploy): set on the Ruststalker when it activates.
+const accelerant = (op) => !!op.acted?.accelerant;
 const moved = (op) => MOVE_ACTIONS.some((k) => count(op, k)) || count(op, 'dash');
 
 // Astartes (Angels of Death): two Shoot or two Fight actions per activation, but not a second of
@@ -803,6 +808,7 @@ function attackAllowed(op, kind) {
   if (kind === 'fight' && (tpl(op).krumpin || tpl(op).twoFights) && count(op, kind) === 1) return true; // Krumpin' Time / Expert Swordsman
   if (kind === 'shoot' && tpl(op).twoShoots && count(op, kind) === 1) return true; // Expert Gunslinger
   if (kind === 'fight' && count(op, kind) < (op.acted.fightsAllowed || 1)) return true; // Enraged Ambull: two Fights
+  if (kind === 'fight' && count(op, kind) === 1 && accelerant(op)) return true; // Accelerant Agents (Ruststalkers)
   const otherKind = kind === 'shoot' ? 'fight' : 'shoot';
   return isAstartes(op) && count(op, kind) === 1 && count(op, otherKind) === 0;
 }
@@ -878,6 +884,7 @@ export function actionCost(g, op, id) {
   if (id === 'markerlight' && op.order === 'conceal' && artOfWar(g, op, 'kauyon')) return 0;
   // Free actions from Dakka Dash, Savage Assault and Stealth Attack.
   if (['dash', 'shoot', 'charge', 'fight'].includes(id) && op.acted?.free?.[id]) return 0;
+  if (id === 'fight' && count(op, 'fight') === 1 && accelerant(op)) return 0; // Accelerant Agents: one Fight is free
   // Acute Focus (Malocator): once per activation, Pick Up, Veriscant or a mission action costs 1 less.
   const acute = tpl(op).acuteFocus && !op.acted?.acuteUsed && (ACUTE.includes(id) || MISSION_ACTIONS[id]) ? 1 : 0;
   if (id === 'veriscant') return ACTIONS.veriscant.ap - acute;
@@ -1745,6 +1752,10 @@ export function effectiveRules(g, op, weapon, target) {
     if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'terminalDecree') && edgeDist(op, target) <= 6) r.balanced = true; // Terminal Decree
   }
   if (tpl(op).aggressivePattern && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  // ---- Hunter Clade ----
+  if ((weapon.type === 'ranged' && optimised(g, op, 'protector')) || (weapon.type === 'melee' && optimised(g, op, 'conqueror'))) r.ceaseless = true; // Doctrina Imperatives
+  // Targeting Protocol (Rangers): Lethal 5+ if it hasn't moved this activation, or counteracting.
+  if (tpl(op).targetingProtocol && weapon.type === 'ranged' && (op.counter || g.active !== op.uid || !moved(op))) r.lethal = Math.min(r.lethal || 6, 5);
   // ---- Hierotek Circle ----
   if (weapon.rules.magnify && g.magnifyNow === op.uid) r.ceaseless = true; // Magnify
   if (weapon.type === 'ranged' && target && tpl(op).deathmark && target.dmk?.[op.side]) r.seek = true; // Deathmarked
@@ -1765,7 +1776,7 @@ export function effectiveRules(g, op, weapon, target) {
   if (weapon.type === 'ranged' && pechraNear(g, op.side, target)) r.seekLight = true; // Marked for the Hunt
   // Sickening Emissions (Decaying Generatorium): no re-rolls for a player operative near an objective marker.
   // Voxbreak (Phobos): no re-rolls within 6" of the Voxbreaker.
-  if ((mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o))) || voxbroken(g, op)) {
+  if ((mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o))) || voxbroken(g, op) || neurostatic(g, op)) { // (Neurostatic Interference: Hunter Clade)
     delete r.balanced; delete r.ceaseless; delete r.relentless;
   }
   return r;
@@ -1881,7 +1892,7 @@ const mindburned = (g, op) => [0, 1].some((s) => s !== op.side && g.mindburn?.[s
 // Apprehend (Cyber-mastiff) worsens it the same way. Engendered Focus (Castigator) ignores it all;
 // Stubborn Subjugator (Subductor) ignores it for melee weapons.
 const hitWorse = (g, op, w = null) => !tpl(op).engenderedFocus && !(w?.type === 'melee' && tpl(op).stubbornSubjugator)
-  && (statPenalty(g, op) || mindburned(g, op) || apprehended(g, op));
+  && (statPenalty(g, op) || mindburned(g, op) || apprehended(g, op) || radSaturated(g, op) || doctrinaHit(g, op, w));
 
 // ---------- Exaction Squad ----------
 /** Nuncio-aquila: an enemy within 3" of the Proctor-exactant (it carries the marker in this version). */
@@ -2000,6 +2011,36 @@ export function endProxy(g) {
   if (by?.acted) by.acted.proxyFor = null;
   g.proxy = null;
 }
+// ---------- Hunter Clade ----------
+/** The Doctrina Imperative this operative's team has this turning point (null if none). */
+const doctrina = (g, op) => {
+  const d = op.side < 2 && TEAM_MAP[op.team].doctrina ? g.doctrina?.[op.side] : null;
+  return d && d.tp === g.tp ? d : null;
+};
+const optimised = (g, op, mode) => doctrina(g, op)?.mode === mode;
+const deprecated = (g, op, mode) => { const d = doctrina(g, op); return !!d && d.mode === mode && !d.noDep; };
+/** Strategic gambit: the Imperative until the next Ready step (the Primary Mode's Deprecation can be ignored once per battle). */
+export function setDoctrina(g, side, mode, ignoreDep = false) {
+  const primary = g.tactics?.[side]?.[0];
+  const prev = g.doctrina?.[side];
+  if (prev?.tp === g.tp && prev.noDep) g.primaryUsed[side] = false; // changed its mind in the same Strategy phase
+  const noDep = ignoreDep && mode === primary && !g.primaryUsed?.[side];
+  if (noDep) (g.primaryUsed ||= [false, false])[side] = true;
+  (g.doctrina ||= [null, null])[side] = { tp: g.tp, mode, noDep };
+  const t = team(g, side).tactics.find((x) => x.id === mode);
+  log(g, { zh: `${teamZh(g, side)} 教條指令：${t.name.zh}${noDep ? '（主要模式：無視劣化）' : ''}`, en: `${team(g, side).name.en} Doctrina Imperative: ${t.name.en}${noDep ? ' (Primary Mode: Deprecation ignored)' : ''}` }, `side${side}`);
+}
+/** Can this side still ignore its Primary Mode's Deprecation? */
+export const primaryLeft = (g, side) => !g.primaryUsed?.[side];
+/** Hit worsened by the Imperative's Deprecation (Protector: melee; Conqueror: ranged). */
+const doctrinaHit = (g, op, w) => !!w && ((w.type === 'melee' && deprecated(g, op, 'protector')) || (w.type === 'ranged' && deprecated(g, op, 'conqueror')));
+const bulwark = (g, op) => !!g && optimised(g, op, 'bulwark');
+/** Rad-Saturation: an enemy within 2" of a friendly Vanguard has its Hit worsened by 1. */
+const radSaturated = (g, op) => op.side < 2 && living(g, 1 - op.side).some((v) => tpl(v).radSat && edgeDist(v, op) <= 2);
+/** Debilitating Irradiation: the attacker is irradiated and its target is a Vanguard of a side that bought the ploy. */
+const debilitated = (g, src, target) => target.side < 2 && !!tpl(target).vanguard && hasPloy(g, target.side, 'debilitating') && radSaturated(g, src);
+/** Neurostatic Interference: an enemy within 6" of a friendly Infiltrator can't re-roll its attack dice. */
+const neurostatic = (g, op) => op.side < 2 && hasPloy(g, 1 - op.side, 'neurostatic') && living(g, 1 - op.side).some((i) => tpl(i).infiltrator && edgeDist(i, op) <= 6);
 /** Inviolate Jurisdiction (ploy): shot within 2" of an objective marker or an enemy — re-roll one defence die. */
 const inviolate = (g, op) => op.side < 2 && TEAM_MAP[op.team].ruthless && hasPloy(g, op.side, 'inviolate')
   && ((g.objectives || []).some((o) => dist(op, o) - radius(op) - OBJ_R <= 2) || foes(g, op).some((e) => edgeDist(e, op) <= 2));
@@ -2286,7 +2327,8 @@ export function aiRerollChoice(g, side, holder, which) {
 
 const clampHit = (h) => Math.min(6, Math.max(2, h));
 
-const normalDmg = (w) => w.dmg[0];
+// Debilitating Irradiation (Hunter Clade ploy): -1 Normal Dmg (to a minimum of 3) for an irradiated attacker hitting a Vanguard.
+const normalDmg = (w, target = null, g = null, src = null) => w.dmg[0] - (g && src && target && w.dmg[0] > 3 && debilitated(g, src, target) ? 1 : 0);
 
 function bestBlock(ac, an, sc, sn, dn, dc) {
   let best = { dmg: Infinity };
@@ -2514,7 +2556,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   hit = clampHit(hit);
   const atk = Math.max(1, weapon.atk - (cursed(g, op, 'barrelwarp') ? 1 : 0)); // Barrelwarp (Gellerpox)
   const a = rollPool(atk, hit, rules.lethal || 6, rules);
-  const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op), d: noRerollHere(g, target) } };
+  const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
   const inCover = vis.cover && !rules.ignoreCover;
   // Toxic: +1 to both Dmg against an enemy that was poisoned at the start of the action.
@@ -2522,8 +2564,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const tox = (rules.toxic && poisonedAtStart?.has(target.uid) ? 1 : 0) + (rules.closeAssault && weapon.rules.shotgun ? 1 : 0);
   // Xenotech Shielding (Archivist): Normal and Critical Dmg of 4+ deal 1 less.
   const shield = (d) => (tpl(target).xenotech && d >= 4 ? d - 1 : d);
-  const tough = (d) => (tpl(target).tough && d >= 3 ? d - 1 : d); // Tough (Thug): Normal Dmg of 3+ deals 1 less
-  const dn = tough(shield(normalDmg(weapon, target) + tox));
+  const tough = (d) => ((tpl(target).tough || bulwark(g, target)) && d >= 3 ? d - 1 : d); // Tough (Thug) / Bulwark Imperative: Normal Dmg of 3+ deals 1 less
+  const dn = tough(shield(normalDmg(weapon, target, g, op) + tox));
   // Hardy (Cold-blood): a critical hit can inflict Normal Dmg instead.
   let dc = tpl(target).hardyCrit ? Math.min(shield(weapon.dmg[1] + tox), dn) : shield(weapon.dmg[1] + tox);
   const camo = !!tpl(target).camoCloak; // Camo Cloak ignores Saturate
@@ -2558,7 +2600,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     coverN = Math.min(coverN, defDice - coverC);
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
     // Gong Knell (Deathknell): +1 Save when shot until its next activation.
-    const save = Math.max(2, tpl(target).save - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0));
+    // Aggressor Imperative (Hunter Clade): the Save is worsened by 1.
+    const save = Math.min(6, Math.max(2, tpl(target).save - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0)) + (deprecated(g, target, 'aggressor') ? 1 : 0));
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
   // Obscured and in cover: the defender uses only one of them — whichever leaves less expected damage.
@@ -2819,7 +2862,8 @@ export function startFight(g, op, weapon, target) {
   const side = (o, foe, w, r, roll, hit) => ({
     uid: o.uid, w: w.id, c: roll.crits, n: roll.norms, brutal: !!r.brutal, dueller: hasTactic(g, o, 'dueller'), hit, dice: roll.dice, before: o.wounds,
     tox: r.toxic && foe.poison ? 1 : 0, poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute') && !tpl(foe).chemEnhanced && !tpl(foe).toxicBlessings, hardy: !!tpl(o).hardyCrit,
-    a: roll, rerolled: {}, noReroll: { a: noRerollHere(g, o) },
+    a: roll, rerolled: {}, noReroll: { a: noRerollHere(g, o) || neurostatic(g, o) },
+    destr: !!tpl(o).ruststalker && living(g, o.side).some((p) => tpl(p).canticleDestruction && edgeDist(p, o) <= 3),
   });
   // Repress (Exaction Squad shields): retaliating with it, the defender resolves the first die.
   g.fight = { A: side(op, target, weapon, ar, aRoll, aHit), D: side(target, op, dWeapon, dr, dRoll, dHit), turn: dWeapon.rules.repress && !weapon.rules.repress ? 'D' : 'A', steps: [], done: false };
@@ -2889,9 +2933,10 @@ export function fightOptions(g) {
   const f = g.fight, k = f.turn, me = f[k], foe = f[other(k)];
   const w = fightWeapon(g, k), foeOp = fightOp(g, other(k));
   const opts = [];
-  const normal = normalDmg(w, foeOp) + (me.tox || 0);
+  const normal = normalDmg(w, foeOp, g, fightOp(g, k)) + (me.tox || 0);
   // Headtaker: the skullcleaver's Critical Dmg grows with each kill.
-  const critD = w.dmg[1] + (me.tox || 0) + (w.rules.headtaker ? fightOp(g, k).headBonus || 0 : 0);
+  // Canticle of Destruction (Ruststalker Princeps): +1 damage on the first critical strike of the sequence.
+  const critD = w.dmg[1] + (me.tox || 0) + (w.rules.headtaker ? fightOp(g, k).headBonus || 0 : 0) + (me.destr && !me.destrUsed ? 1 : 0);
   if (me.c) opts.push({ id: 'strike-c', act: 'strike', die: 'c', dmg: foe.hardy ? Math.min(critD, normal) : critD });
   if (me.n) opts.push({ id: 'strike-n', act: 'strike', die: 'n', dmg: normal });
   // Parry: a crit cancels any success, a normal cancels a normal (not vs Brutal).
@@ -2913,6 +2958,7 @@ export function fightApply(g, optId) {
   if (!opt) return;
   const k = f.turn, me = f[k], foe = f[other(k)];
   me[opt.die]--;
+  if (opt.act === 'strike' && opt.die === 'c' && me.destr) me.destrUsed = true;
   if (opt.act === 'strike') {
     const meOp = fightOp(g, k), foeOp = fightOp(g, other(k));
     // Bruiser: once per turning point, ignore the damage from one normal success when fighting or retaliating.
@@ -2923,10 +2969,10 @@ export function fightApply(g, optId) {
     // Tough (Blooded Thug): Normal Dmg of 3 or more inflicts 1 less.
     // War Gong: a critical strike inflicts Normal Dmg instead (when lower, or to keep a Frenzied Fellgor up).
     const wasFrenzy = !!foeOp.frenzy;
-    const normalHit = normalDmg(fightWeapon(g, k), foeOp) + (me.tox || 0);
+    const normalHit = normalDmg(fightWeapon(g, k), foeOp, g, meOp) + (me.tox || 0);
     const gong = opt.die === 'c' && warGong(g, foeOp) && (normalHit < opt.dmg || wasFrenzy);
     const dmg0 = gong ? normalHit : opt.dmg, asNormal = opt.die === 'n' || gong;
-    const amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || (tpl(foeOp).tough && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
+    const amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || ((tpl(foeOp).tough || bulwark(g, foeOp)) && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
     const res = shrug ? { dmg: 0, rolls: [] } : resolveDice(foeOp, [amount], g); // Disgustingly Resilient
     // Shock: the first crit strike in the sequence also discards an unresolved enemy normal (else a crit).
     let shocked = null;
@@ -2966,7 +3012,7 @@ export function fightApply(g, optId) {
     if (killed && (tpl(foeOp).bruiser || tpl(foeOp).brawler || tpl(foeOp).wretched) && left(foe) > 0 && !meOp.dead) {
       const w = fightWeapon(g, other(k)), crit = foe.c > 0;
       foe[crit ? 'c' : 'n']--;
-      const dmg = crit ? w.dmg[1] + (foe.tox || 0) : normalDmg(w, meOp) + (foe.tox || 0);
+      const dmg = crit ? w.dmg[1] + (foe.tox || 0) : normalDmg(w, meOp, g, foeOp) + (foe.tox || 0);
       const r2 = resolveDice(meOp, [dmg], g);
       const k2 = applyDamage(g, foeOp, meOp, r2.dmg);
       f.steps.push({ side: other(k), act: 'strike', crit, dmg: r2.dmg, killed: k2, lastBlow: true });

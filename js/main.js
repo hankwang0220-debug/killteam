@@ -7,7 +7,7 @@ import {
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
   ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
-  shootFlow, endProxy, reanimMarkers, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
+  shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, foes,
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
@@ -684,6 +684,19 @@ function gambitView(side) {
         ${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${cur === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}
       </select></div>`;
   }
+  if (team(g, side).doctrina) {
+    const cur = g.doctrina?.[side]?.tp === g.tp ? g.doctrina[side] : null;
+    const tm = team(g, side), primary = g.tactics?.[side]?.[0];
+    const pname = tm.tactics.find((x) => x.id === primary)?.name;
+    html += `<div class="gambit"><h4>${L('教條指令', 'Doctrina Imperative')}</h4>
+      <p class="hint small">${L(`選一種指令給全隊，直到下回合：優化與劣化同時生效。主要模式：${pname ? tx(pname) : '—'}`, `Pick an Imperative for the team until next turning point: both its Optimisation and Deprecation apply. Primary Mode: ${pname ? tx(pname) : '—'}`)}</p>
+      <select data-act="doctrina" data-side="${side}"><option value="">${L('（選擇指令）', '(choose an Imperative)')}</option>
+        ${tm.tactics.map((x) => `<option value="${x.id}" ${cur?.mode === x.id ? 'selected' : ''}>${esc(bi(x.name))}${x.id === primary ? L('（主要）', ' (Primary)') : ''}</option>`).join('')}
+      </select>
+      ${primaryLeft(g, side) || cur?.noDep ? `<label class="small"><input type="checkbox" data-act="nodep" data-side="${side}" ${cur?.noDep ? 'checked' : ''}> ${L('選主要模式時無視劣化（整場一次）', 'Ignore the Primary Mode\'s Deprecation (once per battle)')}</label>` : ''}
+      ${cur ? `<p class="hint small"><b>${esc(tx(tm.tactics.find((x) => x.id === cur.mode).name))}</b>：${esc(tx(tm.tactics.find((x) => x.id === cur.mode).desc))}${cur.noDep ? L('（劣化已無視）', ' (Deprecation ignored)') : ''}</p>` : ''}
+    </div>`;
+  }
   if (team(g, side).justiceMark) {
     const cur = g.mark?.[side];
     html += `<div class="gambit"><h4>${L('正義標記', 'Marked for Justice')}</h4>
@@ -1046,6 +1059,8 @@ function datacard(op, extra = '') {
   if (op.poison) flags.push(`<span class="flag poison">${L('中毒', 'Poisoned')}</span>`);
   if (g.mark?.[1 - op.side] === op.uid) flags.push(`<span class="flag mk">${L('被標記', 'Marked')}</span>`);
   if (engagedEnemies(g, op).some((m) => m.apprehend === op.uid)) flags.push(`<span class="flag inj">${L('被扣押：命中 -1、不能撤退', 'Apprehended: -1 to hit, no Fall Back')}</span>`);
+  const doc = TEAM_MAP[op.team].doctrina && g.doctrina?.[op.side]?.tp === g.tp ? g.doctrina[op.side] : null;
+  if (doc) flags.push(`<span class="flag mk">${esc(tx(TEAM_MAP[op.team].tactics.find((x) => x.id === doc.mode).name))}${doc.noDep ? L('（無劣化）', ' (no Deprecation)') : ''}</span>`);
   if (op.dmk?.[1 - op.side]) flags.push(`<span class="flag mk">${L('死亡標記', 'Deathmarked')}</span>`);
   if (g.reinforce?.[op.side]?.t === op.uid) flags.push(`<span class="flag">${L('強化金屬', 'Reinforce Metal')}</span>`);
   if (g.augment?.[op.side]?.t === op.uid) flags.push(`<span class="flag">${L('強化武器', 'Augment Weapon')}</span>`);
@@ -1101,6 +1116,10 @@ const ABILITIES = {
   actionsOnly: (v) => ['動作限制', 'Limited actions', `只能執行：${v.map((a) => ACTIONS[a].name.zh).join('、')}。`, `Only: ${v.map((a) => ACTIONS[a].name.en).join(', ')}.`],
   camoCloak: () => ['迷彩斗篷', 'Camo Cloak', '被射擊時無視飽和，並擁有「隱匿」戰團戰術。', 'Ignores Saturate when shot and has the Stealthy tactic.'],
   optics: () => ['光學瞄準', 'Optics', '1AP：直到下次啟動，射擊時敵人不能被遮蔽（強徵小隊神射手：隱蔽／定點處決霰彈槍再加「致命 5+」）。', '1AP: until its next activation, enemies cannot be obscured when it shoots (Exaction Marksman: the concealed/stationary executioner shotgun also has Lethal 5+).'],
+  wastelandStalker: () => ['荒地潛行者', 'Wasteland Stalker', '被射擊時若能保留掩護豁免，可多保留 1 顆，或把 1 顆當暴擊保留。', 'When shot, if it can retain cover saves, it retains one more, or one as a critical success.'],
+  canticleDestruction: () => ['毀滅頌歌', 'Canticle of Destruction', '3" 內的友方潛行者（包括自己）近戰時，第一次用暴擊打擊多造成 1 傷害。', 'A friendly Ruststalker within 3" (itself included) fighting: its first critical strike of the sequence deals 1 more damage.'],
+  targetingProtocol: () => ['瞄準協議', 'Targeting Protocol', '本次啟動還沒移動（或反擊時）射擊，遠程武器「致命 5+」；射擊後仍可移動。', 'Shooting before it has moved this activation (or counteracting): ranged weapons have Lethal 5+; it can still move afterwards.'],
+  radSat: () => ['輻射飽和', 'Rad-Saturation', '友方先鋒軍 2" 內的敵人命中變差 1（不與受傷疊加）。', 'Enemies within 2" of friendly Vanguard have their Hit worsened by 1 (not cumulative with injured).'],
   magnifyRelay: () => ['放大節點', 'Magnify node', '交戰指令且不在敵人控制範圍內時，友方技師／學徒的「放大」武器可借它的位置射擊。', 'With an Engage order and not in an enemy\'s control range, friendly Cryptek / Apprentek Magnify weapons can shoot through it.'],
   interstitial: () => ['間隙指令', 'Interstitial Command', '1AP（支援，非反擊）：6" 內可見的另一名友方（技師、學徒除外；技師也可選不朽者指揮官 6" 內的）立刻免費射擊一次。本版只能用來射擊；本回合已射擊或已被指揮過的不能選。', '1AP (Support, not counteracting): another visible friendly within 6" (not a Cryptek or Apprentek; for a Cryptek, also within 6" of a visible Despotek) shoots for free right away. Here it can only Shoot; not one that already shot or was commanded this TP.'],
   canoptekRepair: () => ['聖甲蟲修復', 'Canoptek Repair', '1AP（支援，每回合全隊一次）：6" 內可見的友方回復 2D3 生命。', '1AP (Support, once per TP for the team): a visible friendly within 6" regains 2D3 wounds.'],
@@ -1584,6 +1603,12 @@ app.addEventListener('change', (e) => {
       if (e.target.dataset.act === 'gaze') setGaze(g, side, getOp(g, e.target.value)); else setGloryKill(g, side, getOp(g, e.target.value));
       afterChange();
     }
+  }
+  if ((e.target.dataset.act === 'doctrina' || e.target.dataset.act === 'nodep') && g?.phase === 'strategy') {
+    const side = +e.target.dataset.side;
+    const mode = document.querySelector(`select[data-act="doctrina"][data-side="${side}"]`)?.value;
+    const nodep = !!document.querySelector(`input[data-act="nodep"][data-side="${side}"]`)?.checked;
+    if (side === ployChooser(g) && !isAI(side) && mode) { setDoctrina(g, side, mode, nodep); afterChange(); }
   }
   if (e.target.dataset.act === 'scramble' && g?.phase === 'strategy' && e.target.value) {
     const side = +e.target.dataset.side;
