@@ -1,7 +1,10 @@
 import {
   activate, activeOp, availableActions, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
-  engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
+  engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
+  foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
+  readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble,
 } from './game.js';
+import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx } from './path.js';
 
@@ -9,19 +12,40 @@ export function aiStrategy(g, side) {
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6) buyPloy(g, side, p);
   }
+  // Call the Kill / Bring it Down!: mark the enemy with the most wounds.
+  if (living(g, side).some((o) => tpl(o).callTheKill || tpl(o).watchmaster) && !g.mark?.[side]) {
+    setMark(g, side, living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0]);
+  }
+  // Eye of the Ancestors: Grudge tokens on the toughest enemies. Tactician: the Attack marker on the toughest enemy.
+  for (let n = eyeLeft(g, side); n > 0; n--) {
+    const t = living(g, 1 - side).sort((a, b) => (a.grudge?.[side] || 0) - (b.grudge?.[side] || 0) || b.wounds - a.wounds)[0];
+    if (t) eyeOfAncestors(g, side, t);
+  }
+  if (living(g, side).some((o) => tpl(o).tactician) && g.tactician?.[side]?.tp !== g.tp) {
+    const t = living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) placeTactician(g, side, 'attack', t);
+  }
+  // Omni-scrambler: hold back the toughest enemy it can.
+  const sc = scrambleTargets(g, side).sort((a, b) => b.wounds - a.wounds)[0];
+  if (sc) omniScramble(g, side, sc);
+  // Guardsman Order: Take Aim!, or Fix Bayonets! when much of the team is in melee; relayed if possible.
+  if (orderIssuer(g, side)) {
+    const engaged = living(g, side).filter((o) => engagedEnemies(g, o).length).length;
+    chooseGuardOrder(g, side, engaged * 3 > living(g, side).length ? 'fixBayonets' : 'takeAim', true);
+  }
 }
 
 function shootOptions(g, op) {
   const opts = [];
   const hitMod = statPenalty(g, op) ? 1 : 0;
   for (const w of tpl(op).weapons.filter((x) => x.type === 'ranged')) {
-    for (const t of living(g, 1 - op.side)) {
+    for (const t of foes(g, op)) {
       const c = shootCheck(g, op, t, w);
       if (!c.ok) continue;
       // Don't Blast a target next to friendly operatives.
       if (w.rules.blast && living(g, op.side).some((f) => f !== op && edgeDist(t, f) <= w.rules.blast)) continue;
       const ml = mlLevel(g, op, w, t);
-      let score = avgDmg(w, hitMod - (ml >= 2 ? 1 : 0)) * (1 - (7 - tpl(t).save) / 6 * 0.5) * (c.cover && !ml ? 0.75 : 1);
+      let score = avgDmg(w, hitMod - (ml >= 2 ? 1 : 0)) * (1 - (7 - tpl(t).save) / 6 * 0.5) * (c.cover && !ml ? 0.75 : 1) * (c.obscured ? 0.6 : 1);
       if (score >= t.wounds) score += 10; // likely kill
       score += (1 - t.wounds / t.maxW) * 2;
       opts.push({ w, t, score });
@@ -34,13 +58,16 @@ const bestRanged = (op, hitMod) => Math.max(0, ...tpl(op).weapons.filter((w) => 
 const prefersMelee = (op) => avgDmg(bestMelee(op)) > bestRanged(op, 0) * 1.1;
 
 function pickGoal(g, op) {
-  const enemies = living(g, 1 - op.side);
+  const enemies = foes(g, op);
   const nearestEnemy = enemies.sort((a, b) => dist(op, a) - dist(op, b))[0];
-  if (prefersMelee(op) && nearestEnemy) return nearestEnemy;
-  const objs = g.objectives
+  if ((prefersMelee(op) || tpl(op).gheistskull) && nearestEnemy) return nearestEnemy; // the Gheistskull closes in to be detonated
+  // Objective markers, and mission markers the operative could pick up.
+  const pickable = (g.markers || []).filter((m) => !m.carriedBy && mission(g).canPickUp?.(g, op, m));
+  const carrying = (g.markers || []).some((m) => m.carriedBy === op.uid);
+  const objs = [...g.objectives, ...(carrying ? [] : pickable)]
     .map((o) => ({ o, c: controller(g, o), d: dist(op, o) }))
     .sort((a, b) => (a.c === op.side) - (b.c === op.side) || a.d - b.d);
-  const holding = objs.find((x) => x.d - radius(op) - 0.4 <= 1 && x.c !== 1 - op.side);
+  const holding = objs.find((x) => x.d - radius(op) - 0.4 <= 1 && (x.c == null || x.c === op.side));
   if (holding) return null; // stay on the objective
   return objs[0] ? objs[0].o : nearestEnemy;
 }
@@ -62,12 +89,12 @@ function pathToward(g, op, kind, goal) {
   return null;
 }
 
-function chargePath(g, op) {
+function chargePath(g, op, among = foes(g, op)) {
   const ctx = moveCtx(g, op);
   const max = moveAllowance(g, op, 'charge');
   const r = radius(op);
   let best = null;
-  const targets = living(g, 1 - op.side).filter((e) => edgeDist(op, e) <= max + 1.5).sort((a, b) => a.wounds - b.wounds);
+  const targets = among.filter((e) => edgeDist(op, e) <= max + 1.5).sort((a, b) => a.wounds - b.wounds);
   for (const t of targets) {
     const d = radius(t) + r + 0.5;
     for (let a = 0; a < 16; a++) {
@@ -81,8 +108,71 @@ function chargePath(g, op) {
   return null;
 }
 
-/** Perform one AI step. Returns an attack result (for the dice dialog) or null. */
+/** The computer's secret bid of Negotiation points to control an NPO (about half its points, at least 1). */
+export function aiBid(g, side) {
+  const pts = g.negotiation?.[side] || 0;
+  placeBid(g, side, pts ? Math.max(1, Math.ceil(pts / 2)) : 0);
+}
+
+/**
+ * One step of the NPOs' slot: draw the activation card, then follow the NPO's behaviour.
+ * Brawler: Fight, Charge the target, move towards it (or the mission's goal), Dash.
+ * Archivist: Fight, Shoot the target, Charge an operative with fewer than 10 wounds, move, Dash.
+ */
+function npoStep(g) {
+  if (g.bidding) return null; // waiting for the players' bids
+  const op = activeOp(g);
+  if (!op) { npoBegin(g); return null; }
+  if (op.dead) { endActivation(g); return null; }
+  const can = Object.fromEntries(availableActions(g, op).map((a) => [a.id, a.ok]));
+  const target = npoTargetFor(g, op);
+  const beh = tpl(op).behaviour;
+  if (can.fight) {
+    const t = fightTargets(g, op).sort((a, b) => a.wounds - b.wounds)[0];
+    op.order = 'engage';
+    return { kind: 'fight', weapon: bestMelee(op), target: t };
+  }
+  if (beh === 'archivist' && can.shoot && target) {
+    const w = tpl(op).weapons.find((x) => x.type === 'ranged');
+    if (shootCheck(g, op, target, w).ok) { op.order = 'engage'; return { kind: 'shoot', weapon: w, target }; }
+  }
+  if (can.charge) {
+    const among = beh === 'archivist' ? foes(g, op).filter((o) => o.wounds < 10) : target ? [target] : foes(g, op).filter((o) => o.side !== NPO);
+    const p = chargePath(g, op, among);
+    if (p) { op.order = 'engage'; doMove(g, op, 'charge', p); return null; }
+  }
+  // Brawlers that won't fight this activation move in cover with a Conceal order (NEMESIS stay Engaged).
+  if (!tpl(op).nemesis) op.order = 'conceal';
+  const goal = mission(g).npoGoal?.(g, op) || target;
+  if (goal && can.reposition) {
+    const p = pathToward(g, op, 'reposition', goal);
+    if (p) { doMove(g, op, 'reposition', p); return null; }
+  }
+  if (goal && can.dash) {
+    const p = pathToward(g, op, 'dash', goal);
+    if (p) { doMove(g, op, 'dash', p); return null; }
+  }
+  endActivation(g);
+  return null;
+}
+
+/**
+ * Resolve an attack the AI declared with aiStep: a shooting result (for the dice dialog), or null for a
+ * fight (resolved die by die in g.fight).
+ */
+export function aiAttack(g, decl) {
+  const op = activeOp(g);
+  if (decl.kind === 'shoot') return resolveShoot(g, op, decl.weapon, decl.target);
+  startFight(g, op, decl.weapon, decl.target);
+  return null;
+}
+
+/**
+ * Perform one AI step. Moves and other actions happen at once; an attack is only declared —
+ * {kind: 'shoot' | 'fight', weapon, target} — so the UI can show it before rolling (see aiAttack).
+ */
 export function aiStep(g) {
+  if (g.turn === NPO) return npoStep(g);
   const side = g.turn;
   let op = activeOp(g);
   if (!op && g.counter) {
@@ -95,7 +185,7 @@ export function aiStep(g) {
     return null;
   }
   if (!op) {
-    const ready = living(g, side).filter((o) => o.ready);
+    const ready = readyOps(g, side);
     if (!ready.length) { endActivation(g); return null; }
     const score = (o) => (engagedEnemies(g, o).length ? 10 : 0) + (shootOptions(g, o)[0]?.score || 0) + Math.random();
     op = ready.sort((a, b) => score(b) - score(a))[0];
@@ -106,11 +196,20 @@ export function aiStep(g) {
   if (op.dead) { endActivation(g); return null; }
   const can = Object.fromEntries(availableActions(g, op).map((a) => [a.id, a.ok]));
 
+  // Mission actions and markers first: they score.
+  for (const id of mission(g).actions || []) if (can[id]) { doMissionAction(g, op, id); return null; }
+  if (can.pickUp) { doPickUp(g, op); return null; }
   if (can.dakkaDash && shootOptions(g, op).length) { doDakkaDash(g, op); return null; }
+  if (can.spot) {
+    // Spot the enemy that friendlies within 3" of the Spotter could shoot best.
+    const near = living(g, op.side).filter((o) => edgeDist(o, op) <= 3 && o.ready);
+    const t = TARGET_ACTIONS.spot.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t && near.length) { doTargetAction(g, op, 'spot', t); return null; }
+  }
   if (can.stunGrenade) {
     // Throw it at the enemy with the most other enemies within 1".
     const ts = TARGET_ACTIONS.stunGrenade.targets(g, op);
-    const near = (t) => living(g, 1 - op.side).filter((o) => edgeDist(o, t) <= 1).length - living(g, op.side).filter((o) => edgeDist(o, t) <= 1).length;
+    const near = (t) => foes(g, op).filter((o) => edgeDist(o, t) <= 1).length - living(g, op.side).filter((o) => edgeDist(o, t) <= 1).length;
     const t = ts.sort((a, b) => near(b) - near(a))[0];
     if (t && near(t) >= 2 && op.ap >= 2) { doTargetAction(g, op, 'stunGrenade', t); return null; }
   }
@@ -126,11 +225,56 @@ export function aiStep(g) {
     const t = ts.filter((e) => e.poison).sort((a, b) => a.wounds - b.wounds)[0] || ts.sort((a, b) => b.wounds - a.wounds)[0];
     if (t) { doTargetAction(g, op, 'miasma', t); return null; }
   }
+  // Warpcoven: Alight the enemy it's about to shoot, Ravage Destiny the toughest enemy in reach.
+  if (can.alight && op.ap >= 2 && shootOptions(g, op).length) {
+    const t = shootOptions(g, op)[0].t;
+    if (TARGET_ACTIONS.alight.targets(g, op).includes(t)) { doTargetAction(g, op, 'alight', t); return null; }
+  }
+  if (can.ravage && op.ap >= 2) {
+    const t = TARGET_ACTIONS.ravage.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'ravage', t); return null; }
+  }
+  // Phobos: Helix Gauntlet on a badly hurt friend; Auspex Scan before shooting.
+  if (can.helix) {
+    const t = TARGET_ACTIONS.helix.targets(g, op).filter((o) => o.maxW - o.wounds >= 4).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'helix', t); return null; }
+  }
+  if (can.auspexScan && op.ap >= 2 && foes(g, op).some((e) => edgeDist(op, e) <= 8)) { doSelfAction(g, op, 'auspexScan'); return null; }
+  // Navy Breachers: Interference Pulse on the toughest enemy; detonate the Gheistskull when it's next to enemies only.
+  if (can.pulse && op.ap >= 2) {
+    const t = TARGET_ACTIONS.pulse.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'pulse', t); return null; }
+  }
+  const det = can.shoot && tpl(op).weapons.find((w) => w.rules.detonate);
+  if (det) {
+    const skull = living(g, op.side).find((o) => tpl(o).gheistskull);
+    const near = (side) => living(g, side).filter((o) => o !== skull && edgeDist(o, skull) <= 1).length;
+    if (skull && shootCheck(g, op, skull, det).ok && near(1 - op.side) >= 1 && near(op.side) === 0) return { kind: 'shoot', weapon: det, target: skull };
+  }
+  if (can.boost && can.charge && !chargePath(g, op)) {
+    const reach = moveAllowance(g, op, 'charge') + 2 + 1;
+    if (foes(g, op).some((e) => edgeDist(op, e) <= reach)) { doSelfAction(g, op, 'boost'); return null; }
+  }
+  if (can.knuxSmash) {
+    const t = TARGET_ACTIONS.knuxSmash.targets(g, op).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'knuxSmash', t); return null; }
+  }
+  // Pan Spectral Scan by the enemy it's about to shoot; System Jam on the most dangerous valid target.
+  if (can.panScan && op.ap >= 2 && shootOptions(g, op).length) {
+    const t = shootOptions(g, op)[0].t;
+    if (TARGET_ACTIONS.panScan.targets(g, op).includes(t)) { doTargetAction(g, op, 'panScan', t); return null; }
+  }
+  if (can.jamToken && op.ap >= 2) {
+    const t = TARGET_ACTIONS.jamToken.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'jamToken', t); return null; }
+  }
   if (can.fight) {
     // The fight is resolved die by die (g.fight); the UI lets a human defender choose.
-    const t = engagedEnemies(g, op).sort((a, b) => a.wounds - b.wounds)[0];
-    startFight(g, op, bestMelee(op), t);
-    return null;
+    const ts = fightTargets(g, op).sort((a, b) => a.wounds - b.wounds);
+    // Swipe (Bloatspawn): with two or more enemies in reach, sweep through them all.
+    const swipe = tpl(op).weapons.find((w) => w.rules.swipe);
+    const weapon = swipe && (ts.length >= 2 || op.acted.free?.fight === 'swipe') ? swipe : bestMelee(op);
+    return { kind: 'fight', weapon, target: ts[0] };
   }
   if (can.fallBack && isInjured(op) && !prefersMelee(op)) {
     const away = { x: op.side === 0 ? 2 : 28, y: op.y };
@@ -146,7 +290,7 @@ export function aiStep(g) {
   }
   if (can.shoot && !prefersMelee(op)) {
     const best = shootOptions(g, op)[0];
-    if (best) return resolveShoot(g, op, best.w, best.t);
+    if (best) return { kind: 'shoot', weapon: best.w, target: best.t };
   }
   if (can.charge && (prefersMelee(op) || !shootOptions(g, op).length)) {
     const p = chargePath(g, op);
@@ -154,7 +298,7 @@ export function aiStep(g) {
   }
   if (can.shoot) {
     const best = shootOptions(g, op)[0];
-    if (best) return resolveShoot(g, op, best.w, best.t);
+    if (best) return { kind: 'shoot', weapon: best.w, target: best.t };
   }
   const goal = pickGoal(g, op);
   if (goal && can.reposition) {

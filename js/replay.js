@@ -14,16 +14,22 @@ function encodeOps(g) {
     (o.dead ? DEAD : 0) | (o.ready ? READY : 0) | (o.order === 'conceal' ? CONCEAL : 0) | (o.counteracted ? COUNTERED : 0) | (o.poison ? POISON : 0), o.ml || 0]);
 }
 
+const baseOp = ({ uid, side, team: t, tplId, num, maxW }) => ({ uid, side, team: t, tplId, num, maxW });
+
 function ensureReplay(g) {
-  if (g.replay) return g.replay;
-  g.replay = {
-    base: {
-      teams: g.teams, ai: g.ai, terrain: g.terrain, objectives: g.objectives,
-      ops: g.ops.map(({ uid, side, team: t, tplId, num, maxW }) => ({ uid, side, team: t, tplId, num, maxW })),
-    },
-    snaps: [],
-    seq: 0, // last log entry number already attached to a snapshot
-  };
+  if (!g.replay) {
+    g.replay = {
+      base: {
+        teams: g.teams, ai: g.ai, terrain: g.terrain, objectives: g.objectives, mission: g.mission, deploy: g.deploy,
+        ops: g.ops.map(baseOp),
+      },
+      snaps: [],
+      seq: 0, // last log entry number already attached to a snapshot
+    };
+  }
+  // Operatives that appear during the battle (mission NPOs) join the base list.
+  const b = g.replay.base;
+  for (let k = b.ops.length; k < g.ops.length; k++) b.ops.push(baseOp(g.ops[k]));
   return g.replay;
 }
 
@@ -34,13 +40,17 @@ let lastResult = null;
  * Record a snapshot if anything changed: board state, new log lines, a new dice result (shooting)
  * or progress in a fight. `result` is the shooting dice dialog currently shown, if any.
  */
+const stateOf = (g) => ({
+  o: encodeOps(g), tp: g.tp, phase: g.phase, turn: g.turn, active: g.active, initiative: g.initiative,
+  counter: !!g.counter, cp: [...g.cp], vp: [...g.vp], kills: [...g.kills], ploys: g.ploys.map((p) => [...p]),
+  ...(g.markers?.length ? { mk: g.markers.map((m) => [r2(m.x), r2(m.y), m.carriedBy || 0, m.kind]) } : {}),
+});
+const keyOf = (g, state) => JSON.stringify(state) + (g.fight ? `|f${g.fight.steps.length}${g.fight.done ? 'd' : ''}` : '');
+
 export function recordStep(g, result) {
   const rep = ensureReplay(g);
-  const state = {
-    o: encodeOps(g), tp: g.tp, phase: g.phase, turn: g.turn, active: g.active, initiative: g.initiative,
-    counter: !!g.counter, cp: [...g.cp], vp: [...g.vp], kills: [...g.kills], ploys: g.ploys.map((p) => [...p]),
-  };
-  const key = JSON.stringify(state) + (g.fight ? `|f${g.fight.steps.length}${g.fight.done ? 'd' : ''}` : '');
+  const state = stateOf(g);
+  const key = keyOf(g, state);
   const msgs = g.log.filter((e) => e.n > rep.seq).map((e) => ({ msg: e.msg, cls: e.cls }));
   const newResult = result && result !== lastResult;
   if (!msgs.length && key === lastKey && !newResult) return;
@@ -56,16 +66,30 @@ export function recordStep(g, result) {
 /** Forget the de-duplication memory (e.g. after loading a different game). */
 export function resetRecorder() { lastKey = null; lastResult = null; }
 
+/**
+ * Undo: drop the steps recorded after the restored state (snaps, last log number already attached),
+ * and treat the restored state as already recorded.
+ */
+export function rewindRecorder(g, snaps, seq) {
+  const rep = ensureReplay(g);
+  rep.snaps.length = Math.min(rep.snaps.length, snaps);
+  rep.seq = seq;
+  lastKey = keyOf(g, stateOf(g));
+  lastResult = null;
+}
+
 /** Rebuild a renderable game state for snapshot i. */
 export function viewAt(rep, i) {
   const s = rep.snaps[i], b = rep.base;
   return {
-    teams: b.teams, ai: b.ai, terrain: b.terrain, objectives: b.objectives,
+    teams: b.teams, ai: b.ai, terrain: b.terrain, objectives: b.objectives, mission: b.mission, deploy: b.deploy,
     tp: s.tp, phase: s.phase, turn: s.turn, active: s.active, initiative: s.initiative, counter: s.counter,
-    cp: s.cp, vp: s.vp, kills: s.kills, ploys: s.ploys || [[], []], log: [], fight: s.fight || null,
+    cp: s.cp, vp: s.vp, kills: s.kills, ploys: s.ploys || [[], [], []], log: [], fight: s.fight || null,
     winner: null,
+    markers: (s.mk || []).map(([x, y, carriedBy, kind], id) => ({ id, x, y, carriedBy: carriedBy || null, kind })),
+    // Operatives not yet in the battle at this step (NPOs that arrive later) count as off the board.
     ops: b.ops.map((o, k) => {
-      const [x, y, wounds, f, ml = 0] = s.o[k];
+      const [x, y, wounds, f, ml = 0] = s.o[k] || [-99, -99, 0, DEAD];
       return {
         ...o, x, y, wounds, dead: !!(f & DEAD), ready: !!(f & READY), order: f & CONCEAL ? 'conceal' : 'engage',
         ml, poison: !!(f & POISON), counteracted: !!(f & COUNTERED), acted: {}, ap: 0,
@@ -80,7 +104,7 @@ export function trailsAt(rep, i) {
   const a = rep.snaps[i - 1].o, b = rep.snaps[i].o;
   const out = [];
   for (let k = 0; k < b.length; k++) {
-    if (Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1]) > 0.05 && !(b[k][3] & DEAD)) {
+    if (a[k] && a[k][0] > -50 && Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1]) > 0.05 && !(b[k][3] & DEAD)) {
       out.push({ uid: rep.base.ops[k].uid, from: { x: a[k][0], y: a[k][1] }, to: { x: b[k][0], y: b[k][1] } });
     }
   }
@@ -96,7 +120,7 @@ export function stepNotes(rep, i) {
   const nameOf = (uid, lang) => opName(op(uid), lang);
   if (!p) notes.push({ zh: '遊戲開始（部署）', en: 'Game start (deployment)' });
   if (p && s.phase !== p.phase) {
-    const names = { deploy: ['部署階段', 'Deployment'], strategy: ['策略階段', 'Strategy phase'], firefight: ['交火階段', 'Firefight phase'], gameover: ['遊戲結束', 'Game over'] };
+    const names = { deploy: ['部署階段', 'Deployment'], initiative: ['先攻階段', 'Initiative phase'], strategy: ['策略階段', 'Strategy phase'], firefight: ['交火階段', 'Firefight phase'], gameover: ['遊戲結束', 'Game over'] };
     const n = names[s.phase] || [s.phase, s.phase];
     notes.push({ zh: `進入${n[0]}`, en: `${n[1]} begins` });
   }
@@ -108,6 +132,7 @@ export function stepNotes(rep, i) {
   }
   if (p) {
     for (let k = 0; k < s.o.length; k++) {
+      if (!p.o[k]) continue; // arrived this step
       const was = p.o[k][3] & CONCEAL, now = s.o[k][3] & CONCEAL;
       if (was !== now && !(s.o[k][3] & DEAD)) {
         const uid = rep.base.ops[k].uid;

@@ -1,4 +1,4 @@
-import { BOARD, ER, radius } from './game.js';
+import { BOARD, ER, radius, tpl } from './game.js';
 import { dist, distPointRect, pathLength, truncatePath } from './geometry.js';
 
 const RES = 0.25;
@@ -24,7 +24,10 @@ export function moveCtx(g, op) {
   function inEnemyER(p) {
     return others.some((o) => o.enemy && dist(p, o) - r - o.r <= ER + 0.01);
   }
+  // Jump Pack (FLY): the operative is set up again within its move distance, so only where it lands matters.
+  const fly = !!tpl(op).jumpPack;
   function segFree(a, b) {
+    if (fly) return true;
     const n = Math.max(1, Math.ceil(dist(a, b) / 0.1));
     for (let k = 1; k <= n; k++) {
       const f = k / n;

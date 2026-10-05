@@ -35,7 +35,8 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 | `js/data/teams.js` | Team, operative, weapon, and ploy data (**add or edit teams here**) |
 | `js/game.js` | Game state, game flow, and the rules engine (line of sight, dice, combat) |
 | `js/path.js` | A* pathfinding and movement validation |
-| `js/ai.js` | Computer opponent |
+| `js/ai.js` | Computer opponent and NPO behaviours |
+| `js/missions.js` | Missions: maps, drop zones, markers, NPO decks, mission actions and scoring |
 | `js/board.js` | SVG board rendering |
 | `js/replay.js` | Replay recording, playback state and the archive of finished games |
 | `js/main.js` | UI and interaction |

@@ -3,9 +3,9 @@ export const HELP = {
   zh: `<h2>規則速查</h2>
   <h3>遊戲流程</h3>
   <ol>
-    <li><b>部署</b>：雙方在各自部署區放置特工，所有特工以<b>隱蔽</b>指令開始。每名玩家起始 <b>2 CP</b>。</li>
+    <li><b>部署</b>：擲骰決定誰先部署，雙方<b>輪流</b>每次在部署區放置隊伍人數的 <b>1/3</b>（無條件進位）。所有特工以<b>隱蔽</b>指令開始。每名玩家起始 <b>2 CP</b>。</li>
     <li>共 <b>4 個回合 (Turning Point)</b>。</li>
-    <li><b>策略階段</b>：擲 D6 決定<b>先攻</b>（平手重擲）。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>。接著由先攻方先選擇策略計謀（花費 CP），完成後換另一方選擇。</li>
+    <li><b>先攻階段</b>：擲 D6 決定<b>先攻</b>（平手重擲）。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>，所有特工回到準備狀態。</li><li><b>策略階段</b>：由先攻方先選擇策略計謀（花費 CP），完成後換另一方選擇。</li>
     <li><b>交火階段</b>：從先攻方開始，雙方<b>輪流啟動</b>一名特工，直到所有特工都行動完畢。</li>
   </ol>
   <h3>啟動與指令</h3>
@@ -18,21 +18,21 @@ export const HELP = {
     <tr><td>射擊 1AP</td><td>隱蔽指令或敵人在控制範圍內時不能執行。</td></tr>
     <tr><td>近戰 1AP</td><td>攻擊控制範圍內的敵人。</td></tr>
   </table>
-  <p><b>控制範圍</b>：1" 以內。<b>受傷</b>：生命低於起始一半時，Move -2"，武器命中值變差 1。</p>
+  <p><b>控制範圍</b>：1" 以內。<b>受傷</b>：生命低於起始一半時，Move -2"（但不會低於 4"），武器命中值變差 1。</p>
   <h3>反擊 (Counteract)</h3>
   <p>當你已沒有準備中的特工、對手還有時，在對手每次啟動之間，你可以選一名<b>已行動、交戰指令（死亡天使與瘟疫戰士不限指令）、本回合未反擊過</b>的特工，免費執行一個 1AP 動作，移動不超過 2"。</p>
   <h3>射擊結算</h3>
   <ol>
     <li>攻擊方擲 ATK 顆骰：≥ HIT 為命中，6 為<b>暴擊</b>，1 必定失敗。</li>
-    <li>防禦方擲 <b>3 顆</b>防禦骰：≥ SAVE 為成功，6 為暴擊。目標在<b>掩體</b>中時，可不擲骰直接保留 1 個普通成功（掩體豁免）。</li>
+    <li>防禦方依特工的<b>防禦值</b>擲防禦骰（目前所有特工為 3 顆）：≥ SAVE 為成功，6 為暴擊。目標在<b>掩體</b>中時，可不擲骰直接保留 1 個普通成功（掩體豁免）。</li>
     <li>普通成功擋普通命中；兩個普通成功擋一個暴擊；暴擊成功擋任意命中。</li>
     <li>未被擋下的命中造成武器的普通/暴擊傷害。</li>
   </ol>
   <h3>近戰結算</h3>
-  <p>雙方同時擲骰，由啟動中的一方先結算，之後輪流<b>自己選擇</b>處理一顆成功骰：<b>打擊</b>（造成傷害）或<b>格擋</b>（抵消對方一顆尚未結算的成功骰；普通只能擋普通，暴擊可擋任意）。</p>
+  <p>雙方同時擲骰，由啟動中的一方先結算，之後輪流<b>自己選擇</b>處理一顆成功骰：<b>打擊</b>（造成傷害）或<b>格擋</b>（抵消對方一顆尚未結算的成功骰；普通只能擋普通，暴擊可擋任意）。成功骰也可以選擇<b>放棄</b>不用。<b>友軍協助</b>：敵方的控制範圍內有你的其他友軍時，你的命中值改善 1（防守方也適用）。</p>
   <h3>視線、掩體與遮蔽</h3>
   <p><b>掩體</b>：射手與目標之間的地形位於目標的控制範圍（1"）內，目標即在掩體中；但目標距離射手 2" 以內時不算掩體。</p>
-  <p><b>遮蔽</b>：之間有<b>重型地形</b>（深色牆）時，目標被遮蔽、無法被射擊；但若該重型地形距離射手或目標 1" 以內則不算遮蔽。<b>斜紋</b>為輕型地形，只提供掩體。</p>
+  <p><b>遮擋</b>：射線穿過<b>重型地形</b>（深色牆），且目標距離該地形超過 1"：攻擊方的暴擊全部變成普通成功，並扣除 1 顆成功。目標在該重型地形 1" 內時改為掩體。</p><p><b>看不到</b>：射手與目標都離那道重型地形超過 1" 時，視為牆完全擋住視線（2D 的簡化）。</p><p>同時有掩體與遮擋時<b>擇一</b>使用（自動選對防守方較有利的）。2" 內射擊沒有掩體也沒有遮擋。<b>斜紋</b>為輕型地形，只提供掩體。</p>
   <p>隱蔽指令＋掩體＝無法被射擊；交戰指令＋掩體＝可被射擊，但獲得掩體豁免。</p>
   <h3>計分：擊殺任務 (Kill Op)</h3>
   <p>依敵方起始人數，擊殺達到下表數量即升一個<b>擊殺等級</b>，每升一級得 1 VP（最多 5）。遊戲結束時擊殺等級較高者再得 1 VP。</p>
@@ -46,6 +46,16 @@ export const HELP = {
   <h3>測量距離</h3>
   <p>隨時可用：在棋盤上按<b>滑鼠右鍵</b>新增測量點，<b>Esc</b> 回到上一個測量點，<b>左鍵</b>取消測量。點在特工上會吸附到該特工，並以底座邊緣計算距離。</p>
   <p><b>手機／觸控</b>：按棋盤下方的「📏 測量距離」進入測量模式，點棋盤新增測量點（不會移動或選取特工），可用「上一點」「清除」，按「結束」離開。總長與各段距離會顯示在工具列。</p>
+  <h3>任務</h3>
+  <p>開新遊戲時可選任務。「標準對戰」用擊殺任務計分；其他任務有自己的地圖、部署區、標記、任務動作與計分，取代擊殺任務。</p>
+  <p><b>NPO（非玩家特工）</b>：任務中的第三方，對雙方玩家都有敵意，由電腦依行為卡行動。雙方各啟動一次後（輪回先手方之前），NPO 會抽一張啟動牌行動。NPO 擊倒的特工不算擊殺。</p>
+  <p><b>撿起標記</b>（1AP）：拿起你控制的任務標記並帶著走；帶著標記的特工控制它，倒下時標記留在原地。</p>
+  <h3>指揮重擲（Command Re-roll）</h3>
+  <p>擲出攻擊骰或防禦骰後，可花 <b>1CP</b> 重擲其中<b>一顆</b>（點該骰子）。射擊時，攻方先看攻擊骰決定是否重擲，防方再看防禦骰；近戰時雙方在開始結算前各可重擲一顆。每次擲骰每方限一次；「壓制射擊」或在目標點附近（噁心排放）時不能重擲。電腦會自己判斷要不要用。</p>
+  <h3>宣告攻擊與回復動作</h3>
+  <p>射擊或近戰選好目標後，棋盤會先畫出攻擊線並顯示「宣告攻擊」，按「🎲 擲骰」才擲骰；擲骰前可「收回」。電腦的攻擊也一樣，要按「擲骰」才會結算。</p>
+  <p>交戰階段中，你的動作只要沒有擲骰（移動、選擇特工、指令、標記光等），都可以按「↶ 回復上一動作」退回，方便像實體遊戲一樣先移動看看能做什麼。擲過骰的動作與結束啟動後就不能回復。</p>
+  <p>上方會顯示雙方本回合正在（或剛剛）啟動的特工，棋盤上以名牌「▶ 啟動中」標出；本回合所有移動都留在棋盤上（箭頭加距離，舊的會變淡）。攻擊時，攻擊者與目標各有名牌與圈圈，並畫出攻擊線。擲骰結果會依序揭曉：攻擊骰、防禦骰、最後才是結果與傷害，電腦選好特工後也會停一下再行動。</p>
   <h3>複盤</h3>
   <p>遊戲中按上方「📜 複盤」可檢視目前為止的每一步；結束的對戰會保存在首頁「對戰紀錄」（最近 10 場）。可逐步前後切換、拖動進度條或自動播放，並查看每一步的紀錄、擲骰與移動軌跡。</p>
   <h3>武器規則</h3>
@@ -53,6 +63,7 @@ export const HELP = {
     <tr><td>穿甲 X</td><td>防禦方少擲 X 顆骰。暴擊穿甲：有暴擊時才生效。</td></tr>
     <tr><td>致命 X+</td><td>擲出 X 以上即為暴擊。</td></tr>
     <tr><td>平衡</td><td>可重擲 1 顆攻擊骰。</td></tr>
+    <tr><td>無情</td><td>可重擲所有失敗的攻擊骰。</td></tr>
     <tr><td>無休</td><td>重擲所有擲出 1 的攻擊骰。</td></tr>
     <tr><td>殘暴</td><td>對手只能用暴擊格擋。</td></tr>
     <tr><td>重型</td><td>本次啟動（或反擊）移動過就不能使用；使用後也不能再移動。</td></tr>
@@ -64,7 +75,7 @@ export const HELP = {
     <tr><td>飽和</td><td>防禦方不能保留掩護豁免。</td></tr>
     <tr><td>搜尋（輕型）</td><td>選擇目標時，隱蔽的敵人不能用輕型地形當掩護（仍保有掩護豁免）。</td></tr>
     <tr><td>搜尋</td><td>選擇目標時，隱蔽的敵人不能用任何地形當掩護。</td></tr>
-    <tr><td>無聲</td><td>隱蔽指令下也能用這把武器射擊。</td></tr>
+    <tr><td>無聲</td><td>（隱蔽指令一律不能射擊，此規則目前沒有效果。）</td></tr>
     <tr><td>限用 X</td><td>每名特工整場只能使用 X 次。</td></tr>
     <tr><td>過熱</td><td>使用後擲 1 顆 D6，若小於武器命中值，射手受到點數 ×2 的傷害。</td></tr>
     <tr><td>中毒</td><td>用這把武器造成傷害時，敵人獲得中毒標記；有中毒標記的特工每次啟動時受到 1 傷害。</td></tr>
@@ -73,17 +84,19 @@ export const HELP = {
     <tr><td>昏迷</td><td>有暴擊成功時，目標下次啟動 APL -1。</td></tr>
     <tr><td>靈能</td><td>靈能武器（瘟疫戰士的阿斯塔特規則會用到）。</td></tr>
     <tr><td>懲罰</td><td>有暴擊成功時，可把 1 顆失敗骰改為普通成功。</td></tr>
+    <tr><td>重型（僅限移動）</td><td>使用前後都只能執行「移動」這一種移動動作。</td></tr>
+    <tr><td>齊射</td><td>射擊主要目標後，也射擊另一個有效目標（不能在己方控制範圍內），各自擲骰。</td></tr>
     <tr><td>洪流 X</td><td>射擊主要目標後，也射擊其 X" 內其他有效目標（不能在己方控制範圍內），各自擲骰。</td></tr>
     <tr><td>爆炸 X</td><td>射擊主要目標後，也射擊其 X" 內可見的所有特工（包括己方、無視隱蔽），掩護與遮蔽沿用主要目標。</td></tr>
   </table>
-  <p class="hint small">本 App 為非官方粉絲作品。死亡天使、探路者、瘟疫戰士與歐克蠻人使用官方線上資料卡的數值（能力文字為改寫）；帝國衛兵小隊為暫定範例，可在 js/data/teams.js 修改。</p>`,
+  <p class="hint small">本 App 為非官方粉絲作品。所有隊伍都使用官方線上資料卡的數值（能力文字為改寫），可在 js/data/teams.js 修改。</p>`,
 
   en: `<h2>Quick Rules</h2>
   <h3>Game sequence</h3>
   <ol>
-    <li><b>Deploy</b> operatives in your drop zone; all start with a <b>Conceal</b> order. Each player starts with <b>2CP</b>.</li>
+    <li><b>Deploy</b>: a roll-off decides who sets up first; players <b>alternate</b> setting up <b>a third</b> of their team (rounded up) in their drop zone. All start with a <b>Conceal</b> order. Each player starts with <b>2CP</b>.</li>
     <li>The battle lasts <b>4 Turning Points</b>.</li>
-    <li><b>Strategy phase</b>: roll off for <b>initiative</b> (re-roll ties). Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead. Then the initiative player chooses strategic ploys (spending CP), followed by the other player.</li>
+    <li><b>Initiative phase</b>: roll off for <b>initiative</b> (re-roll ties). Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead, and all operatives are readied.</li><li><b>Strategy phase</b>: the initiative player chooses strategic ploys (spending CP), followed by the other player.</li>
     <li><b>Firefight phase</b>: starting with the initiative player, players <b>alternate activating</b> one operative until all are expended.</li>
   </ol>
   <h3>Activations & orders</h3>
@@ -96,21 +109,21 @@ export const HELP = {
     <tr><td>Shoot 1AP</td><td>Not on Conceal or while an enemy is in control range.</td></tr>
     <tr><td>Fight 1AP</td><td>Attack an enemy within control range.</td></tr>
   </table>
-  <p><b>Control range</b>: within 1". <b>Injured</b>: below half starting wounds, -2" Move and Hit worsens by 1.</p>
+  <p><b>Control range</b>: within 1". <b>Injured</b>: below half starting wounds, -2" Move (but not below 4") and Hit worsens by 1.</p>
   <h3>Counteract</h3>
   <p>When you have no ready operatives but your opponent does, between their activations you may pick an <b>expended, Engage-order</b> (Angels of Death and Plague Marines: any order) operative that hasn't counteracted this TP to perform one free 1AP action, moving no more than 2".</p>
   <h3>Shooting</h3>
   <ol>
     <li>Attacker rolls ATK dice: ≥ HIT is a hit, 6 is a <b>critical</b>, 1 always fails.</li>
-    <li>Defender rolls <b>3</b> defence dice: ≥ SAVE succeeds, 6 is critical. In <b>cover</b>, retain one normal success without rolling (cover save).</li>
+    <li>Defender rolls defence dice equal to the operative's <b>Defence</b> stat (3 for every operative at the moment): ≥ SAVE succeeds, 6 is critical. In <b>cover</b>, retain one normal success without rolling (cover save).</li>
     <li>A normal success blocks a normal hit; two normals block a critical; a critical blocks either.</li>
     <li>Unblocked hits deal the weapon's normal/critical damage.</li>
   </ol>
   <h3>Fighting</h3>
-  <p>Both roll. The active player resolves first, then players alternate, <b>choosing</b> per die: <b>strike</b> (deal damage) or <b>block</b> (cancel an unresolved enemy success; normal blocks normal, critical blocks either).</p>
+  <p>Both roll. The active player resolves first, then players alternate, <b>choosing</b> per die: <b>strike</b> (deal damage) or <b>block</b> (cancel an unresolved enemy success; normal blocks normal, critical blocks either). A success may also be <b>held back</b> (discarded unused). <b>Assist</b>: if another friendly operative is within the enemy's control range, your Hit improves by 1 (for the defender too).</p>
   <h3>Cover & obscured</h3>
   <p><b>Cover</b>: intervening terrain within the target's control range (1"); never while the target is within 2" of the shooter.</p>
-  <p><b>Obscured</b>: intervening <b>Heavy terrain</b> (dark walls) — the target can't be shot — unless that terrain is within 1" of either operative. <b>Hatched</b> barricades are light terrain: cover only.</p>
+  <p><b>Obscured</b>: the line crosses <b>Heavy terrain</b> (dark walls) and the target is more than 1" from it: all attack crits become normal successes and one success is discarded. Within 1" of that terrain the target is in cover instead.</p><p><b>Not visible</b>: when both operatives are more than 1" from that Heavy terrain, the wall blocks the view entirely (a 2D simplification).</p><p>Cover and obscured together: <b>one only</b> (the better one for the defender is used automatically). Shooting within 2": no cover and no obscuring. <b>Hatched</b> barricades are light terrain: cover only.</p>
   <p>Conceal + cover = cannot be shot. Engage + cover = can be shot, with a cover save.</p>
   <h3>Scoring: Kill Op</h3>
   <p>Based on the enemy's starting number of operatives, incapacitating enough enemies raises your <b>kill grade</b>; each new grade scores 1VP (max 5). At the end of the battle, the player with the higher kill grade scores 1VP.</p>
@@ -124,6 +137,16 @@ export const HELP = {
   <h3>Measuring</h3>
   <p>Available at any time: <b>right-click</b> the board to add a measuring point, <b>Esc</b> to go back one point, <b>left-click</b> to clear. Points on an operative snap to it and measure from the base edge.</p>
   <p><b>Phone / touch</b>: tap "📏 Measure" below the board to enter measuring mode. Taps on the board add points (without moving or selecting operatives); use Undo and Clear, and Done to leave. The total and each segment are shown in the toolbar.</p>
+  <h3>Missions</h3>
+  <p>Pick a mission when starting a game. "Standard" scores the Kill Op; other missions bring their own map, drop zones, markers, mission actions and scoring instead of the Kill Op.</p>
+  <p><b>NPOs (non-player operatives)</b>: third-party operatives hostile to both players, played by the computer from their behaviour. After both players have activated (before the initiative player goes again), the NPOs draw an activation card. Operatives incapacitated by NPOs don't count as kills.</p>
+  <p><b>Pick Up Marker</b> (1AP): take a mission marker you control and carry it; a carrier controls its marker and drops it where it falls.</p>
+  <h3>Command Re-roll</h3>
+  <p>After rolling attack or defence dice, spend <b>1CP</b> to re-roll <b>one</b> of them (tap the die). When shooting, the attacker sees the attack dice first and decides, then the defender sees the defence dice; in a fight each side may re-roll one die before any dice are resolved. Once per side per roll; not allowed under Suppressing Fire or near an objective (Sickening Emissions). The computer decides for itself.</p>
+  <h3>Declaring attacks & undo</h3>
+  <p>After picking a Shoot or Fight target, the board shows the attack line and an "Attack declared" card; the dice are only rolled when you press "🎲 Roll", and you can take it back before that. The computer's attacks also wait for "Roll".</p>
+  <p>In the Firefight phase, any of your actions that rolled no dice (moving, picking an operative, orders, Markerlight…) can be taken back with "↶ Undo last action" — move a model to see what it could do, just like on the tabletop. Actions that rolled dice, and ending an activation, can't be undone.</p>
+  <p>The panel shows which operative each side is activating (or activated last) this turning point, with a "▶ Activating" tag on the board. Every move this turning point stays on the board (an arrow with its distance; older ones fade). In an attack the attacker and the target each get a tag and a ring, with an attack line. Dice results are revealed in order — attack dice, defence dice, then the outcome and damage — and the computer pauses after choosing an operative before it acts.</p>
   <h3>Replay</h3>
   <p>During a game, tap "📜 Replay" at the top to review every step so far. Finished games are kept under "Past Games" on the home screen (last 10). Step back and forth, drag the slider or auto-play, and see each step's log, dice and movement trails.</p>
   <h3>Weapon rules</h3>
@@ -131,6 +154,7 @@ export const HELP = {
     <tr><td>Piercing X</td><td>Defender rolls X fewer dice. Piercing Crits: only if a crit was scored.</td></tr>
     <tr><td>Lethal X+</td><td>Crit on X+.</td></tr>
     <tr><td>Balanced</td><td>Re-roll one attack die.</td></tr>
+    <tr><td>Relentless</td><td>Re-roll all failed attack dice.</td></tr>
     <tr><td>Ceaseless</td><td>Re-roll attack dice showing 1.</td></tr>
     <tr><td>Brutal</td><td>Opponent can only block with crits.</td></tr>
     <tr><td>Heavy</td><td>Cannot be used in an activation (or counteraction) in which the operative moved, and the operative cannot move after using it.</td></tr>
@@ -142,7 +166,7 @@ export const HELP = {
     <tr><td>Saturate</td><td>The defender cannot retain cover saves.</td></tr>
     <tr><td>Seek Light</td><td>When picking targets, Concealed enemies can't use Light terrain for cover (they keep the cover save).</td></tr>
     <tr><td>Seek</td><td>When picking targets, Concealed enemies can't use any terrain for cover.</td></tr>
-    <tr><td>Silent</td><td>Can shoot with this weapon while on a Conceal order.</td></tr>
+    <tr><td>Silent</td><td>(Concealed operatives never Shoot, so this has no effect at the moment.)</td></tr>
     <tr><td>Limited X</td><td>Each operative can use it X times per battle.</td></tr>
     <tr><td>Hot</td><td>After use, roll a D6: if it's below the weapon's Hit, the shooter takes twice the result in damage.</td></tr>
     <tr><td>Poison</td><td>Damaging an enemy with it gives a Poison token; a poisoned operative takes 1 damage whenever it's activated.</td></tr>
@@ -151,8 +175,10 @@ export const HELP = {
     <tr><td>Stun</td><td>With any crit retained, the target gets -1 APL until the end of its next activation.</td></tr>
     <tr><td>Psychic</td><td>A Psychic weapon (used by the Plague Marines' Astartes rule).</td></tr>
     <tr><td>Punishing</td><td>With any crit retained, one fail becomes a normal success.</td></tr>
+    <tr><td>Heavy (Reposition only)</td><td>Reposition is the only move allowed before or after using it.</td></tr>
+    <tr><td>Salvo</td><td>After the first target, also shoot one other valid target (not within friendly control range), rolling separately.</td></tr>
     <tr><td>Torrent X</td><td>After the first target, also shoot other valid targets within X" of it (not within friendly control range), rolling separately.</td></tr>
     <tr><td>Blast X</td><td>After the first target, also shoot every operative visible within X" of it — friends included, Conceal ignored; cover and obscured follow the first target.</td></tr>
   </table>
-  <p class="hint small">Unofficial fan project. Angels of Death, Pathfinders, Plague Marines and Kommandos use the stats from the official online datacards (ability text paraphrased); Imperial Troopers is a placeholder — edit js/data/teams.js.</p>`,
+  <p class="hint small">Unofficial fan project. Every team uses the stats from the official online datacards (ability text paraphrased); edit js/data/teams.js.</p>`,
 };

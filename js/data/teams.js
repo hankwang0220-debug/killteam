@@ -1,7 +1,6 @@
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
-// weapons ATK / HIT / DMG normal/crit). Angels of Death, Pathfinders, Plague Marines and Kommandos use
-// the official online datacards (stats only, ability text paraphrased); Imperial Troopers is an original
-// archetype you can tune or replace with your own datacards.
+// weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
+// text paraphrased).
 //
 // Operative stats: apl, move, save, wounds, base (mm).
 //
@@ -11,6 +10,7 @@
 //   piercingCrits:n as above, only if the attack scored a critical hit
 //   lethal: n       critical hit on n+ instead of 6+
 //   balanced        re-roll one attack die
+//   relentless      re-roll all failed attack dice
 //   ceaseless       re-roll attack dice that rolled 1
 //   rending         if any crit, upgrade one normal hit to a crit
 //   brutal          (melee) opponent can only block with critical successes
@@ -37,6 +37,11 @@
 //   stun            if any crit is retained, the target gets -1 APL until the end of its next activation
 //   punishing       if any crit is retained, one fail becomes a normal success
 //   firstShotOnly   usable only the first time the operative performs the Shoot action in the battle
+//   salvo           also shoot a second valid target (not within control range of friendlies)
+//   heavy: 'reposition'  Heavy (Reposition only)
+//
+// Operative flags (Farstalker Kinband): callTheKill (Kill-broker), energise, coldBlooded, hardyCrit,
+// viciousDuellist, savageAssault, badTempered, longSight, concealCharge, stealthAttack, support: 'eyeAbove', pechra.
 //
 // Operative flags (Kommandos): krumpin (two Fight actions), support: 'getItDun' | 'listenIn' (+1 APL),
 // dakkaDash, datAllYouGot (D3 damage after fighting), wotNotz (Boy: Stun Grenade once per TP).
@@ -44,9 +49,17 @@
 // Operative flags (Plague Marines): blessing (Grandfather's Blessing), flail (Flail action),
 // iconBearer (+1 APL for control, Contagion free in enemy territory), miasma / vitality (Plaguecaster actions).
 //
-// Operative flags (Pathfinders): markerlight: n tokens per Markerlight action, drone: [allowed actions],
+// Operative flags (Pathfinders): markerlight: n tokens per Markerlight action, drone: true, actionsOnly: [allowed actions],
 // signal / systemJam / medikit (unique actions), medic (Medic!), multiVision (enemies can't be obscured),
 // droneController (+2" Move for drones), veteran (Blooded: Mont'ka and Kauyon both apply).
+//
+// Operative flags (Death Korps): watchmaster (issues Guardsman Orders, Bring it Down!), confidant (Second in
+// Command, Directive), bruiser, groupAct: 'trooper' (Group Activation with the same groupAct), relay (Vox: relays orders), support: 'spot',
+// emperorProtects (re-roll defence dice), uplifting (friendlies within 3": Severe). Weapon rule noOrders: Take Aim! ignores it.
+//
+// Operative flags (Gellerpox Infected): hulk (Nightmare Hulk), vulgrar, resilient (Revoltingly Resilient, per operative),
+// tentacledGrasp, shrieking (Horrifying Shrieking), spikedCharger, glitchling, small, daemonic (ignores Piercing),
+// groupAct: 'glitchling' | 'mutant'. Weapon rule swipe (Bloatspawn).
 //
 // Weapon `group` marks profiles of the same physical weapon (e.g. the sniper rifle's rounds).
 
@@ -132,13 +145,147 @@ const corruptedStaff = W('corruptedStaff', '腐化法杖', 'Corrupted staff', 'm
 const plagueKnife5 = W('plagueKnife5', '瘟疫匕首', 'Plague knife', 'melee', 5, 3, 3, 4, { severe: true, poison: true });
 const fistsPM = W('fistsPM', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
 
-// ---- Troopers ----
-const lasgun = W('lasgun', '雷射槍', 'Lasgun', 'ranged', 4, 4, 2, 3);
-const laspistol = W('laspistol', '雷射手槍', 'Laspistol', 'ranged', 4, 4, 2, 3, { range: 8 });
-const plasmaGun = W('plasmaGun', '等離子槍', 'Plasma gun', 'ranged', 4, 4, 5, 6, { piercing: 1 });
-const melta = W('melta', '熱熔槍', 'Meltagun', 'ranged', 4, 4, 6, 3, { range: 6, piercing: 2 });
-const chainswordG = W('chainswordG', '鏈鋸劍', 'Chainsword', 'melee', 4, 4, 4, 5);
-const bayonet = W('bayonet', '刺刀', 'Bayonet', 'melee', 3, 4, 2, 3);
+// ---- Farstalker Kinband ----
+const krootRifle = W('krootRifle', '克魯特步槍', 'Kroot rifle', 'ranged', 4, 4, 3, 4);
+const krootRifleKB = W('krootRifleKB', '克魯特步槍', 'Kroot rifle', 'ranged', 4, 3, 3, 4);
+const ritualBlade = W('ritualBlade', '儀式之刃', 'Ritual blade', 'melee', 4, 3, 4, 5);
+const krootBlade = W('krootBlade', '刀刃', 'Blade', 'melee', 3, 3, 3, 5);
+const bowFused = W('bowFused', '加速弓（融合箭）', 'Accelerator bow (fused arrow)', 'ranged', 4, 3, 4, 5, { piercing: 1 }, 'bow');
+const bowGlide = W('bowGlide', '加速弓（滑翔箭）', 'Accelerator bow (glide arrow)', 'ranged', 4, 3, 3, 4, { silent: true }, 'bow');
+const bowVoltaic = W('bowVoltaic', '加速弓（電壓箭）', 'Accelerator bow (voltaic arrow)', 'ranged', 4, 3, 3, 5, { blast: 1 }, 'bow');
+const cutSkinBlades = W('cutSkinBlades', '割膚者之刃', "Cut-skin's blades", 'melee', 4, 3, 3, 5, { ceaseless: true, lethal: 5 });
+const krootRifleCB = W('krootRifleCB', '克魯特步槍', 'Kroot rifle', 'ranged', 4, 3, 3, 4);
+const rippingFangs = W('rippingFangs', '撕裂獠牙', 'Ripping fangs', 'melee', 4, 3, 3, 4, { rending: true });
+const londaxi = W('londaxi', '隆達西部族弩', 'Londaxi tribalest', 'ranged', 5, 4, 4, 5, { heavy: 'reposition', piercing: 1, rending: true });
+const huntingConcealed = W('huntingConcealed', '克魯特獵槍（隱蔽）', 'Kroot hunting rifle (concealed)', 'ranged', 4, 2, 3, 3, { heavy: true, devastating: 3, silent: true, firstShotOnly: true }, 'huntingRifle');
+const huntingMobile = W('huntingMobile', '克魯特獵槍（機動）', 'Kroot hunting rifle (mobile)', 'ranged', 4, 3, 3, 4, {}, 'huntingRifle');
+const huntingStationary = W('huntingStationary', '克魯特獵槍（定點）', 'Kroot hunting rifle (stationary)', 'ranged', 4, 2, 3, 3, { heavy: true, devastating: 3 }, 'huntingRifle');
+const pistolsFocused = W('pistolsFocused', '雙持克魯特手槍（集中）', 'Dual Kroot pistols (focused)', 'ranged', 4, 3, 3, 5, { range: 8, ceaseless: true, lethal: 5 }, 'krootPistols');
+// Salvo: also shoot a second valid target (not within control range of friendlies).
+const pistolsSalvo = W('pistolsSalvo', '雙持克魯特手槍（齊射）', 'Dual Kroot pistols (salvo)', 'ranged', 4, 3, 3, 5, { range: 8, salvo: true }, 'krootPistols');
+const scattergun = W('scattergun', '克魯特散彈槍', 'Kroot scattergun', 'ranged', 4, 3, 3, 3, { range: 6 });
+const stalkerBlade = W('stalkerBlade', '潛獵者之刃', "Stalker's blade", 'melee', 4, 3, 3, 5, { balanced: true, rending: true });
+
+// ---- Death Korps ----
+const lasgunDK = W('lasgunDK', '雷射槍', 'Lasgun', 'ranged', 4, 4, 2, 3);
+const bayonetDK = W('bayonetDK', '刺刀', 'Bayonet', 'melee', 3, 4, 2, 3);
+const plasmaPistolWM = W('plasmaPistolWM', '等離子手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 4, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolWM');
+const plasmaPistolWMs = W('plasmaPistolWMs', '等離子手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 4, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolWM');
+const powerWeaponWM = W('powerWeaponWM', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const boltPistolCF = W('boltPistolCF', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 4, 3, 4, { range: 8 });
+const chainswordCF = W('chainswordCF', '鏈鋸劍', 'Chainsword', 'melee', 4, 4, 4, 5);
+const trenchClub = W('trenchClub', '戰壕棍', 'Trench club', 'melee', 4, 3, 3, 3, { shock: true });
+const plasmaGunDK = W('plasmaGunDK', '等離子槍（標準）', 'Plasma gun (standard)', 'ranged', 4, 4, 4, 6, { piercing: 1 }, 'plasmaGunDK');
+const plasmaGunDKs = W('plasmaGunDKs', '等離子槍（超載）', 'Plasma gun (supercharge)', 'ranged', 4, 4, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'plasmaGunDK');
+const meltagunDK = W('meltagunDK', '熱熔槍', 'Meltagun', 'ranged', 4, 4, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const longLasConcealed = W('longLasConcealed', '長管雷射槍（隱蔽）', 'Long-las (concealed)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true, silent: true, firstShotOnly: true }, 'longLas');
+const longLasMobile = W('longLasMobile', '長管雷射槍（機動）', 'Long-las (mobile)', 'ranged', 4, 3, 3, 4, {}, 'longLas');
+const longLasStationary = W('longLasStationary', '長管雷射槍（定點）', 'Long-las (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true }, 'longLas');
+// noOrders: the Take Aim! order doesn't apply to it.
+const mortarBarrage = W('mortarBarrage', '迫擊砲彈幕', 'Mortar barrage', 'ranged', 4, 4, 3, 5, { blast: 2, heavy: 'dash', silent: true, noOrders: true });
+
+// ---- Gellerpox Infected ----
+const pyregutStd = W('pyregutStd', '焚腸（標準）', 'Pyregut (standard)', 'ranged', 5, 2, 3, 3, { range: 6, saturate: true, torrent: 2 }, 'pyregut');
+const pyregutDeluge = W('pyregutDeluge', '焚腸（洪流）', 'Pyregut (deluge)', 'ranged', 5, 2, 3, 3, { range: 4, saturate: true, seekLight: true }, 'pyregut');
+// Engineered: two improvements picked for the battle — here Normal Dmg +1 and Critical Dmg +1 (4/5 → 5/6).
+const fleshmelded = W('fleshmelded', '血肉融合武器（改造）', 'Fleshmelded weapons (engineered)', 'melee', 5, 3, 5, 6);
+const mutantTentacles = W('mutantTentacles', '變異觸手', 'Mutant tentacles', 'ranged', 5, 4, 3, 4, { range: 3, torrent: 1 });
+const clawSlashing = W('clawSlashing', '變異爪與觸手（劈砍）', 'Mutant claw & tentacles (slashing)', 'melee', 6, 4, 3, 4, {}, 'bloatClaw');
+// Swipe: after fighting with it, a free Fight with it against each other enemy in control range (once each).
+const clawSwiping = W('clawSwiping', '變異爪與觸手（橫掃）', 'Mutant claw & tentacles (swiping)', 'melee', 4, 4, 3, 4, { swipe: true }, 'bloatClaw');
+const mutantClaw = W('mutantClaw', '變異巨爪', 'Mutant claw', 'melee', 4, 4, 6, 7, { brutal: true });
+const effluence = W('effluence', '病態排泄', 'Diseased effluence', 'ranged', 4, 4, 2, 2, { range: 6 });
+const nippers = W('nippers', '病態鉗咬', 'Diseased nippers', 'melee', 3, 4, 1, 2);
+const cleaverLop = W('cleaverLop', '變異拳與砍刀（斷首）', 'Mutant fist and cleaver (lopping blow)', 'melee', 1, 3, 8, 9, { lethal: 5 }, 'cleaver');
+const cleaverSlash = W('cleaverSlash', '變異拳與砍刀（劈砍）', 'Mutant fist and cleaver (slashing)', 'melee', 5, 4, 5, 6, {}, 'cleaver');
+const fragGP = W('fragGP', '破片手雷', 'Frag grenade', 'ranged', 4, 4, 2, 4, { range: 6, blast: 2, limited: 1, saturate: true });
+const heavyAxe = W('heavyAxe', '重斧', 'Heavy axe', 'melee', 3, 4, 4, 5, { brutal: true });
+const improvised = W('improvised', '簡易武器', 'Improvised weapon', 'melee', 4, 4, 3, 4, { ceaseless: true });
+
+// ---- Hearthkyn Salvagers ----
+const autochPistol = W('autochPistol', '奧托赫式爆彈手槍', 'Autoch-pattern bolt pistol', 'ranged', 4, 4, 3, 4, { range: 8, accurate: 1 });
+const autochBolter = W('autochBolter', '奧托赫式爆彈槍', 'Autoch-pattern bolter', 'ranged', 4, 4, 3, 4, { accurate: 1 });
+const ionBlaster = W('ionBlaster', '離子爆能槍', 'Ion blaster', 'ranged', 4, 4, 3, 4, { piercingCrits: 1 });
+const etacarnPistol = W('etacarnPistol', '伊塔卡恩等離子手槍', 'EtaCarn plasma pistol', 'ranged', 4, 4, 3, 5, { range: 8, piercing: 1 });
+const plasmaWeaponTh = W('plasmaWeaponTh', '等離子武器', 'Plasma weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const boltRevolver = W('boltRevolver', '爆彈左輪', 'Bolt revolver', 'ranged', 4, 3, 3, 5, { range: 8 });
+const plasmaKnifeMed = W('plasmaKnifeMed', '等離子小刀', 'Plasma knife', 'melee', 4, 4, 3, 5, { lethal: 5 });
+const knux = W('knux', '震盪指虎', 'Concussion knux', 'melee', 4, 3, 4, 4, { ceaseless: true, lethal: 5, shock: true });
+const c8Charge = W('c8Charge', 'C8 HX 炸藥', 'C8 HX charge', 'ranged', 4, 3, 4, 6, { range: 4, blast: 1, heavy: 'reposition', limited: 1, piercing: 1, saturate: true });
+// Grenadier: universal frag/krak grenades with Hit improved by 1 (3+), not limited for this operative.
+const fragHK = W('fragHK', '破片手雷', 'Frag grenade', 'ranged', 4, 3, 2, 4, { range: 6, blast: 2, saturate: true });
+const krakHK = W('krakHK', '穿甲手雷', 'Krak grenade', 'ranged', 4, 3, 4, 5, { range: 6, piercing: 1, saturate: true });
+const fistsHK = W('fistsHK', '拳頭', 'Fists', 'melee', 3, 4, 2, 3);
+const rotaryFocused = W('rotaryFocused', 'HYLas 轉管砲（集中）', 'HYLas rotary cannon (focused)', 'ranged', 5, 4, 4, 5, { ceaseless: true, heavy: 'reposition', saturate: true }, 'rotary');
+const rotarySweeping = W('rotarySweeping', 'HYLas 轉管砲（掃射）', 'HYLas rotary cannon (sweeping)', 'ranged', 4, 4, 4, 5, { ceaseless: true, heavy: 'reposition', saturate: true, torrent: 1 }, 'rotary');
+// Force Impact: Brutal when fighting in an activation in which it Charged.
+const plasmaWeaponJP = W('plasmaWeaponJP', '等離子武器', 'Plasma weapon', 'melee', 4, 3, 4, 6, { lethal: 5, forceImpact: true });
+
+// ---- Imperial Navy Breachers ----
+const shotgunClose = W('shotgunClose', '海軍霰彈槍（近距離）', 'Navis shotgun (close range)', 'ranged', 4, 3, 3, 3, { range: 6, shotgun: true }, 'navisShotgun');
+const shotgunLong = W('shotgunLong', '海軍霰彈槍（遠距離）', 'Navis shotgun (long range)', 'ranged', 4, 5, 1, 2, { shotgun: true }, 'navisShotgun');
+const hatchet = W('hatchet', '海軍手斧', 'Navis hatchet', 'melee', 3, 4, 3, 4);
+const heirloomPistol = W('heirloomPistol', '傳家自動手槍', 'Heirloom autopistol', 'ranged', 4, 3, 2, 4, { range: 8, lethal: 5 });
+const powerWeaponNB = W('powerWeaponNB', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const autopistolNB = W('autopistolNB', '自動手槍', 'Autopistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const heavyShotgunClose = W('heavyShotgunClose', '海軍重型霰彈槍（近距離）', 'Navis heavy shotgun (close range)', 'ranged', 4, 3, 3, 3, { range: 6, relentless: true, shotgun: true }, 'heavyShotgun');
+const heavyShotgunLong = W('heavyShotgunLong', '海軍重型霰彈槍（遠距離）', 'Navis heavy shotgun (long range)', 'ranged', 4, 5, 1, 2, { relentless: true, shotgun: true }, 'heavyShotgun');
+// Shield: each parry blocks two unresolved successes.
+const shieldBash = W('shieldBash', '盾擊', 'Shield bash', 'melee', 3, 4, 1, 2, { brutal: true, shield: true });
+const lasVolleyFocused = W('lasVolleyFocused', '海軍雷射齊射槍（集中）', 'Navis las-volley (focused)', 'ranged', 5, 4, 4, 5, { heavy: 'dash', rending: true }, 'lasVolley');
+const lasVolleySweeping = W('lasVolleySweeping', '海軍雷射齊射槍（掃射）', 'Navis las-volley (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', rending: true, torrent: 1 }, 'lasVolley');
+const meltagunNB = W('meltagunNB', '熱熔槍', 'Meltagun', 'ranged', 4, 4, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const gunButtNB = W('gunButtNB', '槍托', 'Gun butt', 'melee', 3, 4, 2, 3);
+const chainfist = W('chainfist', '鏈鋸拳', 'Chainfist', 'melee', 4, 4, 5, 6, { brutal: true, rending: true });
+const demoCharge = W('demoCharge', '爆破炸藥', 'Demolition charge', 'ranged', 4, 3, 4, 6, { range: 3, blast: 2, heavy: 'reposition', limited: 1, piercing: 1, saturate: true });
+const fragNB = W('fragNB', '破片手雷', 'Frag grenade', 'ranged', 4, 3, 2, 4, { range: 6, blast: 2, saturate: true });
+const krakNB = W('krakNB', '穿甲手雷', 'Krak grenade', 'ranged', 4, 3, 4, 5, { range: 6, piercing: 1, saturate: true });
+// Detonate: the friendly Gheistskull is always the primary target (no cover, not obscured).
+const detonator = W('detonator', '鬼骷髏引爆器', 'Gheistskull detonator', 'ranged', 4, 3, 3, 4, { blast: 1, lethal: 4, limited: 1, silent: true, stun: true, detonate: true });
+// Machines carry no weapons; this stands in so they can be fought (they never retaliate).
+const noWeapon = W('noWeapon', '（無武器）', '(no weapon)', 'melee', 0, 6, 0, 0);
+
+// ---- Phobos Strike Team ----
+const marksmanCarbine = W('marksmanCarbine', '神射手爆彈卡賓槍', 'Marksman bolt carbine', 'ranged', 4, 3, 3, 4, { lethal: 5 });
+const fistsPh = W('fistsPh', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
+const stalkerCarbine = W('stalkerCarbine', '潛獵神射手爆彈卡賓槍', 'Stalker marksman bolt carbine', 'ranged', 4, 2, 3, 4, { lethal: 5, piercing: 1 });
+const siBoltPistol = W('siBoltPistol', '特製爆彈手槍', 'Special issue bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8, piercing: 1 });
+const combatKnife = W('combatKnife', '戰鬥匕首', 'Combat knife', 'melee', 5, 3, 4, 5);
+
+// ---- Warpcoven ----
+// Twist of Fate (Boon of Tzeentch, Sorcerer of Destiny): its PSYCHIC ranged weapons have Piercing Crits 1.
+const doombolt = W('doombolt', '末日彈', 'Doombolt', 'ranged', 4, 3, 4, 2, { psychic: true, devastating: 2, lethal: 5, piercingCrits: 1 });
+const infernoPistol = W('infernoPistol', '煉獄爆彈手槍', 'Inferno bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8, piercing: 1 });
+const forceStave = W('forceStave', '力場法杖', 'Force stave', 'melee', 4, 3, 4, 6, { psychic: true, shock: true });
+// Incorporeal Sight (Boon, Sorcerer of Warpfire): its ranged weapons have Saturate and enemies can't be obscured.
+const firestorm = W('firestorm', '火焰風暴', 'Firestorm', 'ranged', 5, 4, 2, 3, { psychic: true, saturate: true, seekLight: true, torrent: 2 });
+const mindburn = W('mindburn', '心靈灼燒', 'Mindburn', 'ranged', 5, 4, 1, 1, { psychic: true, lethal: 5, saturate: true, seekLight: true, mindburn: true });
+const khopesh = W('khopesh', '普羅斯佩羅鐮劍', 'Prosperine khopesh', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const soulreaperFocused = W('soulreaperFocused', '奪魂砲（集中）', 'Soulreaper cannon (focused)', 'ranged', 5, 3, 4, 5, { piercing: 1 }, 'soulreaper');
+const soulreaperSweeping = W('soulreaperSweeping', '奪魂砲（掃射）', 'Soulreaper cannon (sweeping)', 'ranged', 4, 3, 4, 5, { piercing: 1, torrent: 1 }, 'soulreaper');
+const infernoBoltgun = W('infernoBoltgun', '煉獄爆彈槍', 'Inferno boltgun', 'ranged', 4, 3, 3, 4, { piercing: 1 });
+const fistsWC = W('fistsWC', '徒手格鬥', 'Fists', 'melee', 3, 3, 3, 4);
+const greatblade = W('greatblade', '巨刃', 'Greatblade', 'melee', 4, 3, 4, 5, { lethal: 5, rending: true });
+const tzaangorBlades = W('tzaangorBlades', '奸奇獸人雙刃', 'Tzaangor blades', 'melee', 4, 4, 4, 5, { balanced: true });
+
+// ---- Wyrmblade ----
+const mcAutopistol = W('mcAutopistol', '大師級自動手槍', 'Master-crafted autopistol', 'ranged', 4, 3, 2, 4, { range: 8, lethal: 5 });
+const powerMaul = W('powerMaul', '動力錘', 'Power maul', 'melee', 4, 3, 4, 6, { shock: true });
+const barbedTail = W('barbedTail', '倒刺尾', 'Barbed tail', 'ranged', 4, 3, 3, 4, { range: 3, silent: true });
+const locusBlades = W('locusBlades', '基因劍', 'Locus blades', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const stubsHyper = W('stubsHyper', '解放者自動手槍（超感）', 'Liberator autostubs (hypersense)', 'ranged', 5, 3, 3, 4, { range: 6, saturate: true, seekLight: true, hypersense: true }, 'autostubs');
+const stubsLong = W('stubsLong', '解放者自動手槍（遠距離）', 'Liberator autostubs (long range)', 'ranged', 4, 4, 3, 4, { piercingCrits: 1, rending: true }, 'autostubs');
+const stubsShort = W('stubsShort', '解放者自動手槍（近距離）', 'Liberator autostubs (short range)', 'ranged', 5, 3, 3, 4, { range: 8, piercing: 1, rending: true }, 'autostubs');
+const kelKnife = W('kelKnife', '克勒莫夫匕首', 'Kelermorph knife', 'melee', 3, 4, 3, 4, { rending: true });
+const flamerGSC = W('flamerGSC', '火焰噴射器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const glFragGSC = W('glFragGSC', '榴彈發射器（破片）', 'Grenade launcher (frag)', 'ranged', 4, 4, 2, 4, { blast: 2 }, 'glGSC');
+const glKrakGSC = W('glKrakGSC', '榴彈發射器（穿甲）', 'Grenade launcher (krak)', 'ranged', 4, 4, 4, 5, { piercing: 1 }, 'glGSC');
+const gunButtGSC = W('gunButtGSC', '槍托', 'Gun butt', 'melee', 3, 4, 2, 3);
+const miningLaser = W('miningLaser', '採礦雷射', 'Mining laser', 'ranged', 5, 4, 5, 6, { heavy: 'dash', piercing: 1 });
+const seismicLong = W('seismicLong', '地震砲（長波）', 'Seismic cannon (long-wave)', 'ranged', 6, 4, 2, 2, { blast: 1, heavy: 'dash', stun: true }, 'seismic');
+const seismicShort = W('seismicShort', '地震砲（短波）', 'Seismic cannon (short-wave)', 'ranged', 4, 3, 4, 4, { range: 6, heavy: 'dash', piercingCrits: 1, stun: true }, 'seismic');
+const autogunGSC = W('autogunGSC', '自動步槍', 'Autogun', 'ranged', 4, 4, 2, 3);
+const shotgunGSC = W('shotgunGSC', '霰彈槍', 'Shotgun', 'ranged', 4, 3, 3, 3, { range: 6 });
 
 const op = (id, zh, en, stats, weapons, count = 1) => ({ id, name: { zh, en }, ...stats, weapons, count });
 
@@ -220,8 +367,8 @@ export const TEAMS = [
     rule: {
       name: { zh: '割喉者', en: 'Throat Slittas' },
       desc: {
-        zh: '友方在隱蔽指令下也能執行「衝鋒」。',
-        en: 'Friendly operatives can perform the Charge action while they have a Conceal order.',
+        zh: '（官方：友方在隱蔽指令下也能「衝鋒」。目前依基本規則停用：隱蔽一律不能衝鋒。）',
+        en: '(Official: friendly operatives can Charge while Concealed. Currently disabled by the basic rules: Concealed operatives never Charge.)',
       },
     },
     concealCharge: true, // engine flag for Throat Slittas
@@ -293,8 +440,8 @@ export const TEAMS = [
       op('transpectral', '跨光譜干擾兵', 'Transpectral Interference', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, systemJam: true, multiVision: true }, [pulseCarbine, fistsT]),
       op('ionExpert', '武器專家（離子）', 'Weapons Expert (ion)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [ionStandard, ionOvercharge, fistsT]),
       op('railExpert', '武器專家（軌道）', 'Weapons Expert (rail)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [railRifle, fistsT]),
-      op('gunDrone', 'MV1 槍械無人機', 'MV1 Gun Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: ['charge', 'dash', 'fallBack', 'fight', 'reposition', 'shoot'] }, [twinPulseCarbine, ram]),
-      op('markerDrone', 'MV7 標記無人機', 'MV7 Marker Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, markerlight: 2, drone: ['charge', 'dash', 'fallBack', 'fight', 'markerlight', 'reposition'] }, [ram]),
+      op('gunDrone', 'MV1 槍械無人機', 'MV1 Gun Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition', 'shoot'] }, [twinPulseCarbine, ram]),
+      op('markerDrone', 'MV7 標記無人機', 'MV7 Marker Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, markerlight: 2, drone: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'markerlight', 'reposition'] }, [ram]),
     ],
   },
   {
@@ -338,37 +485,409 @@ export const TEAMS = [
     ],
   },
   {
-    id: 'troopers',
-    name: { zh: '帝國衛兵小隊', en: 'Imperial Troopers' },
-    color: '#b8433f',
-    style: { zh: '人數・火力・指揮', en: 'Numbers · Firepower · Orders' },
+    id: 'farstalkers',
+    name: { zh: '遠獵者', en: 'Farstalker Kinband' },
+    color: '#b9772f',
+    style: { zh: '射擊隊・狩獵・靈活', en: 'Shooting · Hunters · Agile' },
     blurb: {
-      zh: '12 名普通士兵配特種武器。單兵弱小，但集火受傷目標時火力驚人。',
-      en: '12 rank-and-file soldiers with special weapons. Weak alone, deadly when focusing wounded targets.',
+      zh: '12 名克魯特獵人與獵犬。可在策略階段與反擊時調整指令，用「呼喚獵殺」鎖定獵物，再以各式專家武器圍獵。',
+      en: '12 Kroot hunters and hounds. They switch orders in the Strategy phase and when counteracting, Call the Kill on their prey, then run it down with specialists.',
     },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '滲透', en: 'Infiltration' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能，KT 盒與大桌盒內容一樣', en: 'Yes — the KT box and the Warhammer 40,000 box are the same' },
+      note: { zh: '將於 2026 年退出賽季：屆時官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotating out of the season in 2026: then not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    farstalker: true, // engine flag for the Farstalker faction rule (order changes)
     rule: {
-      name: { zh: '集火', en: 'Bring It Down' },
+      name: { zh: '遠獵者', en: 'Farstalker' },
       desc: {
-        zh: '射擊本回合已受過傷害的敵人時，遠程武器獲得「無休」。',
-        en: 'Ranged weapons gain Ceaseless against an enemy that has already lost wounds this TP.',
+        zh: '策略階段輪到你選計謀時，可改變最多 3 名不在敵人控制範圍內的友方指令。輪到你反擊時，也可以改成變更 1 名友方的指令（仍算你的反擊，但不算該特工的反擊）。',
+        en: 'When you choose ploys in the Strategy phase, change the order of up to three friendly operatives not within enemy control range. When it\'s your turn to counteract, you can instead change one friendly operative\'s order (it counts as your counteract, not that operative\'s).',
       },
     },
     ploys: [
-      { id: 'takeAim', cp: 1, name: { zh: '瞄準！', en: 'Take Aim!' },
-        desc: { zh: '本回合友方遠程武器獲得「平衡」。', en: 'This TP, friendly ranged weapons gain Balanced.' } },
-      { id: 'moveMove', cp: 1, name: { zh: '快！快！快！', en: 'Move! Move! Move!' },
-        desc: { zh: '本回合友方 Move +1"。', en: 'This TP, friendly operatives get +1" Move.' } },
+      { id: 'prey', cp: 1, name: { zh: '獵物', en: 'Prey' },
+        desc: { zh: '本回合友方在本次啟動未移動、衝鋒或撤退時射擊，遠程武器獲得「平衡」與「嚴厲」（已有平衡則改為「無休」與「嚴厲」）。', en: 'This TP, a friendly operative shooting in an activation without Reposition, Charge or Fall Back has Balanced and Severe (Ceaseless and Severe if already Balanced).' } },
+      { id: 'cutThroats', cp: 1, name: { zh: '割喉', en: 'Cut-throats' },
+        desc: { zh: '本回合友方近戰武器 ATK +1（最多 5）。', en: 'This TP, friendly melee weapons get +1 Atk (max 5).' } },
+      { id: 'rogue', cp: 1, name: { zh: '遊俠', en: 'Rogue' },
+        desc: { zh: '本回合友方被射擊時無視「飽和」；若能保留掩護豁免，可多保留 1 顆，或把 1 顆當成暴擊豁免。', en: 'This TP, friendly operatives being shot ignore Saturate; if they can retain cover saves, retain one more, or one as a critical success.' } },
     ],
     ops: [
-      op('sgt', '士官', 'Sergeant', { apl: 2, move: 6, save: 5, wounds: 8, base: 25 }, [laspistol, chainswordG]),
-      op('plasma', '等離子槍手', 'Plasma Gunner', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [plasmaGun, bayonet]),
-      op('melta', '熱熔槍手', 'Melta Gunner', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [melta, bayonet]),
-      op('trooper', '步兵', 'Trooper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [lasgun, bayonet], 9),
+      op('killBroker', '獵殺掮客', 'Kroot Kill-broker', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, callTheKill: true }, [krootRifleKB, ritualBlade]),
+      op('bowHunter', '弓獵者', 'Kroot Bow-hunter', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, energise: true }, [bowFused, bowGlide, bowVoltaic, krootBlade]),
+      op('coldBlood', '冷血者', 'Kroot Cold-blood', { apl: 2, move: 6, save: 5, wounds: 9, base: 28, coldBlooded: true, hardyCrit: true }, [krootRifleCB, krootBlade]),
+      op('cutSkin', '割膚者', 'Kroot Cut-skin', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, viciousDuellist: true, savageAssault: true }, [cutSkinBlades]),
+      op('hound', '克魯特獵犬', 'Kroot Hound', { apl: 2, move: 8, save: 5, wounds: 7, base: 28, badTempered: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition'] }, [rippingFangs], 2),
+      op('heavyGunner', '重火力手', 'Kroot Heavy Gunner', { apl: 2, move: 6, save: 5, wounds: 8, base: 28 }, [londaxi, krootBlade]),
+      op('longSight', '遠視者', 'Kroot Long-sight', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, longSight: true }, [huntingConcealed, huntingMobile, huntingStationary, krootBlade]),
+      op('pistolier', '雙槍手', 'Kroot Pistolier', { apl: 2, move: 6, save: 5, wounds: 8, base: 28 }, [pistolsFocused, pistolsSalvo, krootBlade]),
+      op('stalker', '潛獵者', 'Kroot Stalker', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, concealCharge: true, stealthAttack: true }, [scattergun, stalkerBlade]),
+      op('tracker', '追蹤者', 'Kroot Tracker', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, support: 'eyeAbove', pechra: true }, [krootRifle, krootBlade]),
+      op('warrior', '克魯特戰士', 'Kroot Warrior', { apl: 2, move: 6, save: 5, wounds: 8, base: 28 }, [krootRifle, krootBlade]),
+    ],
+  },
+  {
+    id: 'deathKorps',
+    name: { zh: '克里格死亡兵團', en: 'Death Korps' },
+    color: '#7d8a8f',
+    style: { zh: '射擊隊・人海・命令', en: 'Shooting · Numbers · Orders' },
+    blurb: {
+      zh: '14 名克里格老兵。單兵脆弱，但人數最多；看守長下達衛兵命令，步兵兩兩連續行動，配上專家與特種武器打消耗戰。',
+      en: '14 Krieg veterans. Fragile alone but the most numerous; the Watchmaster issues Guardsman Orders, Troopers activate in pairs, and specialists grind the enemy down.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '否：需要多買一盒克里格普通兵', en: 'No: you need an extra box of Krieg rank-and-file' },
+      buyable: { zh: '否：已絕版，也不會有大桌盒', en: 'No: out of production, and no Warhammer 40,000 box' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games.' },
+    },
+    bringItDown: true, // the marked enemy (Bring it Down!) gives Punishing instead of Call the Kill's Balanced
+    rule: {
+      name: { zh: '衛兵命令・群體啟動', en: 'Guardsmen Orders · Group Activation' },
+      desc: {
+        zh: '策略階段，看守長可下達一道衛兵命令給 6" 內的友方（看守長倒下後由心腹代替），效果到本回合結束：瞄準！（遠程武器「無休」，迫擊砲除外）、上刺刀！（近戰武器「無休」）、固守！（被射擊且能保留掩護豁免時，可重擲某一點數的所有防禦骰）、快快快！（轉移 Move +1"）。通訊兵可轉達命令給全隊（之後自己 APL -1）。步兵行動完後，必須接著啟動另一名步兵，再換對手。',
+        en: 'In the Strategy phase the Watchmaster can issue a Guardsman Order to friendlies within 6" (the Confidant takes over once it falls), lasting the turning point: Take Aim! (ranged Ceaseless, not the mortar), Fix Bayonets! (melee Ceaseless), Dig In! (when shot and cover saves can be retained, re-roll all defence dice of one result), Move! Move! Move! (+1" Move for Reposition). The Vox-operator can relay the order to the whole team (then -1 APL). After a Trooper is expended, another ready Trooper must activate before the opponent.',
+      },
+    },
+    ploys: [
+      { id: 'siegeWarfare', cp: 1, name: { zh: '攻城戰', en: 'Siege Warfare' },
+        desc: { zh: '本回合友方遠程武器獲得「飽和」與「精準 1」。', en: 'This TP, friendly ranged weapons have Saturate and Accurate 1.' } },
+      { id: 'takeCover', cp: 1, name: { zh: '尋找掩護', en: 'Take Cover' },
+        desc: { zh: '本回合友方被射擊時，若能保留掩護豁免，豁免值改善 1。', en: 'This TP, when a friendly operative is shot and can retain cover saves, its Save improves by 1.' } },
+      { id: 'clearTheLine', cp: 1, name: { zh: '清理戰線', en: 'Clear the Line' },
+        desc: { zh: '本回合友方近戰武器獲得「精準 1」；完全在我方領域內近戰，或反擊時，再獲得「嚴厲」。', en: 'This TP, friendly melee weapons have Accurate 1; also Severe when fighting wholly within your territory or when retaliating.' } },
+    ],
+    ops: [
+      op('watchmaster', '看守長', 'Watchmaster', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, watchmaster: true }, [plasmaPistolWM, plasmaPistolWMs, powerWeaponWM]),
+      op('confidant', '心腹', 'Confidant', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, confidant: true }, [boltPistolCF, chainswordCF]),
+      op('bruiser', '打手', 'Bruiser', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, bruiser: true }, [lasgunDK, trenchClub]),
+      op('gunnerPlasma', '槍手（等離子）', 'Gunner (plasma)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [plasmaGunDK, plasmaGunDKs, bayonetDK]),
+      op('gunnerMelta', '槍手（熱熔）', 'Gunner (melta)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [meltagunDK, bayonetDK]),
+      op('medic', '醫療兵', 'Medic', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, medic: true, medikit: true }, [lasgunDK, bayonetDK]),
+      op('sniper', '狙擊手', 'Sniper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [longLasConcealed, longLasMobile, longLasStationary, bayonetDK]),
+      op('spotter', '觀測手', 'Spotter', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, support: 'spot' }, [lasgunDK, mortarBarrage, bayonetDK]),
+      op('vox', '通訊兵', 'Vox-operator', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, signal: true, relay: true }, [lasgunDK, bayonetDK]),
+      op('zealot', '狂信者', 'Zealot', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, emperorProtects: true, uplifting: true }, [lasgunDK, bayonetDK]),
+      op('trooper', '步兵', 'Trooper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, groupAct: 'trooper' }, [lasgunDK, bayonetDK], 4),
+    ],
+  },
+  {
+    id: 'gellerpox',
+    name: { zh: '蓋勒痘魔', en: 'Gellerpox Infected' },
+    color: '#a0607a',
+    style: { zh: '近戰隊・巨怪・詛咒', en: 'Melee · Hulks · Curses' },
+    blurb: {
+      zh: '11 名被納垢瘟疫扭曲的怪物：四隻耐打的夢魘巨怪打頭陣，變種人與小惡魔成群跟上；技術詛咒削弱附近的敵人。',
+      en: '11 monsters twisted by Nurgle\'s plague: four tough Nightmare Hulks lead, Mutants and Glitchlings swarm behind, and a Techno-curse cripples nearby enemies.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '否：已完全絕版', en: 'No: completely out of production' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games.' },
+    },
+    rule: {
+      name: { zh: '技術詛咒・夢魘巨怪・令人作嘔的韌性', en: 'Techno-curse · Nightmare Hulks · Revoltingly Resilient' },
+      desc: {
+        zh: '開戰前選一種技術詛咒，影響範圍內的敵人（見選隊）。夢魘巨怪：敵人選目標時，巨怪不能用輕型地形擋（仍保留掩護豁免）；撿標記與任務動作多花 1AP（伏爾格拉除外）。巨怪與變種人每顆攻擊骰造成 3 以上傷害時擲 D6，4+ 傷害 -1。變種人、小惡魔各自群體啟動。',
+        en: 'Pick a Techno-curse before the battle; it affects enemies in range (see setup). Nightmare Hulks: enemies can\'t treat Light terrain as cover for them when picking targets (they keep the cover save); +1AP for Pick Up and mission actions (not Vulgrar). Whenever an attack die inflicts 3+ damage on a Hulk or Mutant, roll a D6: on a 4+ it deals 1 less. Mutants and Glitchlings each use Group Activation.',
+      },
+    },
+    // Techno-curse: one, picked in setup (stored like Chapter Tactics); it affects enemy operatives.
+    tacticSlots: 1,
+    tacticsLabel: { zh: '技術詛咒', en: 'Techno-curse' },
+    tactics: [
+      { id: 'barrelwarp', name: { zh: '槍管扭曲', en: 'Barrelwarp' }, desc: { zh: '友方（害蟲除外）2" 內、或小惡魔 3" 內的敵人，遠程武器 Atk -1。', en: 'Enemies within 2" of a friendly operative (or 3" of a Glitchling): -1 Atk on ranged weapons.' } },
+      { id: 'rustspikes', name: { zh: '尖嘯鏽刺', en: 'Screaming Rustspikes' }, desc: { zh: '友方控制範圍內的敵人跟友方近戰或反擊時，只要有攻擊骰失敗，就受到 1 傷害。', en: 'An enemy within control range of a friendly operative that fights or retaliates against one takes 1 damage if any of its attack dice fail.' } },
+      { id: 'voxStatic', name: { zh: '病毒雜訊', en: 'Viral Vox-static' }, desc: { zh: '友方 3" 內、或小惡魔 4" 內的敵人，APL 不能增加（移除所有正面 APL 變化）。', en: 'Enemies within 3" of a friendly operative (or 4" of a Glitchling) can\'t have their APL increased.' } },
+    ],
+    defaultTactics: ['barrelwarp'],
+    ploys: [
+      { id: 'rustEmanations', cp: 1, name: { zh: '鏽蝕散發', en: 'Rust Emanations' },
+        desc: { zh: '本回合友方夢魘巨怪近戰時，對手擲出 3 的骰不能算成功。', en: 'This TP, when a friendly Nightmare Hulk is fighting, your opponent can\'t retain results of 3 as successes.' } },
+      { id: 'plagueridden', cp: 1, name: { zh: '瘟疫附身的決心', en: 'Plagueridden Determination' },
+        desc: { zh: '本回合交戰指令的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, when a friendly operative with an Engage order is shot, you can re-roll one defence die.' } },
+      { id: 'blessingsInfection', cp: 1, name: { zh: '感染的祝福', en: 'Blessings of Infection' },
+        desc: { zh: '本回合友方近戰或反擊時：擲出 3 顆以上失敗，可把其中一顆改為普通成功；或擲出 3 顆以上成功，可捨棄一顆失敗把一顆普通成功升為暴擊。', en: 'This TP, when a friendly operative fights or retaliates: with three or more fails, one becomes a normal success; or with three or more successes, discard a fail to make a normal success critical.' } },
+    ],
+    ops: [
+      op('vulgrar', '三重詛咒者伏爾格拉', 'Vulgrar Thrice-Cursed', { apl: 2, move: 5, save: 5, wounds: 21, base: 40, hulk: true, vulgrar: true, resilient: true }, [pyregutStd, pyregutDeluge, fleshmelded]),
+      op('bloatspawn', '膨脹孽生', 'Bloatspawn', { apl: 2, move: 5, save: 5, wounds: 20, base: 40, hulk: true, resilient: true, tentacledGrasp: true }, [mutantTentacles, clawSlashing, clawSwiping]),
+      op('fleshscreamer', '血肉尖嘯者', 'Fleshscreamer', { apl: 2, move: 5, save: 5, wounds: 20, base: 40, hulk: true, resilient: true, shrieking: true }, [cleaverLop, cleaverSlash]),
+      op('lumberghast', '笨重惡鬼', 'Lumberghast', { apl: 2, move: 5, save: 5, wounds: 20, base: 40, hulk: true, resilient: true, spikedCharger: true }, [mutantClaw]),
+      op('glitchling', '小惡魔', 'Glitchling', { apl: 2, move: 6, save: 6, wounds: 3, base: 25, glitchling: true, small: true, daemonic: true, groupAct: 'glitchling' }, [effluence, nippers], 4),
+      op('mutantAxe', '變種人（重斧）', 'Mutant (heavy axe)', { apl: 2, move: 5, save: 5, wounds: 7, base: 25, resilient: true, hardyCrit: true, groupAct: 'mutant' }, [fragGP, heavyAxe]),
+      op('mutant', '變種人', 'Mutant', { apl: 2, move: 5, save: 5, wounds: 7, base: 25, resilient: true, hardyCrit: true, groupAct: 'mutant' }, [fragGP, improvised], 2),
+    ],
+  },
+  {
+    id: 'hearthkyn',
+    name: { zh: '爐心打撈者', en: 'Hearthkyn Salvagers' },
+    color: '#d07a2a',
+    style: { zh: '射擊隊・耐打・宿怨', en: 'Shooting · Tough · Grudges' },
+    blurb: {
+      zh: '10 名矮人打撈隊員。3+ 豁免、精準的爆彈火力；殺了我們的人會記上宿怨，之後打他時更容易打出暴擊。',
+      en: '10 Kin salvagers. 3+ saves and accurate bolt fire; whoever kills one of them earns a Grudge, and gets hit with more criticals afterwards.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '安全保護', en: 'Security' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '否：除非把武器磁化', en: 'No — unless you magnetise the weapons' },
+      buyable: { zh: 'KT 盒目前還有，但不會有大桌盒', en: 'The KT box is still available, but there won\'t be a Warhammer 40,000 box' },
+      note: { zh: '將於 2026 年退出賽季：屆時官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotating out of the season in 2026: then not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    grudges: true, // engine flag for the Grudge faction rule
+    rule: {
+      name: { zh: '宿怨', en: 'Grudge' },
+      desc: {
+        zh: '敵人擊倒友方時，獲得一個宿怨標記（整場保留）。友方射擊、近戰或反擊有宿怨標記的敵人時，每個標記可把一顆普通成功當成暴擊保留（包括精準保留的成功）。',
+        en: 'An enemy that incapacitates a friendly operative gains a Grudge token for the battle. Whenever a friendly operative shoots, fights or retaliates against an enemy with Grudge tokens, for each token one normal success can be retained as a critical success (including ones retained through Accurate).',
+      },
+    },
+    ploys: [
+      { id: 'wroughtDefence', cp: 1, name: { zh: '精工防禦', en: 'Wrought Defence' },
+        desc: { zh: '本回合友方被射擊時，若防禦骰只有 1 顆以下成功，可把一顆失敗當成普通成功。', en: 'This TP, when a friendly operative is shot and rolls one or fewer successes, one fail is retained as a normal success.' } },
+      { id: 'proximateFire', cp: 1, name: { zh: '近距火力', en: 'Proximate Firepower' },
+        desc: { zh: '本回合友方射擊 6" 內的敵人時，遠程武器命中改善 1（最佳 3+）。', en: 'This TP, friendly ranged weapons improve their Hit by 1 (to 3+) when shooting an enemy within 6".' } },
+    ],
+    ops: [
+      op('theyn', '領主', 'Theyn', { apl: 2, move: 5, save: 3, wounds: 9, base: 28, eyeOfAncestors: true, weavefield: true }, [etacarnPistol, plasmaWeaponTh]),
+      op('dozr', '破拳手', 'Dôzr', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, brawler: true, knux: true }, [autochPistol, knux]),
+      op('medic', '戰地醫療兵', 'Field Medic', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, medic: true, medikit: true }, [boltRevolver, plasmaKnifeMed]),
+      op('grenadier', '擲彈兵', 'Grenadier', { apl: 2, move: 5, save: 3, wounds: 8, base: 28 }, [autochPistol, c8Charge, fragHK, krakHK, fistsHK]),
+      op('gunner', '槍手（轉管砲）', 'Gunner (rotary cannon)', { apl: 2, move: 5, save: 3, wounds: 8, base: 28 }, [rotaryFocused, rotarySweeping, fistsHK]),
+      op('jumpPack', '噴射背包戰士', 'Jump Pack Warrior', { apl: 2, move: 8, save: 3, wounds: 8, base: 28, jumpPack: true }, [autochPistol, plasmaWeaponJP]),
+      op('kinlynk', '通聯兵', 'Kinlynk', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, signalAny: true, jamToken: true }, [autochBolter, fistsHK]),
+      op('kognitaar', '智械參謀', 'Kognitâar', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, tactician: true }, [autochBolter, fistsHK]),
+      op('lokatr', '探測兵', 'Lokâtr', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, support: 'spot', panScan: true }, [ionBlaster, fistsHK]),
+      op('lugger', '搬運工', 'Lugger', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, wellSupplied: true, gotIt: true }, [autochBolter, fistsHK]),
+    ],
+  },
+  {
+    id: 'navyBreachers',
+    name: { zh: '帝國海軍跳幫者', en: 'Imperial Navy Breachers' },
+    color: '#4f7f9f',
+    style: { zh: '近戰隊・霰彈槍・破門', en: 'Melee · Shotguns · Boarding' },
+    blurb: {
+      zh: '11 名帝國海軍登艦隊（另有兩台機械單位）。霰彈槍與近戰武器擅長貼身作戰；突破清場讓兩人連續行動，攻擊／防禦命令標記穩住戰線。',
+      en: '11 Imperial Navy boarding troops (plus two machines). Shotguns and melee weapons excel up close; Breach and Clear lets two act in a row, and Attack / Defence Orders hold the line.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '否：還需要一名 28mm 底座的槍手，原盒只夠做一名槍手', en: 'No: you need a second Gunner on a 28mm base, and the box only builds one' },
+      size: { zh: '11 個名額：偵察車與鬼骷髏合算一個且不計入擊殺任務', en: '11 selections: the C.A.T. unit and Gheistskull count as one and are ignored for the kill op' },
+      buyable: { zh: 'KT 盒目前還有；大桌盒不會附 KT 專用板件，購買時要注意', en: 'The KT box is still available; the Warhammer 40,000 box won\'t include the KT sprues, so check before buying' },
+      note: { zh: '將於 2026 年退出賽季：屆時官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotating out of the season in 2026: then not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    breachAndClear: true, // engine flag for the Breach and Clear faction rule
+    voidArmour: true, // engine flag for the Void Armour faction rule
+    rule: {
+      name: { zh: '虛空裝甲・突破清場', en: 'Void Armour · Breach and Clear' },
+      desc: {
+        zh: '虛空裝甲：被有「爆炸」或「洪流」的武器（掃射模式除外）射擊時，可重擲一顆防禦骰（擲彈兵兩顆）。突破清場：每回合一次，啟動時若 3" 內有可見的準備中友方，這名行動完後可以接著啟動那名友方。',
+        en: 'Void Armour: when shot by a Blast or Torrent weapon (not a sweeping profile), re-roll one defence die (two for the Grenadier). Breach and Clear: once per turning point, a ready friendly visible within 3" of the activating operative may activate right after it.',
+      },
+    },
+    ploys: [
+      { id: 'attackOrder', group: 'navyOrder', marker: 'attack', cp: 1, name: { zh: '攻擊命令', en: 'Attack Order' },
+        desc: { zh: '放置攻擊命令標記：本回合標記 3" 內的友方射擊、近戰或反擊時武器「無休」。（與防禦命令擇一；士官在場 0CP）', en: 'Place the Attack Order marker: this TP, friendlies within 3" of it have Ceaseless when shooting, fighting or retaliating. (Not with Defence Order; 0CP with the Sergeant-at-Arms)' } },
+      { id: 'defenceOrder', group: 'navyOrder', marker: 'defence', cp: 1, name: { zh: '防禦命令', en: 'Defence Order' },
+        desc: { zh: '放置防禦命令標記：本回合標記 3" 內的友方被射擊時，可重擲某一點數的所有防禦骰。（與攻擊命令擇一；士官在場 0CP）', en: 'Place the Defence Order marker: this TP, friendlies within 3" of it being shot re-roll all defence dice of one result. (Not with Attack Order; 0CP with the Sergeant-at-Arms)' } },
+      { id: 'closeAssault', cp: 1, name: { zh: '近距突擊', en: 'Close Assault' },
+        desc: { zh: '本回合友方近戰或射擊 3" 內的敵人時：霰彈槍兩個傷害值 +1；擲出 2 顆以上失敗時，可把一顆改為普通成功。', en: 'This TP, a friendly fighting or shooting an enemy within 3": +1 to both Dmg of Navis shotguns; with two or more fails, one becomes a normal success.' } },
+      { id: 'braceCounter', cp: 1, name: { zh: '準備反擊', en: 'Brace for Counterattack' },
+        desc: { zh: '本回合友方在我方領域內、或本回合沒有衝鋒／撤退／轉移時，受到 3 以上的傷害 -1。', en: 'This TP, a friendly in your territory, or that hasn\'t Charged, Fallen Back or Repositioned this TP, takes 1 less from Dmg of 3 or more.' } },
+    ],
+    ops: [
+      op('sgt', '士官長', 'Sergeant-at-Arms', { apl: 2, move: 6, save: 4, wounds: 9, base: 25, commandBreach: true }, [heirloomPistol, powerWeaponNB]),
+      op('axejack', '斧手', 'Axejack', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, emboldened: true }, [autopistolNB, powerWeaponNB]),
+      op('endurant', '重盾兵', 'Endurant', { apl: 2, move: 4, save: 2, wounds: 11, base: 28, disengage: true }, [heavyShotgunClose, heavyShotgunLong, shieldBash]),
+      op('grenadier', '擲彈兵', 'Grenadier', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, voidGrenadier: true }, [demoCharge, fragNB, krakNB, shotgunClose, shotgunLong, hatchet]),
+      op('gunnerVolley', '槍手（雷射齊射）', 'Gunner (las-volley)', { apl: 2, move: 6, save: 4, wounds: 9, base: 28 }, [lasVolleyFocused, lasVolleySweeping, gunButtNB]),
+      op('gunnerMelta', '槍手（熱熔）', 'Gunner (meltagun)', { apl: 2, move: 6, save: 4, wounds: 9, base: 28 }, [meltagunNB, gunButtNB]),
+      op('hatchcutter', '切割手', 'Hatchcutter', { apl: 2, move: 6, save: 4, wounds: 8, base: 25 }, [autopistolNB, chainfist]),
+      op('surveyor', '勘測員', 'Surveyor', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, surveyor: true, support: 'wayfind' }, [shotgunClose, shotgunLong, hatchet]),
+      op('cat', 'C.A.T. 偵察車', 'C.A.T. Unit', { apl: 2, move: 8, save: 5, wounds: 5, base: 25, catUnit: true, machine: true, expendable: true, small: true, noRetaliate: true, support: 'spot', actionsOnly: ['charge', 'dash', 'fallBack', 'reposition', 'spot'] }, [noWeapon]),
+      op('voidJammer', '虛空干擾員', 'Void-jammer', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, pulse: true }, [detonator, shotgunClose, shotgunLong, hatchet]),
+      op('gheistskull', '鬼骷髏', 'Gheistskull', { apl: 2, move: 8, save: 5, wounds: 5, base: 25, gheistskull: true, machine: true, expendable: true, small: true, noRetaliate: true, boost: true, actionsOnly: ['boost', 'charge', 'dash', 'fallBack', 'reposition'] }, [noWeapon]),
+      op('armsman', '水兵', 'Armsman', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, groupAct: 'armsman' }, [shotgunClose, shotgunLong, hatchet]),
+    ],
+  },
+  {
+    id: 'phobos',
+    name: { zh: '恐懼突襲小隊', en: 'Phobos Strike Team' },
+    color: '#3f6f4f',
+    style: { zh: '混合隊・精英・滲透', en: 'Mixed · Elite · Infiltration' },
+    blurb: {
+      zh: '6 名幽影型星際戰士：滲透者干擾敵方通訊、突襲者看穿掩蔽、掠奪者以恐懼壓制敵人。高 APL、3+ 豁免，可連開兩槍或連打兩次近戰。',
+      en: '6 Phobos Space Marines: Infiltrators jam enemy comms, Incursors see through cover and Reivers terrify the foe. APL 3, 3+ saves, two Shoots or two Fights per activation.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '偵察', en: 'Recon' }, { zh: '滲透', en: 'Infiltration' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '否：需要多買一盒掠奪者（Reivers）', en: 'No: you need an extra box of Reivers' },
+      buyable: { zh: '否：已絕版，也不會有大桌盒', en: 'No: out of production, and no Warhammer 40,000 box' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games.' },
+    },
+    astartes: true, // engine flag for the Astartes faction rule
+    omniScrambler: true, // engine flag for the Omni-scrambler strategic gambit
+    rule: {
+      name: { zh: '阿斯塔特・全頻擾亂器・恐懼・多光譜陣列', en: 'Astartes · Omni-scrambler · Terror · Multi-spectrum Array' },
+      desc: {
+        zh: '阿斯塔特：每次啟動可兩次射擊（至少一次用爆彈武器）或兩次近戰；不論指令都能反擊。全頻擾亂器（策略階段）：選一名被友方滲透者看到、或在干擾兵 6" 內的敵人，對手要先啟動等同場上滲透者數量的特工，它才能啟動（或它是最後一名）。恐懼：掠奪者 3" 內的敵人撿標記與任務動作多花 1AP，爭奪標記時 APL -1。多光譜陣列：突襲者射擊時敵人不會被遮擋。',
+        en: 'Astartes: two Shoots (one with a bolt weapon) or two Fights per activation; can counteract regardless of order. Omni-scrambler (Strategy phase): an enemy visible to a friendly Infiltrator or within 6" of the Voxbreaker can\'t activate until your opponent has activated as many operatives as you have Infiltrators (or it\'s the last). Terror: enemies within 3" of a Reiver pay +1AP for Pick Up and mission actions and count 1 lower when contesting markers. Multi-spectrum Array: enemies can\'t be obscured when an Incursor shoots.',
+      },
+    },
+    ploys: [
+      { id: 'guerrilla', cp: 1, name: { zh: '游擊戰', en: 'Guerrilla Warfare' },
+        desc: { zh: '本回合友方可執行獨特動作「游擊戰」(1AP，不在敵人控制範圍內)：改變自己的指令。', en: 'This TP, friendly operatives can perform the unique action Guerrilla Warfare (1AP, not within enemy control range): change its order.' } },
+      { id: 'lethalAssaults', cp: 1, name: { zh: '致命突擊', en: 'Lethal Assaults' },
+        desc: { zh: '本回合友方近戰時，近戰武器「平衡」；若本次啟動衝鋒過，再加「致命 5+」。', en: 'This TP, friendly melee weapons have Balanced when fighting; also Lethal 5+ in an activation in which it Charged.' } },
+      { id: 'noFear', cp: 1, name: { zh: '無所畏懼', en: 'And They Shall Know No Fear' },
+        desc: { zh: '本回合友方無視受傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
+      { id: 'deadlyShots', cp: 1, name: { zh: '致命射擊', en: 'Deadly Shots' },
+        desc: { zh: '本回合友方射擊時，若本次啟動沒有衝鋒／撤退／轉移，或目標不在掩體中且在 6" 外，遠程武器「平衡」。', en: 'This TP, friendly ranged weapons have Balanced when the shooter hasn\'t Charged, Fallen Back or Repositioned this activation, or the target isn\'t in cover and is more than 6" away.' } },
+    ],
+    ops: [
+      op('sgt', '滲透者士官', 'Infiltrator Sergeant', { apl: 3, move: 7, save: 3, wounds: 13, base: 32, infiltrator: true }, [marksmanCarbine, fistsPh]),
+      op('commsman', '滲透者通訊兵', 'Infiltrator Commsman', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, oversight: true }, [marksmanCarbine, fistsPh]),
+      op('helix', '滲透者螺旋修士', 'Infiltrator Helix Adept', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, medic: true, medicD3: true, helix: true }, [marksmanCarbine, fistsPh]),
+      op('voxbreaker', '滲透者干擾兵', 'Infiltrator Voxbreaker', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, voxbreak: true, auspex: true }, [marksmanCarbine, fistsPh]),
+      op('marksman', '突襲者神射手', 'Incursor Marksman', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, incursor: true }, [stalkerCarbine, fistsPh]),
+      op('reiver', '掠奪者戰士', 'Reiver Warrior', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, terror: true, vanguard: true }, [siBoltPistol, combatKnife]),
+    ],
+  },
+  {
+    id: 'warpcoven',
+    name: { zh: '千子次元秘教', en: 'Warpcoven' },
+    color: '#2f8fa0',
+    style: { zh: '混合隊・靈能・2+ 豁免', en: 'Mixed · Psychic · 2+ saves' },
+    blurb: {
+      zh: '奸奇的千子巫師帶著符文戰士與奸奇獸人：巫師施放靈能法術，符文戰士 2+ 豁免穩步推進，獸人衝上前近戰。',
+      en: 'Thousand Sons Sorcerers of Tzeentch with Rubric Marines and Tzaangor: the Sorcerers cast psychic powers, the Rubricae advance on 2+ saves, and the Tzaangor charge in.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '偵察', en: 'Recon' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '否：至少需要三盒', en: 'No: you need at least three boxes' },
+      size: { zh: '5 個名額：兩名奸奇獸人合算一個', en: '5 selections: the two Tzaangor count as one' },
+      buyable: { zh: '能，這些都是大桌單位', en: 'Yes, these are all Warhammer 40,000 units' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。奸奇獸人（煎餃獸）的 40k 武器是限定品。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games. The Tzaangor\'s Warhammer 40,000 weapons are a limited release.' },
+    },
+    astartes: true, // Astartes faction rule (Heretic Astartes only — not the Tzaangor)
+    anyAstartesShot: true, // no bolt-weapon requirement for two Shoots
+    rule: {
+      name: { zh: '阿斯塔特・奸奇的恩賜', en: 'Astartes · Boons of Tzeentch' },
+      desc: {
+        zh: '阿斯塔特（巫師與符文戰士）：每次啟動可兩次射擊或兩次近戰（兩次都用奪魂砲時第二次多 1AP；同一把靈能遠程武器不能用兩次）；不論指令都能反擊。奸奇的恩賜：每名巫師一個恩賜——命運巫師「命運扭轉」（靈能遠程武器暴擊穿甲 1），戰火巫師「虛體視覺」（遠程武器飽和、目標不會被遮擋）。符文戰士：附近 9" 沒有巫師時，啟動時 APL -1。',
+        en: 'Astartes (Sorcerers and Rubric Marines): two Shoots (+1AP for the second if both use the soulreaper cannon; not the same Psychic ranged weapon twice) or two Fights per activation; can counteract regardless of order. Boons of Tzeentch: each Sorcerer has one — Destiny: Twist of Fate (Psychic ranged weapons Piercing Crits 1); Warpfire: Incorporeal Sight (ranged Saturate, enemies can\'t be obscured). Rubric Marines: -1 APL when activated unless a Sorcerer is within 9".',
+      },
+    },
+    ploys: [
+      { id: 'aetherialWarding', cp: 1, name: { zh: '以太守護', en: 'Aetherial Warding' },
+        desc: { zh: '本回合友方被射擊時，有「穿甲 1」的武器改為「暴擊穿甲 1」。', en: 'This TP, when a friendly operative is shot, weapons with Piercing 1 have Piercing Crits 1 instead.' } },
+      { id: 'savageHerd', cp: 1, name: { zh: '野蠻獸群', en: 'Savage Herd' },
+        desc: { zh: '本回合友方奸奇獸人近戰武器「精準 1」；有友軍協助、或在巫師 6" 內可見時再加「嚴厲」。', en: 'This TP, friendly Tzaangor melee weapons have Accurate 1; also Severe when assisted, or when fighting visible within 6" of a Sorcerer.' } },
+      { id: 'brotherhood', cp: 1, name: { zh: '巫師兄弟會', en: 'Brotherhood of Sorcerers' },
+        desc: { zh: '本回合友方巫師的靈能武器「平衡」；9" 內還有另一名巫師時改為「無休」。', en: 'This TP, friendly Sorcerers\' Psychic weapons have Balanced, or Ceaseless instead if another Sorcerer is within 9".' } },
+    ],
+    ops: [
+      op('destiny', '命運巫師', 'Sorcerer of Destiny', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, sorcerer: true, destiny: true }, [doombolt, infernoPistol, forceStave]),
+      op('warpfire', '戰火巫師', 'Sorcerer of Warpfire', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, sorcerer: true, alight: true, incorporealSight: true }, [firestorm, mindburn, forceStave, khopesh]),
+      op('rubricGunner', '符文戰士槍手', 'Rubric Marine Gunner', { apl: 3, move: 5, save: 2, wounds: 14, base: 32, automata: true }, [soulreaperFocused, soulreaperSweeping, fistsWC]),
+      op('rubric', '符文戰士', 'Rubric Marine Warrior', { apl: 3, move: 5, save: 2, wounds: 14, base: 32, automata: true, slowPurposeful: true }, [infernoBoltgun, fistsWC]),
+      op('champion', '奸奇獸人冠軍', 'Tzaangor Champion', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, notAstartes: true, tzaangor: true, savageBrutality: true }, [greatblade]),
+      op('tzaangor', '奸奇獸人戰士', 'Tzaangor Warrior', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, notAstartes: true, tzaangor: true }, [tzaangorBlades]),
+    ],
+  },
+  {
+    id: 'wyrmblade',
+    name: { zh: '蟲刃', en: 'Wyrmblade' },
+    color: '#8a5fb0',
+    style: { zh: '射擊隊・伏擊・人數', en: 'Shooting · Ambush · Numbers' },
+    blurb: {
+      zh: '基因竊取者教派的伏擊小隊：一群混血新信徒帶著礦工器材與重武器，加上教派特工，從隱蔽中突然轉為交戰發動伏擊。',
+      en: 'A Genestealer Cult ambush team: hybrid Neophytes with mining gear and heavy weapons plus Cult Agents, springing from hiding into sudden attacks.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '滲透', en: 'Infiltration' }, { zh: '搜索與摧毀', en: 'Seek & Destroy' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '否：至少需要一盒，外加一些 HQ 單位', en: 'No: at least one box plus some HQ units' },
+      buyable: { zh: '能，這些都是大桌單位', en: 'Yes, these are all Warhammer 40,000 units' },
+      size: { zh: '1 名領袖＋13 個名額；教派特工各佔 2 個名額', en: 'Leader + 13 selections; Cult Agents take two each' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games.' },
+    },
+    cultAmbush: true, // engine flag for the Cult Ambush faction rule
+    rule: {
+      name: { zh: '教派伏擊・教派特工', en: 'Cult Ambush · Cult Agent' },
+      desc: {
+        zh: '教派伏擊：啟動時從隱蔽改為交戰、或啟動開始時沒有被敵人看見，本次啟動射擊與近戰時武器「無休」。教派特工（克勒莫夫、基因護衛）：被射擊時無視「穿甲」與「飽和」，能保留掩護豁免時多保留 1 顆或把 1 顆當暴擊。新信徒戰士群體啟動。（隱藏部署未實作）',
+        en: 'Cult Ambush: if its order changed from Conceal to Engage at the start of the activation, or no enemy could see it then, its weapons have Ceaseless that activation. Cult Agents (Kelermorph, Locus): when shot, ignore Piercing and Saturate; with cover saves, retain one more or one as a critical. Neophyte Warriors use Group Activation. (Hiding deployment isn\'t modelled.)',
+      },
+    },
+    ploys: [
+      { id: 'dayAtHand', cp: 1, name: { zh: '時機已至', en: 'The Day Is at Hand' },
+        desc: { zh: '本回合友方啟動時從隱蔽改為交戰：遠程武器「撕裂」，近戰武器 Atk +1（最多 5）。', en: 'This TP, a friendly whose order changes from Conceal to Engage when activated: ranged weapons Rending, melee weapons +1 Atk (max 5).' } },
+      { id: 'crossfire', cp: 1, name: { zh: '交叉火網', en: 'Crossfire' },
+        desc: { zh: '本回合友方射擊本回合已被其他友方射擊過的目標時，遠程武器「精準 1」。', en: 'This TP, a friendly shooting an operative another friendly has already shot this TP has Accurate 1.' } },
+      { id: 'oneWithShadows', cp: 1, name: { zh: '與暗影同在', en: 'One with the Shadows' },
+        desc: { zh: '本回合隱蔽指令的友方被射擊時，若中間有輕型地形（且不在任一方 1" 內），視為被遮擋。', en: 'This TP, a Concealed friendly being shot is obscured by intervening Light terrain (unless it\'s within 1" of either operative).' } },
+    ],
+    ops: [
+      op('leader', '新信徒領袖', 'Neophyte Leader', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, neophyte: true }, [mcAutopistol, powerMaul]),
+      op('kelermorph', '克勒莫夫', 'Kelermorph', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoShoots: true, heroic: true }, [stubsHyper, stubsLong, stubsShort, kelKnife]),
+      op('locus', '基因護衛', 'Locus', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoFights: true }, [barbedTail, locusBlades]),
+      op('gunnerFlamer', '槍手（火焰）', 'Neophyte Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true }, [flamerGSC, gunButtGSC]),
+      op('gunnerGL', '槍手（榴彈）', 'Neophyte Gunner (grenade launcher)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true }, [glFragGSC, glKrakGSC, gunButtGSC]),
+      op('heavyLaser', '重武器手（採礦雷射）', 'Neophyte Heavy Gunner (mining laser)', { apl: 2, move: 6, save: 5, wounds: 7, base: 32, neophyte: true, bipod: true }, [miningLaser, gunButtGSC]),
+      op('heavySeismic', '重武器手（地震砲）', 'Neophyte Heavy Gunner (seismic cannon)', { apl: 2, move: 6, save: 5, wounds: 7, base: 32, neophyte: true, bipod: true }, [seismicLong, seismicShort, gunButtGSC]),
+      op('icon', '新信徒掌旗手', 'Neophyte Icon Bearer', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, iconBearer: true }, [autogunGSC, gunButtGSC]),
+      op('warrior', '新信徒戰士', 'Neophyte Warrior', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, groupAct: 'gscWarrior' }, [autogunGSC, gunButtGSC], 2),
+      op('warriorShotgun', '新信徒戰士（霰彈槍）', 'Neophyte Warrior (shotgun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, groupAct: 'gscWarrior' }, [shotgunGSC, gunButtGSC], 2),
     ],
   },
 ];
 
-export const TEAM_MAP = Object.fromEntries(TEAMS.map((t) => [t.id, t]));
+// ---- NPOs (non-player operatives) used by mission packs; not selectable as a kill team ----
+const enormousClaws = W('enormousClaws', '巨爪', 'Enormous claws', 'melee', 5, 3, 4, 5, { brutal: true, ceaseless: true, rending: true });
+const viciousJaws = W('viciousJaws', '兇猛顎', 'Vicious jaws', 'melee', 3, 4, 3, 4, { rending: true });
+const atomicDisassembler = W('atomicDisassembler', '原子分解器', 'Atomic disassembler', 'ranged', 5, 4, 4, 2, { range: 8, devastating: 3, piercing: 2 });
+const eradicatorGlove = W('eradicatorGlove', '根除手套', 'Eradicator glove', 'melee', 4, 4, 5, 7, { brutal: true, shock: true, stun: true });
+
+/**
+ * NPO flags: nemesis (Extra Defence + Bulky: one more defence die unless injured, ignores APL changes),
+ * behaviour: 'brawler' | 'archivist', small (Borewyrm), symbiosis (Ambull: regains APL+1 wounds on
+ * activation), xenotech (Archivist: ignores Piercing, Dmg 4+ deals 1 less, Extra Defence even injured).
+ */
+export const NPO_TEAM = {
+  id: 'npo',
+  name: { zh: '非玩家特工（NPO）', en: 'Non-player operatives' },
+  color: '#a855c7',
+  ploys: [],
+  rule: { name: { zh: 'NPO', en: 'NPO' }, desc: { zh: '依行為卡行動，敵對雙方玩家。', en: 'Acts by its behaviour; hostile to both players.' } },
+  ops: [
+    op('ambull', '安布爾', 'Ambull', { apl: 2, control: 4, move: 6, save: 4, wounds: 35, base: 50, nemesis: true, symbiosis: true, behaviour: 'brawler' }, [enormousClaws]),
+    op('borewyrm', '鑽地蟲群', 'Borewyrm Infestation', { apl: 1, move: 4, save: 5, wounds: 5, base: 25, small: true, behaviour: 'brawler' }, [viciousJaws]),
+    op('archivist', '檔案管理員', 'The Archivist', { apl: 2, control: 4, move: 6, save: 4, wounds: 35, base: 50, nemesis: true, xenotech: true, behaviour: 'archivist' }, [atomicDisassembler, eradicatorGlove]),
+  ].map((o) => ({ ...o, count: o.id === 'borewyrm' ? 2 : 1 })), // count only affects naming (#1, #2); missions spawn NPOs
+};
+
+export const TEAM_MAP = Object.fromEntries([...TEAMS, NPO_TEAM].map((t) => [t.id, t]));
 
 export const RULE_LABELS = {
   range: { zh: '射程', en: 'Range' },
@@ -399,8 +918,16 @@ export const RULE_LABELS = {
   toxic: { zh: '劇毒', en: 'Toxic' },
   shock: { zh: '震撼', en: 'Shock' },
   stun: { zh: '昏迷', en: 'Stun' },
+  relentless: { zh: '無情', en: 'Relentless' },
   punishing: { zh: '懲罰', en: 'Punishing' },
   firstShotOnly: { zh: '隱蔽陣地（只限第一次射擊）', en: 'Concealed Position (first Shoot only)' },
+  salvo: { zh: '齊射', en: 'Salvo' },
+  swipe: { zh: '橫掃', en: 'Swipe' },
+  shield: { zh: '盾牌（一次格擋擋兩顆）', en: 'Shield (each block cancels two)' },
+  hypersense: { zh: '超感（目標不會被遮擋）', en: 'Hypersense (no obscuring)' },
+  mindburn: { zh: '心靈灼燒（暴擊傷害後目標命中變差 1）', en: 'Mindburn (a crit worsens the target\'s Hit by 1)' },
+  detonate: { zh: '引爆（目標固定為鬼骷髏）', en: 'Detonate (the Gheistskull is the target)' },
+  forceImpact: { zh: '衝擊力（衝鋒後殘暴）', en: 'Force Impact (Brutal after a Charge)' },
 };
 
 /** A ranged weapon with "bolt" in its name (Angels of Death rules). */
