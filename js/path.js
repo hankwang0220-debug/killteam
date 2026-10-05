@@ -1,5 +1,5 @@
 import { BOARD, ER, radius, tpl } from './game.js';
-import { dist, distPointRect, pathLength, truncatePath } from './geometry.js';
+import { dist, distPointRect, pathLength, segRect, truncatePath } from './geometry.js';
 
 const RES = 0.25;
 
@@ -25,7 +25,7 @@ export function moveCtx(g, op) {
     return others.some((o) => o.enemy && dist(p, o) - r - o.r <= ER + 0.01);
   }
   // Jump Pack (FLY): the operative is set up again within its move distance, so only where it lands matters.
-  const fly = !!tpl(op).jumpPack;
+  const fly = !!tpl(op).jumpPack || !!(tpl(op).blinkPack && op.blinkOn);
   function segFree(a, b) {
     if (fly) return true;
     const n = Math.max(1, Math.ceil(dist(a, b) / 0.1));
@@ -35,7 +35,13 @@ export function moveCtx(g, op) {
     }
     return true;
   }
-  return { op, r, free, segFree, inEnemyER };
+  // Razor wire (鐵絲網, Obstructing): crossing over it counts as 1" more.
+  const wires = g.terrain.filter((t) => t.kind === 'wire');
+  function extra(pts) {
+    if (!wires.length || fly) return 0;
+    return wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
+  }
+  return { op, r, free, segFree, inEnemyER, extra };
 }
 
 /** Shorten a path to maxLen, backing off until the end point is a legal place to stand. */
@@ -44,7 +50,8 @@ export function clampPath(ctx, path, maxLen, endOk = () => true) {
   for (let k = 0; k < 60 && l > 0.05; k++, l -= 0.2) {
     const pts = truncatePath(path.pts, l);
     const end = pts[pts.length - 1];
-    if (ctx.free(end) && endOk(end)) return { pts, len: pathLength(pts) };
+    const len = pathLength(pts) + (ctx.extra?.(pts) || 0);
+    if (ctx.free(end) && endOk(end) && len <= maxLen + 0.01) return { pts, len };
   }
   return null;
 }
@@ -77,7 +84,7 @@ class Heap {
 export function findPath(ctx, goal) {
   const start = { x: ctx.op.x, y: ctx.op.y };
   if (!ctx.free(goal)) return null;
-  if (ctx.segFree(start, goal)) return { pts: [start, goal], len: dist(start, goal) };
+  if (ctx.segFree(start, goal)) return { pts: [start, goal], len: dist(start, goal) + (ctx.extra?.([start, goal]) || 0) };
 
   const cols = Math.round(BOARD.w / RES) + 1, rows = Math.round(BOARD.h / RES) + 1;
   const state = new Int8Array(cols * rows); // 0 unknown, 1 free, 2 blocked
@@ -137,5 +144,5 @@ export function findPath(ctx, goal) {
     pts.push(raw[j]);
     i = j;
   }
-  return { pts, len: pathLength(pts) };
+  return { pts, len: pathLength(pts) + (ctx.extra?.(pts) || 0) };
 }

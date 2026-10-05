@@ -5,7 +5,7 @@ export const HELP = {
   <ol>
     <li><b>部署</b>：擲骰決定誰先部署，雙方<b>輪流</b>每次在部署區放置隊伍人數的 <b>1/3</b>（無條件進位）。所有特工以<b>隱蔽</b>指令開始。每名玩家起始 <b>2 CP</b>。</li>
     <li>共 <b>4 個回合 (Turning Point)</b>。</li>
-    <li><b>先攻階段</b>：擲 D6 決定<b>先攻</b>（平手重擲）。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>，所有特工回到準備狀態。</li><li><b>策略階段</b>：由先攻方先選擇策略計謀（花費 CP），完成後換另一方選擇。</li>
+    <li><b>先攻階段</b>：擲 D6，擲贏的一方<b>決定誰先攻</b>（平手時由上回合沒有先攻的一方決定；第 1 回合平手重擲）。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>，所有特工回到準備狀態。</li><li><b>策略階段</b>：由先攻方先選擇策略計謀（花費 CP），完成後換另一方選擇。</li>
     <li><b>交火階段</b>：從先攻方開始，雙方<b>輪流啟動</b>一名特工，直到所有特工都行動完畢。</li>
   </ol>
   <h3>啟動與指令</h3>
@@ -48,10 +48,13 @@ export const HELP = {
   <p><b>手機／觸控</b>：按棋盤下方的「📏 測量距離」進入測量模式，點棋盤新增測量點（不會移動或選取特工），可用「上一點」「清除」，按「結束」離開。總長與各段距離會顯示在工具列。</p>
   <h3>任務</h3>
   <p>開新遊戲時可選任務。「標準對戰」用擊殺任務計分；其他任務有自己的地圖、部署區、標記、任務動作與計分，取代擊殺任務。</p>
+  <p><b>Approved Ops（核心任務 5、6）</b>：三個目標點（雙方領土各一、中央一個）。計分＝核心任務（Crit Op）＋戰術行動（Tac Op）＋擊殺任務。開局每位玩家依隊伍原型暗中選一張戰術行動（支配、掃蕩清除、側翼、回收、殉道者、使節），達成揭露條件時才公開；電腦的戰術行動在揭露前看不到。宣示主權與使節在第 2 回合起的策略階段選擇，沒選會自動幫你選。</p>
   <p><b>NPO（非玩家特工）</b>：任務中的第三方，對雙方玩家都有敵意，由電腦依行為卡行動。雙方各啟動一次後（輪回先手方之前），NPO 會抽一張啟動牌行動。NPO 擊倒的特工不算擊殺。</p>
   <p><b>撿起標記</b>（1AP）：拿起你控制的任務標記並帶著走；帶著標記的特工控制它，倒下時標記留在原地。</p>
   <h3>指揮重擲（Command Re-roll）</h3>
   <p>擲出攻擊骰或防禦骰後，可花 <b>1CP</b> 重擲其中<b>一顆</b>（點該骰子）。射擊時，攻方先看攻擊骰決定是否重擲，防方再看防禦骰；近戰時雙方在開始結算前各可重擲一顆。每次擲骰每方限一次；「壓制射擊」或在目標點附近（噁心排放）時不能重擲。電腦會自己判斷要不要用。</p>
+  <h3>通用裝備</h3>
+  <p>開新遊戲時每方最多選 4 項，開戰前自動擺在己方領土（電腦固定帶爆裂手榴彈、地雷、彈藥箱、重掩體）：通訊裝置（控制它的友方支援距離 +3"）、地雷（第一次有特工進入控制範圍就爆炸，D3+3 傷害，敵我不分）、彈藥箱（控制它可「補充彈藥」，直到下回合射擊重擲一顆攻擊骰）、戰術手榴彈（震撼＋煙霧各 1 次）、爆裂手榴彈（破片＋穿甲各 1 次，任何特工都能丟）、輕掩體 ×2（放在自己半區內）、重掩體（只能放在距離降落區 4" 內）、鐵絲網（不提供掩護，越過時移動距離多算 1"，放在自己半區內）。掩體與鐵絲網都要離其他裝備地形與訪問點 2" 以外。可移動路障、梯子與破門炸藥尚未收錄。</p>
   <h3>交戰計謀（Firefight ploys）</h3>
   <p>每隊有自己的交戰計謀，每張 <b>1CP</b>，每回合每張限用一次。使用方式依時機分三種：</p>
   <ul>
@@ -104,7 +107,7 @@ export const HELP = {
   <ol>
     <li><b>Deploy</b>: a roll-off decides who sets up first; players <b>alternate</b> setting up <b>a third</b> of their team (rounded up) in their drop zone. All start with a <b>Conceal</b> order. Each player starts with <b>2CP</b>.</li>
     <li>The battle lasts <b>4 Turning Points</b>.</li>
-    <li><b>Initiative phase</b>: roll off for <b>initiative</b> (re-roll ties). Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead, and all operatives are readied.</li><li><b>Strategy phase</b>: the initiative player chooses strategic ploys (spending CP), followed by the other player.</li>
+    <li><b>Initiative phase</b>: roll off; the winner <b>decides who has initiative</b> (on a tie, the player without initiative last turning point decides; re-roll ties in the first turning point). Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead, and all operatives are readied.</li><li><b>Strategy phase</b>: the initiative player chooses strategic ploys (spending CP), followed by the other player.</li>
     <li><b>Firefight phase</b>: starting with the initiative player, players <b>alternate activating</b> one operative until all are expended.</li>
   </ol>
   <h3>Activations & orders</h3>
@@ -147,10 +150,13 @@ export const HELP = {
   <p><b>Phone / touch</b>: tap "📏 Measure" below the board to enter measuring mode. Taps on the board add points (without moving or selecting operatives); use Undo and Clear, and Done to leave. The total and each segment are shown in the toolbar.</p>
   <h3>Missions</h3>
   <p>Pick a mission when starting a game. "Standard" scores the Kill Op; other missions bring their own map, drop zones, markers, mission actions and scoring instead of the Kill Op.</p>
+  <p><b>Approved Ops (Crit Ops 5 and 6)</b>: three objective markers (one in each territory, one in the centre). Score = Crit Op + Tac Op + Kill Op. At setup each player secretly picks a Tac Op from its team's archetypes (Dominate, Sweep & Clear, Flank, Retrieval, Martyrs, Envoy); it's revealed when its condition is met, and the computer's stays hidden until then. Stake Claim and Envoy picks are made in the Strategy phase from TP2 (one is made for you if you don't).</p>
   <p><b>NPOs (non-player operatives)</b>: third-party operatives hostile to both players, played by the computer from their behaviour. After both players have activated (before the initiative player goes again), the NPOs draw an activation card. Operatives incapacitated by NPOs don't count as kills.</p>
   <p><b>Pick Up Marker</b> (1AP): take a mission marker you control and carry it; a carrier controls its marker and drops it where it falls.</p>
   <h3>Command Re-roll</h3>
   <p>After rolling attack or defence dice, spend <b>1CP</b> to re-roll <b>one</b> of them (tap the die). When shooting, the attacker sees the attack dice first and decides, then the defender sees the defence dice; in a fight each side may re-roll one die before any dice are resolved. Once per side per roll; not allowed under Suppressing Fire or near an objective (Sickening Emissions). The computer decides for itself.</p>
+  <h3>Universal equipment</h3>
+  <p>When starting a game each player picks up to 4 options, set up automatically in their territory before the battle (the computer always takes explosive grenades, mines, an ammo cache and a heavy barricade): Comms Device (+3" to Support distances for the friendly controlling it), Mines (the first operative to come within its control range takes D3+3, friend or foe), Ammo Cache (Ammo Resupply while controlling it: re-roll one attack die until next TP), Utility Grenades (1 stun + 1 smoke), Explosive Grenades (1 frag + 1 krak, any operative can throw them), Light Barricades ×2 (wholly within your half), Heavy Barricade (wholly within 4" of your drop zone), Razor Wire (no cover; crossing it counts as 1" more; within your half). Barricades and wire must be more than 2" from other equipment terrain and access points. The portable barricade, ladders and the breaching charge aren't included yet.</p>
   <h3>Firefight ploys</h3>
   <p>Each team has its own firefight ploys, <b>1CP</b> each, each once per turning point. By timing:</p>
   <ul>

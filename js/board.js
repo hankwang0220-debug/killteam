@@ -26,6 +26,7 @@ export function renderBoard(g, ui) {
 
   for (const t of g.terrain) {
     if (t.kind === 'heavy') s.push(`<rect class="heavy" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="0.08"/>`);
+    else if (t.kind === 'wire') s.push(`<rect class="wire" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}"/>`); // razor wire
     else s.push(`<rect class="light" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" fill="url(#hatch)" rx="0.05"/>`);
   }
 
@@ -43,8 +44,15 @@ export function renderBoard(g, ui) {
     const c = controller(g, m);
     const col = c == null ? 'var(--obj)' : team(g, c).color;
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
-    s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${m.kind === 'infocore' ? '◆' : '✦'}</text>`);
+    const sym = { infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠' }[m.kind] || '✦';
+    s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
+    // Equipment markers belong to a side: its colour as an outer ring.
+    if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);
   }
+  // Clearance Sweep (Kasrkin ploy): its 5" area this turning point.
+  (g.sweep || []).forEach((m, side) => { if (m && m.tp === g.tp) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="5" class="pechra" stroke="${team(g, side).color}" pointer-events="none"/>`); });
+  // Smoke grenades: an area of smoke 1" around the marker.
+  for (const sm of g.smoke || []) s.push(`<circle cx="${f(sm.x)}" cy="${f(sm.y)}" r="1" class="smoke" pointer-events="none"/>`);
 
   // Selected operative movement allowance ring.
   if (ui.ring) s.push(`<circle cx="${f(ui.ring.x)}" cy="${f(ui.ring.y)}" r="${f(ui.ring.r)}" class="ring" pointer-events="none"/>`);

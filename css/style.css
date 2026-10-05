@@ -164,6 +164,7 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .mat { fill: var(--mat); }
 #board .heavy { fill: var(--heavy); stroke: var(--heavy-s); stroke-width: .06; }
 #board .light { stroke: var(--light-s); stroke-width: .04; }
+#board .wire { fill: none; stroke: #b9b2a0; stroke-width: .07; stroke-dasharray: .18 .1; }
 #board .objtxt { font-size: .45px; font-weight: 700; text-anchor: middle; fill: #111; }
 #board .op { cursor: pointer; }
 #board.deploy .op.mine { cursor: grab; touch-action: none; }
@@ -199,6 +200,7 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .carrytxt { font-size: .38px; fill: #f0d27a; paint-order: stroke; stroke: #000; stroke-width: .06px; }
 #board .pechra { fill: rgba(255,255,255,.05); stroke-width: .05; stroke-dasharray: .15 .1; }
 #board .pechratxt { font-size: .6px; text-anchor: middle; }
+#board .smoke { fill: rgba(200, 200, 210, .35); stroke: rgba(230, 230, 240, .6); stroke-width: .05; }
 #board .reanim { fill: rgba(80, 220, 120, .18); stroke-width: .08; }
 #board .reanimtxt { font-size: 1px; text-anchor: middle; fill: #7dffa8; }
 #board .killmark circle { fill: none; stroke: #ff3b30; stroke-width: .05; }

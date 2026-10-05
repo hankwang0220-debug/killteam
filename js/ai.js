@@ -1,9 +1,10 @@
 import {
-  activate, activeOp, actionCost, availableActions, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
+  activate, activeOp, actionCost, availableActions, missionActionsFor, deployZones, weaponsFor, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, setSkills, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
 } from './game.js';
+import { isArchon, painOptions, usePain } from './archon.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -16,6 +17,8 @@ export function aiStrategy(g, side) {
   if ((team(g, side).justiceMark || living(g, side).some((o) => tpl(o).callTheKill || tpl(o).watchmaster)) && !g.mark?.[side]) {
     setMark(g, side, living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0]);
   }
+  // Skill at Arms (Kasrkin).
+  if (team(g, side).skillAtArms && g.skills?.[side]?.tp !== g.tp) setSkills(g, side, ['lightEmUp', 'iceInVeins']);
   // Doctrina Imperatives (Hunter Clade): Conqueror when Sicarians are close to the enemy, otherwise Protector;
   // the Primary Mode's Deprecation is ignored the first time it's picked.
   if (team(g, side).doctrina && g.doctrina?.[side]?.tp !== g.tp) {
@@ -52,7 +55,7 @@ export function aiStrategy(g, side) {
 function shootOptions(g, op) {
   const opts = [];
   const hitMod = statPenalty(g, op) ? 1 : 0;
-  for (const w of tpl(op).weapons.filter((x) => x.type === 'ranged')) {
+  for (const w of weaponsFor(g, op).filter((x) => x.type === 'ranged')) {
     for (const t of foes(g, op)) {
       const c = shootCheck(g, op, t, w);
       if (!c.ok) continue;
@@ -72,6 +75,9 @@ const bestRanged = (op, hitMod) => Math.max(0, ...tpl(op).weapons.filter((w) => 
 const prefersMelee = (op) => avgDmg(bestMelee(op)) > bestRanged(op, 0) * 1.1;
 
 function pickGoal(g, op) {
+  // Envoy (Tac Op): head deep into enemy territory.
+  const tac = g.tacOps?.[op.side];
+  if (tac?.envoy?.tp === g.tp && tac.envoy.uid === op.uid) { const z = deployZones(g)[1 - op.side]; return { x: (z.x0 + z.x1) / 2, y: g.axis === 'y' ? (z.y0 + z.y1) / 2 : op.y }; }
   const enemies = foes(g, op);
   const nearestEnemy = enemies.sort((a, b) => dist(op, a) - dist(op, b))[0];
   if ((prefersMelee(op) || tpl(op).gheistskull) && nearestEnemy) return nearestEnemy; // the Gheistskull closes in to be detonated
@@ -145,7 +151,7 @@ function safeMove(g, op, kind, goal, order) {
     for (let a = 0; a < 16; a++) {
       const q = { x: op.x + Math.cos(a * Math.PI / 8) * max * f, y: op.y + Math.sin(a * Math.PI / 8) * max * f };
       if (!ctx.free(q) || !endOk(q)) continue;
-      if (ctx.segFree(op, q)) { cands.push({ pts: [{ x: op.x, y: op.y }, q], len: dist(op, q) }); continue; }
+      if (ctx.segFree(op, q)) { const pts = [{ x: op.x, y: op.y }, q], len = dist(op, q) + ctx.extra(pts); if (len <= max + 0.01) cands.push({ pts, len }); continue; }
       const path = findPath(ctx, q);
       if (path && path.len <= max + 0.01) cands.push(path);
     }
@@ -305,11 +311,14 @@ export function aiStep(g) {
     return null;
   }
   if (op.dead) { endActivation(g); return null; }
+  if (isArchon(op)) { const opts = painOptions(g, op); const id = opts.includes('painHeal') && op.maxW - op.wounds >= 3 ? 'painHeal' : opts.includes('darkAnimus') ? 'darkAnimus' : null; if (id) { usePain(g, op, id); return null; } }
   if (aiButtonPloys(g, op)) return null;
   const can = Object.fromEntries(availableActions(g, op).map((a) => [a.id, a.ok]));
 
+  if (can.pistolBarrage && shootOptions(g, op).length) { doSelfAction(g, op, 'pistolBarrage'); return null; }
+  for (const id of ['soulHeal', 'soulChannel', 'wardingShield', 'tormentGrenade', 'drugHeal']) if (can[id]) { const t = TARGET_ACTIONS[id].targets(g, op)[0]; if (t) { doTargetAction(g, op, id, t); return null; } }
   // Mission actions and markers first: they score.
-  for (const id of mission(g).actions || []) if (can[id]) { doMissionAction(g, op, id); return null; }
+  for (const id of missionActionsFor(g, op.side)) if (can[id]) { doMissionAction(g, op, id); return null; }
   if (can.pickUp) { doPickUp(g, op); return null; }
   if (can.dakkaDash && shootOptions(g, op).length) { doDakkaDash(g, op); return null; }
   if (can.spot) {
@@ -317,6 +326,26 @@ export function aiStep(g) {
     const near = living(g, op.side).filter((o) => edgeDist(o, op) <= 3 && o.ready);
     const t = TARGET_ACTIONS.spot.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
     if (t && near.length) { doTargetAction(g, op, 'spot', t); return null; }
+  }
+  // Kasrkin / Legionaries.
+  if (can.unleashDaemon && foes(g, op).some((e) => edgeDist(op, e) <= 9)) { doSelfAction(g, op, 'unleashDaemon'); return null; }
+  if (can.tacticalCommand) {
+    const t = TARGET_ACTIONS.tacticalCommand.targets(g, op).filter((o) => o.ready || o === op).sort((a, b) => (shootOptions(g, b)[0]?.score || 0) - (shootOptions(g, a)[0]?.score || 0))[0];
+    if (t) { doTargetAction(g, op, 'tacticalCommand', t); return null; }
+  }
+  if (can.battleComms && op.ap >= 2) {
+    const t = TARGET_ACTIONS.battleComms.targets(g, op).filter((o) => o.ready).sort((a, b) => (shootOptions(g, b)[0]?.score || 0) - (shootOptions(g, a)[0]?.score || 0))[0];
+    if (t) { doTargetAction(g, op, 'battleComms', t); return null; }
+  }
+  if (can.meltaMine && foes(g, op).some((e) => edgeDist(op, e) <= 6)) { doSelfAction(g, op, 'meltaMine'); return null; }
+  if (can.grislyMark && op.ap >= 2 && g.objectives.some((o) => dist(op, o) <= 2.5) && foes(g, op).some((e) => edgeDist(op, e) <= 8)) { doSelfAction(g, op, 'grislyMark'); return null; }
+  // Universal equipment: resupply at the Ammo Cache, stun a cluster (or a 3+ APL enemy).
+  if (can.ammoResupply && shootOptions(g, op).length) { doSelfAction(g, op, 'ammoResupply'); return null; }
+  if (can.eqStun && op.ap >= 2) {
+    const ts = TARGET_ACTIONS.eqStun.targets(g, op);
+    const near = (t) => foes(g, op).filter((o) => edgeDist(o, t) <= 1).length - living(g, op.side).filter((o) => edgeDist(o, t) <= 1).length;
+    const t = ts.sort((a, b) => near(b) - near(a) || tpl(b).apl - tpl(a).apl)[0];
+    if (t && (near(t) >= 2 || tpl(t).apl >= 3)) { doTargetAction(g, op, 'eqStun', t); return null; }
   }
   if (can.stunGrenade) {
     // Throw it at the enemy with the most other enemies within 1".

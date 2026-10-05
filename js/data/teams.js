@@ -1,3 +1,5 @@
+import { ELDAR_TEAMS } from './eldar.js';
+
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
 // text paraphrased).
@@ -372,6 +374,49 @@ const arquebusMobile = W('arquebusMobile', '超鈾火繩槍（機動）', 'Trans
 const arquebusStationary = W('arquebusStationary', '超鈾火繩槍（定點）', 'Transuranic arquebus (stationary)', 'ranged', 4, 2, 4, 3, { devastating: 3, heavy: true, piercing: 1, severe: true }, 'arquebus');
 const caliverStd = W('caliverStd', '電漿短銃（標準）', 'Plasma caliver (standard)', 'ranged', 4, 3, 4, 6, { piercing: 1 }, 'caliver');
 const caliverSuper = W('caliverSuper', '電漿短銃（超載）', 'Plasma caliver (supercharge)', 'ranged', 4, 3, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'caliver');
+
+// ---- Kasrkin ----
+const hsLasgun = W('hsLasgun', '熱射雷射槍', 'Hot-shot lasgun', 'ranged', 4, 3, 3, 4, { rapid: true });
+const hsLaspistol = W('hsLaspistol', '熱射雷射手槍', 'Hot-shot laspistol', 'ranged', 4, 3, 3, 4, { range: 8, rapid: true });
+const powerWeaponK = W('powerWeaponK', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const flamerK = W('flamerK', '噴火器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const meltaK = W('meltaK', '熱熔槍', 'Meltagun', 'ranged', 4, 3, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const plasmaGunK = W('plasmaGunK', '電漿槍（標準）', 'Plasma gun (standard)', 'ranged', 4, 3, 4, 6, { piercing: 1 }, 'plasmaGunK');
+const plasmaGunKS = W('plasmaGunKS', '電漿槍（超載）', 'Plasma gun (supercharge)', 'ranged', 4, 3, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'plasmaGunK');
+const hsMarksmanC = W('hsMarksmanC', '熱射神射步槍（隱蔽）', 'Hot-shot marksman rifle (concealed)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true, silent: true, firstShotOnly: true }, 'hsMarksman');
+const hsMarksmanM = W('hsMarksmanM', '熱射神射步槍（機動）', 'Hot-shot marksman rifle (mobile)', 'ranged', 4, 3, 3, 4, {}, 'hsMarksman');
+const hsMarksmanS = W('hsMarksmanS', '熱射神射步槍（定點）', 'Hot-shot marksman rifle (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true }, 'hsMarksman');
+
+// ---- Legionaries ----
+const plasmaPistolL = W('plasmaPistolL', '電漿手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolL');
+const plasmaPistolLS = W('plasmaPistolLS', '電漿手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 3, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolL');
+const daemonBlade = W('daemonBlade', '惡魔之刃', 'Daemon blade', 'melee', 5, 3, 4, 7, { lethal: 5 });
+const boltPistolL = W('boltPistolL', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const fireblast = W('fireblast', '炎爆', 'Fireblast', 'ranged', 4, 3, 3, 4, { psychic: true, blast: 2, devastating: 1, devSplash: 1, saturate: true });
+const lifeSiphon = W('lifeSiphon', '生命虹吸', 'Life siphon', 'ranged', 5, 3, 3, 3, { psychic: true, saturate: true, siphon: true });
+const fellDagger = W('fellDagger', '邪惡匕首', 'Fell dagger', 'melee', 5, 3, 3, 4, { psychic: true, rending: true, siphon: true });
+const chainaxe = W('chainaxe', '雙手鏈鋸斧', 'Double-handed chainaxe', 'melee', 5, 4, 5, 7, { brutal: true });
+const fistsL = W('fistsL', '拳頭', 'Fists', 'melee', 4, 3, 3, 4);
+const reaperFocused = W('reaperFocused', '收割者鏈砲（集中）', 'Reaper chaincannon (focused)', 'ranged', 5, 3, 3, 4, { ceaseless: true, heavy: 'reposition', punishing: true }, 'reaper');
+const reaperSweeping = W('reaperSweeping', '收割者鏈砲（掃射）', 'Reaper chaincannon (sweeping)', 'ranged', 4, 3, 3, 4, { ceaseless: true, heavy: 'reposition', punishing: true, torrent: 2 }, 'reaper');
+const flensingBlades = W('flensingBlades', '剝皮刃', 'Flensing blades', 'melee', 5, 3, 3, 5, { lethal: 5 });
+const daemonicClaw = W('daemonicClaw', '惡魔爪', 'Daemonic claw', 'melee', 5, 3, 4, 5, { rending: true });
+
+// ---- Novitiates ----
+const plasmaPistolN = W('plasmaPistolN', '電漿手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolN');
+const plasmaPistolNS = W('plasmaPistolNS', '電漿手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 3, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolN');
+const powerWeaponN = W('powerWeaponN', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const autopistol = W('autopistol', '自動手槍', 'Autopistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const stakethrower = W('stakethrower', '譴責者樁槍', 'Condemnor stakethrower', 'ranged', 4, 3, 3, 3, { antiPsyker: true, devastating: 2, piercingCrits: 1, silent: true });
+const nullRod = W('nullRod', '虛無權杖', 'Null rod', 'melee', 4, 4, 3, 3, { antiPsyker: true, shock: true });
+const dialogusStave = W('dialogusStave', '宣講者法杖', 'Dialogus stave', 'melee', 4, 4, 3, 3, { shock: true });
+const duellingBlades = W('duellingBlades', '決鬥雙刃', 'Duelling blades', 'melee', 4, 3, 4, 5, { ceaseless: true, riposte: true });
+const neuralWhipsR = W('neuralWhipsR', '神經鞭（遠程）', 'Neural whips (ranged)', 'ranged', 5, 3, 2, 3, { range: 3, lethal: 5, stun: true }, 'neuralWhips');
+const neuralWhipsM = W('neuralWhipsM', '神經鞭（近戰）', 'Neural whips (melee)', 'melee', 5, 3, 2, 3, { lethal: 5, shock: true }, 'neuralWhips');
+const surgicalSaw = W('surgicalSaw', '手術鋸', 'Surgical saw', 'melee', 4, 4, 2, 3, { lethal: 5, rending: true });
+const eviscerator = W('eviscerator', '懺悔者開膛鋸', 'Penitent eviscerator', 'melee', 4, 4, 5, 6, { brutal: true, zealousRage: true });
+const maceRighteous = W('maceRighteous', '正義之錘', 'Mace of the Righteous', 'melee', 4, 4, 5, 5, { brutal: true, severe: true });
+const ministorumFlamer = W('ministorumFlamer', '國教噴火器', 'Ministorum flamer', 'ranged', 4, 2, 4, 4, { range: 8, saturate: true, torrent: 2 });
 
 const shockMaulShield = W('shockMaulShield', '電擊錘與突擊盾', 'Shock maul & assault shield', 'melee', 4, 4, 4, 4, { shock: true, shield: true, repress: true });
 
@@ -1203,7 +1248,150 @@ export const TEAMS = [
       op('vgWarrior', '先鋒軍戰士', 'Skitarii Vanguard Warrior', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true }, [radiumCarbine, gunButt]),
     ],
   },
+  {
+    id: 'kasrkin',
+    name: { zh: '卡舍津', en: 'Kasrkin' },
+    color: '#5c7a3a',
+    style: { zh: '射擊隊・精銳步兵・戰技', en: 'Shooting · Elite infantry · Skill at Arms' },
+    blurb: {
+      zh: '卡迪安的特種部隊：熱射雷射槍原地連射、專精槍手與狙擊手壓制，每回合選一種戰技（重創射擊、近戰、快速移動或硬撐）。',
+      en: 'Cadia\'s special forces: hot-shot lasguns firing twice when they hold still, specialist gunners and a sniper, and each turning point a Skill at Arms (Severe shooting, melee, speed or toughness).',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '安全保護', en: 'Security' }, { zh: '搜索與摧毀', en: 'Seek & Destroy' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '勉強：除非放棄噴火兵和狙擊手', en: 'Barely: unless you give up the flamer and the sharpshooter' },
+      buyable: { zh: '能：KT 盒與大桌盒內容一樣', en: 'Yes — the KT box and the Warhammer 40,000 box are the same' },
+      size: { zh: '10 名特工', en: '10 operatives' },
+      note: { zh: '將於 2026 年退出賽季：屆時官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotating out of the season in 2026: then not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    skillAtArms: true,
+    rapidFire: true,
+    rule: {
+      name: { zh: '戰技・快速射擊', en: 'Skill at Arms · Rapid Fire' },
+      desc: {
+        zh: '戰技（策略階段）：選一種給全隊直到下回合——點燃他們（遠程「重創」）、為了卡迪亞！（近戰 Atk +1 最多 4，近戰第一擊 +1 傷害）、快速打擊（移動 +1"）、冷血（被攻擊時第一顆 3 以上普通傷害 -1）。士官在場時可選兩種。快速射擊：本次啟動沒有移動的特工可以射擊兩次，但都要用爆彈手槍、熱射雷射槍或熱射雷射手槍（之後就不能移動）。',
+        en: 'Skill at Arms (Strategy phase): one for the team until next TP — Light \'Em Up (ranged Severe), For Cadia! (melee Atk +1 to max 4, +1 damage on the first strike when fighting), Strike Fast (+1" when repositioning), Ice in Your Veins (the first 3+ Normal Dmg die against it each sequence deals 1 less). Two while the Sergeant is in the killzone. Rapid Fire: an operative that doesn\'t move this activation can Shoot twice, both with a bolt pistol, hot-shot lasgun or hot-shot laspistol (and can\'t move afterwards).',
+      },
+    },
+    ploys: [
+      { id: 'engageFromCover', cp: 1, name: { zh: '依託掩體交戰', en: 'Engage From Cover' },
+        desc: { zh: '本回合在掩護中的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, a friendly in cover being shot re-rolls one defence die.' } },
+      { id: 'clearanceSweep', cp: 1, name: { zh: '清掃區域', en: 'Clearance Sweep' },
+        desc: { zh: '在最前線的敵人處放清掃標記：本回合標記 5" 內的友方射擊同樣在 5" 內的特工時，武器「無休」。', en: 'A Clearance Sweep marker by the frontmost enemy: this TP, friendlies within 5" of it shooting operatives within 5" of it have Ceaseless.' } },
+      { id: 'eliminationPattern', cp: 1, name: { zh: '殲滅模式', en: 'Elimination Pattern' },
+        desc: { zh: '本回合用熱射武器射擊沒有掩護豁免、或被偵察兵掃描中的敵人：「暴擊穿甲 1」。', en: 'This TP, hot-shot weapons shooting an enemy that can\'t retain cover saves, or is being scanned, have Piercing Crits 1.' } },
+    ],
+    ops: [
+      op('ksSergeant', '士官', 'Kasrkin Sergeant', { apl: 3, move: 6, save: 4, wounds: 9, base: 28, veteranLeadership: true, tacticalCommand: true }, [hsLaspistol, powerWeaponK]),
+      op('ksMedic', '戰地醫護兵', 'Kasrkin Combat Medic', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, medic: true, medikit: true, medikit0: true }, [hsLasgun, gunButt]),
+      op('ksDemo', '爆破兵', 'Kasrkin Demo-trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, blastPadding: true, meltaMine: true }, [hsLaspistol, gunButt]),
+      op('ksRecon', '偵察兵', 'Kasrkin Recon-trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, auspex: true }, [hsLasgun, gunButt]),
+      op('ksFlamer', '槍手（噴火器）', 'Kasrkin Gunner (flamer)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [flamerK, gunButt]),
+      op('ksMelta', '槍手（熱熔槍）', 'Kasrkin Gunner (meltagun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [meltaK, gunButt]),
+      op('ksPlasma', '槍手（電漿槍）', 'Kasrkin Gunner (plasma gun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [plasmaGunK, plasmaGunKS, gunButt]),
+      op('ksSharpshooter', '神射手', 'Kasrkin Sharpshooter', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, camoCloak: true }, [hsMarksmanC, hsMarksmanM, hsMarksmanS, gunButt]),
+      op('ksVox', '通訊兵', 'Kasrkin Vox-trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, battleComms: true }, [hsLasgun, gunButt]),
+      op('ksTrooper', '士兵', 'Kasrkin Trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, adaptive: true }, [hsLasgun, gunButt]),
+    ],
+  },
+  {
+    id: 'legionaries',
+    name: { zh: '軍團', en: 'Legionaries' },
+    color: '#7a2230',
+    style: { zh: '混合隊・混沌星際戰士・混沌印記', en: 'Mixed · Heretic Astartes · Marks of Chaos' },
+    blurb: {
+      zh: '背叛帝皇的混沌星際戰士：人少但每個都很硬，每名隊員帶著不同混沌之神的印記，近戰與重火力都很兇。',
+      en: 'Heretic Astartes who turned on the Emperor: few but very tough, each bearing the mark of a different Chaos god, savage in melee and with heavy firepower.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能：這些都已成為大桌單位', en: 'Yes — these are now Warhammer 40,000 units' },
+      size: { zh: '6 名特工', en: '6 operatives' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotated out of the season in 2025: not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    astartes: true,
+    marksOfChaos: true,
+    rule: {
+      name: { zh: '星際戰士・混沌印記', en: 'Astartes · Marks of Chaos' },
+      desc: {
+        zh: '星際戰士：每次啟動可射擊兩次（其中一次要用爆彈武器）或近戰兩次；任何指令都能反擊。混沌印記（每名隊員固定一種）：恐虐（近戰「重創」）、奸奇（遠程「重創」）、納垢（受到 3 以上普通傷害時 5+ -1）、色孽（Move +1"）、混沌不分（攻擊 6" 內的敵人時「無休」）。',
+        en: 'Astartes: two Shoots (one with a bolt weapon) or two Fights per activation; can counteract on any order. Marks of Chaos (fixed per operative): Khorne (melee Severe), Tzeentch (ranged Severe), Nurgle (3+ Normal Dmg: 5+ = 1 less), Slaanesh (+1" Move), Undivided (Ceaseless against enemies within 6").',
+      },
+    },
+    ploys: [
+      { id: 'bloodGod', cp: 1, name: { zh: '血祭血神', en: 'Blood for the Blood God' },
+        desc: { zh: '本回合友方近戰時第一次打擊 +1 傷害（最多 7）；恐虐印記的友方近戰武器兩個傷害都 +1（最多 7）。', en: 'This TP, a friendly\'s first strike when fighting deals 1 more (max 7); Khorne operatives\' melee weapons have +1 to both Dmg (max 7) instead.' } },
+      { id: 'implacable', cp: 1, name: { zh: '無可阻擋', en: 'Implacable' },
+        desc: { zh: '本回合射擊友方的「穿甲 1」改為「暴擊穿甲 1」；納垢印記的友方無視受傷減益。', en: 'This TP, Piercing 1 against friendlies becomes Piercing Crits 1; Nurgle operatives ignore injured penalties.' } },
+      { id: 'quicksilver', cp: 1, name: { zh: '水銀之速', en: 'Quicksilver Speed' },
+        desc: { zh: '本回合移動過的友方近戰或反擊時，敵人近戰命中變差 1；移動過的色孽友方被 6" 外射擊時，敵人命中變差 1。', en: 'This TP, a friendly that moved this TP fighting or retaliating worsens the enemy\'s melee Hit by 1; a Slaanesh one that moved, shot from more than 6", worsens the shooter\'s Hit by 1.' } },
+      { id: 'fickleFates', cp: 1, name: { zh: '無常命運', en: 'Fickle Fates' },
+        desc: { zh: '本回合射擊尚未行動的敵人時遠程「平衡」（已有則「無情」）；尚未行動的奸奇友方被射擊時，保留暴擊豁免的話可把一顆失敗算成普通豁免。', en: 'This TP, shooting a ready enemy: Balanced (Relentless if it already has it); a ready Tzeentch friendly being shot that retains a critical save retains one fail as a normal save.' } },
+    ],
+    ops: [
+      op('lgChosen', '被選者', 'Legionary Chosen', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, mark: 'khorne', daemonicAura: true, soulGorge: true }, [plasmaPistolL, plasmaPistolLS, daemonBlade]),
+      op('lgBalefire', '狂焰侍僧', 'Legionary Balefire Acolyte', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'tzeentch' }, [boltPistolL, fireblast, lifeSiphon, fellDagger]),
+      op('lgButcher', '屠夫', 'Legionary Butcher', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'undivided', noAssistVs: true }, [boltPistolL, chainaxe]),
+      op('lgShrivetalon', '剝皮者', 'Legionary Shrivetalon', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'slaanesh', viciousReflexes: true, dismember: true, grisly: true }, [boltPistolL, flensingBlades]),
+      op('lgHeavy', '重火力兵', 'Legionary Heavy Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'nurgle' }, [boltPistolL, reaperFocused, reaperSweeping, fistsL]),
+      op('lgAnointed', '受膏者', 'Legionary Anointed', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'khorne', unleashDaemon: true }, [boltPistolL, daemonicClaw]),
+    ],
+  },
+  {
+    id: 'novitiates',
+    name: { zh: '見習修女', en: 'Novitiates' },
+    color: '#b23a48',
+    style: { zh: '近戰隊・修女會・信仰行為', en: 'Melee · Adepta Sororitas · Acts of Faith' },
+    blurb: {
+      zh: '修女會的見習生：熱忱的近戰小隊，靠信仰點數在關鍵擲骰時扭轉結果，擊殺敵人還能再獲得信仰。',
+      en: 'Trainee Battle Sisters: a zealous melee squad that spends Faith points to turn key dice rolls, and gains more Faith from its kills.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '安全保護', en: 'Security' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能：可以買大桌盒', en: 'Yes — as the Warhammer 40,000 box' },
+      size: { zh: '10 名特工', en: '10 operatives' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotated out of the season in 2025: not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    actsOfFaith: true,
+    rule: {
+      name: { zh: '信仰行為', en: 'Acts of Faith' },
+      desc: {
+        zh: '每回合準備步驟獲得信仰點數（存活隊員一半，無條件進位）。友方射擊、近戰、反擊或被射擊的擲骰後，可花信仰點用一次信仰行為：引導（1 點，重擲一顆骰）、祝福（2 點，一顆普通成功當暴擊）、干預（3 點，一顆失敗當普通成功）。每次擲骰最多一次。',
+        en: 'In each Ready step, gain Faith points equal to half your living operatives (rounding up). After rolling dice when a friendly shoots, fights, retaliates or is shot, spend Faith on one Act of Faith: Guidance (1: re-roll one die), Blessing (2: a normal success becomes critical), Intervention (3: a fail becomes a normal success). One per roll.',
+      },
+    },
+    ploys: [
+      { id: 'blessedRejuv', cp: 1, name: { zh: '神聖回春', en: 'Blessed Rejuvenation' },
+        desc: { zh: '本回合每次為友方花信仰點，行動結束時它回復 D3 生命。', en: 'This TP, whenever you spend Faith on a friendly, it regains D3 wounds at the end of that action.' } },
+      { id: 'ardentVengeance', cp: 1, name: { zh: '熱忱復仇', en: 'Ardent Vengeance' },
+        desc: { zh: '本回合攻擊已行動過的敵人時，武器「懲罰」。', en: 'This TP, weapons have Punishing against an expended enemy.' } },
+      { id: 'defendersFaith', cp: 1, name: { zh: '信仰守護者', en: 'Defenders of the Faith' },
+        desc: { zh: '本回合在爭奪目標點的友方被攻擊時，一顆普通成功的傷害減半（無條件進位，最少 2）。', en: 'This TP, a friendly contesting an objective halves the damage of one normal success against it (rounding up, min 2).' } },
+    ],
+    ops: [
+      op('nvSuperior', '修女長', 'Novitiate Superior', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, inspirational: true }, [plasmaPistolN, plasmaPistolNS, powerWeaponN]),
+      op('nvCondemnor', '譴責者', 'Novitiate Condemnor', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, nullRodAura: true }, [stakethrower, nullRod]),
+      op('nvDialogus', '宣講者', 'Novitiate Dialogus', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, broadcaster: true, rhetoric: true }, [autopistol, dialogusStave]),
+      op('nvDuellist', '決鬥者', 'Novitiate Duellist', { apl: 2, move: 6, save: 4, wounds: 7, base: 28 }, [autopistol, duellingBlades]),
+      op('nvExactor', '鞭策者', 'Novitiate Exactor', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, whipFrenzy: true }, [neuralWhipsR, neuralWhipsM]),
+      op('nvHospitaller', '醫護修女', 'Novitiate Hospitaller', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, medic: true, medikit: true }, [autopistol, surgicalSaw]),
+      op('nvPenitent', '懺悔者', 'Novitiate Penitent', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, absolution: true }, [autopistol, eviscerator]),
+      op('nvPreceptor', '訓誡者', 'Novitiate Preceptor', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, hymnal: true, unflinching: true }, [maceRighteous]),
+      op('nvPurgatus', '淨化者', 'Novitiate Purgatus', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, purgeFlame: true }, [ministorumFlamer, gunButt]),
+      op('nvReliquarius', '聖物守護者', 'Novitiate Reliquarius', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, iconBearer: true, raiseIcon: true }, [autopistol, gunButt]),
+    ],
+  },
 ];
+
+TEAMS.push(...ELDAR_TEAMS);
 
 // ---- NPOs (non-player operatives) used by mission packs; not selectable as a kill team ----
 const enormousClaws = W('enormousClaws', '巨爪', 'Enormous claws', 'melee', 5, 3, 4, 5, { brutal: true, ceaseless: true, rending: true });
@@ -1302,6 +1490,14 @@ const FIREFIGHT = {
     ff('slink', '遁入黑暗', 'Slink into Darkness', '啟動中：啟動結束時從交戰改回隱蔽（每名整場一次）。', 'During an activation: switch from Engage back to Conceal when it ends (once per operative per battle).'),
     ff('coiledSerpent', '盤蛇', 'Coiled Serpent', '從隱蔽轉交戰後的第一次攻擊：一顆普通成功當成暴擊。', 'First attack after switching from Conceal to Engage: one normal success becomes a critical success.'),
   ],
+  kasrkin: [
+    ff('neutraliseTarget', '消滅目標', 'Neutralise Target', '射擊沒有掩護豁免、或被偵察兵掃描中的敵人：可重擲任意攻擊骰（無情）。', 'Shooting an enemy that can\'t retain cover saves, or is being scanned: re-roll any attack dice (Relentless).'),
+  ],
+  legionaries: [
+    ff('mutability', '變化無常', 'Mutability and Change', '奸奇印記的友方啟動時：本次 APL +1。', 'When a Tzeentch operative is activated: +1 APL this activation.'),
+    ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
+    ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
+  ],
   warpcoven: [
     ff('allIsDust', '萬物皆塵', 'All Is Dust', '自動：一顆對紅字星際戰士造成普通傷害的攻擊骰只造成 1 傷害。', 'Auto: one attack die inflicting Normal Dmg on a Rubric Marine inflicts 1 instead.'),
     ff('capricious', '多變的計畫', 'Capricious Plan', '巫師啟動中：免費衝刺一次（之前做過什麼都可以）。', 'During a Sorcerer\'s activation: a free Dash, whatever it did before.'),
@@ -1350,6 +1546,8 @@ export const RULE_LABELS = {
   bloodOffering: { zh: '血之獻祭（第一次暴擊打擊得血祭標記）', en: 'Blood Offering (first critical strike gains a Blooded token)' },
   repress: { zh: '鎮壓（反擊時先結算）', en: 'Repress (resolves first when retaliating)' },
   devSplash: { zh: '毀滅也波及目標周圍', en: 'Devastating also hits operatives within' },
+  rapid: { zh: '快速射擊', en: 'Rapid Fire' },
+  siphon: { zh: '吸取生命', en: 'Siphon Life' },
   magnify: { zh: '放大（借技師／學徒的視角）', en: 'Magnify (through a Cryptek / Apprentek)' },
   headtaker: { zh: '獵頭（擊殺後回血並提升暴擊傷害）', en: 'Headtaker (kills heal and raise Critical Dmg)' },
   tactualHunter: { zh: '觸覺獵手（對已行動敵人第一次暴擊後追加打擊）', en: 'Tactual Hunter (extra strike after the first crit vs an expended enemy)' },

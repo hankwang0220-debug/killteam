@@ -33,6 +33,8 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 | File | Purpose |
 |---|---|
 | `js/data/teams.js` | Team, operative, weapon, and ploy data (**add or edit teams here**) |
+| `js/data/eldar.js` | Hand of the Archon and Corsair Voidscarred rosters, loadouts, equipment and collector notes |
+| `js/archon.js` / `js/corsair.js` | Pain tokens, combat drugs, psychic actions, free actions and team reactions |
 | `js/game.js` | Game state, game flow, and the rules engine (line of sight, dice, combat) |
 | `js/path.js` | A* pathfinding and movement validation |
 | `js/ai.js` | Computer opponent and NPO behaviours |
@@ -46,3 +48,11 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 ## Adding a team
 
 Add an object to `TEAMS` in `js/data/teams.js` with `ops`, `ploys`, and `rule`. Weapons support the rule keys listed at the top of that file. Special team abilities are handled by the `effectiveRules()` function in `js/game.js` (or by a dedicated function).
+
+## Eldar teams
+
+Hand of the Archon and Corsair Voidscarred (虛空之痕海盜) each field 9 operatives. Setup supports weapon choices, faction equipment, and Corsair warrior/heavy-gunner replacements. Official PDF links and the supplied purchase/rotation notes appear in team details; rotation does not prevent casual games in this simulator.
+
+Optional reactions follow the simulator's automatic-selection convention: pain-token competition, combat-drug recipients, enemy marks, plunder moves, Hunter pursuit and One Step Ahead attacks may choose targets automatically. The Shade Runner's Slicing Attack checks the straight segment between its starting and ending positions. The roster picker offers one gunner or one heavy gunner; it does not offer every legal tabletop composition. These are simulator simplifications, so the linked official rules remain the reference for tabletop play.
+
+Run `node tests/eldar.mjs` to verify loadouts, pain tokens, free actions, pistol barrages, Warp Fold and seeded AI battles for both teams.
