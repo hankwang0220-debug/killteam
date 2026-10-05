@@ -40,7 +40,7 @@ export const rollCount = () => rolls;
 export const d6 = () => { rolls++; return 1 + Math.floor(Math.random() * 6); };
 const d3 = () => { rolls++; return 1 + Math.floor(Math.random() * 3); };
 /** Injured stat changes apply (And They Shall Know No Fear ignores them). */
-export const injuredPenalty = (g, op) => isInjured(op) && !hasPloy(g, op.side, 'noFear');
+export const injuredPenalty = (g, op) => isInjured(op) && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op);
 /** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
 export const hasTactic = (g, op, id) => !!g.tactics?.[op.side]?.includes(id) || (id === 'stealthy' && !!tpl(op).camoCloak);
 
@@ -66,6 +66,7 @@ export function moveStat(g, op) {
   const base = tpl(op).move;
   let m = statPenalty(g, op) ? Math.max(Math.min(base, 4), base - 2) : base;
   if (artOfWar(g, op, 'montka')) m += 1;
+  if (op.shieldingOn) m -= 2; // Shielding (Trench Sweeper)
   if (isDrone(op) && living(g, op.side).some((o) => tpl(o).droneController)) m += 2;
   return m;
 }
@@ -75,7 +76,7 @@ export function moveStat(g, op) {
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
 export const aplNow = (g, op) => (tpl(op).nemesis && op.cardApl ? op.cardApl
-  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') ? 0
+  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings ? 0 // Chem-enhanced / Toxic Blessings ignore APL changes
     : Math.max(-1, Math.min((op.aplNext || 0) > 0 && cursed(g, op, 'voxStatic') ? 0 : 1, op.aplNext || 0)))));
 
 /** Change APL until the end of the operative's next activation (not the one it's in right now). */
@@ -167,6 +168,12 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   }
   log(g, { zh: `任務：${m.name.zh}`, en: `Mission: ${m.name.en}` }, 'tp');
   m.setup?.(g);
+  // Regular Dosage (Blooded Corpseman): another friendly starts with a stimm — the Fortified stimm on the Ogryn (or the Chieftain).
+  for (const side of [0, 1]) {
+    if (!g.ops.some((o) => o.side === side && tpl(o).stimms)) continue;
+    const t = g.ops.find((o) => o.side === side && tpl(o).chemEnhanced) || g.ops.find((o) => o.side === side && tpl(o).leadWithStrength);
+    if (t) giveStimm(g, t, 'fortified');
+  }
   log(g, { zh: '部署階段：選一名待部署的特工，再點己方部署區放置；這一批在按「完成」前都能拖曳調整。', en: 'Deployment: pick an operative waiting to be set up, then tap inside your zone; this step\'s operatives can be dragged until you press Done.' });
   return g;
 }
@@ -381,6 +388,7 @@ function startTP(g) {
   g.counter = false;
   g.stratStep = 0;
   g.actCount = [0, 0, 0];
+  for (const s of [0, 1]) gainBlood(g, s, { zh: '策略階段', en: 'Strategy phase' }); // Blooded: a token each Ready step
   // Strategic Oversight (Phobos Commsman): D6 4+ for 1 more CP, if it isn't within enemy control range.
   for (const s of [0, 1]) {
     const cm = living(g, s).find((o) => tpl(o).oversight && !isEngaged(g, o));
@@ -453,6 +461,8 @@ export function buyPloy(g, side, ploy) {
   g.cp[side] -= cost;
   g.ploys[side].push(ploy.id);
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
+  // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
+  if (ploy.id === 'gloryKill') setGloryKill(g, side, living(g, 1 - side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]);
   // Attack / Defence Order: the marker starts by the friendly operative nearest the centre of the killzone.
   if (ploy.marker) placeNavyOrder(g, side, living(g, side).sort((a, b) => dist(a, { x: BOARD.w / 2, y: BOARD.h / 2 }) - dist(b, { x: BOARD.w / 2, y: BOARD.h / 2 }))[0]);
   const free = cost === 0 && ploy.cp > 0 ? freePloyOp(g, side, ploy) : null;
@@ -511,6 +521,9 @@ export function activate(g, op) {
   }
   g.chain = null;
   if (!g.counter) op.jam = false; // System Jam token removed when activated
+  if (!g.counter) op.shieldingOn = false; // Shielding lasts until the start of its next activation
+  if (!g.counter) op.gongOn = false; // so does Gong Knell
+  if (!g.counter && g.mantle?.[op.side] === op.uid) g.mantle[op.side] = null; // and Mantle of Darkness
   // Cult Ambush (Wyrmblade): not visible to enemy operatives at the start of the activation.
   if (!g.counter && TEAM_MAP[op.team].cultAmbush) op.acted.unseen = !foes(g, op).some((e) => visibility(g, e, op).visible);
   if (!g.counter) (g.actCount ||= [0, 0, 0])[op.side] = (g.actCount[op.side] || 0) + 1; // for Omni-scrambler
@@ -574,6 +587,7 @@ export function deactivate(g) {
 
 export function setOrder(g, op, order) {
   if (op.orderSet) return;
+  if (op.frenzy && order === 'conceal') return; // Frenzy: it can't have a Conceal order
   op.order = order;
 }
 
@@ -587,6 +601,8 @@ export function endActivation(g) {
   if (op) {
     op.ready = false; op.ap = 0;
     if (op.counter) { op.counter = false; op.counteracted = true; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
+    // Frenzy: a Frenzied Fellgor falls when its activation or counteraction ends.
+    if (op.frenzy && !op.dead) frenzyDie(g, op);
     // Mindburn lasts until the end of the target's next activation.
     if (!wasCounter && g.mindburn) for (const s of [0, 1]) if (g.mindburn[s] === op.uid) g.mindburn[s] = null;
     // An NPO controlled by a player for one activation (Negotiation) goes back to being an NPO.
@@ -696,9 +712,9 @@ export function controller(g, obj) {
   const sum = [0, 0, 0], shriek = [false, false, false];
   for (const o of living(g)) {
     // Drones count as 1 APL lower for objective control, the Icon Bearer as 1 higher; NEMESIS NPOs use their Control stat.
-    // Ravage Destiny (Warpcoven): the target counts 1 lower.
+    // Ravage Destiny (Warpcoven): the target counts 1 lower. Frenzy (Fellgor): APL 1, whatever else applies.
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
-    const apl = tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer ? 1 : 0) - ravaged);
+    const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? // the Deathknell (Icon Bearer) keeps its APL Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer ? 1 : 0) - ravaged);
     if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; if (shrieked(g, o)) shriek[o.side] = true; }
   }
   // Horrifying Shrieking: a side's total counts 1 lower if one of its contesting operatives is within 3" of a Fleshscreamer.
@@ -754,6 +770,7 @@ function checkWipe(g) {
 function gameOver(g) {
   g.phase = 'gameover';
   g.active = null;
+  for (const o of g.ops) if (o.frenzy && !o.dead) frenzyDie(g, o); // Frenzy: they fall when the battle ends
   mission(g).onBattleEnd?.(g);
   const a = totalVP(g, 0), b = totalVP(g, 1);
   g.winner = a > b ? 0 : b > a ? 1 : null;
@@ -795,6 +812,14 @@ export const ACTIONS = {
   guerrilla: { ap: 1, name: { zh: '游擊戰', en: 'Guerrilla Warfare' } },
   auspexScan: { ap: 1, name: { zh: '鳥卜儀掃描', en: 'Auspex Scan' } },
   helix: { ap: 1, name: { zh: '螺旋手套', en: 'Helix Gauntlet' } },
+  gongKnell: { ap: 1, name: { zh: '鳴鑼', en: 'Gong Knell' } },
+  inciteFury: { ap: 1, name: { zh: '煽動怒火', en: 'Incite Fury' } },
+  rejuvenation: { ap: 1, name: { zh: '暴怒回春', en: 'Apoplectic Rejuvenation' } },
+  mantle: { ap: 1, name: { zh: '黑暗披風', en: 'Mantle of Darkness' } },
+  sweepingBlow: { ap: 1, name: { zh: '橫掃重擊', en: 'Sweeping Blow' } },
+  actuation: { ap: 1, name: { zh: '褻瀆啟動', en: 'Sacrilegious Actuation' } },
+  stimm: { ap: 1, name: { zh: '興奮劑', en: 'Stimms' } },
+  shieldingUp: { ap: 0, name: { zh: '舉盾', en: 'Shielding' } },
   fate: { ap: 1, name: { zh: '命運庇護', en: 'Protected by Fate' } },
   ravage: { ap: 1, name: { zh: '摧毀命運', en: 'Ravage Destiny' } },
   alight: { ap: 1, name: { zh: '點燃', en: 'Alight' } },
@@ -822,7 +847,8 @@ export const ACTIONS = {
 Object.assign(ACTIONS, MISSION_ACTIONS); // mission actions (Siphon Power…)
 
 export function actionCost(g, op, id) {
-  if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1; // Mobile / Disengage (Endurant)
+  if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
+  if (id === 'fallBack' && whipped(g, op)) return ACTIONS.fallBack.ap + 1; // Whip Control (Herd-goad)
   // Kauyon: a Concealed operative's Markerlight is free.
   if (id === 'markerlight' && op.order === 'conceal' && artOfWar(g, op, 'kauyon')) return 0;
   // Free actions from Dakka Dash, Savage Assault and Stealth Attack.
@@ -833,7 +859,8 @@ export function actionCost(g, op, id) {
     // Vanguard (Phobos): once per turning point, one operative with it pays 1 less for Pick Up or a mission action.
     const gotIt = (MISSION_ACTIONS[id] && tpl(op).gotIt && !op.acted?.gotItUsed ? 1 : 0)
       + (tpl(op).vanguard && g.vanguardTP?.[op.side] !== g.tp ? 1 : 0);
-    return Math.max(0, ACTIONS[id].ap + (tpl(op).hulk && !tpl(op).vulgrar ? 1 : 0) + (shrieked(g, op) ? 1 : 0) - gotIt);
+    // Slow-witted (Blooded Ogryn) pays 1 more as well.
+    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) - gotIt);
   }
   return ACTIONS[id].ap;
 }
@@ -867,6 +894,38 @@ export const TARGET_ACTIONS = {
     apply(g, op, t) {
       (g.spot ||= [null, null])[op.side] = { by: op.uid, t: t.uid, tp: g.tp };
       return { zh: `觀測：${opName(t, 'zh')}（本回合 3" 內友方射擊它時「搜尋（輕型）」且不會被遮擋）`, en: `Spot: ${opName(t, 'en')} (this TP, friendlies within 3" shooting it have Seek Light and it can't be obscured)` };
+    },
+  },
+  // ---- Fellgor Ravagers ----
+  // Incite Fury (Herd-goad): another friendly (not the Shaman or Ironhorn) visible within 3" gets +1 APL next activation.
+  inciteFury: {
+    targets: (g, op) => living(g, op.side).filter((t) => t !== op && sameTeam(t, op) && !tpl(t).fgShaman && !tpl(t).ironhorn && edgeDist(op, t) <= 3 && visibility(g, op, t).visible),
+    apply(g, op, t) {
+      changeApl(g, t, 1);
+      return { zh: `煽動怒火：${opName(t, 'zh')} 下次啟動 APL +1`, en: `Incite Fury: ${opName(t, 'en')} gets +1 APL for its next activation` };
+    },
+  },
+  // Apoplectic Rejuvenation (Shaman): a friendly without a Frenzy token visible within 6" regains 2D3 (6 if it has a melee kill).
+  rejuvenation: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && !t.frenzy && t.wounds < t.maxW && edgeDist(op, t) <= 6 && (t === op || visibility(g, op, t).visible)),
+    apply(g, op, t) {
+      const before = t.wounds;
+      t.wounds = Math.min(t.maxW, t.wounds + (t.meleeKill ? 6 : d3() + d3()));
+      return { zh: `暴怒回春：${opName(t, 'zh')} 回復 ${t.wounds - before} 生命`, en: `Apoplectic Rejuvenation: ${opName(t, 'en')} regains ${t.wounds - before} wounds` };
+    },
+  },
+  // ---- Blooded ----
+  // Stimms (Corpseman): a friendly in control range gets Rejuvenated (heal 2D3) if hurt, otherwise another stimm it lacks.
+  stimm: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && edgeDist(op, t) <= CONTROL + 0.01
+      && ((!t.stimms?.rejuvenated && t.wounds < t.maxW) || !t.stimms?.fortified || !t.stimms?.enraged)),
+    apply(g, op, t) {
+      const kind = !t.stimms?.rejuvenated && t.maxW - t.wounds >= 2 ? 'rejuvenated'
+        : !t.stimms?.fortified ? 'fortified' : !t.stimms?.enraged ? 'enraged' : 'rejuvenated';
+      const before = t.wounds;
+      giveStimm(g, t, kind);
+      const name = { rejuvenated: ['回春', 'Rejuvenated'], fortified: ['強化', 'Fortified'], enraged: ['狂怒', 'Enraged'] }[kind];
+      return { zh: `興奮劑「${name[0]}」：${opName(t, 'zh')}${kind === 'rejuvenated' ? ` 回復 ${t.wounds - before} 生命` : ' 整場有效'}`, en: `Stimms (${name[1]}): ${opName(t, 'en')}${kind === 'rejuvenated' ? ` regains ${t.wounds - before} wounds` : ' for the battle'}` };
     },
   },
   // ---- Warpcoven (PSYCHIC; until the start of the caster's next activation) ----
@@ -1168,6 +1227,14 @@ export function availableActions(g, op) {
   if (tpl(op).pulse) unique('pulse');
   if (tpl(op).helix) unique('helix');
   if (tpl(op).destiny) { unique('fate'); unique('ravage'); }
+  if (tpl(op).stimms) unique('stimm');
+  if (tpl(op).inciteFury) unique('inciteFury');
+  if (tpl(op).fgShaman) { unique('rejuvenation'); add('mantle', !engaged && !count(op, 'mantle'), engaged ? ENG : DONE); }
+  if (tpl(op).gongKnell) add('gongKnell', !count(op, 'gongKnell'), DONE);
+  if (tpl(op).sweepingBlow) add('sweepingBlow', !conceal && !count(op, 'sweepingBlow'), conceal ? CONC : DONE);
+  if (tpl(op).actuation) add('actuation', !engaged && !!op.bloodToken && !count(op, 'actuation'), engaged ? ENG : !op.bloodToken ? { zh: '自己沒有血祭標記', en: 'It has no Blooded token' } : DONE);
+  // Shielding (Trench Sweeper): when activated, -2" Move and re-roll any defence dice until its next activation.
+  if (tpl(op).shielding && !op.counter) add('shieldingUp', !op.shieldingOn && Object.keys(op.acted).length === 0, op.shieldingOn ? DONE : { zh: '只能在啟動時使用', en: 'Only when activated' });
   if (tpl(op).alight) unique('alight');
   if (tpl(op).auspex) add('auspexScan', !engaged && !count(op, 'auspexScan'), engaged ? ENG : DONE);
   // Guerrilla Warfare (Phobos ploy): change this operative's order.
@@ -1212,6 +1279,11 @@ export function availableActions(g, op) {
     }
   }
   // Drones can only perform the actions listed on their datacard.
+  // Frenzy (Fellgor): no Pick Up, unique or mission actions (Sweeping Blow excepted).
+  if (op.frenzy) {
+    const core = ['reposition', 'dash', 'charge', 'fallBack', 'shoot', 'fight', 'sweepingBlow'];
+    return list.filter((a) => core.includes(a.id));
+  }
   const allowed = tpl(op).actionsOnly;
   return allowed ? list.filter((a) => allowed.includes(a.id)) : list;
 }
@@ -1233,9 +1305,26 @@ export function doSelfAction(g, op, id) {
     stealthAttack: { zh: '潛行突襲：免費衝鋒（不超過 Move）後免費近戰，第一次打擊時可再追加一次打擊', en: 'Stealth Attack: a free Charge (up to its Move) then a free Fight; its first strike is followed by another' },
     boost: { zh: '加速：這次啟動的下一次衝鋒多移動 4"（而非 2"）', en: 'Boost: its next Charge this activation moves +4" (instead of +2")' },
     auspexScan: { zh: '鳥卜儀掃描：直到下次啟動，友方射擊它 8" 內的敵人時目標不會被遮擋（突襲者再加「搜尋（輕型）」）', en: 'Auspex Scan: until its next activation, enemies within 8" of it can\'t be obscured when friendlies shoot them (Incursors also have Seek Light)' },
+    gongKnell: { zh: '鳴鑼：直到下次啟動，被射擊時豁免值改善 1', en: 'Gong Knell: until its next activation, +1 Save when shot' },
+    mantle: { zh: '黑暗披風：直到下次啟動，它 3" 內可見、隱蔽且在掩體中的友方無法被選為目標', en: 'Mantle of Darkness: until its next activation, Concealed friendlies in cover visible within 3" of it can\'t be targeted' },
+    sweepingBlow: { zh: '橫掃重擊', en: 'Sweeping Blow' },
+    shieldingUp: { zh: '舉盾：直到下次啟動，Move -2"，被射擊時可重擲任意防禦骰', en: 'Shielding: until its next activation, -2" Move and it re-rolls any defence dice when shot' },
+    actuation: { zh: '褻瀆啟動', en: 'Sacrilegious Actuation' },
     guerrilla: { zh: `游擊戰：改為${op.order === 'conceal' ? '交戰' : '隱蔽'}指令`, en: `Guerrilla Warfare: switches to ${op.order === 'conceal' ? 'Engage' : 'Conceal'}` },
   }[id];
   if (id === 'auspexScan') (g.auspex ||= [null, null])[op.side] = op.uid;
+  if (id === 'shieldingUp') op.shieldingOn = true;
+  if (id === 'gongKnell') op.gongOn = true;
+  if (id === 'mantle') (g.mantle ||= [null, null])[op.side] = op.uid;
+  if (id === 'sweepingBlow') {
+    // Sweeping Blow (Vandal): D3+1 to each other operative visible within 2" (friends too).
+    for (const o of g.ops.filter((x) => !x.dead && x !== op && edgeDist(x, op) <= 2 && visibility(g, op, x).visible)) {
+      const dmg = d3() + 1;
+      log(g, { zh: `${opName(op, 'zh')} 橫掃重擊：${opName(o, 'zh')} 受到 ${dmg} 傷害`, en: `${opName(op, 'en')} Sweeping Blow: ${opName(o, 'en')} takes ${dmg} damage` }, `side${op.side}`);
+      applyDamage(g, op, o, dmg);
+    }
+  }
+  if (id === 'actuation') gainBlood(g, op.side, { zh: '褻瀆啟動', en: 'Sacrilegious Actuation' });
   if (id === 'guerrilla') op.order = op.order === 'conceal' ? 'engage' : 'conceal';
   if (id === 'boost') { op.acted.boost = true; op.boostUsed = true; }
   if (id === 'energise') op.energised = g.tp;
@@ -1293,6 +1382,15 @@ export function doMove(g, op, kind, path) {
   if (op.ml > 0 && !op.acted.mlDrop) {
     op.ml--; op.acted.mlDrop = true;
     log(g, { zh: `${opName(op, 'zh')} 移動，移除 1 個標記光標記（剩 ${op.ml}）`, en: `${opName(op, 'en')} moves and loses a Markerlight token (${op.ml} left)` }, `side${op.side}`);
+  }
+  // Avalanche of Muscle (Blooded Ogryn): D3 damage to one enemy in control range at the end of a Charge.
+  if (kind === 'charge' && tpl(op).avalanche) {
+    const e = engagedEnemies(g, op).sort((a, b) => a.wounds - b.wounds)[0];
+    if (e) {
+      const dmg = d3();
+      log(g, { zh: `${opName(op, 'zh')} 肌肉雪崩：${opName(e, 'zh')} 受到 ${dmg} 傷害`, en: `${opName(op, 'en')} Avalanche of Muscle: ${opName(e, 'en')} takes ${dmg} damage` }, `side${op.side}`);
+      applyDamage(g, op, e, dmg);
+    }
   }
   // Spiked Charger (Lumberghast): D3 damage to each enemy in control range at the end of a Charge.
   if (kind === 'charge' && tpl(op).spikedCharger) {
@@ -1387,9 +1485,12 @@ function validTarget(g, op, target, weapon) {
       || (tpl(op).incursor && auspexOn(g, op, target))));
     // Nightmare Hulks (Gellerpox) can't use Light terrain for cover when targets are picked.
     const vt = seek ? shotVisibility(g, op, target, weapon, { ignoreAll: true })
-      : seekLight || tpl(target).hulk ? shotVisibility(g, op, target, weapon, { ignoreLight: true }) : v;
+      : seekLight || tpl(target).hulk || tpl(target).brute ? shotVisibility(g, op, target, weapon, { ignoreLight: true }) : v;
     // Small (Borewyrm): Concealed in cover it can't be targeted, whatever else applies.
-    if (vt.cover || (tpl(target).small && v.cover)) return null;
+    // Mantle of Darkness (Fellgor Shaman): within 3" of it and in cover — can't be targeted, whatever else applies.
+    const sh = g.mantle?.[target.side] && getOp(g, g.mantle[target.side]);
+    const mantled = sh && !sh.dead && edgeDist(sh, target) <= 3 && visibility(g, sh, target).visible;
+    if (vt.cover || ((tpl(target).small || mantled) && v.cover)) return null;
   }
   return v;
 }
@@ -1453,6 +1554,22 @@ export function effectiveRules(g, op, weapon, target) {
     if (g.active !== op.uid || whollyInOwnTerritory(g, op)) r.severe = true; // retaliating, or wholly in your territory
   }
   if (weapon.type === 'ranged' && spotOn(g, op, target)) r.seekLight = true; // Spot
+  // ---- Fellgor Ravagers ----
+  if (weapon.rules.viciousBlows && g.active === op.uid) r.ceaseless = true; // Vicious Blows (fighting, not retaliating)
+  if (weapon.type === 'ranged' && target && TEAM_MAP[op.team].frenzy && hasPloy(g, op.side, 'peltingFire') && target.shotBy?.tp === g.tp) {
+    const others = new Set(target.shotBy.uids.filter((u) => u !== op.uid && getOp(g, u)?.side === op.side)).size;
+    if (others >= 2) r.relentless = true; else if (others === 1) r.ceaseless = true; // Pelting Firepower
+  }
+  // ---- Blooded ----
+  if (op.bloodToken) { r.accurate = Math.max(r.accurate || 0, 1); if (underGaze(g, op)) r.gaze = true; } // Blooded token / Gaze of the Gods
+  else if (tpl(op).leadWithStrength && underGaze(g, op)) r.gaze = true;
+  if (TEAM_MAP[op.team].bloodedTokens && hasPloy(g, op.side, 'recklessAspirant') && whollyIn(g, op, 1 - op.side)) {
+    if (op.bloodToken) r.punishing = true; else r.accurate = Math.max(r.accurate || 0, 1);
+  }
+  const gk = g.gloryKill?.[op.side];
+  if (target && gk?.tp === g.tp && gk.uid === target.uid) { if (op.bloodToken) r.relentless = true; else r.ceaseless = true; } // Glory Kill
+  if (weapon.type === 'melee' && op.stimms?.enraged) r.relentless = true; // Enraged stimm
+  if (weapon.rules.stalk && g.terrain.some((t) => distPointRect(op, t) - radius(op) <= CONTROL)) r.lethal = Math.min(r.lethal || 6, 5); // Stalk
   // ---- Wyrmblade ----
   if (TEAM_MAP[op.team].cultAmbush && g.active === op.uid) {
     const sprung = op.prevOrder === 'conceal' && op.order === 'engage'; // Conceal → Engage at the start of the activation
@@ -1532,6 +1649,85 @@ function blessings(pool) {
   if (fails.length >= 3) { fails[0].res = 'norm'; fails[0].indo = true; pool.norms++; return; }
   const norm = pool.dice.find((d) => d.res === 'norm');
   if (pool.crits + pool.norms >= 3 && fails.length && norm) { norm.res = 'crit'; norm.rend = true; pool.norms--; pool.crits++; }
+}
+
+// ---------- Blooded ----------
+const isBloodedTeam = (g, side) => side < 2 && !!TEAM_MAP[g.teams[side]]?.bloodedTokens;
+function gainBlood(g, side, why) {
+  if (!isBloodedTeam(g, side)) return;
+  (g.bloodPool ||= [0, 0])[side]++;
+  log(g, { zh: `${teamZh(g, side)} 獲得血祭標記（${why.zh}；未分配 ${g.bloodPool[side]}）`, en: `${team(g, side).name.en} gains a Blooded token (${why.en}; ${g.bloodPool[side]} unassigned)` }, `side${side}`);
+}
+/** STRATEGIC GAMBIT: give an unassigned Blooded token to a friendly operative (one each). */
+export function assignBlood(g, side, op) {
+  if (!op || op.dead || op.side !== side || op.bloodToken || !(g.bloodPool?.[side] > 0)) return false;
+  g.bloodPool[side]--; op.bloodToken = true;
+  log(g, { zh: `${opName(op, 'zh')} 獲得血祭標記`, en: `${opName(op, 'en')} takes a Blooded token` }, `side${side}`);
+  return true;
+}
+/** With four or more token holders, one of them is under the Gaze of the Gods for the turning point. */
+export function setGaze(g, side, op) {
+  const holders = living(g, side).filter((o) => o.bloodToken);
+  if (!op || holders.length < 4 || !holders.includes(op)) return false;
+  (g.gaze ||= [null, null])[side] = { uid: op.uid, tp: g.tp };
+  log(g, { zh: `${opName(op, 'zh')} 受到諸神注視`, en: `${opName(op, 'en')} is under the Gaze of the Gods` }, `side${side}`);
+  return true;
+}
+/** Under the Gaze of the Gods: picked this TP, or the Chieftain's Lead With Strength. */
+const underGaze = (g, op) => (g.gaze?.[op.side]?.tp === g.tp && g.gaze[op.side].uid === op.uid)
+  || (tpl(op).leadWithStrength && (op.bloodToken || whollyIn(g, op, 1 - op.side)));
+/** The operative's base is wholly within that side's territory. */
+function whollyIn(g, op, side) {
+  const along = g.axis === 'y' ? 'y' : 'x', r = radius(op);
+  return [-r, r].every((d) => territoryOf(g, { ...op, [along]: op[along] + d }) === side);
+}
+/** Gruelling Disciplinarian (Enforcer): friendlies within 6" ignore the stat changes from being injured. */
+const disciplined = (g, op) => op.side < 2 && living(g, op.side).some((e) => tpl(e).disciplinarian && edgeDist(e, op) <= 6);
+/** Glory Kill (ploy): the enemy picked for this turning point. */
+export function setGloryKill(g, side, enemy) {
+  if (!enemy || !g.ploys[side].includes('gloryKill')) return;
+  (g.gloryKill ||= [null, null])[side] = { uid: enemy.uid, tp: g.tp };
+  log(g, { zh: `榮耀擊殺目標：${opName(enemy, 'zh')}`, en: `Glory Kill target: ${opName(enemy, 'en')}` }, `side${side}`);
+}
+
+/** Blooded tokens gained from deaths, Explosive Demise and Bitter Demise. */
+function bloodedOnDeath(g, dead) {
+  dead.hadToken = !!dead.bloodToken;
+  gains: {
+    const t = (g.bloodTP ||= [{}, {}]);
+    for (const s of [0, 1]) if (t[s].tp !== g.tp) t[s] = { tp: g.tp };
+    // The first enemy incapacitated each TP.
+    const foe = 1 - dead.side;
+    if (dead.side < 2 && isBloodedTeam(g, foe) && !t[foe].enemy) { t[foe].enemy = true; gainBlood(g, foe, { zh: '本回合第一次擊倒敵人', en: 'first enemy down this TP' }); }
+    if (!isBloodedTeam(g, dead.side)) break gains;
+    dead.bloodToken = false;
+    // The first friendly incapacitated within 6" of an enemy each TP.
+    if (!t[dead.side].friend && foes(g, dead).some((e) => edgeDist(e, dead) <= 6)) { t[dead.side].friend = true; gainBlood(g, dead.side, { zh: '本回合第一次友方在敵人附近倒下', en: 'first friendly down near the enemy this TP' }); }
+  }
+  // Explosive Demise (Brimstone Grenadier): 2D6 (1 if engaged), any 4+ → D3+2 (D6+2 with the bomb unused) to each visible operative within 2".
+  if (tpl(dead).explosiveDemise) {
+    const rolls = isEngaged(g, dead) ? [d6()] : [d6(), d6()];
+    if (rolls.some((r) => r >= 4)) {
+      const unused = !(dead.used?.diabolykBomb);
+      const near = g.ops.filter((o) => !o.dead && o !== dead && edgeDist(o, dead) <= 2 && visibility(g, dead, o).visible);
+      log(g, { zh: `${opName(dead, 'zh')} 爆炸死亡（擲 ${rolls.join('、')}）：2" 內 ${near.length} 名特工受傷`, en: `${opName(dead, 'en')} Explosive Demise (rolled ${rolls.join(', ')}): ${near.length} operative(s) within 2" are hit` }, `side${dead.side}`);
+      for (const o of near) applyDamage(g, dead, o, (unused ? d6() : d3()) + 2);
+    }
+  }
+  // Bitter Demise (Blooded ploy): D3 — on a 3 (2+ with a token), that much damage to a visible enemy within 2".
+  if (hasPloy(g, dead.side, 'bitterDemise') && isBloodedTeam(g, dead.side)) {
+    const r = d3(), e = foes(g, dead).filter((o) => edgeDist(o, dead) <= 2 && visibility(g, dead, o).visible).sort((a, b) => a.wounds - b.wounds)[0];
+    if (e && r >= (dead.hadToken ? 2 : 3)) {
+      log(g, { zh: `${opName(dead, 'zh')} 苦澀的死亡（擲 ${r}）：${opName(e, 'zh')} 受到 ${r} 傷害`, en: `${opName(dead, 'en')} Bitter Demise (rolled ${r}): ${opName(e, 'en')} takes ${r} damage` }, `side${dead.side}`);
+      applyDamage(g, dead, e, r);
+    }
+  }
+}
+
+/** Stimms (Corpseman): Rejuvenated (heal 2D3), Enraged (melee Relentless), Fortified (Dmg 3+ deals 1 less on a 5+). */
+function giveStimm(g, op, kind) {
+  (op.stimms ||= {})[kind] = true;
+  if (kind === 'rejuvenated') op.wounds = Math.min(op.maxW, op.wounds + d3() + d3());
 }
 
 // ---------- Warpcoven ----------
@@ -1715,7 +1911,7 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
   for (let k = 0; k < auto; k++) dice.push({ v: '✓', res: 'norm', auto: true });
   const pool = {
     dice, success, critOn, post, crits: 0, norms: 0,
-    rules: { severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault },
+    rules: { severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze },
   };
   return tally(pool);
 }
@@ -1723,7 +1919,7 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
 function tally(pool) {
   const { dice, success, critOn, rules } = pool;
   for (const d of dice) {
-    delete d.sev; delete d.rend; delete d.pun; delete d.indo; delete d.obsc; delete d.obscDrop; delete d.grudge;
+    delete d.sev; delete d.rend; delete d.pun; delete d.indo; delete d.obsc; delete d.obscDrop; delete d.grudge; delete d.gaze;
     const ok = d.v >= success && !(rules.no3 && d.v === 3);
     d.res = d.auto ? 'norm' : ok && d.v >= critOn ? 'crit' : ok ? 'norm' : 'miss';
   }
@@ -1742,6 +1938,9 @@ function tally(pool) {
     const miss = rules.punishing && dice.find((x) => x.res === 'miss');
     if (miss) { miss.res = 'norm'; miss.pun = true; norms++; }
   }
+  // Gaze of the Gods (Blooded): the success retained through Accurate 1 is a critical success.
+  const gz = rules.gaze && dice.find((x) => x.auto && x.res === 'norm');
+  if (gz) { gz.res = 'crit'; gz.gaze = true; crits++; norms--; }
   // Grudge (Hearthkyn): one normal success per Grudge token is retained as a critical success.
   for (let k = 0; k < (rules.grudge || 0) && norms > 0; k++) {
     const d = dice.find((x) => x.res === 'norm'); d.res = 'crit'; d.grudge = true;
@@ -1894,6 +2093,8 @@ function grandfathersBlessing(g, target, lost) {
 
 function inflict(g, src, target, dmg) {
   if (dmg <= 0) return false;
+  // Frenzy (Fellgor Ravagers): with a Frenzy token it's only incapacitated as the rule says (frenzyDie).
+  if (target.frenzy) return false;
   target.damagedTP = true;
   if (target.medicShield) { target.wounds = Math.max(1, target.wounds - dmg); return false; }
   target.wounds -= dmg;
@@ -1908,19 +2109,53 @@ function inflict(g, src, target, dmg) {
     return false;
   }
   if (target.wounds <= 0) {
+    target.wounds = 0;
+    // Frenzy: instead of being incapacitated it gains a Frenzy token (the opponent scores it as a kill now).
+    if (TEAM_MAP[target.team].frenzy) {
+      target.frenzy = true; target.frenzyHits = 0;
+      if (target.order === 'conceal') target.order = 'engage';
+      log(g, { zh: `🔥 ${opName(target, 'zh')} 陷入狂暴！（對手算作擊殺）`, en: `🔥 ${opName(target, 'en')} goes into a Frenzy! (counts as incapacitated for the opponent)` }, 'kill');
+      countKill(g, src, target);
+      g.frenzyNow = target.uid; // the fight in progress discards its remaining dice
+      return false;
+    }
+    return killOff(g, src, target);
+  }
+  return false;
+}
+
+/** Kill op: enemy operatives incapacitated (whoever caused it), except by NPOs where the mission says so. */
+function countKill(g, src, target) {
+  if (target.side === NPO || tpl(target).expendable || (src?.side === NPO && mission(g).npoKillsIgnored)) return;
+  const scorer = 1 - target.side;
+  const before = killGrade(g, scorer);
+  g.kills[scorer]++;
+  const after = killGrade(g, scorer);
+  if (mission(g).killOp !== false && after > before) log(g, { zh: `${teamZh(g, scorer)} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, scorer).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
+  if (g.mark?.[scorer] === target.uid) markDown(g, scorer);
+}
+
+/** Whip Control (Herd-goad): an enemy visible within 3" of it, while it isn't engaged with any other enemy. */
+export function whipped(g, op) {
+  return foes(g, op).some((h) => tpl(h).whipControl && edgeDist(h, op) <= 3 && visibility(g, h, op).visible
+    && !engagedEnemies(g, h).some((e) => e !== op));
+}
+
+/** War Gong (Deathknell): a friendly within 3" of a Deathknell without a Frenzy token can take Normal instead of Critical Dmg. */
+const warGong = (g, op) => op.side < 2 && living(g, op.side).some((d) => tpl(d).warGong && !d.frenzy && edgeDist(d, op) <= 3);
+
+/** A Frenzied Fellgor finally falls (its kill was already counted when it gained the token). */
+export function frenzyDie(g, op, src = null) {
+  if (op.dead || !op.frenzy) return false;
+  return killOff(g, src, op);
+}
+
+function killOff(g, src, target) {
+  {
     target.wounds = 0; target.dead = true; target.ready = false;
     log(g, { zh: `☠ ${opName(target, 'zh')} 失去戰鬥能力！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
     dropMarkers(g, target);
-    if (target.side !== NPO && !tpl(target).expendable && !(src?.side === NPO && mission(g).npoKillsIgnored)) {
-      // Kill op counts enemy operatives incapacitated, whoever caused it (e.g. a Blast hitting a friendly),
-      // except by NPOs where the mission says so.
-      const scorer = 1 - target.side;
-      const before = killGrade(g, scorer);
-      g.kills[scorer]++;
-      const after = killGrade(g, scorer);
-      if (mission(g).killOp !== false && after > before) log(g, { zh: `${teamZh(g, scorer)} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, scorer).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
-      if (g.mark?.[scorer] === target.uid) markDown(g, scorer);
-    }
+    if (!target.frenzy) countKill(g, src, target);
     if (g.pechra?.[target.side]?.by === target.uid) g.pechra[target.side] = null;
     if (g.pan?.[target.side]?.by === target.uid) g.pan[target.side] = null; // Pan Spectral Scan marker
     if (g.auspex?.[target.side] === target.uid) g.auspex[target.side] = null; // Auspex Scan
@@ -1930,6 +2165,7 @@ function inflict(g, src, target, dmg) {
       addGrudge(g, target.side, src, { zh: '擊倒了戰友', en: 'killed one of the Kin' });
     }
     mission(g).onIncapacitated?.(g, target, src);
+    bloodedOnDeath(g, target);
     return true;
   }
   return false;
@@ -1942,7 +2178,9 @@ function inflict(g, src, target, dmg) {
  */
 function resolveDice(target, amounts, g = null) {
   // Emboldened (Navy Breacher Axejack): the same roll on a 5+, in a turning point it Charged.
-  const emboldened = !!g && tpl(target).emboldened && target.chargedTP === g.tp;
+  // Fortified stimm (Blooded) works the same way.
+  // Toxic Blessings (Toxhorn) too.
+  const emboldened = (!!g && tpl(target).emboldened && target.chargedTP === g.tp) || !!target.stimms?.fortified || !!tpl(target).toxicBlessings;
   const resilient = !!TEAM_MAP[target.team].resilient || !!tpl(target).resilient || emboldened;
   const need = emboldened && !tpl(target).resilient ? 5 : 4;
   const brace = !!g && braced(g, target); // Brace for Counterattack: Dmg of 3+ deals 1 less
@@ -1971,7 +2209,7 @@ function poisonOnHit(g, op, target, rules, dealt) {
 
 /** Stun: with any retained crit, the target gets -1 APL until the end of its next activation. */
 function stunOnCrit(g, rules, crits, target) {
-  if (!rules.stun || crits <= 0 || target.dead) return false;
+  if (!rules.stun || crits <= 0 || target.dead || tpl(target).chemEnhanced) return false; // Chem-enhanced: not affected by Stun
   changeApl(g, target, -1);
   log(g, { zh: `${opName(target, 'zh')} 昏迷：下次啟動 APL -1`, en: `${opName(target, 'en')} is stunned: -1 APL next activation` }, `side${1 - target.side}`);
   return true;
@@ -2001,9 +2239,10 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const tox = (rules.toxic && poisonedAtStart?.has(target.uid) ? 1 : 0) + (rules.closeAssault && weapon.rules.shotgun ? 1 : 0);
   // Xenotech Shielding (Archivist): Normal and Critical Dmg of 4+ deal 1 less.
   const shield = (d) => (tpl(target).xenotech && d >= 4 ? d - 1 : d);
-  const dn = shield(normalDmg(weapon, target) + tox);
+  const tough = (d) => (tpl(target).tough && d >= 3 ? d - 1 : d); // Tough (Thug): Normal Dmg of 3+ deals 1 less
+  const dn = tough(shield(normalDmg(weapon, target) + tox));
   // Hardy (Cold-blood): a critical hit can inflict Normal Dmg instead.
-  const dc = tpl(target).hardyCrit ? Math.min(shield(weapon.dmg[1] + tox), dn) : shield(weapon.dmg[1] + tox);
+  let dc = tpl(target).hardyCrit ? Math.min(shield(weapon.dmg[1] + tox), dn) : shield(weapon.dmg[1] + tox);
   const camo = !!tpl(target).camoCloak; // Camo Cloak ignores Saturate
   const rogue = hasPloy(g, target.side, 'rogue'); // Rogue: ignore Saturate, and Stealthy-style cover saves
   const saturated = rules.saturate && !camo && !rogue && !tpl(target).cultAgent; // Cult Agents ignore Saturate
@@ -2027,10 +2266,14 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // Skulk About: a Concealed target retains one more defence die as a normal success.
     const skulk = target.order === 'conceal' && hasPloy(g, target.side, 'skulkAbout') ? 1 : 0;
     coverN += skulk;
+    if (base && tpl(target).camo1) coverN++; // Camo Cloak (Blooded Sharpshooter): one more cover save
+    // Reckless Determination (Fellgor ploy): an expended friendly without cover saves retains one die as a normal success.
+    if (!base && !target.ready && TEAM_MAP[target.team].frenzy && hasPloy(g, target.side, 'recklessDetermination')) coverN++;
     coverC = Math.min(coverC, defDice);
     coverN = Math.min(coverN, defDice - coverC);
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
-    const save = Math.max(2, tpl(target).save - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0));
+    // Gong Knell (Deathknell): +1 Save when shot until its next activation.
+    const save = Math.max(2, tpl(target).save - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0));
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
   // Obscured and in cover: the defender uses only one of them — whichever leaves less expected damage.
@@ -2057,9 +2300,11 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // Void Armour: against Blast / Torrent (not a sweeping profile), re-roll one defence die (two for the Grenadier).
   const voidArmour = TEAM_MAP[target.team].voidArmour && (weapon.rules.blast || weapon.rules.torrent) && !/sweeping/i.test(weapon.name.en);
   // Protected by Fate (Sorcerer of Destiny): re-roll any defence dice.
-  const defRules = { relentless: !!tpl(target).emperorProtects || psyOn(g, 'fate', target.side, target),
+  // Shielding (Trench Sweeper): re-roll any defence dice. Malevolent Grit (Blooded): re-roll one.
+  const grit = TEAM_MAP[target.team].bloodedTokens && hasPloy(g, target.side, 'malevolentGrit') && (target.bloodToken || whollyIn(g, target, 1 - target.side));
+  const defRules = { relentless: !!tpl(target).emperorProtects || psyOn(g, 'fate', target.side, target) || !!target.shieldingOn,
     digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence'),
-    balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target),
+    balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit,
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
   if (voxbroken(g, target)) { defRules.relentless = false; defRules.digIn = false; defRules.balanced = false; defRules.rerollFails = 0; } // Voxbreak
   // Wrought Defence (Hearthkyn): with one or no successes, one fail is retained as a normal success.
@@ -2071,14 +2316,21 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const d = rollPool(defDice - coverN - coverC, save, hasTactic(g, target, 'hardy') ? 5 : 6, defRules, post);
   seq.d = d; seq.save = save; seq.defDice = defDice; seq.coverN = coverN; seq.coverC = coverC;
   yield { stage: 'defence', seq };
-  const block = bestBlock(a.crits, a.norms, d.crits + coverC, d.norms + coverN, dn, dc);
+  // War Gong: crits that get through inflict Normal Dmg instead (when that's better, or to keep a Frenzied Fellgor up).
+  const wasFrenzy = !!target.frenzy;
+  const gong = warGong(g, target) && (dn < dc || wasFrenzy);
+  const block = bestBlock(a.crits, a.norms, d.crits + coverC, d.norms + coverN, dn, gong ? dn : dc);
+  if (gong) dc = dn;
   const dev = (rules.devastating || 0) * a.crits;
   // Weavefield Crest (Theyn): once per battle, ignore the Normal Dmg of one attack die.
   const crest = block.remN > 0 && dn > 0 && useCrest(g, target);
   const res = resolveDice(target, [...Array(a.crits).fill(rules.devastating || 0), ...Array(block.remC).fill(dc), ...Array(block.remN - (crest ? 1 : 0)).fill(dn)].filter((x) => x > 0), g);
   const dmg = res.dmg;
   const before = target.wounds;
-  const killed = applyDamage(g, op, target, dmg);
+  let killed = applyDamage(g, op, target, dmg);
+  // Frenzy: shooting fells a Frenzied Fellgor with Critical Dmg, or Normal Dmg from two or more dice.
+  if (wasFrenzy && ((block.remC > 0 && dc > 0 && !gong) || block.remN + (gong ? block.remC : 0) >= 2)) killed = frenzyDie(g, target, op);
+  g.frenzyNow = null;
   const poisoned = poisonOnHit(g, op, target, rules, block.remC + block.remN > 0 ? dmg : 0);
   const stunned = stunOnCrit(g, rules, a.crits, target);
   // Mindburn (Sorcerer of Warpfire): damage from a critical success gives the target the token (moved from any previous target).
@@ -2238,8 +2490,22 @@ export function startFight(g, op, weapon, target) {
   const dHit = clampHit(dWeapon.hit + (hitWorse(g, target) ? 1 : 0) - (dAssist ? 1 : 0));
   // Cut-throats: +1 Atk to a maximum of 5.
   const atk = (w, r) => (r.atkPlus ? Math.max(w.atk, Math.min(5, w.atk + r.atkPlus)) : w.atk);
-  const aRoll = rollPool(atk(weapon, ar), aHit, ar.lethal || 6, ar, bless(op));
-  const dRoll = rollPool(atk(dWeapon, dr), dHit, dr.lethal || 6, dr, bless(target));
+  // Whip Control (Herd-goad): -1 Atk on the melee weapons of a whipped enemy (to a minimum of 1).
+  const whip = (o, n) => (n > 0 && whipped(g, o) ? Math.max(1, n - 1) : n);
+  // Ambush (Fellgor ploy): when it fights after springing from Conceal, a normal becomes a crit (or a fail a normal).
+  const ambush = TEAM_MAP[op.team].frenzy && hasPloy(g, op.side, 'ambushFG') && !op.frenzy && op.prevOrder === 'conceal' && op.order === 'engage';
+  const ambushPost = (pool) => {
+    const n = pool.dice.find((x) => x.res === 'norm'), m = pool.dice.find((x) => x.res === 'miss');
+    if (n) { n.res = 'crit'; n.rend = true; pool.norms--; pool.crits++; } else if (m) { m.res = 'norm'; m.indo = true; pool.norms++; }
+  };
+  const aPost = ambush ? (bless(op) ? (p) => { bless(op)(p); ambushPost(p); } : ambushPost) : bless(op);
+  let aRoll = rollPool(whip(op, atk(weapon, ar)), aHit, ar.lethal || 6, ar, aPost);
+  let dRoll = rollPool(whip(target, atk(dWeapon, dr)), dHit, dr.lethal || 6, dr, bless(target));
+  // Violent Temperament (Fellgor ploy): re-roll all the attack dice when fewer than two succeeded.
+  const violent = (o, roll, w, r, hit, post) => (TEAM_MAP[o.team].frenzy && hasPloy(g, o.side, 'violentTemperament') && roll.crits + roll.norms < 2 && roll.dice.length >= 2
+    ? (() => { const re = rollPool(whip(o, atk(w, r)), hit, r.lethal || 6, r, post); for (const d of re.dice) if (!d.auto) d.rr = true; return re; })() : roll);
+  aRoll = violent(op, aRoll, weapon, ar, aHit, aPost);
+  dRoll = violent(target, dRoll, dWeapon, dr, dHit, bless(target));
   spend(g, op, 'fight');
   if (free) op.acted.free.fight = null;
   // dueller: (Chapter Tactic) a normal success can block a critical success.
@@ -2248,7 +2514,7 @@ export function startFight(g, op, weapon, target) {
   // a: the dice pool (re-rolled with Command Re-roll before any dice are resolved).
   const side = (o, foe, w, r, roll, hit) => ({
     uid: o.uid, w: w.id, c: roll.crits, n: roll.norms, brutal: !!r.brutal, dueller: hasTactic(g, o, 'dueller'), hit, dice: roll.dice, before: o.wounds,
-    tox: r.toxic && foe.poison ? 1 : 0, poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute'), hardy: !!tpl(o).hardyCrit,
+    tox: r.toxic && foe.poison ? 1 : 0, poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute') && !tpl(foe).chemEnhanced && !tpl(foe).toxicBlessings, hardy: !!tpl(o).hardyCrit,
     a: roll, rerolled: {}, noReroll: { a: noRerollHere(g, o) },
   });
   g.fight = { A: side(op, target, weapon, ar, aRoll, aHit), D: side(target, op, dWeapon, dr, dRoll, dHit), turn: 'A', steps: [], done: false };
@@ -2319,7 +2585,9 @@ export function fightOptions(g) {
   const w = fightWeapon(g, k), foeOp = fightOp(g, other(k));
   const opts = [];
   const normal = normalDmg(w, foeOp) + (me.tox || 0);
-  if (me.c) opts.push({ id: 'strike-c', act: 'strike', die: 'c', dmg: foe.hardy ? Math.min(w.dmg[1] + (me.tox || 0), normal) : w.dmg[1] + (me.tox || 0) });
+  // Headtaker: the skullcleaver's Critical Dmg grows with each kill.
+  const critD = w.dmg[1] + (me.tox || 0) + (w.rules.headtaker ? fightOp(g, k).headBonus || 0 : 0);
+  if (me.c) opts.push({ id: 'strike-c', act: 'strike', die: 'c', dmg: foe.hardy ? Math.min(critD, normal) : critD });
   if (me.n) opts.push({ id: 'strike-n', act: 'strike', die: 'n', dmg: normal });
   // Parry: a crit cancels any success, a normal cancels a normal (not vs Brutal).
   if (me.c && foe.c) opts.push({ id: 'parry-c-c', act: 'parry', die: 'c', target: 'c' });
@@ -2347,7 +2615,13 @@ export function fightApply(g, optId) {
     if (shrug) foeOp.bruiserTP = g.tp;
     if (!shrug && opt.die === 'n' && useCrest(g, foeOp)) shrug = true; // Weavefield Crest (Theyn)
     // Brawler (Dôzr): Normal Dmg of 4 or more inflicts 1 less when it's fighting or retaliating.
-    const amount = opt.die === 'n' && tpl(foeOp).brawler && opt.dmg >= 4 ? opt.dmg - 1 : opt.dmg;
+    // Tough (Blooded Thug): Normal Dmg of 3 or more inflicts 1 less.
+    // War Gong: a critical strike inflicts Normal Dmg instead (when lower, or to keep a Frenzied Fellgor up).
+    const wasFrenzy = !!foeOp.frenzy;
+    const normalHit = normalDmg(fightWeapon(g, k), foeOp) + (me.tox || 0);
+    const gong = opt.die === 'c' && warGong(g, foeOp) && (normalHit < opt.dmg || wasFrenzy);
+    const dmg0 = gong ? normalHit : opt.dmg, asNormal = opt.die === 'n' || gong;
+    const amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || (tpl(foeOp).tough && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
     const res = shrug ? { dmg: 0, rolls: [] } : resolveDice(foeOp, [amount], g); // Disgustingly Resilient
     // Shock: the first crit strike in the sequence also discards an unresolved enemy normal (else a crit).
     let shocked = null;
@@ -2355,15 +2629,36 @@ export function fightApply(g, optId) {
       me.shock = false;
       if (foe.n) { foe.n--; shocked = 'n'; } else if (foe.c) { foe.c--; shocked = 'c'; }
     }
-    const killed = applyDamage(g, meOp, foeOp, res.dmg);
+    let killed = applyDamage(g, meOp, foeOp, res.dmg);
+    // Frenzy: a Frenzied Fellgor falls to a critical strike, or to a second normal one.
+    if (wasFrenzy && !shrug) {
+      if (!asNormal) killed = frenzyDie(g, foeOp, meOp);
+      else if (++foeOp.frenzyHits >= 2) killed = frenzyDie(g, foeOp, meOp);
+    }
+    // Gaining a Frenzy token discards all remaining attack dice of the fight.
+    if (g.frenzyNow === foeOp.uid) { f.A.c = f.A.n = f.D.c = f.D.n = 0; g.frenzyNow = null; }
     poisonOnHit(g, meOp, foeOp, { poison: me.poison }, res.dmg);
+    // Headtaker (Gorehorn): a kill heals D3 (no Frenzy token) and adds D3 to the skullcleaver's Critical Dmg (max 8).
+    if (killed && fightWeapon(g, k).rules.headtaker) {
+      const r = d3();
+      if (!meOp.frenzy && !meOp.dead) meOp.wounds = Math.min(meOp.maxW, meOp.wounds + r);
+      meOp.headBonus = Math.min(8 - fightWeapon(g, k).dmg[1], (meOp.headBonus || 0) + r);
+    }
+    if (killed) meOp.meleeKill = true; // Apoplectic Rejuvenation heals 6 for it
     // Stealth Attack: the first strike is followed straight away by another (before the opponent).
-    const again = !!me.extraStrike && left(me) > 0;
+    // Tactual Hunter (Mangler): against an expended enemy, the first critical strike is followed by another.
+    const tactual = opt.die === 'c' && fightWeapon(g, k).rules.tactualHunter && !foeOp.ready && !me.tactualUsed && !killed;
+    if (tactual) me.tactualUsed = true;
+    const again = (!!me.extraStrike || tactual) && left(me) > 0;
     me.extraStrike = false;
     f.steps.push({ side: k, act: 'strike', crit: opt.die === 'c', dmg: res.dmg, killed, resil: res.rolls[0], shocked, again, shrug });
     f.turn = again ? k : other(k);
     // Bruiser: incapacitated in the fight, it strikes back once with an unresolved success before it's removed.
-    if (killed && (tpl(foeOp).bruiser || tpl(foeOp).brawler) && left(foe) > 0 && !meOp.dead) {
+    // Blood Offering (Butcher): the first critical strike in the sequence gains a Blooded token.
+    if (opt.die === 'c' && fightWeapon(g, k).rules.bloodOffering && !me.offered) { me.offered = true; gainBlood(g, meOp.side, { zh: '血之獻祭', en: 'Blood Offering' }); }
+    // Unholy Sustenance (Butcher): incapacitating the enemy in a fight regains D3 wounds.
+    if (killed && tpl(meOp).unholySustenance && !meOp.dead) { const h = d3(); meOp.wounds = Math.min(meOp.maxW, meOp.wounds + h); }
+    if (killed && (tpl(foeOp).bruiser || tpl(foeOp).brawler || tpl(foeOp).wretched) && left(foe) > 0 && !meOp.dead) {
       const w = fightWeapon(g, other(k)), crit = foe.c > 0;
       foe[crit ? 'c' : 'n']--;
       const dmg = crit ? w.dmg[1] + (foe.tox || 0) : normalDmg(w, meOp) + (foe.tox || 0);

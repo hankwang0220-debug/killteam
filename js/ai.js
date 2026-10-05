@@ -2,7 +2,7 @@ import {
   activate, activeOp, availableActions, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
-  readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble,
+  readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
 } from './game.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
@@ -24,6 +24,13 @@ export function aiStrategy(g, side) {
   if (living(g, side).some((o) => tpl(o).tactician) && g.tactician?.[side]?.tp !== g.tp) {
     const t = living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0];
     if (t) placeTactician(g, side, 'attack', t);
+  }
+  // Blooded: tokens to the hardest hitters first, then the Gaze on the best of them.
+  if (team(g, side).bloodedTokens) {
+    const value = (o) => Math.max(...tpl(o).weapons.map((w) => avgDmg(w))) + (tpl(o).leadWithStrength ? 2 : 0);
+    for (const o of living(g, side).filter((x) => !x.bloodToken).sort((a, b) => value(b) - value(a))) if (!assignBlood(g, side, o)) break;
+    const holders = living(g, side).filter((o) => o.bloodToken).sort((a, b) => value(b) - value(a));
+    if (holders.length >= 4) setGaze(g, side, holders[0]);
   }
   // Omni-scrambler: hold back the toughest enemy it can.
   const sc = scrambleTargets(g, side).sort((a, b) => b.wounds - a.wounds)[0];
@@ -224,6 +231,27 @@ export function aiStep(g) {
     const ts = TARGET_ACTIONS.miasma.targets(g, op);
     const t = ts.filter((e) => e.poison).sort((a, b) => a.wounds - b.wounds)[0] || ts.sort((a, b) => b.wounds - a.wounds)[0];
     if (t) { doTargetAction(g, op, 'miasma', t); return null; }
+  }
+  // Fellgor: Sweeping Blow into enemies (not friends), Gong Knell when it can be shot, healing and Incite Fury.
+  if (can.sweepingBlow) {
+    const near = g.ops.filter((o) => !o.dead && o !== op && edgeDist(o, op) <= 2 && visibility(g, op, o).visible);
+    if (near.some((o) => o.side !== op.side) && !near.some((o) => o.side === op.side)) { doSelfAction(g, op, 'sweepingBlow'); return null; }
+  }
+  if (can.gongKnell && op.ap >= 2 && foes(g, op).some((e) => visibility(g, e, op).visible)) { doSelfAction(g, op, 'gongKnell'); return null; }
+  if (can.rejuvenation) {
+    const t = TARGET_ACTIONS.rejuvenation.targets(g, op).filter((o) => o.maxW - o.wounds >= 4).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'rejuvenation', t); return null; }
+  }
+  if (can.inciteFury && op.ap >= 2) {
+    const t = TARGET_ACTIONS.inciteFury.targets(g, op).find((o) => o.ready);
+    if (t) { doTargetAction(g, op, 'inciteFury', t); return null; }
+  }
+  // Blooded: Shielding when enemies can see it, Sacrilegious Actuation, Stimms on a hurt friend.
+  if (can.shieldingUp && foes(g, op).some((e) => visibility(g, e, op).visible)) { doSelfAction(g, op, 'shieldingUp'); return null; }
+  if (can.actuation) { doSelfAction(g, op, 'actuation'); return null; }
+  if (can.stimm) {
+    const t = TARGET_ACTIONS.stimm.targets(g, op).sort((a, b) => a.wounds / a.maxW - b.wounds / b.maxW)[0];
+    if (t) { doTargetAction(g, op, 'stimm', t); return null; }
   }
   // Warpcoven: Alight the enemy it's about to shoot, Ravage Destiny the toughest enemy in reach.
   if (can.alight && op.ap >= 2 && shootOptions(g, op).length) {

@@ -10,7 +10,7 @@ import {
   shootFlow, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, foes,
-  readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble,
+  readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
 import { renderBoard } from './board.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -683,6 +683,22 @@ function gambitView(side) {
         ${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${cur === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}
       </select></div>`;
   }
+  // Blooded: assign tokens, Gaze of the Gods, Glory Kill target.
+  if (team(g, side).bloodedTokens) {
+    const pool = g.bloodPool?.[side] || 0;
+    const holders = living(g, side).filter((o) => o.bloodToken);
+    const gz = g.gaze?.[side]?.tp === g.tp ? getOp(g, g.gaze[side].uid) : null;
+    html += `<div class="gambit"><h4>${L(`血祭標記：未分配 ${pool} 個（持有 ${holders.length} 名）`, `Blooded tokens: ${pool} unassigned (${holders.length} holders)`)}</h4>
+      <p class="hint small">${L('點友方把標記給它（每名最多 1 個）：武器「精準 1」。4 名以上持有時，可選一名受「諸神注視」（精準保留的成功當暴擊）。', 'Tap a friendly to give it a token (one each): Accurate 1. With four or more holders, pick one under the Gaze of the Gods (the Accurate success is a critical).')}</p>
+      <div class="readylist">${living(g, side).filter((o) => !o.bloodToken).map((o) => `<button data-act="bloodtoken" data-side="${side}" data-uid="${o.uid}" ${pool ? '' : 'disabled'}>${nm(o)}</button>`).join('')}</div>
+      ${holders.length >= 4 ? (gz ? `<p>${L('諸神注視', 'Gaze of the Gods')}：<b>${nm(gz)}</b></p>` : `<select data-act="gaze" data-side="${side}"><option value="">${L('（選擇受諸神注視者）', '(choose the Gaze of the Gods)')}</option>${holders.map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select>`) : ''}
+    </div>`;
+    if (g.ploys[side].includes('gloryKill')) {
+      const gk = g.gloryKill?.[side];
+      html += `<div class="gambit"><h4>${L('榮耀擊殺目標', 'Glory Kill target')}</h4>
+        <select data-act="glorykill" data-side="${side}">${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${gk?.uid === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}</select></div>`;
+    }
+  }
   // Phobos: Omni-scrambler.
   if (team(g, side).omniScrambler && living(g, side).some((o) => tpl(o).infiltrator)) {
     const cur = g.scramble?.[side]?.tp === g.tp ? getOp(g, g.scramble[side].uid) : null;
@@ -1013,6 +1029,12 @@ function datacard(op, extra = '') {
   if (op.poison) flags.push(`<span class="flag poison">${L('中毒', 'Poisoned')}</span>`);
   if (g.mark?.[1 - op.side] === op.uid) flags.push(`<span class="flag mk">${L('獵殺標記', 'Marked (Call the Kill)')}</span>`);
   if (op.shriek) flags.push(`<span class="flag">${L('勝利尖嘯：平衡', 'Victory Shriek: Balanced')}</span>`);
+  if (op.frenzy) flags.push(`<span class="flag inj">🔥 ${L(`狂暴（被近戰普通命中 ${op.frenzyHits || 0}/2）`, `Frenzy (normal strikes taken ${op.frenzyHits || 0}/2)`)}</span>`);
+  if (op.gongOn) flags.push(`<span class="flag">${L('鳴鑼：豁免 +1', 'Gong Knell: +1 Save')}</span>`);
+  if (op.bloodToken) flags.push(`<span class="flag mk">${L('血祭標記', 'Blooded token')}</span>`);
+  if (g.gaze?.[op.side]?.tp === g.tp && g.gaze[op.side].uid === op.uid) flags.push(`<span class="flag mk">${L('諸神注視', 'Gaze of the Gods')}</span>`);
+  for (const [k, zh, en] of [['fortified', '強化', 'Fortified'], ['enraged', '狂怒', 'Enraged']]) if (op.stimms?.[k]) flags.push(`<span class="flag">${L(`興奮劑：${zh}`, `Stimm: ${en}`)}</span>`);
+  if (op.shieldingOn) flags.push(`<span class="flag">${L('舉盾中', 'Shielding')}</span>`);
   for (const n of Object.values(op.grudge || {})) if (n) flags.push(`<span class="flag mk">${L(`宿怨 ×${n}`, `Grudge ×${n}`)}</span>`);
   if (g.scramble?.[1 - op.side]?.tp === g.tp && g.scramble[1 - op.side].uid === op.uid) flags.push(`<span class="flag inj">${L('全頻擾亂：延後啟動', 'Omni-scrambled')}</span>`);
   if (op.jam) flags.push(`<span class="flag inj">${L('系統干擾：最後才能啟動', 'System Jam: activates last')}</span>`);
@@ -1060,6 +1082,28 @@ const ABILITIES = {
   blessing: () => ['祖父的祝福', "Grandfather's Blessing", '7" 內中毒的敵人失去生命時，回復同等生命（每回合最多 3）。', 'When a poisoned enemy within 7" loses wounds, regains as many (max 3 per TP).'],
   flail: () => ['連枷', 'Flail', '1AP（視為近戰，非隱蔽）：2" 內可見的其他特工（包括己方）各受 D3+2 傷害；敵人 D3 擲出 3 時中毒。', '1AP (counts as Fight, not Concealed): every other operative visible within 2" (friends too) takes D3+2; an enemy rolling a 3 on the D3 is poisoned.'],
   iconBearer: () => ['掌旗手', 'Icon Bearer', '控制目標時 APL 視為 +1。（瘟疫戰士的掌旗手：在敵方領域時「傳染」0CP）', 'Counts as +1 APL for objective control. (Plague Marine Icon Bearer: Contagion costs 0CP while it is in enemy territory.)'],
+  ironhorn: () => ['鐵角首領', 'Ironhorn', '隊伍首領。（號令進攻未實作）', 'The leader. (Call the Attack isn\'t modelled.)'],
+  warGong: () => ['戰鑼', 'War Gong', '自己沒有狂暴標記時，3" 內的友方受到暴擊傷害可改為普通傷害（對狂暴中的友方，這也不算暴擊傷害）。', 'While it has no Frenzy token, friendlies within 3" can take Normal instead of Critical Dmg (which also doesn\'t count as Critical Dmg for a Frenzied friendly).'],
+  gongKnell: () => ['鳴鑼', 'Gong Knell', '1AP：直到下次啟動，被射擊時豁免值改善 1。', '1AP: until its next activation, +1 Save when shot.'],
+  whipControl: () => ['鞭子控制', 'Whip Control', '3" 內可見的敵人（它沒有跟其他敵人交戰時）：近戰武器 Atk -1，撤退多花 1AP。', 'An enemy visible within 3" (while it isn\'t engaged with another enemy): -1 Atk on melee weapons, +1AP to Fall Back.'],
+  inciteFury: () => ['煽動怒火', 'Incite Fury', '1AP：3" 內可見的另一名友方（薩滿與首領除外）下次啟動 APL +1。', '1AP: another friendly visible within 3" (not the Shaman or Ironhorn) gets +1 APL next activation.'],
+  fgShaman: () => ['獸人薩滿', 'Shaman', '暴怒回春（1AP）：6" 內可見、沒有狂暴標記的友方回復 2D3（近戰擊殺過則 6）。黑暗披風（1AP，靈能）：直到下次啟動，它 3" 內可見、隱蔽且在掩體中的友方無法被選為目標。', 'Apoplectic Rejuvenation (1AP): a friendly visible within 6" without a Frenzy token regains 2D3 (6 if it has a melee kill). Mantle of Darkness (1AP, Psychic): until its next activation, Concealed friendlies in cover visible within 3" of it can\'t be targeted.'],
+  toxicBlessings: () => ['劇毒祝福', 'Toxic Blessings', '無視 APL 變化，不受震撼影響；受到 3 以上傷害時擲 D6，5+ 減 1。（瘟疫炸彈未實作）', 'Ignores APL changes and Shock; whenever it takes 3+ damage, roll a D6: on a 5+, 1 less. (Pox Bomb isn\'t modelled.)'],
+  sweepingBlow: () => ['橫掃重擊', 'Sweeping Blow', '1AP（非隱蔽，有狂暴標記也能用）：2" 內可見的每名其他特工（包括友方）受 D3+1 傷害。', '1AP (not Concealed; usable with a Frenzy token): D3+1 to every other operative visible within 2" (friends too).'],
+  leadWithStrength: () => ['以力服眾', 'Lead With Strength', '持有血祭標記、或完全在敵方領域內時，視為受到諸神注視。（血祭聖像未實作）', 'With a Blooded token, or wholly within enemy territory, it counts as under the Gaze of the Gods. (Blooded Icon isn\'t modelled.)'],
+  explosiveDemise: () => ['爆炸死亡', 'Explosive Demise', '倒下時擲 2D6（在敵人控制範圍內 1D6），有 4+ 就對 2" 內可見的每名特工造成 D3+2 傷害（還沒丟炸彈則 D6+2）。', 'When incapacitated, roll 2D6 (1D6 if engaged): any 4+ deals D3+2 (D6+2 if the bomb is unused) to each visible operative within 2".'],
+  unholySustenance: () => ['邪惡滋養', 'Unholy Sustenance', '近戰或反擊時擊倒對手，回復 D3 生命。', 'Incapacitating the enemy when fighting or retaliating regains D3 wounds.'],
+  actuation: () => ['褻瀆啟動', 'Sacrilegious Actuation', '1AP（自己持有血祭標記時）：獲得一個血祭標記。', '1AP (while it has a Blooded token): gain a Blooded token.'],
+  stimms: () => ['興奮劑', 'Stimms', '1AP：控制範圍內的友方，受傷時注射「回春」（回復 2D3），否則給「強化」或「狂怒」（整場）。開局給歐格林「強化」。', '1AP: a friendly in control range gets Rejuvenated (2D3 wounds) if hurt, otherwise Fortified or Enraged for the battle. The Ogryn starts Fortified.'],
+  wretched: () => ['卑劣者', 'Wretched', '在近戰中倒下時，可先用一顆未結算的成功骰打擊對方。（隱蔽衝鋒依基本規則停用）', 'If incapacitated in a fight, strikes with an unresolved success first. (Charging while Concealed is disabled by the basic rules.)'],
+  camo1: () => ['迷彩斗篷', 'Camo Cloak', '被射擊時若能保留掩護豁免，多保留 1 顆。（以血之名未實作）', 'When shot with cover saves, retains one more. (A Name Whispered in Blood isn\'t modelled.)'],
+  tough: () => ['堅韌', 'Tough', '近戰、反擊或被射擊時，3 以上的普通傷害 -1。', 'When fighting, retaliating or shot, Normal Dmg of 3+ deals 1 less.'],
+  shielding: () => ['舉盾', 'Shielding', '0AP（啟動時）：直到下次啟動 Move -2"，被射擊時可重擲任意防禦骰。', '0AP (when activated): until its next activation, -2" Move and re-roll any defence dice when shot.'],
+  disciplinarian: () => ['嚴酷的紀律官', 'Gruelling Disciplinarian', '6" 內的友方無視受傷造成的數值變化。（強制命令未實作）', 'Friendlies within 6" ignore stat changes from being injured. (Enforce isn\'t modelled.)'],
+  chemEnhanced: () => ['化學強化', 'Chem-enhanced', '無視 APL 變化，不受震撼與昏迷影響。', 'Ignores APL changes and isn\'t affected by Shock or Stun.'],
+  brute: () => ['蠻牛', 'Brute', '隱蔽時，敵人選目標不能用輕型地形擋它（仍保留掩護豁免）。', 'While Concealed, enemies can\'t use Light terrain as cover for it when picking targets (it keeps the cover save).'],
+  slowWitted: () => ['遲鈍', 'Slow-witted', '撿標記與任務動作多花 1AP。', '+1AP for Pick Up and mission actions.'],
+  avalanche: () => ['肌肉雪崩', 'Avalanche of Muscle', '衝鋒結束時，對控制範圍內一名敵人造成 D3 傷害。', 'After a Charge, D3 damage to one enemy in its control range.'],
   cultAgent: () => ['教派特工', 'Cult Agent', '被射擊時無視「穿甲」與「飽和」；能保留掩護豁免時多保留 1 顆，或把 1 顆當暴擊。', 'When shot, ignores Piercing and Saturate; with cover saves, retains one more or one as a critical.'],
   twoShoots: () => ['神槍手', 'Expert Gunslinger', '每次啟動可執行兩次射擊。', 'Can perform two Shoot actions per activation.'],
   heroic: () => ['英雄的鼓舞', 'Heroic Inspiration', '本回合擊倒過敵人後，3" 內可見的友方新信徒武器「嚴厲」。', 'Once it has incapacitated an enemy this TP, friendly Neophytes visible within 3" of it have Severe.'],
@@ -1225,7 +1269,7 @@ function fightView(readonly = false) {
     ${action}`;
 }
 
-const DIE_NOTES = { grudge: ['宿怨：當成暴擊', 'Grudge: retained as a crit'], obsc: ['遮擋：暴擊變普通', 'Obscured: crit became normal'], obscDrop: ['遮擋：扣除', 'Obscured: discarded'], rr: ['重擲', 'Re-rolled'], rend: ['撕裂', 'Rending'], sev: ['嚴厲', 'Severe'], indo: ['帝國征程', 'Indomitus'], auto: ['精準', 'Accurate'], pun: ['懲罰', 'Punishing'] };
+const DIE_NOTES = { gaze: ['諸神注視：當成暴擊', 'Gaze of the Gods: retained as a crit'], grudge: ['宿怨：當成暴擊', 'Grudge: retained as a crit'], obsc: ['遮擋：暴擊變普通', 'Obscured: crit became normal'], obscDrop: ['遮擋：扣除', 'Obscured: discarded'], rr: ['重擲', 'Re-rolled'], rend: ['撕裂', 'Rending'], sev: ['嚴厲', 'Severe'], indo: ['帝國征程', 'Indomitus'], auto: ['精準', 'Accurate'], pun: ['懲罰', 'Punishing'] };
 const die = (d, i = 0) => {
   const marks = Object.keys(DIE_NOTES).filter((k) => d[k]);
   const cls = marks.map((k) => (k === 'rr' ? 'rr' : k === 'obscDrop' ? 'dropped' : 'rend')).join(' ');
@@ -1480,6 +1524,13 @@ app.addEventListener('change', (e) => {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && g.ai !== side) { setMark(g, side, e.target.value ? getOp(g, e.target.value) : null); afterChange(); }
   }
+  if ((e.target.dataset.act === 'gaze' || e.target.dataset.act === 'glorykill') && g?.phase === 'strategy' && e.target.value) {
+    const side = +e.target.dataset.side;
+    if (side === ployChooser(g) && !isAI(side)) {
+      if (e.target.dataset.act === 'gaze') setGaze(g, side, getOp(g, e.target.value)); else setGloryKill(g, side, getOp(g, e.target.value));
+      afterChange();
+    }
+  }
   if (e.target.dataset.act === 'scramble' && g?.phase === 'strategy' && e.target.value) {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && !isAI(side)) { omniScramble(g, side, getOp(g, e.target.value)); afterChange(); }
@@ -1565,6 +1616,9 @@ function handle(act, d) {
     case 'order': undoable(() => setOrder(g, op, d.order)); return afterChange();
     case 'undo': return undo();
     case 'dismissend': ui.endDismissed = true; return render();
+    case 'bloodtoken':
+      if (g.phase === 'strategy' && +d.side === ployChooser(g) && !isAI(+d.side)) assignBlood(g, +d.side, getOp(g, d.uid));
+      return afterChange();
     case 'grudge':
       if (g.phase === 'strategy' && +d.side === ployChooser(g) && !isAI(+d.side)) eyeOfAncestors(g, +d.side, getOp(g, d.uid));
       return afterChange();
@@ -1606,7 +1660,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (['energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (['energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (mission(g).actions?.includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
       ui.path = null;

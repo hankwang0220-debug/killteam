@@ -287,6 +287,49 @@ const seismicShort = W('seismicShort', '地震砲（短波）', 'Seismic cannon 
 const autogunGSC = W('autogunGSC', '自動步槍', 'Autogun', 'ranged', 4, 4, 2, 3);
 const shotgunGSC = W('shotgunGSC', '霰彈槍', 'Shotgun', 'ranged', 4, 3, 3, 3, { range: 6 });
 
+// ---- Blooded ----
+const laspistolBL = W('laspistolBL', '雷射手槍', 'Laspistol', 'ranged', 4, 3, 2, 3, { range: 8 });
+const chainswordBL = W('chainswordBL', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5);
+const lasgunBL = W('lasgunBL', '雷射槍', 'Lasgun', 'ranged', 4, 4, 2, 3);
+const bayonetBL = W('bayonetBL', '刺刀', 'Bayonet', 'melee', 3, 4, 2, 3);
+const diabolykBomb = W('diabolykBomb', '魔鬼炸彈', 'Diabolyk bomb', 'ranged', 4, 3, 4, 3, { range: 6, blast: 2, devastating: 2, limited: 1, heavy: 'reposition', piercing: 1, saturate: true });
+// Grenadier: universal frag/krak grenades with Hit improved by 1 (3+), not limited for this operative.
+const fragBL = W('fragBL', '破片手雷', 'Frag grenade', 'ranged', 4, 3, 2, 4, { range: 6, blast: 2, saturate: true });
+const krakBL = W('krakBL', '穿甲手雷', 'Krak grenade', 'ranged', 4, 3, 4, 5, { range: 6, piercing: 1, saturate: true });
+// Blood Offering: the first critical strike in a fight gains a Blooded token.
+const cleaver = W('cleaver', '動力武器與切肉刀', 'Power weapon & cleaver', 'melee', 4, 3, 4, 6, { ceaseless: true, lethal: 5, bloodOffering: true });
+const stimmNeedle = W('stimmNeedle', '興奮劑針', 'Stimm needle', 'melee', 3, 5, 1, 4, { lethal: 5 });
+const boltPistolBL = W('boltPistolBL', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const powerFistBL = W('powerFistBL', '動力拳', 'Power fist', 'melee', 4, 4, 5, 7, { brutal: true });
+// Stalk: Lethal 5+ with Light or Heavy terrain within its control range.
+const skinningBlades = W('skinningBlades', '剝皮刀', 'Skinning blades', 'melee', 4, 3, 3, 4, { ceaseless: true, stalk: true });
+const flamerBL = W('flamerBL', '火焰噴射器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const maulClaw = W('maulClaw', '動力錘與變異爪', 'Power maul & mutant claw', 'melee', 4, 3, 5, 6, { rending: true, shock: true });
+const longLasMobileBL = W('longLasMobileBL', '長管雷射槍（機動）', 'Long-las (mobile)', 'ranged', 4, 3, 3, 4, {}, 'longLasBL');
+const longLasStatBL = W('longLasStatBL', '長管雷射槍（定點）', 'Long-las (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 1, heavy: 'dash', silent: true }, 'longLasBL');
+const heavyClub = W('heavyClub', '重棍', 'Heavy club', 'melee', 4, 3, 4, 4, { brutal: true });
+const shotgunBL = W('shotgunBL', '霰彈槍', 'Shotgun', 'ranged', 4, 3, 3, 3, { range: 6 });
+const bayonetShield = W('bayonetShield', '刺刀與盾牌', 'Bayonet & shield', 'melee', 3, 3, 2, 3, { shield: true });
+
+// ---- Fellgor Ravagers ----
+const corruptedPistol = W('corruptedPistol', '腐化手槍', 'Corrupted pistol', 'ranged', 4, 4, 3, 5, { range: 8, rending: true });
+const corruptedChainsword = W('corruptedChainsword', '腐化鏈鋸劍', 'Corrupted chainsword', 'melee', 4, 3, 4, 5, { rending: true });
+const autopistolFG = W('autopistolFG', '自動手槍', 'Autopistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const bludgeon = W('bludgeon', '重錘', 'Bludgeon', 'melee', 4, 3, 4, 4, { brutal: true });
+const bionicFist = W('bionicFist', '仿生拳', 'Bionic fist', 'melee', 4, 3, 4, 5, { brutal: true });
+const tripleCleavers = W('tripleCleavers', '三把劈刀', 'Triple cleavers', 'melee', 4, 3, 4, 5, { ceaseless: true });
+const whipRanged = W('whipRanged', '裂刺鞭（遠程）', 'Crackthorn whip (ranged)', 'ranged', 4, 2, 2, 3, { range: 3, lethal: 4, stun: true }, 'whip');
+const whipMelee = W('whipMelee', '裂刺鞭（近戰）', 'Crackthorn whip (melee)', 'melee', 4, 3, 2, 3, { lethal: 4, shock: true }, 'whipM');
+const techCurse = W('techCurse', '科技詛咒', 'Tech-curse', 'ranged', 4, 3, 1, 3, { psychic: true, rending: true, saturate: true, seekLight: true });
+const braystave = W('braystave', '獸人法杖', 'Braystave', 'melee', 4, 3, 3, 5, { shock: true });
+// Headtaker: incapacitating with it heals D3 (no Frenzy token) and adds D3 to its Critical Dmg (max 8).
+const skullcleaver = W('skullcleaver', '碎顱斧', 'Skullcleaver', 'melee', 4, 3, 4, 5, { lethal: 5, headtaker: true });
+// Tactual Hunter: against an expended enemy, the first critical strike is followed by another strike.
+const viciousClaws = W('viciousClaws', '兇殘爪', 'Vicious claws', 'melee', 4, 4, 4, 6, { ceaseless: true, tactualHunter: true });
+const cleaverFG = W('cleaverFG', '劈刀', 'Cleaver', 'melee', 4, 3, 4, 5);
+// Vicious Blows: Ceaseless when fighting (not when retaliating).
+const mancrusher = W('mancrusher', '碎人錘', 'Mancrusher', 'melee', 4, 4, 5, 5, { brutal: true, viciousBlows: true });
+
 const op = (id, zh, en, stats, weapons, count = 1) => ({ id, name: { zh, en }, ...stats, weapons, count });
 
 export const TEAMS = [
@@ -861,6 +904,105 @@ export const TEAMS = [
       op('warriorShotgun', '新信徒戰士（霰彈槍）', 'Neophyte Warrior (shotgun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, groupAct: 'gscWarrior' }, [shotgunGSC, gunButtGSC], 2),
     ],
   },
+  {
+    id: 'blooded',
+    name: { zh: '混沌叛軍', en: 'Blooded' },
+    color: '#a33a2f',
+    style: { zh: '射擊隊・血祭・人數', en: 'Shooting · Blood tokens · Numbers' },
+    blurb: {
+      zh: '投靠混沌的叛變帝國衛兵：殺敵或犧牲都能累積血祭標記，持有標記的特工武器「精準 1」，受到諸神注視時更能打出暴擊。',
+      en: 'Traitor Guardsmen sworn to Chaos: kills and sacrifices earn Blooded tokens, holders get Accurate 1, and the one under the Gaze of the Gods turns it into criticals.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '滲透', en: 'Infiltration' }, { zh: '搜索與摧毀', en: 'Seek & Destroy' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '否：至少需要兩盒', en: 'No: at least two boxes' },
+      buyable: { zh: '否：大桌的盒子缺少 KT 板件', en: 'No: the Warhammer 40,000 box lacks the KT sprues' },
+      size: { zh: '首領＋9＋4 個名額；執法官與歐格林各佔 2 個名額', en: 'Chieftain + 9 + 4 selections; the Enforcer and Ogryn take two each' },
+      note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games.' },
+    },
+    bloodedTokens: true, // engine flag for the Blooded faction rule
+    rule: {
+      name: { zh: '血祭', en: 'Blooded' },
+      desc: {
+        zh: '獲得血祭標記：每回合策略階段開始時；每回合第一次擊倒敵人時；每回合第一次友方在敵人 6" 內倒下時。策略階段可把標記分給友方（每名最多 1 個）；有 4 名以上持有標記時，可選一名受到「諸神注視」。持有標記的友方武器「精準 1」；受注視時，精準保留的成功可當暴擊。',
+        en: 'Gain a Blooded token: in each Strategy phase; the first time an enemy is incapacitated each TP; the first time a friendly is incapacitated within 6" of an enemy each TP. In the Strategy phase, assign tokens to friendlies (one each); with four or more holders, one can be under the Gaze of the Gods. Holders\' weapons have Accurate 1; under the Gaze, the success retained through Accurate can be a critical.',
+      },
+    },
+    ploys: [
+      { id: 'recklessAspirant', cp: 1, name: { zh: '魯莽的追求者', en: 'Reckless Aspirant' },
+        desc: { zh: '本回合完全在敵方領域內的友方：沒有標記時射擊或近戰武器「精準 1」；持有標記時武器「懲罰」。', en: 'This TP, a friendly wholly within your opponent\'s territory: Accurate 1 when shooting or fighting without a token; Punishing with a token.' } },
+      { id: 'malevolentGrit', cp: 1, name: { zh: '惡毒的韌性', en: 'Malevolent Grit' },
+        desc: { zh: '本回合持有標記、或完全在敵方領域內的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, a friendly with a token, or wholly within your opponent\'s territory, re-rolls one defence die when shot.' } },
+      { id: 'gloryKill', cp: 1, name: { zh: '榮耀擊殺', en: 'Glory Kill' },
+        desc: { zh: '選一名友方看得到的敵人：本回合攻擊它時武器「無休」，持有標記時改為「無情」。（使用時自動選生命最高的敵人，可在策略面板更換）', en: 'Pick an enemy a friendly can see: this TP, weapons have Ceaseless against it, or Relentless with a token. (The toughest enemy is picked automatically; change it in the strategy panel.)' } },
+      { id: 'bitterDemise', cp: 1, name: { zh: '苦澀的死亡', en: 'Bitter Demise' },
+        desc: { zh: '本回合友方倒下時擲 D3：擲出 3（持有標記時 2+）就對 2" 內一名可見敵人造成等量傷害。', en: 'This TP, when a friendly is incapacitated roll a D3: on a 3 (2+ with a token), that much damage to a visible enemy within 2".' } },
+    ],
+    ops: [
+      op('chieftain', '叛軍首領', 'Traitor Chieftain', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, leadWithStrength: true }, [laspistolBL, chainswordBL]),
+      op('brimstone', '硫磺擲彈兵', 'Brimstone Grenadier', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, explosiveDemise: true }, [diabolykBomb, fragBL, krakBL, lasgunBL, bayonetBL]),
+      op('butcher', '屠夫', 'Traitor Butcher', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, unholySustenance: true }, [cleaver]),
+      op('commsman', '叛軍通訊兵', 'Traitor Commsman', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, signal: true, actuation: true }, [lasgunBL, bayonetBL]),
+      op('corpseman', '屍醫', 'Traitor Corpseman', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, stimms: true }, [lasgunBL, bayonetBL, stimmNeedle]),
+      op('flenser', '剝皮者', 'Traitor Flenser', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, wretched: true }, [skinningBlades]),
+      op('gunner', '叛軍槍手（火焰）', 'Traitor Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [flamerBL, bayonetBL]),
+      op('sharpshooter', '叛軍神射手', 'Traitor Sharpshooter', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, camo1: true }, [longLasMobileBL, longLasStatBL, bayonetBL]),
+      op('thug', '暴徒', 'Traitor Thug', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, tough: true }, [heavyClub]),
+      op('sweeper', '戰壕掃蕩兵', 'Traitor Trench Sweeper', { apl: 2, move: 6, save: 4, wounds: 9, base: 25, shielding: true }, [shotgunBL, bayonetShield]),
+      op('enforcer', '執法官', 'Traitor Enforcer', { apl: 2, move: 6, save: 4, wounds: 9, base: 32, disciplinarian: true }, [boltPistolBL, powerFistBL]),
+      op('ogryn', '叛軍歐格林', 'Traitor Ogryn', { apl: 2, move: 6, save: 5, wounds: 16, base: 40, chemEnhanced: true, brute: true, slowWitted: true, avalanche: true }, [maulClaw]),
+    ],
+  },
+  {
+    id: 'fellgor',
+    name: { zh: '惡角獸掠奪者', en: 'Fellgor Ravagers' },
+    color: '#7a5a2a',
+    style: { zh: '近戰隊・狂暴・野獸', en: 'Melee · Frenzy · Beasts' },
+    blurb: {
+      zh: '10 名混沌獸人：生命歸零時不會立刻倒下，而是陷入狂暴繼續戰鬥，直到被暴擊或連續命中才真正倒地。',
+      en: '10 Chaos Beastmen: dropping to 0 wounds sends them into a Frenzy instead of down — they keep fighting until a critical or repeated hit finally fells them.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能：KT 盒與大桌盒內容一樣', en: 'Yes — the KT box and the Warhammer 40,000 box are the same' },
+      note: { zh: '將於 2026 年退出賽季：屆時官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotating out of the season in 2026: then not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    frenzy: true, // engine flag for the Frenzy faction rule
+    rule: {
+      name: { zh: '狂暴', en: 'Frenzy' },
+      desc: {
+        zh: '沒有狂暴標記的友方將失去戰鬥能力時，改為不倒下並獲得狂暴標記（剩下的攻擊骰全部作廢；隱蔽改為交戰），對手此時就算它被擊殺。有狂暴標記時：視為受傷、不能隱蔽、不能撿標記與做獨特或任務動作、控制目標時 APL 視為 1。它在以下情況才真正倒下：自己的啟動或反擊結束；近戰中被暴擊打中；近戰中第二次被普通成功打中；被射擊時受到暴擊傷害；被射擊時有 2 顆以上攻擊骰造成普通傷害；戰鬥結束。',
+        en: 'A friendly without a Frenzy token that would be incapacitated isn\'t: it gains a Frenzy token (remaining attack dice are discarded; Conceal becomes Engage), and it counts as incapacitated for your opponent from then on. With the token it\'s injured, can\'t Conceal, can\'t Pick Up or perform unique or mission actions, and has APL 1 for control. It\'s incapacitated when its activation or counteraction ends; when struck by a critical success, or a second time by a normal success, in a fight; when Critical Dmg, or Normal Dmg from two or more dice, is inflicted on it by shooting; or when the battle ends.',
+      },
+    },
+    ploys: [
+      { id: 'peltingFire', cp: 1, name: { zh: '亂槍齊射', en: 'Pelting Firepower' },
+        desc: { zh: '本回合友方射擊已被另一名友方射擊過的敵人時，遠程武器「無休」；被兩名以上射擊過時改為「無情」。', en: 'This TP, a friendly shooting an enemy another friendly has shot has Ceaseless; Relentless if two or more have.' } },
+      { id: 'recklessDetermination', cp: 1, name: { zh: '魯莽的決心', en: 'Reckless Determination' },
+        desc: { zh: '本回合已行動的友方被射擊、又沒有掩護豁免時，可直接保留一顆防禦骰為普通成功。', en: 'This TP, an expended friendly being shot without cover saves retains one defence die as a normal success without rolling.' } },
+      { id: 'violentTemperament', cp: 1, name: { zh: '暴烈脾性', en: 'Violent Temperament' },
+        desc: { zh: '本回合友方近戰或反擊時，擲骰後可重擲全部攻擊骰（成功少於 2 顆時自動使用）。', en: 'This TP, a friendly fighting or retaliating can re-roll all its attack dice after rolling (used automatically with fewer than two successes).' } },
+      { id: 'ambushFG', cp: 1, name: { zh: '伏擊', en: 'Ambush' },
+        desc: { zh: '本回合友方啟動時從隱蔽改為交戰，本次啟動近戰時可把一顆普通成功當暴擊（沒有時把一顆失敗當普通成功）。有狂暴標記不能伏擊。', en: 'This TP, a friendly whose order changes from Conceal to Engage when activated can, when fighting that activation, retain a normal success as a critical (or a fail as a normal success). Not with a Frenzy token.' } },
+    ],
+    ops: [
+      op('ironhorn', '鐵角首領', 'Fellgor Ironhorn', { apl: 2, move: 6, save: 5, wounds: 11, base: 32, ironhorn: true }, [corruptedPistol, corruptedChainsword]),
+      op('deathknell', '喪鐘手', 'Fellgor Deathknell', { apl: 2, move: 6, save: 4, wounds: 10, base: 32, iconBearer: true, warGong: true, gongKnell: true }, [autopistolFG, bludgeon]),
+      op('fluxbray', '變異獸人', 'Fellgor Fluxbray', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [tripleCleavers]),
+      op('gnarlscar', '疤面獸人', 'Fellgor Gnarlscar', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [autopistolFG, bionicFist]),
+      op('gorehorn', '血角獸人', 'Fellgor Gorehorn', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, twoFights: true }, [autopistolFG, skullcleaver]),
+      op('herdgoad', '驅群者', 'Fellgor Herd-goad', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, whipControl: true, inciteFury: true }, [autopistolFG, whipRanged, whipMelee]),
+      op('mangler', '撕裂者', 'Fellgor Mangler', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, savageBrutality: true, slowWitted: true }, [viciousClaws]),
+      op('shaman', '獸人薩滿', 'Fellgor Shaman', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, fgShaman: true }, [autopistolFG, techCurse, braystave]),
+      op('toxhorn', '毒角獸人', 'Fellgor Toxhorn', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, toxicBlessings: true }, [autopistolFG, cleaverFG]),
+      op('vandal', '破壞者', 'Fellgor Vandal', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, sweepingBlow: true }, [mancrusher]),
+    ],
+  },
 ];
 
 // ---- NPOs (non-player operatives) used by mission packs; not selectable as a kill team ----
@@ -925,6 +1067,11 @@ export const RULE_LABELS = {
   swipe: { zh: '橫掃', en: 'Swipe' },
   shield: { zh: '盾牌（一次格擋擋兩顆）', en: 'Shield (each block cancels two)' },
   hypersense: { zh: '超感（目標不會被遮擋）', en: 'Hypersense (no obscuring)' },
+  bloodOffering: { zh: '血之獻祭（第一次暴擊打擊得血祭標記）', en: 'Blood Offering (first critical strike gains a Blooded token)' },
+  headtaker: { zh: '獵頭（擊殺後回血並提升暴擊傷害）', en: 'Headtaker (kills heal and raise Critical Dmg)' },
+  tactualHunter: { zh: '觸覺獵手（對已行動敵人第一次暴擊後追加打擊）', en: 'Tactual Hunter (extra strike after the first crit vs an expended enemy)' },
+  viciousBlows: { zh: '兇殘重擊（主動近戰時無休）', en: 'Vicious Blows (Ceaseless when fighting)' },
+  stalk: { zh: '潛行（控制範圍內有地形時致命 5+）', en: 'Stalk (Lethal 5+ with terrain in control range)' },
   mindburn: { zh: '心靈灼燒（暴擊傷害後目標命中變差 1）', en: 'Mindburn (a crit worsens the target\'s Hit by 1)' },
   detonate: { zh: '引爆（目標固定為鬼骷髏）', en: 'Detonate (the Gheistskull is the target)' },
   forceImpact: { zh: '衝擊力（衝鋒後殘暴）', en: 'Force Impact (Brutal after a Charge)' },

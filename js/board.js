@@ -142,6 +142,7 @@ export function renderBoard(g, ui) {
     if (o.order === 'conceal') s.push(`<text x="${f(r * 0.75)}" y="${f(-r * 0.55)}" class="badge">◐</text>`);
     if (g.mark?.[1 - o.side] === o.uid) s.push(`<g class="killmark"><circle r="${f(r + 0.45)}"/><line x1="${f(-r - 0.6)}" y1="0" x2="${f(-r - 0.25)}" y2="0"/><line x1="${f(r + 0.25)}" y1="0" x2="${f(r + 0.6)}" y2="0"/></g>`); // Call the Kill
     if (o.poison) s.push(`<circle cx="${f(-r * 0.75)}" cy="${f(r * 0.55)}" r="0.16" class="poisontok"/>`); // Poison token
+    if (o.frenzy) s.push(`<text x="${f(-r * 0.8)}" y="${f(-r * 0.45)}" class="badge">🔥</text>`); // Frenzy token
     const carried = (g.markers || []).filter((m) => m.carriedBy === o.uid).length;
     if (carried) s.push(`<text x="${f(r * 0.7)}" y="${f(r * 0.85)}" class="carrytxt">${'◆'.repeat(carried)}</text>`); // carried markers
     if (o.ml) {
