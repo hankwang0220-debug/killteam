@@ -52,6 +52,14 @@ export const HELP = {
   <p><b>撿起標記</b>（1AP）：拿起你控制的任務標記並帶著走；帶著標記的特工控制它，倒下時標記留在原地。</p>
   <h3>指揮重擲（Command Re-roll）</h3>
   <p>擲出攻擊骰或防禦骰後，可花 <b>1CP</b> 重擲其中<b>一顆</b>（點該骰子）。射擊時，攻方先看攻擊骰決定是否重擲，防方再看防禦骰；近戰時雙方在開始結算前各可重擲一顆。每次擲骰每方限一次；「壓制射擊」或在目標點附近（噁心排放）時不能重擲。電腦會自己判斷要不要用。</p>
+  <h3>交戰計謀（Firefight ploys）</h3>
+  <p>每隊有自己的交戰計謀，每張 <b>1CP</b>，每回合每張限用一次。使用方式依時機分三種：</p>
+  <ul>
+    <li><b>啟動中</b>：特工啟動時，動作按鈕下方的「交戰計謀」按鈕（有些只能在第一個動作前用）。</li>
+    <li><b>攻擊時</b>：選射擊目標或宣告攻擊時勾選，按「擲骰」才扣 CP。</li>
+    <li><b>自動</b>：被射擊、受傷、倒下時觸發的計謀，在策略階段的「自動使用的交戰計謀」勾選開關；開著且 CP 夠就會自動使用。</li>
+  </ul>
+  <p>需要中途打斷對手行動的少數計謀（例如替身擋子彈、打斷啟動）尚未收錄。</p>
   <h3>宣告攻擊與回復動作</h3>
   <p>射擊或近戰選好目標後，棋盤會先畫出攻擊線並顯示「宣告攻擊」，按「🎲 擲骰」才擲骰；擲骰前可「收回」。電腦的攻擊也一樣，要按「擲骰」才會結算。</p>
   <p>交戰階段中，你的動作只要沒有擲骰（移動、選擇特工、指令、標記光等），都可以按「↶ 回復上一動作」退回，方便像實體遊戲一樣先移動看看能做什麼。擲過骰的動作與結束啟動後就不能回復。</p>
@@ -143,6 +151,14 @@ export const HELP = {
   <p><b>Pick Up Marker</b> (1AP): take a mission marker you control and carry it; a carrier controls its marker and drops it where it falls.</p>
   <h3>Command Re-roll</h3>
   <p>After rolling attack or defence dice, spend <b>1CP</b> to re-roll <b>one</b> of them (tap the die). When shooting, the attacker sees the attack dice first and decides, then the defender sees the defence dice; in a fight each side may re-roll one die before any dice are resolved. Once per side per roll; not allowed under Suppressing Fire or near an objective (Sickening Emissions). The computer decides for itself.</p>
+  <h3>Firefight ploys</h3>
+  <p>Each team has its own firefight ploys, <b>1CP</b> each, each once per turning point. By timing:</p>
+  <ul>
+    <li><b>During an activation</b>: the "Firefight ploys" buttons under the actions (some only before the first action).</li>
+    <li><b>With an attack</b>: tick them while picking a Shoot target or on the declared attack; the CP is paid when you roll.</li>
+    <li><b>Automatic</b>: reactions (shot, damaged, incapacitated) — switch them on or off in the Strategy phase under "Firefight ploys used automatically"; while on and affordable they're used by themselves.</li>
+  </ul>
+  <p>A few ploys that interrupt the opponent mid-action (redirecting an attack, interrupting an activation) aren't included yet.</p>
   <h3>Declaring attacks & undo</h3>
   <p>After picking a Shoot or Fight target, the board shows the attack line and an "Attack declared" card; the dice are only rolled when you press "🎲 Roll", and you can take it back before that. The computer's attacks also wait for "Roll".</p>
   <p>In the Firefight phase, any of your actions that rolled no dice (moving, picking an operative, orders, Markerlight…) can be taken back with "↶ Undo last action" — move a model to see what it could do, just like on the tabletop. Actions that rolled dice, and ending an activation, can't be undone.</p>

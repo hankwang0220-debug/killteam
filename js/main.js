@@ -7,7 +7,8 @@ import {
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
   ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
-  shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
+  shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
+  ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, foes,
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
@@ -360,6 +361,7 @@ function roster(t) {
   return `<div class="roster">
     ${teamInfo(t)}
     <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
+    ${t.firefight?.length ? `<p class="rule small"><b>${L('交戰計謀', 'Firefight ploys')}</b>：${t.firefight.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
     ${t.ops.map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
       <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>`).join('')}
   </div>`;
@@ -684,6 +686,14 @@ function gambitView(side) {
         ${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${cur === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}
       </select></div>`;
   }
+  // Reaction firefight ploys: used automatically while switched on (and affordable, once per turning point).
+  const autos = (team(g, side).firefight || []).filter((p) => ffKind(p.id) === 'auto' || p.id === 'animalisticFury'); // (Animalistic Fury: automatic when retaliating)
+  if (autos.length && !isAI(side)) {
+    html += `<div class="gambit"><h4>${L('自動使用的交戰計謀', 'Firefight ploys used automatically')}</h4>
+      <p class="hint small">${L('這些計謀在觸發時機（被射擊、受傷、倒下…）自動花 CP 使用；不想用就取消勾選。', 'These are spent automatically when their moment comes (shot, damaged, incapacitated…); untick to keep the CP.')}</p>
+      ${autos.map((p) => `<label class="small"><input type="checkbox" data-act="ffarm" data-side="${side}" data-id="${p.id}" ${ffArmed(g, side, p.id) ? 'checked' : ''}> ${esc(tx(p.name))}（${p.cp}CP）<span class="hint">${esc(tx(p.desc))}</span></label>`).join('')}
+    </div>`;
+  }
   if (team(g, side).doctrina) {
     const cur = g.doctrina?.[side]?.tp === g.tp ? g.doctrina[side] : null;
     const tm = team(g, side), primary = g.tactics?.[side]?.[0];
@@ -814,6 +824,16 @@ function recentView() {
   return `<div class="recentbox">${row(0)}${row(1)}</div>`;
 }
 
+/** Aim / attack firefight ploys the player can tick for this Shoot or Fight (paid when the dice are rolled). */
+function ffToggles(op, kind, weapon, target, aim) {
+  const opts = ffAttackOptions(g, op, kind, weapon, target, aim);
+  if (!opts.length) return '';
+  return `<div class="ffploys"><h4>${L(`交戰計謀 · CP ${g.cp[op.side]}（擲骰時才扣）`, `Firefight ploys · CP ${g.cp[op.side]} (paid when rolling)`)}</h4>${opts.map((o) => {
+    const p = ffDef(g, op.side, o.id);
+    return `<label class="small ${o.ok ? '' : 'off'}"><input type="checkbox" data-act="fftoggle" data-id="${o.id}" data-uid="${op.uid}" ${o.on ? 'checked' : ''} ${o.ok || o.on ? '' : 'disabled'}> ${esc(tx(p.name))}（${o.cp}CP）<span class="hint">${esc(tx(p.desc))}${o.why ? ` — ${esc(tx(o.why))}` : ''}</span></label>`;
+  }).join('')}</div>`;
+}
+
 /** A declared attack, shown on the board before any dice are rolled. */
 function pendingView() {
   const p = ui.pending, a = p.by ? getOp(g, p.by) : activeOp(g), t = getOp(g, p.target);
@@ -821,6 +841,7 @@ function pendingView() {
   const by = (o) => `<b style="color:${team(g, o.side).color}">${nm(o)}</b>`;
   return `<div class="pending"><h3>${p.kind === 'shoot' ? '⌖' : '⚔'} ${L('宣告攻擊', 'Attack declared')}</h3>
     <p>${by(a)} ${L('以', 'with')} ${esc(bi(p.weapon.name))} ${verb} ${by(t)}</p>
+    ${p.ai ? '' : ffToggles(a, p.kind, p.weapon, t, false)}
     <div class="row">
       ${p.ai ? '' : `<button class="ghost" data-act="unroll">${L('收回', 'Take back')}</button>`}
       <button class="primary" data-act="roll">🎲 ${L('擲骰', 'Roll')}</button>
@@ -955,6 +976,14 @@ function firefightPanel() {
   else {
     html += `<div class="actions">${availableActions(g, op).map((a) => `<button data-act="action" data-id="${a.id}" ${a.ok ? '' : 'disabled'} title="${a.why ? esc(tx(a.why)) : ''}">
       ${esc(tx(ACTIONS[a.id].name))} <span class="cp">${a.ap}AP</span></button>`).join('')}</div>`;
+    // Firefight ploys this operative can use now (交戰計謀).
+    const ffb = ffButtons(g, op);
+    if (ffb.length) {
+      html += `<div class="ffploys"><h4>${L(`交戰計謀 · CP ${g.cp[op.side]}`, `Firefight ploys · CP ${g.cp[op.side]}`)}</h4><div class="actions">${ffb.map((b) => {
+        const p = ffDef(g, op.side, b.id);
+        return `<button data-act="ffuse" data-id="${b.id}" ${b.ok ? '' : 'disabled'} title="${esc(tx(p.desc))}${b.why ? ` — ${esc(tx(b.why))}` : ''}">${esc(tx(p.name))} <span class="cp">${b.cp}CP</span></button>`;
+      }).join('')}</div></div>`;
+    }
     if (op.ap <= 0 && !freePending(op)) html += `<p class="hint small">${L('AP 已用完：可以回復上一動作，或結束啟動。', 'Out of AP: undo the last action or end the activation.')}</p>`;
   }
   html += `${undoBtn}<button class="wide ${op.ap <= 0 && !freePending(op) ? 'primary' : ''}" data-act="endact">${L('結束啟動', 'End Activation')}</button></section>`;
@@ -989,9 +1018,10 @@ function modeView(op) {
       <div class="row">${cancel}</div></div>`;
   }
   if (m.kind === 'shoot') {
+    const aim = ffToggles(shooter(op), 'shoot', m.weapon, null, true);
     const area = m.weapon.rules.torrent ? L(`洪流：也會射擊主要目標 ${m.weapon.rules.torrent}" 內其他有效目標。`, ` Torrent: also shoots other valid targets within ${m.weapon.rules.torrent}" of the first.`)
       : m.weapon.rules.blast ? L(`爆炸：也會射擊主要目標 ${m.weapon.rules.blast}" 內所有可見的特工（包括己方）。`, ` Blast: also shoots every operative visible within ${m.weapon.rules.blast}" of the first — friends included.`) : '';
-    return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}${area}</p><div class="row">${cancel}</div></div>`;
+    return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}${area}</p>${aim}<div class="row">${cancel}</div></div>`;
   }
   if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人。', 'Tap an engaged enemy.')}</p><div class="row">${cancel}</div></div>`;
   if (m.kind === 'target') {
@@ -1728,7 +1758,10 @@ function handle(act, d) {
       startFight(g, op, p.weapon, t);
       return afterChange();
     }
-    case 'unroll': ui.pending = null; proxyMode(); return render(); // take back a declared (not yet rolled) attack
+    case 'unroll': ui.pending = null; ffClearPending(g); proxyMode(); return render();
+    case 'ffuse': undoable(() => useFFButton(g, op, d.id)); return afterChange();
+    case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id); return render(); }
+    case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack
     case 'action': {
       if (['reposition', 'dash', 'charge', 'fallBack'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
       else if (d.id === 'shoot' || d.id === 'fight') {
@@ -1750,7 +1783,7 @@ function handle(act, d) {
       if (w.type === 'ranged' && !shootWeapon(g, sh, w).ok) return undefined;
       ui.mode.weapon = w; return render();
     }
-    case 'cancel': if (ui.mode?.by) endProxy(g); ui.mode = null; ui.path = null; return render(); // (forfeits an Interstitial Command Shoot)
+    case 'cancel': if (ui.mode?.by) endProxy(g); ffClearPending(g); ui.mode = null; ui.path = null; return render(); // (forfeits an Interstitial Command Shoot)
     case 'confirmmove':
       if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => doMove(g, op, action, path)); }
       ui.mode = null; ui.path = null;

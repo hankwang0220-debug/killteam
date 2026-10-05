@@ -1,5 +1,5 @@
 import {
-  activate, activeOp, actionCost, availableActions, endProxy, setDoctrina, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
+  activate, activeOp, actionCost, availableActions, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
@@ -236,6 +236,44 @@ export function aiAttack(g, decl) {
   return null;
 }
 
+// ---------- firefight ploys (交戰計謀) ----------
+/** Use a button ploy now? Spends CP only when the computer has some to spare (keeps 1 for Command Re-roll). */
+function aiButtonPloys(g, op) {
+  const spare = g.cp[op.side] >= 2;
+  const ok = Object.fromEntries(ffButtons(g, op).map((b) => [b.id, b.ok]));
+  const use = (id) => ok[id] && useFFButton(g, op, id);
+  const fresh = !Object.keys(op.acted).some((k) => !['unseen', 'accelerant', 'free'].includes(k));
+  if (ok.shakeItOff && (op.aplNext || 0) < 0) return use('shakeItOff');
+  if (!spare) return false;
+  if (fresh) {
+    if (use('momentRepute') || use('overwhelmTarget')) return true;
+    if (ok.wildRage && prefersMelee(op) && !engagedEnemies(g, op).length && foes(g, op).some((e) => edgeDist(op, e) <= moveAllowance(g, op, 'charge') + 1.5)) return use('wildRage');
+    if (ok.scrapcode && g.objectives.some((o) => dist(op, o) <= 6)) return use('scrapcode');
+    if (ok.commandOverride) {
+      const want = prefersMelee(op) ? 'conqueror' : 'protector';
+      if (g.doctrina?.[op.side]?.tp === g.tp && g.doctrina[op.side].mode !== want) return use('commandOverride');
+    }
+    if (ok.capricious && !shootOptions(g, op).length) return use('capricious');
+    if (ok.wrathVengeance && (engagedEnemies(g, op).length || shootOptions(g, op).length)) return use('wrathVengeance');
+  }
+  if (ok.virulentPoison) return use('virulentPoison');
+  if (ok.frighteningOnslaught) return use('frighteningOnslaught');
+  if (ok.ruthlessRampage && foes(g, op).some((e) => edgeDist(op, e) <= 3.5)) return use('ruthlessRampage');
+  if (ok.slipAway && engagedEnemies(g, op).length && isInjured(op) && !prefersMelee(op)) return use('slipAway');
+  if (ok.omnissiah && (engagedEnemies(g, op).length || shootOptions(g, op).length)) return use('omnissiah');
+  if (ok.ancestorsWatching && (count1(op, 'shoot') || count1(op, 'fight')) && (shootOptions(g, op).length || engagedEnemies(g, op).length)) return use('ancestorsWatching');
+  if (ok.slink && op.order === 'engage' && (count1(op, 'shoot') || count1(op, 'fight')) && op.ap <= 1) return use('slink');
+  return false;
+}
+const count1 = (op, k) => op.acted?.[k] || 0;
+/** Tick the attack ploys that apply to this Shoot / Fight (they're paid when it's resolved). */
+function aiPloysFor(g, op, decl) {
+  if (g.cp[op.side] >= 2) {
+    for (const o of ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target)) if (o.ok && !o.on && g.cp[op.side] - (g.ffPending?.ids.length || 0) >= 2) ffToggle(g, op, o.id);
+  }
+  return decl;
+}
+
 /**
  * Perform one AI step. Moves and other actions happen at once; an attack is only declared —
  * {kind: 'shoot' | 'fight', weapon, target} — so the UI can show it before rolling (see aiAttack).
@@ -267,6 +305,7 @@ export function aiStep(g) {
     return null;
   }
   if (op.dead) { endActivation(g); return null; }
+  if (aiButtonPloys(g, op)) return null;
   const can = Object.fromEntries(availableActions(g, op).map((a) => [a.id, a.ok]));
 
   // Mission actions and markers first: they score.
@@ -416,7 +455,7 @@ export function aiStep(g) {
     // Swipe (Bloatspawn): with two or more enemies in reach, sweep through them all.
     const swipe = tpl(op).weapons.find((w) => w.rules.swipe);
     const weapon = swipe && (ts.length >= 2 || op.acted.free?.fight === 'swipe') ? swipe : bestMelee(op);
-    return { kind: 'fight', weapon, target: ts[0] };
+    return aiPloysFor(g, op, { kind: 'fight', weapon, target: ts[0] });
   }
   if (can.fallBack && isInjured(op) && !prefersMelee(op)) {
     const away = { x: op.side === 0 ? 2 : 28, y: op.y };
@@ -430,9 +469,15 @@ export function aiStep(g) {
     const t = best && targets.includes(best) ? best : !can.shoot ? targets.sort((a, b) => b.wounds - a.wounds)[0] : null;
     if (t && (op.ap >= 2 || !can.shoot)) { doTargetAction(g, op, 'markerlight', t); return null; }
   }
+  // Aim ploys (Long Arm, Supporting Fire) when nothing can be shot otherwise.
+  if (can.shoot && g.cp[op.side] >= 2 && !shootOptions(g, op).length) {
+    const aims = ffAttackOptions(g, op, 'shoot', null, null, true);
+    for (const o of aims) ffToggle(g, op, o.id);
+    if (aims.length && !shootOptions(g, op).length) ffClearPending(g);
+  }
   if (can.shoot && !prefersMelee(op)) {
     const best = shootOptions(g, op)[0];
-    if (best) return { kind: 'shoot', weapon: best.w, target: best.t };
+    if (best) return aiPloysFor(g, op, { kind: 'shoot', weapon: best.w, target: best.t });
   }
   if (can.charge && (prefersMelee(op) || !shootOptions(g, op).length)) {
     const p = chargePath(g, op);
@@ -440,7 +485,7 @@ export function aiStep(g) {
   }
   if (can.shoot) {
     const best = shootOptions(g, op)[0];
-    if (best) return { kind: 'shoot', weapon: best.w, target: best.t };
+    if (best) return aiPloysFor(g, op, { kind: 'shoot', weapon: best.w, target: best.t });
   }
   const goal = pickGoal(g, op);
   // Melee operatives advance from cover to cover instead of walking straight at the enemy.

@@ -536,6 +536,7 @@ export function activate(g, op) {
   op.chainFrom = g.chain; // restored if the player switches to another operative before acting
   if (g.chain?.kind === 'breach') {
     (g.breachTP ||= [0, 0])[op.side] = g.tp;
+    op.breachedTP = g.tp; // (Overwhelm Target)
     log(g, { zh: `突破清場：${opName(op, 'zh')} 接著行動`, en: `Breach and Clear: ${opName(op, 'en')} activates next` }, `side${op.side}`);
   }
   // Breach and Clear (Navy Breachers): ready friendlies visible within 3" now, one of which may activate right after it.
@@ -580,6 +581,7 @@ export function activate(g, op) {
     op.optics = false; // Optics lasts until the start of the operative's next activation
     op.longSightOn = false; // so does Long-sight
     if (g.veriscant?.[op.side]?.by === op.uid) g.veriscant[op.side] = null; // Veriscant (Malocator)
+    if (g.scrapcode?.[op.side] === op.uid) g.scrapcode[op.side] = null; // Scrapcode Overload
     for (const k of ['augment', 'reinforce']) if (g[k]?.[op.side]?.by === op.uid) g[k][op.side] = null; // Augment Weapon / Reinforce Metal
     if (g.pechra?.[op.side]?.by === op.uid) g.pechra[op.side] = null; // the Tracker's Pech'ra marker
     // (Once per turning point, so switching to another operative before acting doesn't repeat it.)
@@ -745,7 +747,7 @@ export function controller(g, obj) {
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
     // (the Deathknell, an Icon Bearer, keeps its APL even with a Frenzy token)
     const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer ? 1 : 0) - ravaged);
-    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o)) nuncio[o.side] = true; }
+    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o)) nuncio[o.side] = true; }
   }
   // Nuncio-aquila (Exaction Squad): likewise 1 lower if one is within 3" of the Proctor-exactant (cumulative).
   for (let s = 0; s < 3; s++) if (nuncio[s]) sum[s] = Math.max(0, sum[s] - 1);
@@ -1604,8 +1606,8 @@ export function visibility(g, from, to, opts = {}) {
   return best ? { visible: true, cover: best.cover, obscured: best.obscured } : { visible: false, cover: false, obscured: false };
 }
 
-export function inRange(op, target, weapon) {
-  return weapon.rules.range == null || edgeDist(op, target) <= weapon.rules.range + 0.01;
+export function inRange(op, target, weapon, extra = 0) {
+  return weapon.rules.range == null || edgeDist(op, target) <= weapon.rules.range + extra + 0.01;
 }
 
 /** Markerlight tokens that count when op shoots target with weapon (Pathfinders only, not the fusion grenade). */
@@ -1656,8 +1658,11 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   const v = validTarget(g, relay || op, target, weapon);
   if (!v) return { ok: false };
   // Ruthless Efficiency (Exaction Squad): friendlies in the enemy's control range don't stop it being picked.
-  if (!TEAM_MAP[op.team].ruthless && living(g, op.side).some((f) => inEngagement(f, target))) return { ok: false };
-  if (!inRange(op, target, weapon)) return { ok: false };
+  // Supporting Fire (Pathfinders firefight ploy): the same within 6".
+  const support = ffOn(g, op, 'supportingFire') && edgeDist(op, target) <= 6;
+  if (!TEAM_MAP[op.team].ruthless && !support && living(g, op.side).some((f) => inEngagement(f, target))) return { ok: false };
+  // Long Arm of the Emperor's Law (Exaction firefight ploy): Range +3".
+  if (!inRange(op, target, weapon, ffOn(g, op, 'longArm') ? 3 : 0)) return { ok: false };
   // Markerlights: after a Markerlight this activation, Shoot must pick that same target.
   if (!secondary && op.acted?.mlTarget && op.acted.mlTarget !== target.uid) return { ok: false };
   return { ok: true, cover: v.cover, obscured: v.obscured, relay: relay?.uid ?? null };
@@ -1774,6 +1779,13 @@ export function effectiveRules(g, op, weapon, target) {
     if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'terminalDecree') && edgeDist(op, target) <= 6) r.balanced = true; // Terminal Decree
   }
   if (tpl(op).aggressivePattern && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  // ---- Firefight ploys ----
+  if (ffOn(g, op, 'combinedArms') || ffOn(g, op, 'engageToAcquire')) r.relentless = true; // re-roll any attack dice
+  if (ffOn(g, op, 'shockAssault') && weapon.type === 'melee') r.shock = true;
+  if (ffOn(g, op, 'blitz')) { r.accurate = Math.max(r.accurate || 0, 1); if ((g.actCount?.[op.side] || 0) <= 1) r.severe = true; }
+  if (ffOn(g, op, 'coiledSerpent')) r.promote = 1;
+  if (weapon.type === 'ranged' && op.omniTP === g.tp && doctrina(g, op)?.mode === 'protector') r.severe = true; // Omnissiah's Imperative
+  if (target && g.vengeance?.[op.side] === target.uid) r.relentless = true; // Vengeance for the Kinband
   // ---- Hunter Clade ----
   if ((weapon.type === 'ranged' && optimised(g, op, 'protector')) || (weapon.type === 'melee' && optimised(g, op, 'conqueror'))) r.ceaseless = true; // Doctrina Imperatives
   // Targeting Protocol (Rangers): Lethal 5+ if it hasn't moved this activation, or counteracting.
@@ -1918,8 +1930,9 @@ const hitWorse = (g, op, w = null) => !tpl(op).engenderedFocus && !(w?.type === 
 
 // ---------- Exaction Squad ----------
 /** Nuncio-aquila: an enemy within 3" of the Proctor-exactant (it carries the marker in this version). */
-// Scrapcode Overload (Hunter Clade firefight ploy) works the same way around its Infiltrator.
-const nuncioNear = (g, op) => op.side < 2 && living(g, 1 - op.side).some((p) => (tpl(p).nuncio || g.scrapcode?.[p.side] === p.uid) && edgeDist(p, op) <= 3);
+const nuncioNear = (g, op) => op.side < 2 && living(g, 1 - op.side).some((p) => tpl(p).nuncio && edgeDist(p, op) <= 3);
+/** Scrapcode Overload (Hunter Clade firefight ploy): an enemy within 3" of that Infiltrator (marker control only). */
+const scrapNear = (g, op) => op.side < 2 && living(g, 1 - op.side).some((p) => g.scrapcode?.[p.side] === p.uid && edgeDist(p, op) <= 3);
 /** Apprehend: the Cyber-mastiff holds this enemy while it stays within its control range. */
 const apprehended = (g, op) => op.side < 2 && living(g, 1 - op.side).some((m) => m.apprehend === op.uid && edgeDist(m, op) <= CONTROL + 0.01);
 /** Apprehend / Castigator's Arrest (the only enemy in the Castigator's control range): can't Fall Back. */
@@ -2157,7 +2170,7 @@ const FF = {
   livingLightning: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w?.id === 'teslaCarbine' ? null : { zh: '只能用特斯拉卡賓槍', en: 'Tesla carbine only' }) },
   // ---- Imperial Navy Breachers ----
   blitz: { kind: 'attack', cond: (g, op, t) => (t && edgeDist(op, t) <= 6 && g.attackTP?.[op.side] !== g.tp ? null : { zh: '要是本回合第一次攻擊、目標在 6" 內', en: 'The team\'s first attack this TP, within 6"' }) },
-  overwhelmTarget: { kind: 'button', start: true, cond: (g, op) => (op.acted.breached || op.breach?.length ? null : { zh: '要在突破清場啟動時', en: 'Only when activated with Breach and Clear' }), apply(g, op) { op.ap += 1; } },
+  overwhelmTarget: { kind: 'button', start: true, cond: (g, op) => (op.breachedTP === g.tp || op.breach?.length ? null : { zh: '要在突破清場啟動時', en: 'Only when activated with Breach and Clear' }), apply(g, op) { op.ap += 1; } },
   // ---- Kommandos ----
   justScratch: { kind: 'auto' },
   shakeItOff: { kind: 'button', start: true, apply(g, op) { op.shakeTP = g.tp; if ((op.aplNext || 0) < 0 && !op.counter) op.ap += Math.min(1, -op.aplNext); } },
@@ -2182,6 +2195,8 @@ const FF = {
   slink: { kind: 'button', cond: (g, op) => (op.order === 'engage' && !op.slinkUsed ? null : { zh: '要是交戰指令（每名整場一次）', en: 'Engage order only (once per operative per battle)' }), apply(g, op) { op.acted.slink = true; op.slinkUsed = true; } },
   coiledSerpent: { kind: 'attack', cond: (g, op) => (sprungNow(op) && !count(op, 'shoot') && !count(op, 'fight') ? null : { zh: '要在隱蔽轉交戰後的第一次攻擊', en: 'First attack after switching from Conceal' }) },
 };
+/** The kind of a firefight ploy ('button' | 'aim' | 'attack' | 'auto'), for the interface. */
+export const ffKind = (id) => FF[id]?.kind || null;
 const poisonTargets = (g, op) => foes(g, op).filter((t) => !t.poison && t.side < 2 && (edgeDist(op, t) <= 3 || (edgeDist(op, t) <= 7 && visibility(g, op, t).visible)));
 
 /** Button ploys for the active operative: [{id, cp, ok, why}]. */
@@ -2418,7 +2433,7 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
   for (let k = 0; k < auto; k++) dice.push({ v: '✓', res: 'norm', auto: true });
   const pool = {
     dice, success, critOn, post, crits: 0, norms: 0,
-    rules: { severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze },
+    rules: { severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze, promote: rules.promote || 0 },
   };
   return tally(pool);
 }
@@ -2426,7 +2441,7 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
 function tally(pool) {
   const { dice, success, critOn, rules } = pool;
   for (const d of dice) {
-    delete d.sev; delete d.rend; delete d.pun; delete d.indo; delete d.obsc; delete d.obscDrop; delete d.grudge; delete d.gaze;
+    delete d.sev; delete d.rend; delete d.pun; delete d.indo; delete d.obsc; delete d.obscDrop; delete d.grudge; delete d.gaze; delete d.prom;
     const ok = d.v >= success && !(rules.no3 && d.v === 3);
     d.res = d.auto ? 'norm' : ok && d.v >= critOn ? 'crit' : ok ? 'norm' : 'miss';
   }
@@ -2451,6 +2466,11 @@ function tally(pool) {
   // Grudge (Hearthkyn): one normal success per Grudge token is retained as a critical success.
   for (let k = 0; k < (rules.grudge || 0) && norms > 0; k++) {
     const d = dice.find((x) => x.res === 'norm'); d.res = 'crit'; d.grudge = true;
+    crits++; norms--;
+  }
+  // Coiled Serpent (Wyrmblade firefight ploy): one normal success is retained as a critical success.
+  for (let k = 0; k < (rules.promote || 0) && norms > 0; k++) {
+    const d = dice.find((x) => x.res === 'norm'); d.res = 'crit'; d.prom = true;
     crits++; norms--;
   }
   // Close Assault (Navy Breachers): with two or more fails, one becomes a normal success.
@@ -2661,6 +2681,32 @@ export function frenzyDie(g, op, src = null) {
   return killOff(g, src, op);
 }
 
+/** Firefight ploys triggered by an incapacitation (armed reactions). */
+function ffOnDeath(g, src, target) {
+  const side = target.side;
+  if (side > 1) return;
+  const near = (r) => foes(g, target).filter((e) => e.side < 2 && edgeDist(e, target) <= r && visibility(g, target, e).visible);
+  // Vengeance for the Kinband: Relentless against the killer for the rest of the battle.
+  const v = g.vengeance?.[side] && getOp(g, g.vengeance[side]);
+  if (src && src.side === 1 - side && !src.dead && (!v || v.dead) && autoFF(g, side, 'vengeanceKinband')) {
+    (g.vengeance ||= [null, null])[side] = src.uid;
+    log(g, { zh: `為戰團復仇：友方攻擊 ${opName(src, 'zh')} 時武器「無情」`, en: `Vengeance for the Kinband: friendlies attacking ${opName(src, 'en')} have Relentless` }, `side${side}`);
+  }
+  // Putrescent Demise (Gellerpox): 1 damage (D3 for a Nightmare Hulk) to each enemy visible within 2".
+  if (!tpl(target).vermin && near(2).length && autoFF(g, side, 'putrescentDemise')) {
+    for (const e of near(2)) { const dmg = tpl(target).hulk ? d3() : 1; log(g, { zh: `腐爛之死：${opName(e, 'zh')} 受到 ${dmg} 傷害`, en: `Putrescent Demise: ${opName(e, 'en')} takes ${dmg} damage` }, `side${side}`); applyDamage(g, target, e, dmg); }
+  }
+  // Poisonous Demise (Plague Marines): enemies visible within 3" are poisoned, or take 1 damage if they already were.
+  if (near(3).length && autoFF(g, side, 'poisonousDemise')) {
+    for (const e of near(3)) {
+      if (!e.poison) { e.poison = true; log(g, { zh: `劇毒之死：${opName(e, 'zh')} 中毒`, en: `Poisonous Demise: ${opName(e, 'en')} is poisoned` }, `side${side}`); }
+      else { log(g, { zh: `劇毒之死：${opName(e, 'zh')} 受到 1 傷害`, en: `Poisonous Demise: ${opName(e, 'en')} takes 1 damage` }, `side${side}`); applyDamage(g, target, e, 1); }
+    }
+  }
+  // Reward Earned (Blooded): the killer had a Blooded token and was within 2" — one more token.
+  if (src && src.side === 1 - side && src.bloodToken && edgeDist(src, target) <= 2 && autoFF(g, src.side, 'rewardEarned')) gainBlood(g, src.side, { zh: '應得的獎賞', en: 'Reward Earned' });
+}
+
 function killOff(g, src, target) {
   {
     const wasReady = target.ready && g.active !== target.uid;
@@ -2678,6 +2724,7 @@ function killOff(g, src, target) {
     }
     mission(g).onIncapacitated?.(g, target, src);
     bloodedOnDeath(g, target);
+    ffOnDeath(g, src, target); // firefight ploys used when an operative is incapacitated
     // Reanimation Protocols (Hierotek Circle): the first time it falls, a Reanimation marker is left in its place.
     if (TEAM_MAP[target.team].reanimation && !target.reanimUsed && target.side < 2) {
       target.reanimUsed = true;
@@ -2704,6 +2751,18 @@ function resolveDice(target, amounts, g = null) {
   const resilient = !!TEAM_MAP[target.team].resilient || !!tpl(target).resilient || emboldened || zealous;
   const need = (emboldened || zealous) && !tpl(target).resilient ? 5 : 4;
   // Brace for Counterattack / Reinforce Metal (Hierotek): Dmg of 3+ deals 1 less.
+  // Sickening Resilience (Plague Marines firefight ploy): for the rest of this activation, Disgustingly Resilient
+  // always takes 1 off (to a minimum of 2) without rolling. Used when it saves at least 2 damage or a life.
+  const actKey = g ? `${g.tp}:${g.active}` : null;
+  if (g && TEAM_MAP[target.team].resilient && target.sickAct !== actKey) {
+    const big = amounts.filter((x) => x >= 3).length;
+    if ((big >= 2 || amounts.reduce((s, x) => s + x, 0) >= target.wounds) && big && autoFF(g, target.side, 'sickeningResilience')) target.sickAct = actKey;
+  }
+  if (g && target.sickAct === actKey) {
+    let dmg = 0;
+    for (const a of amounts) dmg += a >= 3 ? Math.max(2, a - 1) : a;
+    return { dmg, rolls: [] };
+  }
   const brace = !!g && (braced(g, target) || (g.reinforce?.[target.side]?.t === target.uid && !getOp(g, g.reinforce[target.side].by)?.dead));
   let dmg = 0;
   const rolls = [];
@@ -2811,6 +2870,11 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     if (withCover < withObsc) useObscured = false; else useCover = false;
   }
   if (useObscured) { a.post = obscure; tally(a); }
+  // Sturdy (Hearthkyn firefight ploy): the attacker's retained crits become normal successes.
+  if (a.crits > 0 && autoFF(g, target.side, 'sturdy')) {
+    for (const x of a.dice) if (x.res === 'crit') { x.res = 'norm'; x.obsc = true; }
+    a.norms += a.crits; a.crits = 0; a.post = null;
+  }
   const { pierce, defDice, base, coverN, coverC, skulk, save } = defence(useCover, a.crits);
   // Indomitus: with two or more fails, discard one to retain another as a normal success (recomputed after a re-roll).
   const indomitus = hasPloy(g, target.side, 'indomitus') ? (pool) => {
@@ -2840,6 +2904,11 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const d = rollPool(defDice - coverN - coverC, save, hasTactic(g, target, 'hardy') ? 5 : 6, defRules, post);
   seq.d = d; seq.save = save; seq.defDice = defDice; seq.coverN = coverN; seq.coverC = coverC;
   yield { stage: 'defence', seq };
+  // Transhuman Physiology (Angels / Phobos firefight ploy): one normal save is retained as a critical one,
+  // when that could block a crit that would otherwise get through.
+  if (d.norms > 0 && a.crits > d.crits + coverC && autoFF(g, target.side, 'transhuman')) {
+    const x = d.dice.find((y) => y.res === 'norm'); x.res = 'crit'; x.prom = true; d.norms--; d.crits++;
+  }
   // War Gong: crits that get through inflict Normal Dmg instead (when that's better, or to keep a Frenzied Fellgor up).
   const wasFrenzy = !!target.frenzy;
   const gong = warGong(g, target) && (dn < dc || wasFrenzy);
@@ -2848,7 +2917,14 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const dev = (rules.devastating || 0) * a.crits;
   // Weavefield Crest (Theyn): once per battle, ignore the Normal Dmg of one attack die.
   const crest = block.remN > 0 && dn > 0 && useCrest(g, target);
-  const res = resolveDice(target, [...Array(a.crits).fill(rules.devastating || 0), ...Array(block.remC).fill(dc), ...Array(block.remN - (crest ? 1 : 0)).fill(dn)].filter((x) => x > 0), g);
+  const normals = Array(Math.max(0, block.remN - (crest ? 1 : 0))).fill(dn);
+  // Just a Scratch (Kommandos) ignores one normal hit; All Is Dust (Rubric Marines) makes one deal 1.
+  if (normals.length && dn >= 3 && autoFF(g, target.side, 'justScratch')) normals.pop();
+  else if (normals.length && dn >= 2 && tpl(target).automata && autoFF(g, target.side, 'allIsDust')) normals[0] = 1;
+  // Critical Shot (Phobos firefight ploy): +D3 damage with a critical success (once per action).
+  const critShot = block.remC > 0 && ffOn(g, op, 'criticalShot') && !g.ffAtk.critShotDone ? d3() : 0;
+  if (critShot) g.ffAtk.critShotDone = true;
+  const res = resolveDice(target, [...Array(a.crits).fill(rules.devastating || 0), ...Array(block.remC).fill(dc), ...normals, critShot].filter((x) => x > 0), g);
   const dmg = res.dmg;
   const before = target.wounds;
   let killed = applyDamage(g, op, target, dmg);
@@ -2930,6 +3006,13 @@ export function resolveShoot(g, op, weapon, target) {
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
 export function* shootFlow(g, op, weapon, target) {
   const ap = shootWeapon(g, op, weapon).ap;
+  ffCommit(g, op, 'shoot', weapon, target); // firefight ploys chosen for this Shoot are paid now
+  if (ffOn(g, op, 'livingLightning')) { // Living Lightning: Blast 2" instead of 2" Devastating
+    const rules = { ...weapon.rules, blast: 2 }; delete rules.devSplash;
+    weapon = { ...weapon, rules };
+  }
+  // Revolting Technology (Gellerpox firefight ploy): the shooter's weapon gains Hot for this action.
+  const revolt = !weapon.rules.hot && target.side < 2 && autoFF(g, target.side, 'revoltingTech');
   const relay = weapon.rules.detonate ? null : magnifyRelay(g, op, target, weapon);
   const vis = weapon.rules.detonate ? { visible: true, cover: false, obscured: false } : shotVisibility(g, relay || op, target, weapon);
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
@@ -2968,7 +3051,7 @@ export function* shootFlow(g, op, weapon, target) {
   }
   // Hot: roll one D6 per action; below the Hit stat, the shooter takes twice the result.
   let hot = null;
-  if (weapon.rules.hot && !op.dead) {
+  if ((weapon.rules.hot || revolt) && !op.dead) {
     const roll = d6();
     hot = { roll, dmg: roll < main.hit ? roll * 2 : 0 };
     if (hot.dmg) {
@@ -2985,6 +3068,7 @@ export function* shootFlow(g, op, weapon, target) {
     log(g, { zh: `${opName(target, 'zh')} 獲得死亡標記（死亡標記射擊它時武器「搜尋」）`, en: `${opName(target, 'en')} gains a Deathmarked token (Deathmarks shooting it have Seek)` }, `side${op.side}`);
   }
   if (g.proxy?.uid === op.uid) endProxy(g); // Interstitial Command's free Shoot is done
+  g.ffAtk = null;
   for (const o of g.ops) o.medicShield = false;
   return { kind: 'shoot', attacker: op.uid, weapon, ap, ...main, extra, hot, suppressed: noReroll };
 }
@@ -3019,6 +3103,7 @@ export function startFight(g, op, weapon, target) {
   if (free === 'swipe') weapon = tpl(op).weapons.find((w) => w.rules.swipe); // the free Fight must use the swipe profile
   if (weapon.rules.swipe) (op.acted.swiped ||= []).push(target.uid);
   const dWeapon = bestMelee(target);
+  ffCommit(g, op, 'fight', weapon, target); // firefight ploys chosen for this Fight are paid now
   const ar = effectiveRules(g, op, weapon, target);
   const dr = effectiveRules(g, target, dWeapon, op);
   // Rust Emanations (Gellerpox): a Nightmare Hulk fighting — the opponent can't retain results of 3.
@@ -3059,12 +3144,20 @@ export function startFight(g, op, weapon, target) {
     uid: o.uid, w: w.id, c: roll.crits, n: roll.norms, brutal: !!r.brutal, dueller: hasTactic(g, o, 'dueller'), hit, dice: roll.dice, before: o.wounds,
     tox: r.toxic && foe.poison ? 1 : 0, poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute') && !tpl(foe).chemEnhanced && !tpl(foe).toxicBlessings, hardy: !!tpl(o).hardyCrit,
     a: roll, rerolled: {}, noReroll: { a: noRerollHere(g, o) || neurostatic(g, o) },
-    destr: !!tpl(o).ruststalker && living(g, o.side).some((p) => tpl(p).canticleDestruction && edgeDist(p, o) <= 3),
+    // +1 damage on the first critical strike: Canticle of Destruction (Ruststalkers near the Princeps).
+    critBonus: tpl(o).ruststalker && living(g, o.side).some((p) => tpl(p).canticleDestruction && edgeDist(p, o) <= 3) ? 1 : 0,
   });
   // Repress (Exaction Squad shields): retaliating with it, the defender resolves the first die.
   g.fight = { A: side(op, target, weapon, ar, aRoll, aHit), D: side(target, op, dWeapon, dr, dRoll, dHit), turn: dWeapon.rules.repress && !weapon.rules.repress ? 'D' : 'A', steps: [], done: false };
   g.fight.A.assist = aAssist; g.fight.D.assist = dAssist;
   if (free === 'stealth') g.fight.A.extraStrike = true;
+  // ---- Firefight ploys ----
+  if (ffOn(g, op, 'shockAssault')) g.fight.A.firstBonus = 1; // the first strike deals 1 more (max 7)
+  if (ffOn(g, op, 'animalisticFury')) g.fight.A.critBonus += 1;
+  if (dRoll.crits > 0 && autoFF(g, target.side, 'animalisticFury')) g.fight.D.critBonus += 1; // (retaliating)
+  if (op.omniTP === g.tp && doctrina(g, op)?.mode === 'conqueror') g.fight.A.extraStrike = true; // Omnissiah's Imperative
+  // Savage Ambush (Kinband firefight ploy): a ready Kroot by terrain that's fought against strikes first.
+  if (target.ready && g.terrain.some((t) => distPointRect(target, t) - radius(target) <= CONTROL) && autoFF(g, target.side, 'savageAmbush')) g.fight.turn = 'D';
   // Savage Assault: the first Fight of the activation may be followed by a free one against the same enemy.
   if (tpl(op).savageAssault && !op.acted.savageUsed) { op.acted.savageUsed = true; g.fight.savage = true; }
   stunOnCrit(g, ar, aRoll.crits, target);
@@ -3129,10 +3222,12 @@ export function fightOptions(g) {
   const f = g.fight, k = f.turn, me = f[k], foe = f[other(k)];
   const w = fightWeapon(g, k), foeOp = fightOp(g, other(k));
   const opts = [];
-  const normal = normalDmg(w, foeOp, g, fightOp(g, k)) + (me.tox || 0);
+  // Shock Assault (firefight ploy): the first strike deals 1 more (to a maximum of 7).
+  const first = (d) => (me.firstBonus ? Math.max(d, Math.min(7, d + 1)) : d);
+  const normal = first(normalDmg(w, foeOp, g, fightOp(g, k)) + (me.tox || 0));
   // Headtaker: the skullcleaver's Critical Dmg grows with each kill.
-  // Canticle of Destruction (Ruststalker Princeps): +1 damage on the first critical strike of the sequence.
-  const critD = w.dmg[1] + (me.tox || 0) + (w.rules.headtaker ? fightOp(g, k).headBonus || 0 : 0) + (me.destr && !me.destrUsed ? 1 : 0);
+  // Canticle of Destruction / Animalistic Fury: more damage on the first critical strike of the sequence.
+  const critD = first(w.dmg[1] + (me.tox || 0) + (w.rules.headtaker ? fightOp(g, k).headBonus || 0 : 0) + (me.critBonus && !me.critBonusUsed ? me.critBonus : 0));
   if (me.c) opts.push({ id: 'strike-c', act: 'strike', die: 'c', dmg: foe.hardy ? Math.min(critD, normal) : critD });
   if (me.n) opts.push({ id: 'strike-n', act: 'strike', die: 'n', dmg: normal });
   // Parry: a crit cancels any success, a normal cancels a normal (not vs Brutal).
@@ -3154,13 +3249,15 @@ export function fightApply(g, optId) {
   if (!opt) return;
   const k = f.turn, me = f[k], foe = f[other(k)];
   me[opt.die]--;
-  if (opt.act === 'strike' && opt.die === 'c' && me.destr) me.destrUsed = true;
+  if (opt.act === 'strike' && opt.die === 'c' && me.critBonus) me.critBonusUsed = true;
+  if (opt.act === 'strike' && me.firstBonus) me.firstBonus = 0; // Shock Assault: only the first strike
   if (opt.act === 'strike') {
     const meOp = fightOp(g, k), foeOp = fightOp(g, other(k));
     // Bruiser: once per turning point, ignore the damage from one normal success when fighting or retaliating.
     let shrug = opt.die === 'n' && tpl(foeOp).bruiser && foeOp.bruiserTP !== g.tp;
     if (shrug) foeOp.bruiserTP = g.tp;
     if (!shrug && opt.die === 'n' && useCrest(g, foeOp)) shrug = true; // Weavefield Crest (Theyn)
+    if (!shrug && opt.die === 'n' && opt.dmg >= 3 && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
     // Brawler (Dôzr): Normal Dmg of 4 or more inflicts 1 less when it's fighting or retaliating.
     // Tough (Blooded Thug): Normal Dmg of 3 or more inflicts 1 less.
     // War Gong: a critical strike inflicts Normal Dmg instead (when lower, or to keep a Frenzied Fellgor up).
@@ -3168,7 +3265,8 @@ export function fightApply(g, optId) {
     const normalHit = normalDmg(fightWeapon(g, k), foeOp, g, meOp) + (me.tox || 0);
     const gong = opt.die === 'c' && warGong(g, foeOp) && (normalHit < opt.dmg || wasFrenzy);
     const dmg0 = gong ? normalHit : opt.dmg, asNormal = opt.die === 'n' || gong;
-    const amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || ((tpl(foeOp).tough || bulwark(g, foeOp)) && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
+    let amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || ((tpl(foeOp).tough || bulwark(g, foeOp)) && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
+    if (!shrug && opt.die === 'n' && amount >= 2 && tpl(foeOp).automata && autoFF(g, foeOp.side, 'allIsDust')) amount = 1; // All Is Dust (Rubric Marines)
     const res = shrug ? { dmg: 0, rolls: [] } : resolveDice(foeOp, [amount], g); // Disgustingly Resilient
     // Shock: the first crit strike in the sequence also discards an unresolved enemy normal (else a crit).
     let shocked = null;
@@ -3245,6 +3343,7 @@ function finishFight(g) {
   const f = g.fight;
   if (f.done) return;
   f.done = true;
+  g.ffAtk = null;
   const a = fightOp(g, 'A'), d = fightOp(g, 'D');
   log(g, {
     zh: `${opName(a, 'zh')} 與 ${opName(d, 'zh')} 近戰：造成 ${f.D.before - d.wounds}，承受 ${f.A.before - a.wounds}`,

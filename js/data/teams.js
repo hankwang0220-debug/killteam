@@ -1229,6 +1229,86 @@ export const NPO_TEAM = {
   ].map((o) => ({ ...o, count: o.id === 'borewyrm' ? 2 : 1 })), // count only affects naming (#1, #2); missions spawn NPOs
 };
 
+// ---- Firefight ploys (交戰計謀), 1CP each, once per turning point; the rules are in game.js (FF) ----
+// kind: 'button' (during the operative's activation), 'aim'/'attack' (chosen with a Shoot or Fight),
+// 'auto' (reactions, used automatically while switched on).
+const ff = (id, zh, en, dzh, den) => ({ id, cp: 1, name: { zh, en }, desc: { zh: dzh, en: den } });
+const FIREFIGHT = {
+  angels: [
+    ff('adjustDoctrine', '調整教條', 'Adjust Doctrine', '啟動中：把本回合的戰鬥教條換成下一種（突擊→毀滅→戰術）。', 'During an activation: switch this TP\'s Combat Doctrine to the next one (Assault → Devastator → Tactical).'),
+    ff('wrathVengeance', '復仇之怒', 'Wrath of Vengeance', '反擊時：多一個免費的 1AP 動作。', 'While counteracting: one more 1AP action for free.'),
+    ff('transhuman', '超人生理', 'Transhuman Physiology', '自動：被射擊時，一顆普通豁免當成暴擊豁免（能多擋暴擊時才用）。', 'Auto: when shot, one normal save is retained as a critical one (used when it blocks a crit).'),
+    ff('shockAssault', '震撼突擊', 'Shock Assault', '本次啟動衝鋒過的近戰：武器「震撼」，第一次打擊 +1 傷害（最多 7）。', 'Fighting after a Charge this activation: Shock, and the first strike deals 1 more (max 7).'),
+  ],
+  blooded: [
+    ff('momentRepute', '榮耀時刻', 'Moment of Repute', '受諸神注視的友方啟動中：本次 APL +1。', 'During the activation of the operative under the Gaze of the Gods: +1 APL.'),
+    ff('rewardEarned', '應得的獎賞', 'Reward Earned', '自動：持有血祭標記的友方在 2" 內擊倒敵人時，獲得 1 個血祭標記。', 'Auto: when a friendly with a Blooded token incapacitates an enemy within 2", gain a Blooded token.'),
+  ],
+  deathKorps: [
+    ff('combinedArms', '聯合火力', 'Combined Arms', '射擊本回合已被其他友方射擊過的敵人：可重擲任意攻擊骰（無情）。', 'Shooting an enemy another friendly shot this TP: re-roll any attack dice (Relentless).'),
+  ],
+  exaction: [
+    ff('longArm', '帝皇律法之臂', 'Long Arm of the Emperor\'s Law', '射擊選武器時：有射程限制的武器射程 +3"。', 'When shooting with a Range x weapon: +3" to x.'),
+  ],
+  fellgor: [
+    ff('animalisticFury', '獸性狂怒', 'Animalistic Fury', '近戰時第一次暴擊打擊 +1 傷害（反擊時自動使用）。', 'Fighting: the first critical strike deals 1 more (used automatically when retaliating).'),
+    ff('wildRage', '狂野暴怒', 'Wild Rage', '啟動時：本次啟動 Move +1"。', 'When activated: +1" Move for this activation.'),
+    ff('ruthlessRampage', '無情暴走', 'Ruthless Rampage', '近戰後若已不在敵人控制範圍內：免費衝鋒一次（最多 3"）。', 'After a Fight, if out of enemy control range: a free Charge of up to 3".'),
+  ],
+  farstalkers: [
+    ff('slipAway', '溜走', 'Slip Away', '啟動中：本次撤退少花 1AP。', 'During an activation: Fall Back costs 1 less AP.'),
+    ff('vengeanceKinband', '為戰團復仇', 'Vengeance for the Kinband', '自動：友方被敵人擊倒時，之後友方攻擊那個敵人都「無情」（它倒下前不能再用）。', 'Auto: when a friendly is incapacitated by an enemy, friendlies attacking that enemy have Relentless (not again until it falls).'),
+    ff('savageAmbush', '野蠻伏擊', 'Savage Ambush', '自動：控制範圍內有地形、尚未行動的友方被近戰時，由它先出手。', 'Auto: a ready friendly with terrain in its control range that\'s fought against resolves the first die.'),
+  ],
+  gellerpox: [
+    ff('putrescentDemise', '腐爛之死', 'Putrescent Demise', '自動：友方倒下時，2" 內看得到的每名敵人受 1 傷害（噩夢巨獸 D3）。', 'Auto: when a friendly falls, each enemy visible within 2" takes 1 damage (D3 for a Nightmare Hulk).'),
+    ff('frighteningOnslaught', '駭人猛攻', 'Frightening Onslaught', '噩夢巨獸近戰後：再免費近戰一次。', 'After a Nightmare Hulk fights: a free Fight.'),
+    ff('revoltingTech', '腐壞科技', 'Revolting Technology', '自動：敵人射擊友方時，它的武器獲得「過熱」。', 'Auto: an enemy shooting a friendly has Hot on its weapon.'),
+  ],
+  hunterClade: [
+    ff('commandOverride', '指令覆寫', 'Command Override', '啟動時：這名特工改用最適合它的指令（近戰型→征服者，射擊型→守護者）。', 'When activated: this operative switches to the Imperative that suits it (melee → Conqueror, shooting → Protector).'),
+    ff('omnissiah', '萬機神指令', 'Omnissiah\'s Imperative', '啟動中：直到下回合，守護者→遠程「重創」；征服者→近戰時第一次打擊後可再打擊一次。', 'During an activation: until next TP, Protector → ranged Severe; Conqueror → after its first strike when fighting, another.'),
+    ff('scrapcode', '廢碼過載', 'Scrapcode Overload', '滲透者啟動時：直到它下次啟動，它 3" 內的敵人爭奪目標時 APL 總和 -1。', 'When an Infiltrator is activated: until its next activation, enemies within 3" of it count 1 less total APL for marker control.'),
+  ],
+  hearthkyn: [
+    ff('sturdy', '結實', 'Sturdy', '自動：被射擊時，攻擊方保留的暴擊全部變成普通成功。', 'Auto: when shot, the attacker\'s retained crits become normal successes.'),
+    ff('engageToAcquire', '以戰奪寶', 'Engage to Acquire', '攻擊控制目標點的敵人：可重擲任意攻擊骰（無情）。', 'Attacking an enemy that controls an objective: re-roll any attack dice (Relentless).'),
+    ff('ancestorsWatching', '先祖注視', 'The Ancestors Are Watching', '啟動中：可免費射擊或近戰一次，且武器無視受傷減益。', 'During an activation: a free Shoot or Fight, ignoring injured weapon penalties.'),
+  ],
+  hierotek: [
+    ff('livingLightning', '活體閃電', 'Living Lightning', '用特斯拉卡賓槍射擊時：改為「爆炸 2\"」（不再有 2" 毀滅）。', 'Shooting a tesla carbine: Blast 2" instead of its 2" Devastating.'),
+  ],
+  navyBreachers: [
+    ff('blitz', '閃擊', 'Blitz', '全隊本回合第一次攻擊、目標在 6" 內：「精準 1」；若也是第一個啟動的再加「重創」。', 'The team\'s first attack this TP, target within 6": Accurate 1; also Severe if it\'s the first operative activated.'),
+    ff('overwhelmTarget', '壓制目標', 'Overwhelm Target', '以突破清場啟動時：本次 APL +1。', 'When activated with Breach and Clear: +1 APL.'),
+  ],
+  kommandos: [
+    ff('justScratch', '只是擦傷', 'Just a Scratch', '自動：一顆 3 以上的普通傷害攻擊骰改為不造成傷害。', 'Auto: ignore the damage of one attack die inflicting 3+ Normal Dmg.'),
+    ff('shakeItOff', '甩掉它', 'Shake It Off', '啟動時：本回合無視 APL 的變化（被減的 AP 補回）。', 'When activated: ignore APL changes this TP (a lost AP is restored).'),
+  ],
+  tauPathfinders: [
+    ff('supportingFire', '支援火力', 'Supporting Fire', '射擊選目標時：6" 內被友方纏住的敵人也能選。', 'Picking a target: enemies within 6" in friendly control range can be selected.'),
+  ],
+  phobos: [
+    ff('criticalShot', '致命一擊', 'Critical Shot', '用爆彈武器射擊：有暴擊命中時，多造成 D3 傷害（每次行動一次）。', 'Shooting a bolt weapon: a critical hit inflicts D3 more damage (once per action).'),
+    ff('transhuman', '超人生理', 'Transhuman Physiology', '自動：被射擊時，一顆普通豁免當成暴擊豁免（能多擋暴擊時才用）。', 'Auto: when shot, one normal save is retained as a critical one (used when it blocks a crit).'),
+  ],
+  plagueMarines: [
+    ff('sickeningResilience', '令人作嘔的堅韌', 'Sickening Resilience', '自動：受到重傷時，本次行動中「令人作嘔的韌性」不用擲骰，3 以上的傷害一律 -1（最低 2）。', 'Auto: when badly hit, for the rest of the activation Disgustingly Resilient takes 1 off every 3+ damage (min 2) without rolling.'),
+    ff('virulentPoison', '劇毒瘟疫', 'Virulent Poison', '啟動中：3" 內或 7" 內看得到的一名敵人中毒。', 'During an activation: an enemy within 3", or visible within 7", is poisoned.'),
+    ff('poisonousDemise', '劇毒之死', 'Poisonous Demise', '自動：友方倒下時，3" 內看得到的敵人中毒（已中毒的受 1 傷害）。', 'Auto: when a friendly falls, enemies visible within 3" are poisoned (1 damage if they already were).'),
+  ],
+  wyrmblade: [
+    ff('slink', '遁入黑暗', 'Slink into Darkness', '啟動中：啟動結束時從交戰改回隱蔽（每名整場一次）。', 'During an activation: switch from Engage back to Conceal when it ends (once per operative per battle).'),
+    ff('coiledSerpent', '盤蛇', 'Coiled Serpent', '從隱蔽轉交戰後的第一次攻擊：一顆普通成功當成暴擊。', 'First attack after switching from Conceal to Engage: one normal success becomes a critical success.'),
+  ],
+  warpcoven: [
+    ff('allIsDust', '萬物皆塵', 'All Is Dust', '自動：一顆對紅字星際戰士造成普通傷害的攻擊骰只造成 1 傷害。', 'Auto: one attack die inflicting Normal Dmg on a Rubric Marine inflicts 1 instead.'),
+    ff('capricious', '多變的計畫', 'Capricious Plan', '巫師啟動中：免費衝刺一次（之前做過什麼都可以）。', 'During a Sorcerer\'s activation: a free Dash, whatever it did before.'),
+  ],
+};
+for (const t of TEAMS) t.firefight = FIREFIGHT[t.id] || [];
+
 export const TEAM_MAP = Object.fromEntries([...TEAMS, NPO_TEAM].map((t) => [t.id, t]));
 
 export const RULE_LABELS = {
