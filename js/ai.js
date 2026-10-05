@@ -1,5 +1,5 @@
 import {
-  activate, activeOp, availableActions, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
+  activate, activeOp, actionCost, availableActions, endProxy, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
@@ -13,7 +13,7 @@ export function aiStrategy(g, side) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6) buyPloy(g, side, p);
   }
   // Call the Kill / Bring it Down!: mark the enemy with the most wounds.
-  if (living(g, side).some((o) => tpl(o).callTheKill || tpl(o).watchmaster) && !g.mark?.[side]) {
+  if ((team(g, side).justiceMark || living(g, side).some((o) => tpl(o).callTheKill || tpl(o).watchmaster)) && !g.mark?.[side]) {
     setMark(g, side, living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0]);
   }
   // Eye of the Ancestors: Grudge tokens on the toughest enemies. Tactician: the Attack marker on the toughest enemy.
@@ -282,6 +282,54 @@ export function aiStep(g) {
   if (can.boost && can.charge && !chargePath(g, op)) {
     const reach = moveAllowance(g, op, 'charge') + 2 + 1;
     if (foes(g, op).some((e) => edgeDist(op, e) <= reach)) { doSelfAction(g, op, 'boost'); return null; }
+  }
+  // Hierotek Circle: Reanimate, repairs and buffs, Interstitial Command for the friendly with the best shot.
+  if (can.reanimateSure && op.ap >= 2) { doSelfAction(g, op, 'reanimateSure'); return null; }
+  if (can.reanimate) { doSelfAction(g, op, 'reanimate'); return null; }
+  if (can.canoptekRepair) {
+    const t = TARGET_ACTIONS.canoptekRepair.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds / a.maxW - b.wounds / b.maxW)[0];
+    if (t) { doTargetAction(g, op, 'canoptekRepair', t); return null; }
+  }
+  if (can.interstitial) {
+    const proxyScore = (t) => { const keep = { ap: t.ap, acted: t.acted }; t.ap = 1; t.acted = {}; const s = shootOptions(g, t)[0]?.score || 0; t.ap = keep.ap; t.acted = keep.acted; return s; };
+    const t = TARGET_ACTIONS.interstitial.targets(g, op).map((o) => [o, proxyScore(o)]).sort((a, b) => b[1] - a[1])[0];
+    if (t && t[1] > 1.5) {
+      doTargetAction(g, op, 'interstitial', t[0]);
+      const best = shootOptions(g, t[0])[0];
+      if (best) resolveShoot(g, t[0], best.w, best.t);
+      if (g.proxy) endProxy(g);
+      return null;
+    }
+  }
+  if (can.augment && op.ap >= 2) {
+    const t = TARGET_ACTIONS.augment.targets(g, op).filter((o) => o.ready || o === op).sort((a, b) => bestRanged(b, 0) - bestRanged(a, 0))[0];
+    if (t && g.augment?.[op.side]?.t !== t.uid) { doTargetAction(g, op, 'augment', t); return null; }
+  }
+  if (can.reinforce && op.ap >= 2 && !g.reinforce?.[op.side]) {
+    const seen = (o) => foes(g, o).filter((e) => visibility(g, e, o).visible).length;
+    const t = TARGET_ACTIONS.reinforce.targets(g, op).sort((a, b) => seen(b) - seen(a))[0];
+    if (t && seen(t)) { doTargetAction(g, op, 'reinforce', t); return null; }
+  }
+  if (can.accelerate) {
+    const t = TARGET_ACTIONS.accelerate.targets(g, op).find((o) => o.ready);
+    if (t) { doTargetAction(g, op, 'accelerate', t); return null; }
+  }
+  if (can.mdVision && op.ap >= 2 && can.shoot) {
+    const w = tpl(op).weapons.find((x) => x.type === 'ranged');
+    if (w && foes(g, op).some((t) => shootCheck(g, op, t, w).obscured)) { doSelfAction(g, op, 'mdVision'); return null; }
+  }
+  // Exaction Squad: Apprehend (free) the toughest enemy in reach; Veriscant the toughest visible enemy.
+  if (can.apprehend) {
+    const t = TARGET_ACTIONS.apprehend.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t && op.apprehend !== t.uid) { doTargetAction(g, op, 'apprehend', t); return null; }
+  }
+  if (can.veriscant && (op.ap >= 2 || actionCost(g, op, 'veriscant') === 0)) {
+    const t = TARGET_ACTIONS.veriscant.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'veriscant', t); return null; }
+  }
+  if (can.medikit) {
+    const t = TARGET_ACTIONS.medikit.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'medikit', t); return null; }
   }
   if (can.knuxSmash) {
     const t = TARGET_ACTIONS.knuxSmash.targets(g, op).sort((a, b) => a.wounds - b.wounds)[0];

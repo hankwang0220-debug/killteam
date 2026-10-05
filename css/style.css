@@ -194,6 +194,8 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .carrytxt { font-size: .38px; fill: #f0d27a; paint-order: stroke; stroke: #000; stroke-width: .06px; }
 #board .pechra { fill: rgba(255,255,255,.05); stroke-width: .05; stroke-dasharray: .15 .1; }
 #board .pechratxt { font-size: .6px; text-anchor: middle; }
+#board .reanim { fill: rgba(80, 220, 120, .18); stroke-width: .08; }
+#board .reanimtxt { font-size: 1px; text-anchor: middle; fill: #7dffa8; }
 #board .killmark circle { fill: none; stroke: #ff3b30; stroke-width: .05; }
 #board .killmark line { stroke: #ff3b30; stroke-width: .06; }
 #board .los { stroke: var(--bad); stroke-width: .08; stroke-dasharray: .35 .15; }

@@ -64,6 +64,11 @@ export function renderBoard(g, ui) {
   [...(g.navyOrder || [])].forEach((m, side) => { // Navy Breachers' Attack / Defence Order marker
     if (m && m.tp === g.tp) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="3" class="pechra" stroke="${team(g, side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y - 3.2)}" class="pechratxt" pointer-events="none">${m.kind === 'attack' ? '⚔' : '🛡'}</text>`);
   });
+  // Reanimation markers (Hierotek Circle) whose operative can still come back.
+  for (const m of g.reanim || []) {
+    if (!g.ops.find((o) => o.uid === m.uid)?.dead) continue;
+    s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.7" class="reanim" stroke="${team(g, m.side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y + 0.35)}" class="reanimtxt" pointer-events="none">☥</text>`);
+  }
   (g.tactician || []).forEach((m, side) => {
     if (m && m.tp === g.tp) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="3" class="pechra" stroke="${team(g, side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y - 3.2)}" class="pechratxt" pointer-events="none">${m.kind === 'attack' ? '⚔' : '🛡'}</text>`);
   });

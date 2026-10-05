@@ -64,7 +64,7 @@ export const statPenalty = (g, op) => injuredPenalty(g, op) || contagion(g, op);
 export function moveStat(g, op) {
   // Injured: -2" Move, but never below 4" (unless the Move stat itself is lower).
   const base = tpl(op).move;
-  let m = statPenalty(g, op) ? Math.max(Math.min(base, 4), base - 2) : base;
+  let m = statPenalty(g, op) && !tpl(op).engenderedFocus ? Math.max(Math.min(base, 4), base - 2) : base;
   if (artOfWar(g, op, 'montka')) m += 1;
   if (op.shieldingOn) m -= 2; // Shielding (Trench Sweeper)
   if (isDrone(op) && living(g, op.side).some((o) => tpl(o).droneController)) m += 2;
@@ -76,7 +76,7 @@ export function moveStat(g, op) {
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
 export const aplNow = (g, op) => (tpl(op).nemesis && op.cardApl ? op.cardApl
-  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings ? 0 // Chem-enhanced / Toxic Blessings ignore APL changes
+  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
     : Math.max(-1, Math.min((op.aplNext || 0) > 0 && cursed(g, op, 'voxStatic') ? 0 : 1, op.aplNext || 0)))));
 
 /** Change APL until the end of the operative's next activation (not the one it's in right now). */
@@ -349,8 +349,12 @@ function placeAuto(g, side, ops) {
   cands.sort((a, b) => Math.abs(a[along] - mid[along]) - Math.abs(b[along] - mid[along]) || Math.abs(a[across] - mid[across]) - Math.abs(b[across] - mid[across]));
   const placed = g.ops.filter((o) => o.side === side && !ops.includes(o) && o.x > -50).map((o) => ({ x: o.x, y: o.y }));
   for (const o of ops) {
-    const spot = cands.find((p) => deployOk(g, o, p) && placed.every((q) => dist(p, q) >= 2.6))
+    let spot = cands.find((p) => deployOk(g, o, p) && placed.every((q) => dist(p, q) >= 2.6))
       || cands.find((p) => deployOk(g, o, p));
+    // Large bases (e.g. a 50mm Technomancer) may not fit the coarse grid: try a finer one.
+    for (let x = z.x0 + radius(o); !spot && x <= z.x1 - radius(o); x += 0.4)
+      for (let y = z.y0 + radius(o); !spot && y <= z.y1 - radius(o); y += 0.4) if (deployOk(g, o, { x, y })) spot = { x, y };
+    if (!spot) spot = { x: (z.x0 + z.x1) / 2, y: (z.y0 + z.y1) / 2 }; // (should never happen)
     o.x = spot.x; o.y = spot.y; placed.push(spot);
   }
 }
@@ -399,6 +403,7 @@ function startTP(g) {
   }
   // actTP / movedTP: NPO activation and movement limits per turning point.
   for (const o of g.ops) { o.ready = !o.dead; o.acted = {}; o.ap = 0; o.counteracted = false; o.actTP = 0; o.movedTP = 0; }
+  for (const s of [0, 1]) { livingMetal(g, s); readyReanimation(g, s); } // Hierotek Circle
   log(g, { zh: `── 第 ${g.tp} 回合 ── 主動權擲骰 ${a} : ${b}`, en: `── Turning Point ${g.tp} ── Initiative roll ${a} : ${b}` }, 'tp');
   mission(g).onReady?.(g); // the Ready step
 }
@@ -520,6 +525,7 @@ export function activate(g, op) {
     op.breach = living(g, op.side).filter((o) => o !== op && o.ready && edgeDist(o, op) <= 3 && visibility(g, op, o).visible).map((o) => o.uid);
   }
   g.chain = null;
+  op.acted = {}; // (before Cult Ambush below records whether it started unseen)
   if (!g.counter) op.jam = false; // System Jam token removed when activated
   if (!g.counter) op.shieldingOn = false; // Shielding lasts until the start of its next activation
   if (!g.counter) op.gongOn = false; // so does Gong Knell
@@ -532,7 +538,6 @@ export function activate(g, op) {
   if (!g.counter) for (const k of ['fate', 'ravage', 'alight']) if (g[k]?.[op.side]?.by === op.uid) g[k][op.side] = null;
   if (!g.counter && g.pan?.[op.side]?.by === op.uid) g.pan[op.side] = null; // Pan Spectral Scan ends when the Lokâtr activates
   g.active = op.uid;
-  op.acted = {};
   // Directive (Confidant): ready friendlies visible within 6" now, one of which may activate right after it.
   if (tpl(op).confidant && !g.counter && !g.secondInCommand?.[op.side]) {
     op.directive = living(g, op.side).filter((o) => o !== op && o.ready && sameTeam(o, op) && edgeDist(o, op) <= 6 && visibility(g, op, o).visible).map((o) => o.uid);
@@ -555,6 +560,8 @@ export function activate(g, op) {
     op.prevOrder = op.order;
     op.optics = false; // Optics lasts until the start of the operative's next activation
     op.longSightOn = false; // so does Long-sight
+    if (g.veriscant?.[op.side]?.by === op.uid) g.veriscant[op.side] = null; // Veriscant (Malocator)
+    for (const k of ['augment', 'reinforce']) if (g[k]?.[op.side]?.by === op.uid) g[k][op.side] = null; // Augment Weapon / Reinforce Metal
     if (g.pechra?.[op.side]?.by === op.uid) g.pechra[op.side] = null; // the Tracker's Pech'ra marker
     // (Once per turning point, so switching to another operative before acting doesn't repeat it.)
     if (op.poison && op.poisonTP !== g.tp) {
@@ -598,6 +605,7 @@ export const counterCandidates = (g, side) =>
 export function endActivation(g) {
   const op = activeOp(g);
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
+  if (g.proxy) endProxy(g); // an unused Interstitial Command Shoot is lost
   if (op) {
     op.ready = false; op.ap = 0;
     if (op.counter) { op.counter = false; op.counteracted = true; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
@@ -709,14 +717,17 @@ export function passCounter(g) {
 
 /** The side whose operatives control a marker (highest total APL contesting it), or null. */
 export function controller(g, obj) {
-  const sum = [0, 0, 0], shriek = [false, false, false];
+  const sum = [0, 0, 0], shriek = [false, false, false], nuncio = [false, false, false];
   for (const o of living(g)) {
     // Drones count as 1 APL lower for objective control, the Icon Bearer as 1 higher; NEMESIS NPOs use their Control stat.
     // Ravage Destiny (Warpcoven): the target counts 1 lower. Frenzy (Fellgor): APL 1, whatever else applies.
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
-    const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? // the Deathknell (Icon Bearer) keeps its APL Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer ? 1 : 0) - ravaged);
-    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; if (shrieked(g, o)) shriek[o.side] = true; }
+    // (the Deathknell, an Icon Bearer, keeps its APL even with a Frenzy token)
+    const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer ? 1 : 0) - ravaged);
+    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o)) nuncio[o.side] = true; }
   }
+  // Nuncio-aquila (Exaction Squad): likewise 1 lower if one is within 3" of the Proctor-exactant (cumulative).
+  for (let s = 0; s < 3; s++) if (nuncio[s]) sum[s] = Math.max(0, sum[s] - 1);
   // Horrifying Shrieking: a side's total counts 1 lower if one of its contesting operatives is within 3" of a Fleshscreamer.
   for (let s = 0; s < 3; s++) if (shriek[s]) sum[s] = Math.max(0, sum[s] - 1);
   const best = Math.max(...sum);
@@ -843,8 +854,22 @@ export const ACTIONS = {
   longSight: { ap: 1, name: { zh: '遠視', en: 'Long-sight' } },
   stealthAttack: { ap: 2, name: { zh: '潛行突襲', en: 'Stealth Attack' } },
   pickUp: { ap: 1, name: { zh: '撿起標記', en: 'Pick Up Marker' } },
+  veriscant: { ap: 1, name: { zh: '真相鑑定', en: 'Veriscant' } },
+  apprehend: { ap: 0, name: { zh: '扣押', en: 'Apprehend' } },
+  interstitial: { ap: 1, name: { zh: '間隙指令', en: 'Interstitial Command' } },
+  canoptekRepair: { ap: 1, name: { zh: '聖甲蟲修復', en: 'Canoptek Repair' } },
+  augment: { ap: 1, name: { zh: '強化武器', en: 'Augment Weapon' } },
+  reinforce: { ap: 1, name: { zh: '強化金屬', en: 'Reinforce Metal' } },
+  accelerate: { ap: 1, name: { zh: '加速', en: 'Accelerate' } },
+  reanimate: { ap: 1, name: { zh: '復甦（擲骰）', en: 'Reanimate (roll)' } },
+  reanimateSure: { ap: 2, name: { zh: '復甦（自動）', en: 'Reanimate (automatic)' } },
+  mdVision: { ap: 1, name: { zh: '多維視覺', en: 'Multi-dimensional Vision' } },
 };
+// Cryptek unique actions (an Apprentek can perform one of them per turning point).
+const CRYPTEK_ACTIONS = ['interstitial', 'canoptekRepair', 'augment', 'reinforce'];
 Object.assign(ACTIONS, MISSION_ACTIONS); // mission actions (Siphon Power…)
+
+const ACUTE = ['pickUp', 'veriscant'];
 
 export function actionCost(g, op, id) {
   if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
@@ -853,6 +878,9 @@ export function actionCost(g, op, id) {
   if (id === 'markerlight' && op.order === 'conceal' && artOfWar(g, op, 'kauyon')) return 0;
   // Free actions from Dakka Dash, Savage Assault and Stealth Attack.
   if (['dash', 'shoot', 'charge', 'fight'].includes(id) && op.acted?.free?.[id]) return 0;
+  // Acute Focus (Malocator): once per activation, Pick Up, Veriscant or a mission action costs 1 less.
+  const acute = tpl(op).acuteFocus && !op.acted?.acuteUsed && (ACUTE.includes(id) || MISSION_ACTIONS[id]) ? 1 : 0;
+  if (id === 'veriscant') return ACTIONS.veriscant.ap - acute;
   // Pick Up Marker and mission actions: +1AP for Nightmare Hulks (not Vulgrar), and within 3" of a Fleshscreamer.
   if (id === 'pickUp' || MISSION_ACTIONS[id]) {
     // I've Got It (Hearthkyn Lugger): once per activation, a mission action costs 1 less.
@@ -860,7 +888,8 @@ export function actionCost(g, op, id) {
     const gotIt = (MISSION_ACTIONS[id] && tpl(op).gotIt && !op.acted?.gotItUsed ? 1 : 0)
       + (tpl(op).vanguard && g.vanguardTP?.[op.side] !== g.tp ? 1 : 0);
     // Slow-witted (Blooded Ogryn) pays 1 more as well.
-    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) - gotIt);
+    // Nuncio-aquila (Proctor-exactant): +1AP within 3" of it.
+    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) + (nuncioNear(g, op) ? 1 : 0) - gotIt - acute);
   }
   return ACTIONS[id].ap;
 }
@@ -890,10 +919,74 @@ export const TARGET_ACTIONS = {
   // Spot (SUPPORT, Death Korps Spotter): until the end of the TP, friendlies within 3" of the Spotter shooting that
   // enemy have Seek Light and it can't be obscured.
   spot: {
-    targets: (g, op) => foes(g, op).filter((t) => visibility(g, op, t).visible),
+    targets: (g, op) => foes(g, op).filter((t) => visibility(g, op, t).visible && (!tpl(op).spotRange || edgeDist(op, t) <= tpl(op).spotRange)),
     apply(g, op, t) {
       (g.spot ||= [null, null])[op.side] = { by: op.uid, t: t.uid, tp: g.tp };
       return { zh: `觀測：${opName(t, 'zh')}（本回合 3" 內友方射擊它時「搜尋（輕型）」且不會被遮擋）`, en: `Spot: ${opName(t, 'en')} (this TP, friendlies within 3" shooting it have Seek Light and it can't be obscured)` };
+    },
+  },
+  // ---- Hierotek Circle ----
+  // Interstitial Command (SUPPORT): another friendly visible within 6" (or 6" of a visible Despotek) takes a free Shoot.
+  interstitial: {
+    targets: (g, op) => interstitialTargets(g, op),
+    apply(g, op, t) {
+      startProxy(g, op, t);
+      return { zh: `間隙指令：${opName(t, 'zh')} 立刻免費射擊一次`, en: `Interstitial Command: ${opName(t, 'en')} takes a free Shoot now` };
+    },
+  },
+  // Canoptek Repair (SUPPORT, once per turning point): a friendly visible within 6" regains up to 2D3 wounds.
+  canoptekRepair: {
+    targets: (g, op) => (g.repairTP?.[op.side] === g.tp ? [] : living(g, op.side).filter((t) => sameTeam(t, op) && t.wounds < t.maxW && edgeDist(op, t) <= 6 && (t === op || visibility(g, op, t).visible))),
+    apply(g, op, t) {
+      (g.repairTP ||= [0, 0])[op.side] = g.tp;
+      const before = t.wounds;
+      t.wounds = Math.min(t.maxW, t.wounds + d3() + d3());
+      return { zh: `聖甲蟲修復：${opName(t, 'zh')} 回復 ${t.wounds - before} 生命`, en: `Canoptek Repair: ${opName(t, 'en')} regains ${t.wounds - before} wounds` };
+    },
+  },
+  // Augment Weapon (SUPPORT): until the caster's next activation, two weapon rules on one weapon of a friendly within 6".
+  augment: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && edgeDist(op, t) <= 6 && (t === op || visibility(g, op, t).visible)),
+    apply(g, op, t) {
+      const w = tpl(t).weapons.filter((x) => x.type === 'ranged').sort((a, b) => avgDmg(b) - avgDmg(a))[0] || bestMelee(t);
+      // Lethal 5+ and Rending if it lacks them; otherwise Severe / Saturate.
+      const rules = ['lethal', 'rending', 'severe', 'saturate'].filter((k) => !(k === 'lethal' ? (w.rules.lethal || 6) <= 5 : w.rules[k])).slice(0, 2);
+      (g.augment ||= [null, null])[op.side] = { by: op.uid, t: t.uid, w: w.id, rules };
+      const name = { lethal: ['致命 5+', 'Lethal 5+'], rending: ['撕裂', 'Rending'], severe: ['重創', 'Severe'], saturate: ['飽和', 'Saturate'] };
+      return { zh: `強化武器：${opName(t, 'zh')} 的${w.name.zh}獲得「${rules.map((k) => name[k][0]).join('」「')}」`, en: `Augment Weapon: ${opName(t, 'en')}'s ${w.name.en} gains ${rules.map((k) => name[k][1]).join(' and ')}` };
+    },
+  },
+  // Reinforce Metal (SUPPORT): until the caster's next activation, attack dice of 3+ damage deal 1 less to a friendly within 6".
+  reinforce: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && edgeDist(op, t) <= 6 && (t === op || visibility(g, op, t).visible)),
+    apply(g, op, t) {
+      (g.reinforce ||= [null, null])[op.side] = { by: op.uid, t: t.uid };
+      return { zh: `強化金屬：${opName(t, 'zh')} 受到 3 以上的傷害時 -1`, en: `Reinforce Metal: attack dice inflicting 3+ damage on ${opName(t, 'en')} deal 1 less` };
+    },
+  },
+  // Accelerate (Plasmacyte): a Deathmark or Immortal visible within 6" gets +1 APL until the end of its next activation.
+  accelerate: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && (tpl(t).deathmark || tpl(t).steadfast) && edgeDist(op, t) <= 6 && visibility(g, op, t).visible),
+    apply(g, op, t) {
+      changeApl(g, t, 1);
+      return { zh: `加速：${opName(t, 'zh')} 下次啟動 APL +1`, en: `Accelerate: ${opName(t, 'en')} gets +1 APL for its next activation` };
+    },
+  },
+  // ---- Exaction Squad ----
+  // Veriscant (Malocator): a visible enemy — friendly weapons have Lethal 5+ and Severe against it until its next activation.
+  veriscant: {
+    targets: (g, op) => foes(g, op).filter((t) => t.side !== NPO && visibility(g, op, t).visible),
+    apply(g, op, t) {
+      (g.veriscant ||= [null, null])[op.side] = { by: op.uid, t: t.uid };
+      return { zh: `真相鑑定：${opName(t, 'zh')}（直到下次啟動，友方攻擊它時「致命 5+」＋「重創」）`, en: `Veriscant: ${opName(t, 'en')} (until its next activation, friendlies attacking it have Lethal 5+ and Severe)` };
+    },
+  },
+  // Apprehend (Cyber-mastiff): an enemy in its control range — Hit worsened by 1 and no Fall Back while it stays there.
+  apprehend: {
+    targets: (g, op) => engagedEnemies(g, op),
+    apply(g, op, t) {
+      op.apprehend = t.uid;
+      return { zh: `扣押：${opName(t, 'zh')} 留在牠控制範圍內時命中變差 1、不能撤退`, en: `Apprehend: while ${opName(t, 'en')} stays in its control range, its Hit is worsened by 1 and it can't Fall Back` };
     },
   },
   // ---- Fellgor Ravagers ----
@@ -1040,7 +1133,7 @@ export const TARGET_ACTIONS = {
       && t !== op && t.medicTP !== g.tp && edgeDist(op, t) <= CONTROL + 0.01 && visibility(g, op, t).visible),
     apply(g, op, t) {
       const before = t.wounds;
-      t.wounds = Math.min(t.maxW, t.wounds + d6() + d6());
+      t.wounds = Math.min(t.maxW, t.wounds + d3() + d3()); // up to 2D3
       return { zh: `醫療包：${opName(t, 'zh')} 回復 ${t.wounds - before} 生命（${t.wounds}/${t.maxW}）`, en: `Medikit: ${opName(t, 'en')} regains ${t.wounds - before} wounds (${t.wounds}/${t.maxW})` };
     },
   },
@@ -1116,7 +1209,7 @@ export const TARGET_ACTIONS = {
 };
 
 /** Free actions still to take this activation (Dakka Dash), so it shouldn't end at 0AP. */
-export const freePending = (op) => { const f = op.acted?.free; return !!(f && (f.dash || f.shoot || f.charge || f.fight)); };
+export const freePending = (op) => { const f = op.acted?.free; return !!(op.acted?.proxyFor || (f && (f.dash || f.shoot || f.charge || f.fight))); }; // (or an Interstitial Command Shoot)
 
 /** Dakka Dash: spend 1AP for a free Dash and a free Shoot with the dakka shoota, in either order. */
 export function doDakkaDash(g, op) {
@@ -1207,10 +1300,14 @@ export function availableActions(g, op) {
   const noCharge = conceal;
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
   add('charge', !chargeEngaged && !noCharge && !heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
-  add('fallBack', engaged && !heavyBlocks('fallBack') && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : heavyBlocks('fallBack') ? HEAVY : count(op, 'fallBack') ? DONE : COMBO);
+  // Apprehend / Castigator's Arrest (Exaction Squad): held in place.
+  const held = engaged && arrested(g, op);
+  add('fallBack', engaged && !held && !heavyBlocks('fallBack') && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : held ? { zh: '被逮捕／扣押，無法撤退', en: 'Apprehended / arrested — cannot Fall Back' } : heavyBlocks('fallBack') ? HEAVY : count(op, 'fallBack') ? DONE : COMBO);
   const shots = tpl(op).weapons.filter((w) => w.type === 'ranged').map((w) => shootWeapon(g, op, w));
-  const shootWhy = engaged ? ENG : !attackAllowed(op, 'shoot') ? DONE : (shots.find((s) => !s.ok)?.why || DONE);
-  add('shoot', hasRanged && !engaged && attackAllowed(op, 'shoot') && shots.some((s) => s.ok), shootWhy);
+  // Close Quarters Vigilance (Vigilant): may Shoot while engaged, unless it Charged this activation (counteracting is fine).
+  const shootEngaged = engaged && !(tpl(op).vigilance && (op.counter || !count(op, 'charge')));
+  const shootWhy = shootEngaged ? ENG : !attackAllowed(op, 'shoot') ? DONE : (shots.find((s) => !s.ok)?.why || DONE);
+  add('shoot', hasRanged && !shootEngaged && attackAllowed(op, 'shoot') && shots.some((s) => s.ok), shootWhy);
   // Savage Assault / Stealth Attack: a free Fight (against the same enemy for Savage Assault).
   add('fight', fightTargets(g, op).length > 0 && (attackAllowed(op, 'fight') || !!free.fight), !engaged ? { zh: '沒有交戰中的敵人', en: 'No enemy in engagement' } : DONE);
   if (tpl(op).optics) add('optics', !engaged && !count(op, 'optics'), engaged ? ENG : DONE);
@@ -1244,6 +1341,20 @@ export function availableActions(g, op) {
   if (tpl(op).knux) add('knuxSmash', engaged && !count(op, 'knuxSmash'), !engaged ? { zh: '控制範圍內沒有敵人', en: 'No enemy in control range' } : DONE);
   if (tpl(op).systemJam) unique('systemJam', !conceal, CONC);
   if (tpl(op).medikit) unique('medikit');
+  if (tpl(op).veriscant) unique('veriscant');
+  // Hierotek Circle: Cryptek actions (an Apprentek only one of them per turning point).
+  const crypDone = tpl(op).apprentek && op.crypTP === g.tp;
+  const CRYP = { zh: '本回合已用過一次技師動作', en: 'Already used a Cryptek action this turning point' };
+  if (tpl(op).interstitial) unique('interstitial', !op.counter && !crypDone, op.counter ? { zh: '反擊時不能執行', en: 'Not while counteracting' } : CRYP);
+  for (const id of ['canoptekRepair', 'augment', 'reinforce']) if (tpl(op)[id]) unique(id, !crypDone, CRYP);
+  if (tpl(op).accelerate) unique('accelerate');
+  if (tpl(op).mdVision) add('mdVision', !engaged && !count(op, 'mdVision'), engaged ? ENG : DONE);
+  if (tpl(op).reanimate) {
+    const why = engaged ? ENG : count(op, 'reanimate') || count(op, 'reanimateSure') ? DONE : { zh: '6" 內沒有看得到的復甦標記', en: 'No Reanimation marker visible within 6"' };
+    const ok = !engaged && !count(op, 'reanimate') && !count(op, 'reanimateSure') && reanimTargets(g, op).length > 0;
+    add('reanimate', ok, why); add('reanimateSure', ok, why);
+  }
+  if (tpl(op).apprehend) add('apprehend', engaged && !count(op, 'apprehend'), !engaged ? { zh: '控制範圍內沒有敵人', en: 'No enemy in control range' } : DONE);
   if (tpl(op).support) unique(tpl(op).support, tpl(op).support !== 'getItDun' || !op.counter, { zh: '反擊時不能執行', en: 'Not while counteracting' });
   if (tpl(op).wotNotz) unique('stunGrenade');
   if (tpl(op).dakkaDash) {
@@ -1298,6 +1409,7 @@ export function fightTargets(g, op) {
 
 /** Simple instant actions without a target (Energise, Long-sight, Stealth Attack). */
 export function doSelfAction(g, op, id) {
+  if (id === 'reanimate' || id === 'reanimateSure') return doReanimate(g, op, id === 'reanimateSure');
   spend(g, op, id);
   const msg = {
     energise: { zh: '充能：加速弓獲得「致命 5+」，直到本回合結束或射擊後', en: 'Energise: the accelerator bow has Lethal 5+ until the end of the TP or until it shoots' },
@@ -1310,10 +1422,12 @@ export function doSelfAction(g, op, id) {
     sweepingBlow: { zh: '橫掃重擊', en: 'Sweeping Blow' },
     shieldingUp: { zh: '舉盾：直到下次啟動，Move -2"，被射擊時可重擲任意防禦骰', en: 'Shielding: until its next activation, -2" Move and it re-rolls any defence dice when shot' },
     actuation: { zh: '褻瀆啟動', en: 'Sacrilegious Actuation' },
+    mdVision: { zh: '多維視覺：直到下次啟動，射擊時敵人不能被遮蔽', en: 'Multi-dimensional Vision: until its next activation, enemies cannot be obscured when it shoots' },
     guerrilla: { zh: `游擊戰：改為${op.order === 'conceal' ? '交戰' : '隱蔽'}指令`, en: `Guerrilla Warfare: switches to ${op.order === 'conceal' ? 'Engage' : 'Conceal'}` },
   }[id];
   if (id === 'auspexScan') (g.auspex ||= [null, null])[op.side] = op.uid;
   if (id === 'shieldingUp') op.shieldingOn = true;
+  if (id === 'mdVision') op.optics = true; // same effect as Optics
   if (id === 'gongKnell') op.gongOn = true;
   if (id === 'mantle') (g.mantle ||= [null, null])[op.side] = op.uid;
   if (id === 'sweepingBlow') {
@@ -1342,6 +1456,8 @@ export function doOptics(g, op) {
 
 export function spend(g, op, id, ap = actionCost(g, op, id)) {
   op.ap -= ap;
+  if (tpl(op).acuteFocus && (ACUTE.includes(id) || MISSION_ACTIONS[id])) op.acted.acuteUsed = true; // Acute Focus used
+  if (tpl(op).apprentek && CRYPTEK_ACTIONS.includes(id)) op.crypTP = g.tp; // Apprentek Assistance: one per turning point
   if (tpl(op).vanguard && (id === 'pickUp' || MISSION_ACTIONS[id])) (g.vanguardTP ||= [0, 0])[op.side] = g.tp; // Vanguard used
   op.acted[id] = count(op, id) + 1;
   op.orderSet = true;
@@ -1480,7 +1596,7 @@ function validTarget(g, op, target, weapon) {
   if (!v.visible) return null;
   if (target.order === 'conceal') {
     const ml = mlLevel(g, op, weapon, target);
-    const seek = weapon.rules.seek || ml >= 5;
+    const seek = weapon.rules.seek || ml >= 5 || (tpl(op).deathmark && !!target.dmk?.[op.side]); // Deathmarked
     const seekLight = weapon.rules.seekLight || ml >= 4 || (weapon.type === 'ranged' && (pechraNear(g, op.side, target) || spotOn(g, op, target)
       || (tpl(op).incursor && auspexOn(g, op, target))));
     // Nightmare Hulks (Gellerpox) can't use Light terrain for cover when targets are picked.
@@ -1490,7 +1606,9 @@ function validTarget(g, op, target, weapon) {
     // Mantle of Darkness (Fellgor Shaman): within 3" of it and in cover — can't be targeted, whatever else applies.
     const sh = g.mantle?.[target.side] && getOp(g, g.mantle[target.side]);
     const mantled = sh && !sh.dead && edgeDist(sh, target) <= 3 && visibility(g, sh, target).visible;
-    if (vt.cover || ((tpl(target).small || mantled) && v.cover)) return null;
+    // Guilt Reveals Itself (Exaction Squad ploy): within 4" it can't be in cover for picking targets.
+    const guilt = TEAM_MAP[op.team].ruthless && hasPloy(g, op.side, 'guiltReveals') && edgeDist(op, target) <= 4;
+    if ((vt.cover && !guilt) || ((tpl(target).small || mantled) && v.cover)) return null;
   }
   return v;
 }
@@ -1504,13 +1622,16 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   }
   if (target.dead || target.side === op.side) return { ok: false };
   if (!shootWeapon(g, op, weapon).ok) return { ok: false };
-  const v = validTarget(g, op, target, weapon);
+  // Magnify (Hierotek Circle): valid target, cover and obscured from another Cryptek / Apprentek.
+  const relay = magnifyRelay(g, op, target, weapon);
+  const v = validTarget(g, relay || op, target, weapon);
   if (!v) return { ok: false };
-  if (living(g, op.side).some((f) => inEngagement(f, target))) return { ok: false };
+  // Ruthless Efficiency (Exaction Squad): friendlies in the enemy's control range don't stop it being picked.
+  if (!TEAM_MAP[op.team].ruthless && living(g, op.side).some((f) => inEngagement(f, target))) return { ok: false };
   if (!inRange(op, target, weapon)) return { ok: false };
   // Markerlights: after a Markerlight this activation, Shoot must pick that same target.
   if (!secondary && op.acted?.mlTarget && op.acted.mlTarget !== target.uid) return { ok: false };
-  return { ok: true, cover: v.cover, obscured: v.obscured };
+  return { ok: true, cover: v.cover, obscured: v.obscured, relay: relay?.uid ?? null };
 }
 
 // ---------- dice ----------
@@ -1615,6 +1736,27 @@ export function effectiveRules(g, op, weapon, target) {
   }
   if (weapon.group === 'bow' && op.energised === g.tp) r.lethal = Math.min(r.lethal || 6, 5); // Energise
   if (op.longSightOn && (weapon.id === 'huntingConcealed' || weapon.id === 'huntingStationary')) r.lethal = Math.min(r.lethal || 6, 5);
+  // ---- Exaction Squad ----
+  if (op.optics && (weapon.id === 'execConcealed' || weapon.id === 'execStationary')) r.lethal = Math.min(r.lethal || 6, 5); // Optics (Marksman)
+  if (veriscantOn(g, op, target)) { r.lethal = Math.min(r.lethal || 6, 5); r.severe = true; } // Veriscant
+  if (TEAM_MAP[op.team].ruthless) {
+    // Dispense Justice: fighting without having moved more than its Move this activation, or retaliating / counteracting.
+    if (weapon.type === 'melee' && hasPloy(g, op.side, 'dispenseJustice') && (g.active !== op.uid || op.counter || (op.acted?.movedDist || 0) <= moveStat(g, op))) r.ceaseless = true;
+    if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'terminalDecree') && edgeDist(op, target) <= 6) r.balanced = true; // Terminal Decree
+  }
+  if (tpl(op).aggressivePattern && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  // ---- Hierotek Circle ----
+  if (weapon.rules.magnify && g.magnifyNow === op.uid) r.ceaseless = true; // Magnify
+  if (weapon.type === 'ranged' && target && tpl(op).deathmark && target.dmk?.[op.side]) r.seek = true; // Deathmarked
+  const aug = g.augment?.[op.side];
+  if (aug && aug.t === op.uid && aug.w === weapon.id) for (const k of aug.rules) { if (k === 'lethal') r.lethal = Math.min(r.lethal || 6, 5); else r[k] = true; } // Augment Weapon
+  if (isHierotek(op)) {
+    if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'relentlessOnslaught') && edgeDist(op, target) <= 8) r.balanced = true; // Relentless Onslaught
+    if (weapon.type === 'melee' && hasPloy(g, op.side, 'methodicalElim')) { // Methodical Elimination
+      const still = g.active !== op.uid || op.counter || (op.acted?.movedDist || 0) <= moveStat(g, op);
+      r.accurate = Math.max(r.accurate || 0, still ? 2 : 1);
+    }
+  }
   if (tpl(op).coldBlooded && target && target.wounds < target.maxW) {
     // Cold-blooded: against a wounded enemy Lethal 5+; injured as well: also Rending.
     r.lethal = Math.min(r.lethal || 6, 5);
@@ -1736,7 +1878,135 @@ const psy = (g, key, side) => g[key]?.[side] || null;
 const psyOn = (g, key, side, op) => { const p = psy(g, key, side); return !!(p && op && p.uid === op.uid && !getOp(g, p.by)?.dead); };
 /** Mindburn: the target's weapons' Hit is worsened by 1 (not cumulative with injured). */
 const mindburned = (g, op) => [0, 1].some((s) => s !== op.side && g.mindburn?.[s] === op.uid);
-const hitWorse = (g, op) => statPenalty(g, op) || mindburned(g, op);
+// Apprehend (Cyber-mastiff) worsens it the same way. Engendered Focus (Castigator) ignores it all;
+// Stubborn Subjugator (Subductor) ignores it for melee weapons.
+const hitWorse = (g, op, w = null) => !tpl(op).engenderedFocus && !(w?.type === 'melee' && tpl(op).stubbornSubjugator)
+  && (statPenalty(g, op) || mindburned(g, op) || apprehended(g, op));
+
+// ---------- Exaction Squad ----------
+/** Nuncio-aquila: an enemy within 3" of the Proctor-exactant (it carries the marker in this version). */
+const nuncioNear = (g, op) => op.side < 2 && living(g, 1 - op.side).some((p) => tpl(p).nuncio && edgeDist(p, op) <= 3);
+/** Apprehend: the Cyber-mastiff holds this enemy while it stays within its control range. */
+const apprehended = (g, op) => op.side < 2 && living(g, 1 - op.side).some((m) => m.apprehend === op.uid && edgeDist(m, op) <= CONTROL + 0.01);
+/** Apprehend / Castigator's Arrest (the only enemy in the Castigator's control range): can't Fall Back. */
+export const arrested = (g, op) => apprehended(g, op)
+  || (op.side < 2 && living(g, 1 - op.side).some((c) => tpl(c).arrest && edgeDist(c, op) <= CONTROL + 0.01 && engagedEnemies(g, c).length === 1));
+/** Veriscant: friendly weapons have Lethal 5+ and Severe against this enemy until the Malocator's next activation. */
+// ---------- Hierotek Circle ----------
+const isHierotek = (op) => !!TEAM_MAP[op.team].reanimation;
+/** Living Metal: in the Ready step, each friendly regains up to D3+1 wounds. */
+function livingMetal(g, side) {
+  if (!TEAM_MAP[g.teams[side]].livingMetal) return;
+  for (const o of living(g, side).filter((x) => isHierotek(x) && x.wounds < x.maxW)) {
+    const before = o.wounds;
+    o.wounds = Math.min(o.maxW, o.wounds + d3() + 1);
+    log(g, { zh: `${opName(o, 'zh')} 活體金屬：回復 ${o.wounds - before} 生命`, en: `${opName(o, 'en')} Living Metal: regains ${o.wounds - before} wounds` }, `side${side}`);
+  }
+}
+/** Reanimation markers of a side whose operative can still come back. */
+export const reanimMarkers = (g, side) => (g.reanim || []).filter((m) => m.side === side && getOp(g, m.uid)?.dead);
+/** A place within 3" of the marker, not within control range of enemies (null if there's none). */
+function reanimSpot(g, op, m) {
+  const r = radius(op);
+  for (const d of [0, 0.8, 1.6, 2.4, 3]) {
+    for (let i = 0; i < (d ? 12 : 1); i++) {
+      const p = { x: m.x + Math.cos(i * Math.PI / 6) * d, y: m.y + Math.sin(i * Math.PI / 6) * d };
+      if (p.x - r < 0 || p.y - r < 0 || p.x + r > BOARD.w || p.y + r > BOARD.h) continue;
+      if (g.terrain.some((t) => distPointRect(p, t) < r)) continue;
+      if (g.ops.some((o) => o !== op && !o.dead && o.x > -50 && dist(o, p) < radius(o) + r + 0.05)) continue;
+      if (foes(g, op).some((e) => dist(e, p) - radius(e) - r <= CONTROL)) continue;
+      return p;
+    }
+  }
+  return null;
+}
+/** REANIMATED: back with 1 wound; the opponent's kill (if it counted) is taken back. */
+function reanimate(g, m, ready) {
+  const op = getOp(g, m.uid);
+  const p = reanimSpot(g, op, m);
+  if (!p) return false;
+  Object.assign(op, { dead: false, wounds: 1, x: p.x, y: p.y, ready, order: 'conceal', poison: false, aplNext: 0, aplKeep: false, ml: 0, jam: false, grudge: {}, dmk: null, acted: {}, ap: 0, bloodToken: false, stimms: null });
+  g.reanim = g.reanim.filter((x) => x !== m);
+  if (op.killCounted) { op.killCounted = false; g.kills[1 - op.side] = Math.max(0, g.kills[1 - op.side] - 1); }
+  log(g, { zh: `✦ ${opName(op, 'zh')} 復甦！以 1 生命回到場上（對手擊殺數 -1）`, en: `✦ ${opName(op, 'en')} is REANIMATED with 1 wound (the opponent loses a kill)` }, `side${op.side}`);
+  return true;
+}
+/** Reanimation Protocols in the Ready step: try markers (toughest operative first) until one rolls a 3+. */
+function readyReanimation(g, side) {
+  const ms = reanimMarkers(g, side).sort((a, b) => getOp(g, b.uid).maxW - getOp(g, a.uid).maxW);
+  for (const m of ms) {
+    const r = d6();
+    const ok = r >= 3 && reanimate(g, m, true);
+    if (!ok) log(g, { zh: `${teamZh(g, side)} 復甦協議：${opName(getOp(g, m.uid), 'zh')} 擲 ${r}，沒有復甦`, en: `${team(g, side).name.en} Reanimation Protocols: ${opName(getOp(g, m.uid), 'en')} rolled ${r}, no reanimation` }, `side${side}`);
+    if (ok) return;
+  }
+}
+/** Reanimate (Plasmacyte Reanimator): markers visible to and within 6" of it. */
+const reanimTargets = (g, op) => reanimMarkers(g, op.side)
+  .filter((m) => dist(op, m) - radius(op) <= 6 && visibility(g, op, { ...getOp(g, m.uid), x: m.x, y: m.y }).visible);
+export function doReanimate(g, op, sure) {
+  const id = sure ? 'reanimateSure' : 'reanimate';
+  spend(g, op, id);
+  const m = reanimTargets(g, op).sort((a, b) => getOp(g, b.uid).maxW - getOp(g, a.uid).maxW)[0];
+  if (!m) return;
+  const r = sure ? null : d6();
+  const dead = getOp(g, m.uid);
+  log(g, { zh: `${opName(op, 'zh')} 復甦：${opName(dead, 'zh')}${sure ? '（多花 1AP，自動成功）' : `（擲 ${r}）`}`, en: `${opName(op, 'en')} Reanimate: ${opName(dead, 'en')}${sure ? ' (extra AP: automatic)' : ` (rolled ${r})`}` }, `side${op.side}`);
+  if ((sure || r >= 3) && !reanimate(g, m, dead.diedReady === g.tp)) log(g, { zh: '標記附近沒有可以放置的位置', en: 'No room to set it up near the marker' }, `side${op.side}`);
+}
+/**
+ * Magnify: another friendly Cryptek / Apprentek (Engage order, not in an enemy's control range, visible to the
+ * shooter) to determine valid targets, cover and obscured from. Returns the operative giving the best line
+ * (null if none is better than shooting normally — ties go to Magnify for its Ceaseless).
+ */
+function magnifyRelay(g, op, target, weapon) {
+  if (!weapon.rules.magnify || !visibility(g, op, target).visible) return null;
+  const rank = (v) => (!v ? 9 : (v.cover ? 1 : 0) + (v.obscured ? 2 : 0));
+  let best = null, bestRank = rank(validTarget(g, op, target, weapon));
+  for (const r of living(g, op.side)) {
+    if (r === op || !(tpl(r).cryptek || tpl(r).apprentek) || r.order !== 'engage' || isEngaged(g, r) || !visibility(g, op, r).visible) continue;
+    const k = rank(validTarget(g, r, target, weapon));
+    if (k < 9 && k <= bestRank) { best = r; bestRank = k; }
+  }
+  return best;
+}
+/** Interstitial Command: friendlies (not Crypteks / Apprenteks) that can take the free Shoot now. */
+function interstitialTargets(g, op) {
+  const despoteks = living(g, op.side).filter((d) => tpl(d).despotek && d !== op && visibility(g, op, d).visible);
+  return living(g, op.side).filter((t) => t !== op && sameTeam(t, op) && !tpl(t).cryptek && !tpl(t).apprentek
+    && t.commandTP !== g.tp && t.shotTP !== g.tp && !isEngaged(g, t)
+    && ((edgeDist(op, t) <= 6 && visibility(g, op, t).visible) || (!tpl(op).despotek && despoteks.some((d) => edgeDist(d, t) <= 6 && visibility(g, d, t).visible)))
+    && proxyShots(g, t).length > 0);
+}
+/** Shots the operative could take as Interstitial Command's free Shoot: [{w, t}]. */
+export function proxyShots(g, t) {
+  const keep = { ap: t.ap, acted: t.acted };
+  t.ap = 1; t.acted = {};
+  const out = [];
+  for (const w of tpl(t).weapons.filter((x) => x.type === 'ranged')) for (const e of foes(g, t)) if (shootCheck(g, t, e, w).ok) out.push({ w, t: e });
+  t.ap = keep.ap; t.acted = keep.acted;
+  return out;
+}
+/** Start the free Shoot: the commanded operative gets 1AP for it (g.proxy until it shoots or the activation ends). */
+function startProxy(g, op, t) {
+  t.commandTP = g.tp; t.ap = 1; t.acted = {};
+  g.proxy = { uid: t.uid, by: op.uid };
+  op.acted.proxyFor = t.uid;
+}
+export function endProxy(g) {
+  const p = g.proxy && getOp(g, g.proxy.uid);
+  if (p) { p.ap = 0; p.acted = {}; }
+  const by = g.proxy && getOp(g, g.proxy.by);
+  if (by?.acted) by.acted.proxyFor = null;
+  g.proxy = null;
+}
+/** Inviolate Jurisdiction (ploy): shot within 2" of an objective marker or an enemy — re-roll one defence die. */
+const inviolate = (g, op) => op.side < 2 && TEAM_MAP[op.team].ruthless && hasPloy(g, op.side, 'inviolate')
+  && ((g.objectives || []).some((o) => dist(op, o) - radius(op) - OBJ_R <= 2) || foes(g, op).some((e) => edgeDist(e, op) <= 2));
+const veriscantOn = (g, op, target) => {
+  const v = g.veriscant?.[op.side];
+  return !!(v && target && v.t === target.uid && op.team === g.teams[op.side]);
+};
 const sorcererNear = (g, op, d) => living(g, op.side).some((o) => o !== op && tpl(o).sorcerer && edgeDist(o, op) <= d);
 
 // ---------- Phobos Strike Team ----------
@@ -2067,13 +2337,15 @@ function markDown(g, side) {
     }
   }
   const next = living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0];
-  setMark(g, side, kb ? next : null);
+  setMark(g, side, kb || TEAM_MAP[g.teams[side]].justiceMark ? next : null); // Marked for Justice: a new mark too
 }
 
 /** Call the Kill (strategic gambit while the Kill-broker is in the killzone): mark an enemy for the turning point. */
 export function setMark(g, side, target) {
   (g.mark ||= [null, null])[side] = target ? target.uid : null;
-  if (target) log(g, { zh: `${teamZh(g, side)} 呼喚獵殺：標記 ${opName(target, 'zh')}`, en: `${team(g, side).name.en} Call the Kill: ${opName(target, 'en')} is marked` }, `side${side}`);
+  const t = team(g, side);
+  const [zh, en] = t.justiceMark ? ['正義標記', 'Marked for Justice'] : t.bringItDown ? ['集火摧毀', 'Bring it Down'] : ['呼喚獵殺', 'Call the Kill'];
+  if (target) log(g, { zh: `${teamZh(g, side)} ${zh}：標記 ${opName(target, 'zh')}`, en: `${t.name.en} ${en}: ${opName(target, 'en')} is marked` }, `side${side}`);
 }
 
 /**
@@ -2130,6 +2402,7 @@ function countKill(g, src, target) {
   const scorer = 1 - target.side;
   const before = killGrade(g, scorer);
   g.kills[scorer]++;
+  target.killCounted = true; // (taken back if it's REANIMATED)
   const after = killGrade(g, scorer);
   if (mission(g).killOp !== false && after > before) log(g, { zh: `${teamZh(g, scorer)} 擊殺等級 ${after}（+1 VP）`, en: `${team(g, scorer).name.en} reaches kill grade ${after} (+1 VP)` }, 'tp');
   if (g.mark?.[scorer] === target.uid) markDown(g, scorer);
@@ -2152,6 +2425,7 @@ export function frenzyDie(g, op, src = null) {
 
 function killOff(g, src, target) {
   {
+    const wasReady = target.ready && g.active !== target.uid;
     target.wounds = 0; target.dead = true; target.ready = false;
     log(g, { zh: `☠ ${opName(target, 'zh')} 失去戰鬥能力！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
     dropMarkers(g, target);
@@ -2166,6 +2440,12 @@ function killOff(g, src, target) {
     }
     mission(g).onIncapacitated?.(g, target, src);
     bloodedOnDeath(g, target);
+    // Reanimation Protocols (Hierotek Circle): the first time it falls, a Reanimation marker is left in its place.
+    if (TEAM_MAP[target.team].reanimation && !target.reanimUsed && target.side < 2) {
+      target.reanimUsed = true;
+      target.diedReady = wasReady ? g.tp : 0; // brought back by the Reanimator this TP: expended unless it hadn't activated
+      (g.reanim ||= []).push({ uid: target.uid, side: target.side, x: target.x, y: target.y });
+    }
     return true;
   }
   return false;
@@ -2181,9 +2461,12 @@ function resolveDice(target, amounts, g = null) {
   // Fortified stimm (Blooded) works the same way.
   // Toxic Blessings (Toxhorn) too.
   const emboldened = (!!g && tpl(target).emboldened && target.chargedTP === g.tp) || !!target.stimms?.fortified || !!tpl(target).toxicBlessings;
-  const resilient = !!TEAM_MAP[target.team].resilient || !!tpl(target).resilient || emboldened;
-  const need = emboldened && !tpl(target).resilient ? 5 : 4;
-  const brace = !!g && braced(g, target); // Brace for Counterattack: Dmg of 3+ deals 1 less
+  // Zealous Dedication (Castigator): also on a 5+.
+  const zealous = !!tpl(target).zealous;
+  const resilient = !!TEAM_MAP[target.team].resilient || !!tpl(target).resilient || emboldened || zealous;
+  const need = (emboldened || zealous) && !tpl(target).resilient ? 5 : 4;
+  // Brace for Counterattack / Reinforce Metal (Hierotek): Dmg of 3+ deals 1 less.
+  const brace = !!g && (braced(g, target) || (g.reinforce?.[target.side]?.t === target.uid && !getOp(g, g.reinforce[target.side].by)?.dead));
   let dmg = 0;
   const rolls = [];
   for (const a0 of amounts) {
@@ -2225,7 +2508,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (noReroll) { delete rules.balanced; delete rules.ceaseless; delete rules.relentless; } // Suppressing Fire
   let hit = weapon.hit;
   if (!rules.fixedHit) {
-    hit += hitWorse(g, op) ? 1 : 0; // injured / Contagion / Mindburn
+    hit += hitWorse(g, op, weapon) ? 1 : 0; // injured / Contagion / Mindburn
     if (rules.mlHit && hit > 3) hit = Math.max(3, hit - 1);
   }
   hit = clampHit(hit);
@@ -2269,6 +2552,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     if (base && tpl(target).camo1) coverN++; // Camo Cloak (Blooded Sharpshooter): one more cover save
     // Reckless Determination (Fellgor ploy): an expended friendly without cover saves retains one die as a normal success.
     if (!base && !target.ready && TEAM_MAP[target.team].frenzy && hasPloy(g, target.side, 'recklessDetermination')) coverN++;
+    // Undying Androids (Hierotek ploy): without cover saves, one defence die is retained as a normal success.
+    if (!base && target.side < 2 && isHierotek(target) && hasPloy(g, target.side, 'undyingAndroids')) coverN++;
     coverC = Math.min(coverC, defDice);
     coverN = Math.min(coverN, defDice - coverC);
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
@@ -2304,7 +2589,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const grit = TEAM_MAP[target.team].bloodedTokens && hasPloy(g, target.side, 'malevolentGrit') && (target.bloodToken || whollyIn(g, target, 1 - target.side));
   const defRules = { relentless: !!tpl(target).emperorProtects || psyOn(g, 'fate', target.side, target) || !!target.shieldingOn,
     digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence'),
-    balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit,
+    balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit || inviolate(g, target),
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
   if (voxbroken(g, target)) { defRules.relentless = false; defRules.digIn = false; defRules.balanced = false; defRules.rerollFails = 0; } // Voxbreak
   // Wrought Defence (Hearthkyn): with one or no successes, one fail is retained as a normal success.
@@ -2328,6 +2613,14 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const dmg = res.dmg;
   const before = target.wounds;
   let killed = applyDamage(g, op, target, dmg);
+  // x" Devastating (tesla carbine): the Devastating damage also hits each other operative visible to and within x" of the target.
+  if (rules.devSplash && rules.devastating && a.crits > 0) {
+    for (const o of g.ops.filter((x) => !x.dead && x !== target && x.x > -50 && edgeDist(x, target) <= rules.devSplash && visibility(g, target, x).visible)) {
+      const sp = resolveDice(o, Array(a.crits).fill(rules.devastating), g).dmg;
+      log(g, { zh: `毀滅波及 ${opName(o, 'zh')}：${sp} 傷害`, en: `Devastating splashes ${opName(o, 'en')}: ${sp} damage` }, `side${op.side}`);
+      applyDamage(g, op, o, sp);
+    }
+  }
   // Frenzy: shooting fells a Frenzied Fellgor with Critical Dmg, or Normal Dmg from two or more dice.
   if (wasFrenzy && ((block.remC > 0 && dc > 0 && !gong) || block.remN + (gong ? block.remC : 0) >= 2)) killed = frenzyDie(g, target, op);
   g.frenzyNow = null;
@@ -2398,7 +2691,10 @@ export function resolveShoot(g, op, weapon, target) {
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
 export function* shootFlow(g, op, weapon, target) {
   const ap = shootWeapon(g, op, weapon).ap;
-  const vis = weapon.rules.detonate ? { visible: true, cover: false, obscured: false } : shotVisibility(g, op, target, weapon);
+  const relay = weapon.rules.detonate ? null : magnifyRelay(g, op, target, weapon);
+  const vis = weapon.rules.detonate ? { visible: true, cover: false, obscured: false } : shotVisibility(g, relay || op, target, weapon);
+  g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
+  if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
   const others = secondaryTargets(g, op, weapon, target); // chosen before any damage is dealt
   const noReroll = suppressed(g, op, weapon, target);
   g.shotTargets = [target.uid, ...others.map((t) => t.uid)];
@@ -2442,6 +2738,14 @@ export function* shootFlow(g, op, weapon, target) {
     }
   }
   g.shotTargets = null;
+  g.magnifyNow = null;
+  op.shotTP = g.tp; // (Interstitial Command can't give a Shoot to one that already shot this turning point)
+  // Deathmarked: a Deathmark's surviving primary target gains a token; Deathmarks shooting it have Seek.
+  if (tpl(op).deathmark && !target.dead && !(target.dmk?.[op.side])) {
+    (target.dmk ||= {})[op.side] = true;
+    log(g, { zh: `${opName(target, 'zh')} 獲得死亡標記（死亡標記射擊它時武器「搜尋」）`, en: `${opName(target, 'en')} gains a Deathmarked token (Deathmarks shooting it have Seek)` }, `side${op.side}`);
+  }
+  if (g.proxy?.uid === op.uid) endProxy(g); // Interstitial Command's free Shoot is done
   for (const o of g.ops) o.medicShield = false;
   return { kind: 'shoot', attacker: op.uid, weapon, ap, ...main, extra, hot, suppressed: noReroll };
 }
@@ -2486,8 +2790,8 @@ export function startFight(g, op, weapon, target) {
   // Brawler (Dôzr): enemies fighting it can't be assisted.
   const assist = (me, foe) => !tpl(foe).brawler && living(g, me.side).some((f) => f !== me && edgeDist(f, foe) <= CONTROL + 0.01);
   const aAssist = assist(op, target), dAssist = assist(target, op);
-  const aHit = clampHit(weapon.hit + (hitWorse(g, op) ? 1 : 0) - (aAssist ? 1 : 0));
-  const dHit = clampHit(dWeapon.hit + (hitWorse(g, target) ? 1 : 0) - (dAssist ? 1 : 0));
+  const aHit = clampHit(weapon.hit + (hitWorse(g, op, weapon) ? 1 : 0) - (aAssist ? 1 : 0));
+  const dHit = clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) ? 1 : 0) - (dAssist ? 1 : 0));
   // Cut-throats: +1 Atk to a maximum of 5.
   const atk = (w, r) => (r.atkPlus ? Math.max(w.atk, Math.min(5, w.atk + r.atkPlus)) : w.atk);
   // Whip Control (Herd-goad): -1 Atk on the melee weapons of a whipped enemy (to a minimum of 1).
@@ -2517,7 +2821,8 @@ export function startFight(g, op, weapon, target) {
     tox: r.toxic && foe.poison ? 1 : 0, poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute') && !tpl(foe).chemEnhanced && !tpl(foe).toxicBlessings, hardy: !!tpl(o).hardyCrit,
     a: roll, rerolled: {}, noReroll: { a: noRerollHere(g, o) },
   });
-  g.fight = { A: side(op, target, weapon, ar, aRoll, aHit), D: side(target, op, dWeapon, dr, dRoll, dHit), turn: 'A', steps: [], done: false };
+  // Repress (Exaction Squad shields): retaliating with it, the defender resolves the first die.
+  g.fight = { A: side(op, target, weapon, ar, aRoll, aHit), D: side(target, op, dWeapon, dr, dRoll, dHit), turn: dWeapon.rules.repress && !weapon.rules.repress ? 'D' : 'A', steps: [], done: false };
   g.fight.A.assist = aAssist; g.fight.D.assist = dAssist;
   if (free === 'stealth') g.fight.A.extraStrike = true;
   // Savage Assault: the first Fight of the activation may be followed by a free one against the same enemy.

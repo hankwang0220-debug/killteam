@@ -330,6 +330,37 @@ const cleaverFG = W('cleaverFG', '劈刀', 'Cleaver', 'melee', 4, 3, 4, 5);
 // Vicious Blows: Ceaseless when fighting (not when retaliating).
 const mancrusher = W('mancrusher', '碎人錘', 'Mancrusher', 'melee', 4, 4, 5, 5, { brutal: true, viciousBlows: true });
 
+// ---- Exaction Squad ----
+// Repress: each block cancels two unresolved successes; when retaliating it resolves the first die.
+const shotpistolPE = W('shotpistolPE', '霰彈手槍', 'Shotpistol', 'ranged', 4, 3, 3, 3, { range: 8 });
+const dominatorMaul = W('dominatorMaul', '統治者錘與突擊盾', 'Dominator maul & assault shield', 'melee', 4, 3, 4, 4, { lethal: 5, shock: true, shield: true, repress: true });
+const combatShotgunClose = W('combatShotgunClose', '戰鬥霰彈槍（近距離）', 'Combat shotgun (close range)', 'ranged', 4, 3, 4, 4, { range: 6 }, 'combatShotgun');
+const combatShotgunLong = W('combatShotgunLong', '戰鬥霰彈槍（遠距離）', 'Combat shotgun (long range)', 'ranged', 4, 5, 2, 2, {}, 'combatShotgun');
+const baton = W('baton', '鎮壓警棍', 'Repression baton', 'melee', 3, 4, 2, 3);
+const excruciatorMaul = W('excruciatorMaul', '刑罰錘', 'Excruciator maul', 'melee', 4, 3, 5, 5, { rending: true, shock: true });
+const shotpistolAB = W('shotpistolAB', '霰彈手槍', 'Shotpistol', 'ranged', 4, 4, 3, 3, { range: 8 });
+const mechBite = W('mechBite', '機械咬擊', 'Mechanical bite', 'melee', 4, 4, 3, 5, { lethal: 5 });
+const scopedShort = W('scopedShort', '瞄準霰彈手槍（近距離）', 'Scoped shotpistol (short range)', 'ranged', 4, 3, 3, 3, { range: 8, lethal: 5 }, 'scopedShotpistol');
+const scopedLong = W('scopedLong', '瞄準霰彈手槍（遠距離）', 'Scoped shotpistol (long range)', 'ranged', 4, 3, 3, 3, {}, 'scopedShotpistol');
+const execConcealed = W('execConcealed', '處決霰彈槍（隱蔽）', 'Executioner shotgun (concealed)', 'ranged', 4, 2, 4, 0, { devastating: 4, heavy: true, silent: true, firstShotOnly: true }, 'executioner');
+const execMobile = W('execMobile', '處決霰彈槍（機動）', 'Executioner shotgun (mobile)', 'ranged', 4, 3, 4, 4, {}, 'executioner');
+const execStationary = W('execStationary', '處決霰彈槍（定點）', 'Executioner shotgun (stationary)', 'ranged', 4, 2, 4, 0, { devastating: 4, heavy: true }, 'executioner');
+// ---- Hierotek Circle ----
+const staffLight = W('staffLight', '光之杖（遠程）', 'Staff of light (ranged)', 'ranged', 6, 3, 3, 4, { rending: true, magnify: true }, 'staffLight');
+const staffLightM = W('staffLightM', '光之杖（近戰）', 'Staff of light (melee)', 'melee', 4, 4, 3, 5, { rending: true }, 'staffLight');
+const arcaneConduit = W('arcaneConduit', '奧術導管（遠程）', 'Arcane conduit (ranged)', 'ranged', 4, 3, 4, 5, { piercing: 1, magnify: true }, 'arcaneConduit');
+const arcaneConduitM = W('arcaneConduitM', '奧術導管（近戰）', 'Arcane conduit (melee)', 'melee', 3, 4, 3, 5, {}, 'arcaneConduit');
+const synapticDis = W('synapticDis', '突觸瓦解槍', 'Synaptic disintegrator', 'ranged', 4, 2, 4, 3, { devastating: 2, heavy: 'dash', piercing: 1, severe: true });
+const fistsN = W('fistsN', '拳頭', 'Fists', 'melee', 3, 3, 3, 4);
+const gaussBlaster = W('gaussBlaster', '高斯爆能槍', 'Gauss blaster', 'ranged', 4, 3, 4, 5, { piercing: 1 });
+const teslaCarbine = W('teslaCarbine', '特斯拉卡賓槍', 'Tesla carbine', 'ranged', 5, 3, 3, 3, { devastating: 1, devSplash: 2 });
+const bayonetN = W('bayonetN', '刺刀', 'Bayonet', 'melee', 4, 3, 3, 4);
+const spark = W('spark', '火花', 'Spark', 'ranged', 4, 4, 2, 3, { range: 4, piercing: 1 });
+const atomiser = W('atomiser', '原子化光束', 'Atomiser beam', 'ranged', 4, 4, 3, 4, { range: 6, lethal: 5 });
+const clawsP = W('clawsP', '爪', 'Claws', 'melee', 3, 5, 1, 2);
+
+const shockMaulShield = W('shockMaulShield', '電擊錘與突擊盾', 'Shock maul & assault shield', 'melee', 4, 4, 4, 4, { shock: true, shield: true, repress: true });
+
 const op = (id, zh, en, stats, weapons, count = 1) => ({ id, name: { zh, en }, ...stats, weapons, count });
 
 export const TEAMS = [
@@ -1003,6 +1034,103 @@ export const TEAMS = [
       op('vandal', '破壞者', 'Fellgor Vandal', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, sweepingBlow: true }, [mancrusher]),
     ],
   },
+  {
+    id: 'exaction',
+    name: { zh: '強徵小隊', en: 'Exaction Squad' },
+    color: '#3d4f6b',
+    style: { zh: '近戰隊・霰彈槍・執法', en: 'Melee · Shotguns · Law' },
+    blurb: {
+      zh: '帝國法務部的執法小隊：霰彈槍與鎮壓盾近距離壓制，標記一名罪犯集中制裁，還能對友軍交戰中的敵人直接開火。',
+      en: 'Adeptus Arbites enforcers: shotguns and suppression shields up close, a marked criminal punished first, and they can shoot into melee their comrades are in.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '否：需要多買一盒，強烈建議買目前的審判庭戰鬥巡邏包', en: 'No: you need another box — the current Inquisition Combat Patrol is strongly recommended' },
+      buyable: { zh: '能：KT 盒與大桌盒內容一樣', en: 'Yes — the KT box and the Warhammer 40,000 box are the same' },
+      note: { zh: '將於 2026 年退出賽季：屆時官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotating out of the season in 2026: then not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    bringItDown: true, // the mark gives Punishing (Marked for Justice)
+    justiceMark: true, // a new mark is picked when the old one falls
+    ruthless: true, // Ruthless Efficiency: can shoot enemies in friendly control range
+    rule: {
+      name: { zh: '冷酷效率・正義標記・鎮壓', en: 'Ruthless Efficiency · Marked for Justice · Repress' },
+      desc: {
+        zh: '冷酷效率：射擊時，友方在敵人控制範圍內也不妨礙選它為目標。正義標記（策略階段）：選一名敵人，攻擊它時武器「懲罰」；它倒下時自動改標記另一名。鎮壓（盾牌武器）：每次格擋可擋兩顆成功；反擊時由自己先結算。',
+        en: 'Ruthless Efficiency: friendlies in an enemy\'s control range don\'t stop you targeting it. Marked for Justice (Strategy phase): pick an enemy — Punishing against it; a new mark is picked when it falls. Repress (shield weapons): each block cancels two successes; when retaliating, it resolves first.',
+      },
+    },
+    ploys: [
+      { id: 'guiltReveals', cp: 1, name: { zh: '罪行自現', en: 'Guilt Reveals Itself' },
+        desc: { zh: '本回合友方選目標時，4" 內的敵人不能用掩體擋（仍保留掩護豁免，2" 內照常沒有）。', en: 'This TP, enemies within 4" of a friendly can\'t use cover when it picks targets (they keep the cover save, except within 2" as normal).' } },
+      { id: 'inviolate', cp: 1, name: { zh: '不可侵犯的轄區', en: 'Inviolate Jurisdiction' },
+        desc: { zh: '本回合在目標點或敵人 2" 內的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, a friendly within 2" of an objective marker or an enemy re-rolls one defence die when shot.' } },
+      { id: 'dispenseJustice', cp: 1, name: { zh: '執行正義', en: 'Dispense Justice' },
+        desc: { zh: '本回合友方近戰或反擊時，若本次啟動移動沒超過 Move（或反擊時），近戰武器「無休」。', en: 'This TP, a friendly fighting or retaliating that hasn\'t moved more than its Move this activation (or is counteracting) has Ceaseless.' } },
+      { id: 'terminalDecree', cp: 1, name: { zh: '終結令', en: 'Terminal Decree' },
+        desc: { zh: '本回合友方射擊 6" 內的敵人時，遠程武器「平衡」。', en: 'This TP, a friendly shooting an enemy within 6" has Balanced.' } },
+    ],
+    ops: [
+      op('proctor', '執法隊長', 'Proctor-exactant', { apl: 2, move: 6, save: 3, wounds: 9, base: 28, nuncio: true }, [shotpistolPE, dominatorMaul]),
+      op('castigator', '懲戒者', 'Castigator', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, engenderedFocus: true, zealous: true, arrest: true }, [combatShotgunClose, combatShotgunLong, excruciatorMaul]),
+      op('chirurgant', '執法醫官', 'Chirurgant', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, medic: true, medikit: true }, [combatShotgunClose, combatShotgunLong, baton]),
+      op('leashmaster', '馴犬師', 'Leashmaster', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [combatShotgunClose, combatShotgunLong, shotpistolAB, baton]),
+      // Attack Pattern (Leashmaster): Aggressive (melee Relentless) and Swift (+2" Move) picked for the battle.
+      op('mastiff', 'R-VR 機械獒犬', 'R-VR Cyber-mastiff', { apl: 2, move: 8, save: 4, wounds: 8, base: 25, apprehend: true, aggressivePattern: true, actionsOnly: ['apprehend', 'charge', 'dash', 'fallBack', 'fight', 'reposition', 'pickUp'] }, [mechBite]),
+      op('malocator', '鑑識官', 'Malocator', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, veriscant: true, acuteFocus: true }, [combatShotgunClose, combatShotgunLong, baton]),
+      op('marksman', '神射手', 'Marksman', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, optics: true }, [execConcealed, execMobile, execStationary, baton]),
+      op('revelatum', '偵察官', 'Revelatum', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, support: 'spot', spotRange: 8 }, [scopedShort, scopedLong, baton]),
+      op('subductor', '鎮壓兵', 'Subductor', { apl: 2, move: 6, save: 3, wounds: 8, base: 28, stubbornSubjugator: true }, [shotpistolAB, shockMaulShield]),
+      op('vigilant', '警戒兵', 'Vigilant', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, vigilance: true }, [combatShotgunClose, combatShotgunLong, baton]),
+      op('vox', '通訊官', 'Vox-signifier', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, signalAny: true }, [combatShotgunClose, combatShotgunLong, baton]),
+    ],
+  },
+  {
+    id: 'hierotek',
+    name: { zh: '技師環', en: 'Hierotek Circle' },
+    color: '#3aa35a',
+    style: { zh: '射擊隊・死靈・復甦', en: 'Shooting · Necrons · Reanimation' },
+    blurb: {
+      zh: '死靈技師帶著不朽者、死亡標記狙擊手與聖甲蟲構裝體：身軀會自我修復、倒下還能復甦，技師能借部下的眼睛開火。',
+      en: 'A Necron Cryptek with Immortals, Deathmark snipers and Canoptek constructs: living metal heals, the fallen reanimate, and the Cryptek fires through its thralls\' eyes.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '偵察', en: 'Recon' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '否：至少要另外買兩個 HQ 單位，或一些死靈單位', en: 'No: you need at least two more HQ units, or some other Necron units' },
+      buyable: { zh: '能：KT 盒目前還買得到，但不會有大桌盒', en: 'Yes — the KT box is still available, but there is no Warhammer 40,000 box' },
+      size: { zh: '8 名特工', en: '8 operatives' },
+      note: { zh: '將於 2026 年退出賽季：屆時官方比賽不能使用，一般對戰或非官方比賽仍可使用。', en: 'Rotating out of the season in 2026: then not allowed in official events, still fine for casual and unofficial games.' },
+    },
+    reanimation: true, // Reanimation Protocols
+    livingMetal: true, // Living Metal
+    rule: {
+      name: { zh: '復甦協議・活體金屬・放大', en: 'Reanimation Protocols · Living Metal · Magnify' },
+      desc: {
+        zh: '復甦協議：每名特工第一次倒下時留下復甦標記；每回合準備步驟擲 D6，3+ 讓一名倒下的特工在標記 3" 內以 1 生命、準備好的狀態回到場上（對手的擊殺數會減少）。活體金屬：每回合準備步驟，每名友方回復 D3+1 生命。放大（技師／學徒的武器）：可借另一名交戰指令、未被敵人纏住且看得到的技師或學徒的位置判斷目標、掩護與遮蔽，並獲得「無休」。',
+        en: 'Reanimation Protocols: the first time each operative falls it leaves a Reanimation marker; in each Ready step roll a D6 — on a 3+ a fallen operative returns within 3" of its marker with 1 wound, ready (the opponent\'s kill count goes down). Living Metal: in each Ready step every friendly regains D3+1 wounds. Magnify (Cryptek / Apprentek weapons): pick targets, cover and obscured from another visible Engage-order Cryptek or Apprentek that isn\'t in an enemy\'s control range, and gain Ceaseless.',
+      },
+    },
+    ploys: [
+      { id: 'relentlessOnslaught', cp: 1, name: { zh: '無情猛攻', en: 'Relentless Onslaught' },
+        desc: { zh: '本回合友方射擊 8" 內的特工時，遠程武器「平衡」。', en: 'This TP, a friendly shooting an operative within 8" has Balanced.' } },
+      { id: 'undyingAndroids', cp: 1, name: { zh: '不死機械體', en: 'Undying Androids' },
+        desc: { zh: '本回合友方被射擊時，若不能保留掩護豁免，可直接保留 1 顆防禦骰作為普通成功。', en: 'This TP, a friendly being shot that can\'t retain cover saves retains one defence die as a normal success without rolling it.' } },
+      { id: 'methodicalElim', cp: 1, name: { zh: '有條不紊的殲滅', en: 'Methodical Elimination' },
+        desc: { zh: '本回合友方近戰武器「精準 1」；本次啟動移動沒超過 Move 時近戰、或反擊時改為「精準 2」。', en: 'This TP, friendly melee weapons have Accurate 1; fighting without having moved more than its Move this activation, or retaliating: Accurate 2.' } },
+    ],
+    ops: [
+      op('technomancer', '技術術士', 'Technomancer', { apl: 3, move: 6, save: 3, wounds: 14, base: 50, cryptek: true, magnifyRelay: true, interstitial: true, canoptekRepair: true, augment: true, reinforce: true }, [staffLight, staffLightM]),
+      op('apprentek', '學徒', 'Apprentek', { apl: 3, move: 6, save: 3, wounds: 11, base: 32, apprentek: true, magnifyRelay: true, interstitial: true, canoptekRepair: true, augment: true, reinforce: true }, [arcaneConduit, arcaneConduitM]),
+      op('deathmark', '死亡標記', 'Deathmark', { apl: 2, move: 5, save: 3, wounds: 10, base: 32, deathmark: true, mdVision: true }, [synapticDis, fistsN], 2),
+      op('despotek', '不朽者指揮官', 'Immortal Despotek', { apl: 2, move: 5, save: 3, wounds: 11, base: 32, control: 3, steadfast: true, despotek: true, interstitial: true }, [teslaCarbine, bayonetN]),
+      op('guardian', '不朽者衛士', 'Immortal Guardian', { apl: 2, move: 5, save: 3, wounds: 10, base: 32, control: 3, steadfast: true }, [gaussBlaster, bayonetN]),
+      op('accelerator', '加速漿體', 'Plasmacyte Accelerator', { apl: 2, move: 7, save: 5, wounds: 5, base: 25, small: true, disengage: true, accelerate: true }, [spark, clawsP]),
+      op('reanimator', '復甦漿體', 'Plasmacyte Reanimator', { apl: 2, move: 7, save: 5, wounds: 5, base: 25, small: true, disengage: true, reanimate: true }, [atomiser, clawsP]),
+    ],
+  },
 ];
 
 // ---- NPOs (non-player operatives) used by mission packs; not selectable as a kill team ----
@@ -1068,6 +1196,9 @@ export const RULE_LABELS = {
   shield: { zh: '盾牌（一次格擋擋兩顆）', en: 'Shield (each block cancels two)' },
   hypersense: { zh: '超感（目標不會被遮擋）', en: 'Hypersense (no obscuring)' },
   bloodOffering: { zh: '血之獻祭（第一次暴擊打擊得血祭標記）', en: 'Blood Offering (first critical strike gains a Blooded token)' },
+  repress: { zh: '鎮壓（反擊時先結算）', en: 'Repress (resolves first when retaliating)' },
+  devSplash: { zh: '毀滅也波及目標周圍', en: 'Devastating also hits operatives within' },
+  magnify: { zh: '放大（借技師／學徒的視角）', en: 'Magnify (through a Cryptek / Apprentek)' },
   headtaker: { zh: '獵頭（擊殺後回血並提升暴擊傷害）', en: 'Headtaker (kills heal and raise Critical Dmg)' },
   tactualHunter: { zh: '觸覺獵手（對已行動敵人第一次暴擊後追加打擊）', en: 'Tactual Hunter (extra strike after the first crit vs an expended enemy)' },
   viciousBlows: { zh: '兇殘重擊（主動近戰時無休）', en: 'Vicious Blows (Ceaseless when fighting)' },

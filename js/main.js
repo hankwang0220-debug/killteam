@@ -7,7 +7,7 @@ import {
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
   ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
-  shootFlow, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
+  shootFlow, endProxy, reanimMarkers, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, foes,
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
@@ -548,6 +548,7 @@ function boardUi() {
   if (op && ui.mode?.kind === 'move') b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   if (op && ui.mode?.kind === 'shoot' && ui.mode.weapon) {
     b.highlight = new Map();
+    const op = shooter(activeOp(g)); // (Interstitial Command: the commanded operative shoots)
     // Detonate: the target is the friendly Gheistskull.
     for (const t of ui.mode.weapon.rules.detonate ? living(g, op.side).filter((o) => tpl(o).gheistskull) : foes(g, op)) {
       const c = shootCheck(g, op, t, ui.mode.weapon);
@@ -565,7 +566,7 @@ function boardUi() {
   }
   // The attack in progress — declared, being rolled, its result, or a fight: who attacks whom, with a line.
   let atk = null;
-  if (ui.pending && op) atk = { a: op.uid, t: ui.pending.target, kind: ui.pending.kind };
+  if (ui.pending && op) atk = { a: ui.pending.by || op.uid, t: ui.pending.target, kind: ui.pending.kind };
   else if (ui.flow?.step) atk = { a: ui.flow.step.seq.op, t: ui.flow.step.seq.target, kind: 'shoot' };
   else if (ui.result?.attacker) atk = { a: ui.result.attacker, t: ui.result.target, kind: ui.result.kind || 'shoot' };
   else if (g.fight) atk = { a: g.fight.A.uid, t: g.fight.D.uid, kind: 'fight' };
@@ -683,6 +684,14 @@ function gambitView(side) {
         ${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${cur === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}
       </select></div>`;
   }
+  if (team(g, side).justiceMark) {
+    const cur = g.mark?.[side];
+    html += `<div class="gambit"><h4>${L('正義標記', 'Marked for Justice')}</h4>
+      <p class="hint small">${L('選一名敵人：本回合友方射擊、近戰或反擊它時，武器獲得「懲罰」。它倒下時會自動改標記剩餘生命最多的敵人。', 'Select an enemy: this TP, friendly weapons have Punishing against it. When it falls, the enemy with the most wounds left becomes the new mark.')}</p>
+      <select data-act="mark" data-side="${side}"><option value="">${L('（不選）', '(none)')}</option>
+        ${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${cur === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}
+      </select></div>`;
+  }
   // Blooded: assign tokens, Gaze of the Gods, Glory Kill target.
   if (team(g, side).bloodedTokens) {
     const pool = g.bloodPool?.[side] || 0;
@@ -794,7 +803,7 @@ function recentView() {
 
 /** A declared attack, shown on the board before any dice are rolled. */
 function pendingView() {
-  const p = ui.pending, a = activeOp(g), t = getOp(g, p.target);
+  const p = ui.pending, a = p.by ? getOp(g, p.by) : activeOp(g), t = getOp(g, p.target);
   const verb = p.kind === 'shoot' ? L('射擊', 'shoots') : L('近戰攻擊', 'fights');
   const by = (o) => `<b style="color:${team(g, o.side).color}">${nm(o)}</b>`;
   return `<div class="pending"><h3>${p.kind === 'shoot' ? '⌖' : '⚔'} ${L('宣告攻擊', 'Attack declared')}</h3>
@@ -954,6 +963,7 @@ function modeView(op) {
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
   if ((m.kind === 'shoot' || m.kind === 'fight') && !m.weapon) {
+    op = shooter(op);
     const type = m.kind === 'shoot' ? 'ranged' : 'melee';
     const btn = (w, i) => {
       if (w.type !== type) return '';
@@ -961,7 +971,7 @@ function modeView(op) {
       const note = !s.ok ? `<span class="wrules bad">${esc(tx(s.why))}</span>` : s.ap > 1 ? `<span class="wrules">${L(`第二次射擊同一把武器：${s.ap}AP`, `Second Shoot with the same weapon: ${s.ap}AP`)}</span>` : '';
       return `<button class="weapon" data-act="weapon" data-i="${i}" ${s.ok ? '' : 'disabled'}>${weaponLine(w)}${note}</button>`;
     };
-    return `<div class="mode"><h3>${L('選擇武器', 'Choose weapon')}</h3>
+    return `<div class="mode"><h3>${m.by ? L(`間隙指令：${nm(op)} 免費射擊`, `Interstitial Command: ${nm(op)} shoots for free`) : L('選擇武器', 'Choose weapon')}</h3>
       ${tpl(op).weapons.map(btn).join('')}
       <div class="row">${cancel}</div></div>`;
   }
@@ -984,7 +994,14 @@ function modeView(op) {
       pechra: L('點擊一個可見的敵人，把鳥標放在它旁邊：友方射擊鳥標 1" 內的敵人時獲得「搜尋（輕型）」。', 'Tap a visible enemy to place the Pech\'ra marker by it: friendly shooting at enemies within 1" of it has Seek Light.'),
       stunGrenade: L('點擊 6" 內可見的敵人：它與 1" 內的每個特工擲 D6，3+ 下次啟動 APL -1。', 'Tap an enemy visible within 6": it and every operative within 1" roll a D6 — on a 3+, -1 APL next activation.'),
       vitality: L('點擊 3" 內可見、受傷的友方：擲 2D6，總和 7 回復 7 生命，否則回復較高的那顆骰。', 'Tap a wounded friendly visible within 3": roll 2D6 — a 7 regains 7 wounds, otherwise the highest die.'),
-    }[m.action];
+      interstitial: L('點擊一名高亮的友方：它立刻免費射擊一次（接著選武器與目標；取消就放棄這次射擊）。', 'Tap a highlighted friendly: it shoots for free right away (then pick its weapon and target; cancelling forfeits the shot).'),
+      canoptekRepair: L('點擊 6" 內受傷的友方：回復 2D3 生命。', 'Tap a wounded friendly within 6": it regains 2D3 wounds.'),
+      augment: L('點擊 6" 內的友方：它最強的武器獲得兩條規則，直到這名技師下次啟動。', 'Tap a friendly within 6": its best weapon gains two rules until this operative\'s next activation.'),
+      reinforce: L('點擊 6" 內的友方：受到 3 以上的傷害時 -1，直到這名技師下次啟動。', 'Tap a friendly within 6": 3+ damage from an attack die is reduced by 1 until this operative\'s next activation.'),
+      accelerate: L('點擊 6" 內的死亡標記或不朽者：下次啟動 APL +1。', 'Tap a Deathmark or Immortal within 6": +1 APL next activation.'),
+      veriscant: L('點擊一個可見的敵人：直到鑑識官下次啟動，友方攻擊它時「致命 5+」＋「重創」。', 'Tap a visible enemy: until the Malocator\'s next activation, friendlies attacking it have Lethal 5+ and Severe.'),
+      apprehend: L('點擊控制範圍內的敵人：它留在獒犬控制範圍內時命中變差 1、不能撤退。', 'Tap an enemy in control range: while it stays in the mastiff\'s control range, -1 to hit and no Fall Back.'),
+    }[m.action] || L('點擊一個高亮的目標。', 'Tap a highlighted target.');
     return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${hint}</p><div class="row">${cancel}</div></div>`;
   }
   return '';
@@ -995,7 +1012,7 @@ function ruleText(rules) {
     const lab = bi(RULE_LABELS[k]);
     if (v === true) return lab;
     if (k === 'heavy' && v === 'dash') return `${lab}${L('（僅限衝刺）', ' (Dash only)')}`;
-    if (k === 'range' || k === 'torrent' || k === 'blast') return `${lab} ${v}"`;
+    if (k === 'range' || k === 'torrent' || k === 'blast' || k === 'devSplash') return `${lab} ${v}"`;
     if (k === 'lethal') return `${lab} ${v}+`;
     return `${lab} ${v}`;
   }).join(', ');
@@ -1027,7 +1044,13 @@ function datacard(op, extra = '') {
   else if (isInjured(op)) flags.push(`<span class="flag inj">${L('受傷（無所畏懼：無減益）', 'Injured (Know No Fear: no penalty)')}</span>`);
   if (!injuredPenalty(g, op) && statPenalty(g, op)) flags.push(`<span class="flag inj">${L('傳染：Move -2"、命中 -1', 'Contagion: -2" Move, -1 to hit')}</span>`);
   if (op.poison) flags.push(`<span class="flag poison">${L('中毒', 'Poisoned')}</span>`);
-  if (g.mark?.[1 - op.side] === op.uid) flags.push(`<span class="flag mk">${L('獵殺標記', 'Marked (Call the Kill)')}</span>`);
+  if (g.mark?.[1 - op.side] === op.uid) flags.push(`<span class="flag mk">${L('被標記', 'Marked')}</span>`);
+  if (engagedEnemies(g, op).some((m) => m.apprehend === op.uid)) flags.push(`<span class="flag inj">${L('被扣押：命中 -1、不能撤退', 'Apprehended: -1 to hit, no Fall Back')}</span>`);
+  if (op.dmk?.[1 - op.side]) flags.push(`<span class="flag mk">${L('死亡標記', 'Deathmarked')}</span>`);
+  if (g.reinforce?.[op.side]?.t === op.uid) flags.push(`<span class="flag">${L('強化金屬', 'Reinforce Metal')}</span>`);
+  if (g.augment?.[op.side]?.t === op.uid) flags.push(`<span class="flag">${L('強化武器', 'Augment Weapon')}</span>`);
+  if (op.reanimUsed && TEAM_MAP[op.team].reanimation) flags.push(`<span class="flag">${L('已用過復甦', 'Reanimation used')}</span>`);
+  if (g.veriscant?.[1 - op.side]?.t === op.uid) flags.push(`<span class="flag mk">${L('真相鑑定', 'Veriscant')}</span>`);
   if (op.shriek) flags.push(`<span class="flag">${L('勝利尖嘯：平衡', 'Victory Shriek: Balanced')}</span>`);
   if (op.frenzy) flags.push(`<span class="flag inj">🔥 ${L(`狂暴（被近戰普通命中 ${op.frenzyHits || 0}/2）`, `Frenzy (normal strikes taken ${op.frenzyHits || 0}/2)`)}</span>`);
   if (op.gongOn) flags.push(`<span class="flag">${L('鳴鑼：豁免 +1', 'Gong Knell: +1 Save')}</span>`);
@@ -1077,7 +1100,28 @@ const ABILITIES = {
   drone: () => ['無人機', 'Drone', '控制目標時 APL 視為 -1。', 'Counts as 1 APL lower for objective control.'],
   actionsOnly: (v) => ['動作限制', 'Limited actions', `只能執行：${v.map((a) => ACTIONS[a].name.zh).join('、')}。`, `Only: ${v.map((a) => ACTIONS[a].name.en).join(', ')}.`],
   camoCloak: () => ['迷彩斗篷', 'Camo Cloak', '被射擊時無視飽和，並擁有「隱匿」戰團戰術。', 'Ignores Saturate when shot and has the Stealthy tactic.'],
-  optics: () => ['光學瞄準', 'Optics', '1AP：直到下次啟動，射擊時敵人不能被遮蔽。', '1AP: until its next activation, enemies cannot be obscured when it shoots.'],
+  optics: () => ['光學瞄準', 'Optics', '1AP：直到下次啟動，射擊時敵人不能被遮蔽（強徵小隊神射手：隱蔽／定點處決霰彈槍再加「致命 5+」）。', '1AP: until its next activation, enemies cannot be obscured when it shoots (Exaction Marksman: the concealed/stationary executioner shotgun also has Lethal 5+).'],
+  magnifyRelay: () => ['放大節點', 'Magnify node', '交戰指令且不在敵人控制範圍內時，友方技師／學徒的「放大」武器可借它的位置射擊。', 'With an Engage order and not in an enemy\'s control range, friendly Cryptek / Apprentek Magnify weapons can shoot through it.'],
+  interstitial: () => ['間隙指令', 'Interstitial Command', '1AP（支援，非反擊）：6" 內可見的另一名友方（技師、學徒除外；技師也可選不朽者指揮官 6" 內的）立刻免費射擊一次。本版只能用來射擊；本回合已射擊或已被指揮過的不能選。', '1AP (Support, not counteracting): another visible friendly within 6" (not a Cryptek or Apprentek; for a Cryptek, also within 6" of a visible Despotek) shoots for free right away. Here it can only Shoot; not one that already shot or was commanded this TP.'],
+  canoptekRepair: () => ['聖甲蟲修復', 'Canoptek Repair', '1AP（支援，每回合全隊一次）：6" 內可見的友方回復 2D3 生命。', '1AP (Support, once per TP for the team): a visible friendly within 6" regains 2D3 wounds.'],
+  augment: () => ['強化武器', 'Augment Weapon', '1AP（支援）：直到它下次啟動，6" 內可見友方的一把武器獲得兩條規則（自動選：致命 5+、撕裂；已有就改選重創、飽和）。', '1AP (Support): until its next activation, one weapon of a visible friendly within 6" gains two rules (picked for you: Lethal 5+ and Rending, or Severe / Saturate if it already has them).'],
+  reinforce: () => ['強化金屬', 'Reinforce Metal', '1AP（支援）：直到它下次啟動，6" 內可見的一名友方受到 3 以上的傷害時 -1。', '1AP (Support): until its next activation, attack dice inflicting 3+ damage on a visible friendly within 6" deal 1 less.'],
+  apprentek: () => ['學徒協助', 'Apprentek Assistance', '擁有技師的特殊動作，但每回合只能用其中一個。', 'Has the Cryptek\'s unique actions, but can only use one of them per turning point.'],
+  deathmark: () => ['死亡標記', 'Deathmarked', '射擊後沒倒下的目標獲得死亡標記；死亡標記射擊有標記的敵人時武器「搜尋」。', 'A target it shoots that survives gains a Deathmarked token; Deathmarks shooting a token holder have Seek.'],
+  mdVision: () => ['多維視覺', 'Multi-dimensional Vision', '1AP：直到下次啟動，射擊時敵人不能被遮蔽。', '1AP: until its next activation, enemies cannot be obscured when it shoots.'],
+  steadfast: () => ['堅定', 'Steadfast', '爭奪目標時 APL 一律算 3。', 'Counts as APL 3 when determining control of a marker.'],
+  accelerate: () => ['加速', 'Accelerate', '1AP：6" 內可見的死亡標記或不朽者下次啟動 APL +1。', '1AP: a visible Deathmark or Immortal within 6" gets +1 APL next activation.'],
+  reanimate: () => ['復甦', 'Reanimate', '1AP 擲 D6，3+ 讓 6" 內看得到的復甦標記上的友方復甦；花 2AP 則自動成功。這回合已行動過才倒下的，復甦後是已行動狀態。', '1AP: roll a D6, on a 3+ the friendly of a Reanimation marker visible within 6" is REANIMATED; 2AP: automatic. One that had already acted this TP comes back expended.'],
+  nuncio: () => ['使節天鷹', 'Nuncio-aquila', '3" 內的敵人執行撿起標記與任務動作要多花 1AP；爭奪目標時，若有敵人在它 3" 內，對方 APL 總和 -1。（本版以隊長本身代替標記）', 'Enemies within 3" pay +1AP for Pick Up Marker and mission actions; when a marker is contested, the enemy total APL is 1 lower if one of them is within 3" of it. (The Proctor itself stands in for the marker.)'],
+  engenderedFocus: () => ['堅定專注', 'Engendered Focus', '無視自身數值的變化（豁免除外）：受傷不減 Move、命中，APL 不受影響。', 'Ignores changes to its stats (except Save): no injured Move/Hit penalty, APL unchanged.'],
+  zealous: () => ['狂熱奉獻', 'Zealous Dedication', '受到 3 以上的傷害時擲 D6：5+ 傷害 -1。', 'Whenever an attack die inflicts 3+ damage on it, roll a D6: on a 5+, 1 less.'],
+  arrest: () => ['懲戒者的逮捕', "Castigator's Arrest", '若它控制範圍內只有一名敵人，該敵人不能撤退。', 'If only one enemy is in its control range, that enemy cannot Fall Back.'],
+  apprehend: () => ['扣押', 'Apprehend', '0AP：控制範圍內一名敵人，在它離開前命中變差 1（不與受傷疊加）且不能撤退。', "0AP: an enemy in its control range has its Hit worsened by 1 (not cumulative with injured) and can't Fall Back while it stays there."],
+  aggressivePattern: () => ['攻擊模式', 'Attack Pattern', '馴犬師為牠選了「凶猛」（近戰武器「無情」）與「迅捷」（Move +2"，已算入 8"）。', 'The Leashmaster picked Aggressive (melee Relentless) and Swift (+2" Move, included in its 8").'],
+  veriscant: () => ['真相鑑定', 'Veriscant', '1AP（敏銳專注時 0AP）：一名可見敵人，直到它下次啟動，友方攻擊它時武器「致命 5+」＋「重創」。', '1AP (0AP with Acute Focus): a visible enemy — until its next activation, friendly weapons have Lethal 5+ and Severe against it.'],
+  acuteFocus: () => ['敏銳專注', 'Acute Focus', '每次啟動一次：撿起標記、真相鑑定或任務動作少花 1AP。', 'Once per activation: Pick Up Marker, Veriscant or a mission action costs 1 less AP.'],
+  stubbornSubjugator: () => ['頑強鎮壓者', 'Stubborn Subjugator', '近戰武器的命中值不受任何變化影響。', 'Changes to the Hit stat of its melee weapons are ignored.'],
+  vigilance: () => ['近距警戒', 'Close Quarters Vigilance', '交戰中也能射擊（本次啟動沒衝鋒過，或是反擊時）。', 'Can Shoot while engaged, unless it Charged this activation (fine when counteracting).'],
   doctrineWarfare: () => ['教條戰', 'Doctrine Warfare', '毀滅與戰術教條整場各一次 0CP。', 'Devastator and Tactical doctrines cost 0CP once per battle each.'],
   blessing: () => ['祖父的祝福', "Grandfather's Blessing", '7" 內中毒的敵人失去生命時，回復同等生命（每回合最多 3）。', 'When a poisoned enemy within 7" loses wounds, regains as many (max 3 per TP).'],
   flail: () => ['連枷', 'Flail', '1AP（視為近戰，非隱蔽）：2" 內可見的其他特工（包括己方）各受 D3+2 傷害；敵人 D3 擲出 3 時中毒。', '1AP (counts as Fight, not Concealed): every other operative visible within 2" (friends too) takes D3+2; an enemy rolling a 3 on the D3 is poisoned.'],
@@ -1374,8 +1418,18 @@ function scheduleAI() {
   }, delay);
 }
 
+/** The operative shooting in the current shoot mode (the commanded one for Interstitial Command). */
+const shooter = (op) => (ui.mode?.by ? getOp(g, ui.mode.by) : op);
+/** Interstitial Command: a human player's commanded operative goes straight to choosing its Shoot. */
+function proxyMode() {
+  if (!g.proxy || ui.pending || ui.flow || isAI(getOp(g, g.proxy.uid).side)) return;
+  const ws = tpl(getOp(g, g.proxy.uid)).weapons.filter((w) => w.type === 'ranged');
+  ui.mode = { kind: 'shoot', by: g.proxy.uid, weapon: ws.length === 1 ? ws[0] : null };
+}
+
 function afterChange() {
   ui.notice = null;
+  if (g.proxy && !ui.mode) proxyMode();
   // Undo only covers the current player's own actions.
   if (g.phase !== 'firefight' || isAI(g.turn) || ui.undo[0]?.turn !== g.turn) ui.undo = [];
   // Auto-end a player activation with no AP left — unless its last action can still be undone.
@@ -1427,9 +1481,9 @@ function onBoardClick(evt) {
     if (m.kind === 'move') return previewMove(op, m.action, p);
     if (clicked && (clicked.side !== op.side || detonating)) {
       // Declare the attack first; the dice are rolled when the player presses "Roll".
-      if ((m.kind === 'shoot' && m.weapon && shootCheck(g, op, clicked, m.weapon).ok)
+      if ((m.kind === 'shoot' && m.weapon && shootCheck(g, shooter(op), clicked, m.weapon).ok)
         || (m.kind === 'fight' && m.weapon && fightTargets(g, op).includes(clicked))) {
-        ui.pending = { kind: m.kind, weapon: m.weapon, target: clicked.uid, ai: false };
+        ui.pending = { kind: m.kind, weapon: m.weapon, target: clicked.uid, ai: false, by: m.by || null };
         ui.mode = null; ui.sel = clicked.uid;
         return render();
       }
@@ -1645,11 +1699,11 @@ function handle(act, d) {
       ui.pending = null;
       const t = getOp(g, p.target);
       ui.undo = []; // dice are rolled: this action can't be undone
-      if (p.kind === 'shoot') { ui.flow = { it: shootFlow(g, op, p.weapon, t), step: null }; return advanceFlow(); }
+      if (p.kind === 'shoot') { ui.flow = { it: shootFlow(g, p.by ? getOp(g, p.by) : op, p.weapon, t), step: null }; return advanceFlow(); }
       startFight(g, op, p.weapon, t);
       return afterChange();
     }
-    case 'unroll': ui.pending = null; return render(); // take back a declared (not yet rolled) attack
+    case 'unroll': ui.pending = null; proxyMode(); return render(); // take back a declared (not yet rolled) attack
     case 'action': {
       if (['reposition', 'dash', 'charge', 'fallBack'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
       else if (d.id === 'shoot' || d.id === 'fight') {
@@ -1660,18 +1714,18 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (['energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (['energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (mission(g).actions?.includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
       ui.path = null;
       return render();
     }
     case 'weapon': {
-      const w = tpl(op).weapons[+d.i];
-      if (w.type === 'ranged' && !shootWeapon(g, op, w).ok) return undefined;
+      const sh = shooter(op), w = tpl(sh).weapons[+d.i];
+      if (w.type === 'ranged' && !shootWeapon(g, sh, w).ok) return undefined;
       ui.mode.weapon = w; return render();
     }
-    case 'cancel': ui.mode = null; ui.path = null; return render();
+    case 'cancel': if (ui.mode?.by) endProxy(g); ui.mode = null; ui.path = null; return render(); // (forfeits an Interstitial Command Shoot)
     case 'confirmmove':
       if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => doMove(g, op, action, path)); }
       ui.mode = null; ui.path = null;
