@@ -103,6 +103,61 @@ function pathToward(g, op, kind, goal) {
   return null;
 }
 
+/**
+ * How exposed the operative would be at p: each enemy that could shoot it there counts by its best ranged
+ * damage (less if it would only be in cover or obscured). A Concealed operative in cover can't be targeted.
+ */
+function exposure(g, op, p, order) {
+  const me = { ...op, x: p.x, y: p.y, order };
+  let sum = 0;
+  for (const e of foes(g, op)) {
+    if (e.side === NPO || isEngagedNear(g, e)) continue;
+    if (!bestRanged(e, 0)) continue;
+    const v = visibility(g, e, me);
+    if (!v.visible) continue;
+    if (order === 'conceal' && v.cover) continue;
+    sum += (v.cover ? 0.5 : 1) * (v.obscured ? 0.6 : 1);
+  }
+  return sum;
+}
+const isEngagedNear = (g, e) => engagedEnemies(g, e).length > 0;
+
+/**
+ * Cover-aware advance (melee operatives): among reachable end points, pick the one that best trades getting
+ * closer to the goal against how much enemy fire it would draw, with a bonus for ending within charge reach.
+ */
+function safeMove(g, op, kind, goal, order) {
+  const ctx = moveCtx(g, op);
+  const max = moveAllowance(g, op, kind);
+  const endOk = (q) => !ctx.inEnemyER(q);
+  const reach = moveAllowance(g, op, 'charge') + 0.5; // next activation's Charge
+  // Keep advancing, but give up to ~4" of progress to end where fewer enemies can shoot it.
+  const score = (p, len) => {
+    const progress = dist(op, goal) - dist(p, goal);
+    const near = foes(g, op).some((e) => e.side !== NPO && edgeDist({ ...op, x: p.x, y: p.y }, e) <= reach);
+    return progress - Math.min(4, exposure(g, op, p, order) * 1.5) + (near ? 1.5 : 0) - len * 0.02;
+  };
+  let best = { p: null, path: null, s: score(op, 0) - 1 }; // standing still must be clearly better
+  const cands = [];
+  const direct = pathToward(g, op, kind, goal);
+  if (direct) cands.push(direct);
+  for (const f of [1, 0.66, 0.33]) {
+    for (let a = 0; a < 16; a++) {
+      const q = { x: op.x + Math.cos(a * Math.PI / 8) * max * f, y: op.y + Math.sin(a * Math.PI / 8) * max * f };
+      if (!ctx.free(q) || !endOk(q)) continue;
+      if (ctx.segFree(op, q)) { cands.push({ pts: [{ x: op.x, y: op.y }, q], len: dist(op, q) }); continue; }
+      const path = findPath(ctx, q);
+      if (path && path.len <= max + 0.01) cands.push(path);
+    }
+  }
+  for (const path of cands) {
+    const p = path.pts[path.pts.length - 1];
+    const s = score(p, path.len);
+    if (s > best.s) best = { p, path, s };
+  }
+  return best.path && best.path.len >= 0.3 ? best.path : null;
+}
+
 function chargePath(g, op, among = foes(g, op)) {
   const ctx = moveCtx(g, op);
   const max = moveAllowance(g, op, 'charge');
@@ -201,10 +256,14 @@ export function aiStep(g) {
   if (!op) {
     const ready = readyOps(g, side);
     if (!ready.length) { endActivation(g); return null; }
-    const score = (o) => (engagedEnemies(g, o).length ? 10 : 0) + (shootOptions(g, o)[0]?.score || 0) + Math.random();
+    // Melee operatives standing exposed get to move into cover first.
+    const urgent = (o) => (prefersMelee(o) && !o.frenzy ? Math.min(4, exposure(g, o, o, o.order) * 1.5) : 0);
+    const score = (o) => (engagedEnemies(g, o).length ? 10 : 0) + (shootOptions(g, o)[0]?.score || 0) + urgent(o) + Math.random();
     op = ready.sort((a, b) => score(b) - score(a))[0];
     activate(g, op);
-    op.order = 'engage';
+    // Melee operatives stay Concealed while closing in, and only go Engage when they can Charge or fight now.
+    const melee = prefersMelee(op) && !op.frenzy;
+    op.order = melee && !engagedEnemies(g, op).length && !chargePath(g, op) && g.tp < 4 ? 'conceal' : 'engage';
     return null;
   }
   if (op.dead) { endActivation(g); return null; }
@@ -384,12 +443,15 @@ export function aiStep(g) {
     if (best) return { kind: 'shoot', weapon: best.w, target: best.t };
   }
   const goal = pickGoal(g, op);
+  // Melee operatives advance from cover to cover instead of walking straight at the enemy.
+  const careful = prefersMelee(op) && !op.frenzy;
+  const move = (kind) => (careful ? safeMove(g, op, kind, goal, op.order) : pathToward(g, op, kind, goal));
   if (goal && can.reposition) {
-    const p = pathToward(g, op, 'reposition', goal);
+    const p = move('reposition');
     if (p) { doMove(g, op, 'reposition', p); return null; }
   }
   if (goal && can.dash && !(can.shoot && shootOptions(g, op).length)) {
-    const p = pathToward(g, op, 'dash', goal);
+    const p = move('dash');
     if (p) { doMove(g, op, 'dash', p); return null; }
   }
   endActivation(g);

@@ -68,6 +68,7 @@ export function moveStat(g, op) {
   if (artOfWar(g, op, 'montka')) m += 1;
   if (op.shieldingOn) m -= 2; // Shielding (Trench Sweeper)
   if (optimised(g, op, 'aggressor')) m += 1; // Aggressor Imperative
+  m += op.acted?.moveBonus || 0; // Wild Rage (firefight ploy)
   if (deprecated(g, op, 'bulwark')) m -= 1; // Bulwark Imperative
   if (isDrone(op) && living(g, op.side).some((o) => tpl(o).droneController)) m += 2;
   return m;
@@ -78,7 +79,7 @@ export function moveStat(g, op) {
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
 export const aplNow = (g, op) => (tpl(op).nemesis && op.cardApl ? op.cardApl
-  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
+  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
     : Math.max(-1, Math.min((op.aplNext || 0) > 0 && cursed(g, op, 'voxStatic') ? 0 : 1, op.aplNext || 0)))));
 
 /** Change APL until the end of the operative's next activation (not the one it's in right now). */
@@ -92,6 +93,7 @@ export function moveAllowance(g, op, kind) {
   if (kind === 'reposition' && guardOrder(g, op) === 'moveMove') d += 1; // Move! Move! Move!
   // Stealth Attack's free Charge can't exceed the Move stat.
   if (kind === 'charge') d = moveStat(g, op) + (op.acted?.free?.charge === 'stealth' ? 0 : op.acted?.boost ? 4 : 2); // Boost: +4"
+  if (kind === 'charge' && op.acted?.free?.charge === 'rampage') d = 3; // Ruthless Rampage: a free Charge of up to 3"
   // Mission NEMESIS NPOs can't move more than a set distance per turning point.
   const cap = mission(g).npoMoveCap;
   if (cap && tpl(op).nemesis) d = Math.max(0, Math.min(d, cap - (op.movedTP || 0)));
@@ -345,10 +347,24 @@ function placeAuto(g, side, ops) {
   const cands = [];
   for (let x = z.x0 + 0.8; x <= z.x1 - 0.8; x += 1.6)
     for (let y = z.y0 + 0.8; y <= z.y1 - 0.8; y += 1.7) cands.push({ x, y });
-  // Front line first (nearest the centre along the mission's axis), spread out from the middle.
+  // Hidden spots first, then the front line (nearest the centre along the mission's axis), spread out from the middle.
   const along = g.axis === 'y' ? 'y' : 'x', across = along === 'x' ? 'y' : 'x';
   const mid = { x: BOARD.w / 2, y: BOARD.h / 2 };
-  cands.sort((a, b) => Math.abs(a[along] - mid[along]) - Math.abs(b[along] - mid[along]) || Math.abs(a[across] - mid[across]) - Math.abs(b[across] - mid[across]));
+  const front = (a) => Math.abs(a[along] - mid[along]);
+  // Prefer spots where a Concealed operative can't be targeted from the enemy's drop zone (or from enemies
+  // already set up): in cover or out of sight from as many viewpoints as possible.
+  const ez = deployZones(g)[1 - side], probe = ops[0];
+  const views = g.ops.filter((o) => o.side === 1 - side && !o.dead && o.x > -50).map((o) => ({ x: o.x, y: o.y }));
+  for (let x = ez.x0 + 1; x <= ez.x1 - 1; x += Math.max(1, (ez.x1 - ez.x0 - 2) / 3)) for (let y = ez.y0 + 1; y <= ez.y1 - 1; y += Math.max(1, (ez.y1 - ez.y0 - 2) / 3)) views.push({ x, y });
+  const exposed = (p) => {
+    if (!probe) return 0;
+    const me = { ...probe, x: p.x, y: p.y, order: 'conceal' };
+    let n = 0;
+    for (const v of views) { const s = visibility(g, { ...probe, x: v.x, y: v.y }, me); if (s.visible) n += s.cover ? 0.15 : 1; }
+    return n;
+  };
+  const exp = new Map(cands.map((p) => [p, exposed(p)]));
+  cands.sort((a, b) => Math.round(exp.get(a) * 2) - Math.round(exp.get(b) * 2) || front(a) - front(b) || Math.abs(a[across] - mid[across]) - Math.abs(b[across] - mid[across]));
   const placed = g.ops.filter((o) => o.side === side && !ops.includes(o) && o.x > -50).map((o) => ({ x: o.x, y: o.y }));
   for (const o of ops) {
     let spot = cands.find((p) => deployOk(g, o, p) && placed.every((q) => dist(p, q) >= 2.6))
@@ -609,6 +625,8 @@ export function endActivation(g) {
   const op = activeOp(g);
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
   if (g.proxy) endProxy(g); // an unused Interstitial Command Shoot is lost
+  g.ffPending = null; g.ffAtk = null;
+  if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `{opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `{opName(op, 'en')} Slink into Darkness: now Concealed` }, `side{op.side}`); }
   if (op) {
     op.ready = false; op.ap = 0;
     if (op.counter) { op.counter = false; op.counteracted = true; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
@@ -878,6 +896,7 @@ Object.assign(ACTIONS, MISSION_ACTIONS); // mission actions (Siphon Power…)
 const ACUTE = ['pickUp', 'veriscant'];
 
 export function actionCost(g, op, id) {
+  if (id === 'fallBack' && op.acted?.slip) return Math.max(1, actionCost(g, { ...op, acted: { ...op.acted, slip: false } }, id) - 1); // Slip Away
   if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
   if (id === 'fallBack' && whipped(g, op)) return ACTIONS.fallBack.ap + 1; // Whip Control (Herd-goad)
   // Kauyon: a Concealed operative's Markerlight is free.
@@ -1266,6 +1285,7 @@ export function shootWeapon(g, op, w) {
   if (w.rules.detonate && !living(g, op.side).some((o) => tpl(o).gheistskull)) return no('鬼骷髏不在場上', 'No Gheistskull in the killzone');
   if (w.rules.firstShotOnly && op.used?.shoot) return no('只能在第一次射擊使用', 'Only for the first Shoot of the battle');
   const free = op.acted?.free?.shoot; // Dakka Dash: a free Shoot with the dakka shoota
+  if (free === 'any') return { ok: true, ap: 0, why: null }; // The Ancestors Are Watching
   if (free) return w.group === free ? { ok: true, ap: 0, why: null } : no('達卡衝刺只能用達卡槍', 'Dakka Dash: dakka shoota only');
   if (count(op, 'shoot')) {
     const first = op.acted.shotWith;
@@ -1302,11 +1322,13 @@ export function availableActions(g, op) {
   // Mobile: may Charge while within control range of an enemy.
   const chargeEngaged = engaged && !hasTactic(g, op, 'mobile');
   add('reposition', !engaged && !heavyBlocks('reposition') && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : heavyBlocks('reposition') ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
-  add('dash', !engaged && !heavyBlocks('dash') && !did('dash', 'charge'), engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
+  const caprice = free.dash === 'capricious'; // Capricious Plan: a free Dash whatever it did before
+  add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !did('dash', 'charge'))), engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
   const noCharge = conceal;
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
-  add('charge', !chargeEngaged && !noCharge && !heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
+  const rampage = free.charge === 'rampage'; // Ruthless Rampage: a free Charge even after one
+  add('charge', !chargeEngaged && !noCharge && (rampage || (!heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'))), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
   // Apprehend / Castigator's Arrest (Exaction Squad): held in place.
   const held = engaged && arrested(g, op);
   add('fallBack', engaged && !held && !heavyBlocks('fallBack') && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : held ? { zh: '被逮捕／扣押，無法撤退', en: 'Apprehended / arrested — cannot Fall Back' } : heavyBlocks('fallBack') ? HEAVY : count(op, 'fallBack') ? DONE : COMBO);
@@ -1892,11 +1914,12 @@ const mindburned = (g, op) => [0, 1].some((s) => s !== op.side && g.mindburn?.[s
 // Apprehend (Cyber-mastiff) worsens it the same way. Engendered Focus (Castigator) ignores it all;
 // Stubborn Subjugator (Subductor) ignores it for melee weapons.
 const hitWorse = (g, op, w = null) => !tpl(op).engenderedFocus && !(w?.type === 'melee' && tpl(op).stubbornSubjugator)
-  && (statPenalty(g, op) || mindburned(g, op) || apprehended(g, op) || radSaturated(g, op) || doctrinaHit(g, op, w));
+  && ((statPenalty(g, op) && !(op.acted?.ancestors && injuredPenalty(g, op) && !contagion(g, op))) || mindburned(g, op) || apprehended(g, op) || radSaturated(g, op) || doctrinaHit(g, op, w));
 
 // ---------- Exaction Squad ----------
 /** Nuncio-aquila: an enemy within 3" of the Proctor-exactant (it carries the marker in this version). */
-const nuncioNear = (g, op) => op.side < 2 && living(g, 1 - op.side).some((p) => tpl(p).nuncio && edgeDist(p, op) <= 3);
+// Scrapcode Overload (Hunter Clade firefight ploy) works the same way around its Infiltrator.
+const nuncioNear = (g, op) => op.side < 2 && living(g, 1 - op.side).some((p) => (tpl(p).nuncio || g.scrapcode?.[p.side] === p.uid) && edgeDist(p, op) <= 3);
 /** Apprehend: the Cyber-mastiff holds this enemy while it stays within its control range. */
 const apprehended = (g, op) => op.side < 2 && living(g, 1 - op.side).some((m) => m.apprehend === op.uid && edgeDist(m, op) <= CONTROL + 0.01);
 /** Apprehend / Castigator's Arrest (the only enemy in the Castigator's control range): can't Fall Back. */
@@ -2014,6 +2037,7 @@ export function endProxy(g) {
 // ---------- Hunter Clade ----------
 /** The Doctrina Imperative this operative's team has this turning point (null if none). */
 const doctrina = (g, op) => {
+  if (op.docOverride?.tp === g.tp) return { tp: g.tp, mode: op.docOverride.mode, noDep: false }; // Command Override
   const d = op.side < 2 && TEAM_MAP[op.team].doctrina ? g.doctrina?.[op.side] : null;
   return d && d.tp === g.tp ? d : null;
 };
@@ -2041,6 +2065,178 @@ const radSaturated = (g, op) => op.side < 2 && living(g, 1 - op.side).some((v) =
 const debilitated = (g, src, target) => target.side < 2 && !!tpl(target).vanguard && hasPloy(g, target.side, 'debilitating') && radSaturated(g, src);
 /** Neurostatic Interference: an enemy within 6" of a friendly Infiltrator can't re-roll its attack dice. */
 const neurostatic = (g, op) => op.side < 2 && hasPloy(g, 1 - op.side, 'neurostatic') && living(g, 1 - op.side).some((i) => tpl(i).infiltrator && edgeDist(i, op) <= 6);
+// ---------- Firefight ploys (交戰計謀) ----------
+// Each one can be used once per turning point. Kinds:
+//  button — used by the active operative during its activation (start: only before its first action);
+//  aim    — chosen while picking a Shoot target (it changes which targets are valid);
+//  attack — chosen with a declared Shoot / Fight, before the dice are rolled;
+//  auto   — reactions (when shot, damaged, incapacitated…): used automatically while armed and affordable.
+export const ffDef = (g, side, id) => TEAM_MAP[g.teams[side]]?.firefight?.find((p) => p.id === id) || null;
+const ffUsedNow = (g, side, id) => g.ffUsed?.[side]?.tp === g.tp && g.ffUsed[side].ids.includes(id);
+/** Can this side pay for and still use this firefight ploy this turning point? */
+export const ffReady = (g, side, id) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= p.cp; };
+function spendFF(g, side, id) {
+  const p = ffDef(g, side, id);
+  if (g.ffUsed?.[side]?.tp !== g.tp) (g.ffUsed ||= [null, null])[side] = { tp: g.tp, ids: [] };
+  g.ffUsed[side].ids.push(id);
+  g.cp[side] -= p.cp;
+  log(g, { zh: `${teamZh(g, side)} 使用交戰計謀「${p.name.zh}」（${p.cp}CP）`, en: `${team(g, side).name.en} uses the firefight ploy ${p.name.en} (${p.cp}CP)` }, `side${side}`);
+}
+/** Auto ploys: armed unless the player switched them off. */
+export const ffArmed = (g, side, id) => !g.ffOff?.[side]?.includes(id);
+export function ffToggleArm(g, side, id) {
+  const off = ((g.ffOff ||= [[], []])[side] ||= []);
+  const i = off.indexOf(id);
+  if (i >= 0) off.splice(i, 1); else off.push(id);
+}
+/** Use an auto ploy now if it's armed, affordable and unused. */
+function autoFF(g, side, id) {
+  if (side > 1 || !ffDef(g, side, id) || !ffArmed(g, side, id) || !ffReady(g, side, id)) return false;
+  spendFF(g, side, id);
+  return true;
+}
+/** Is this attack ploy chosen for the operative's current Shoot / Fight (pending or committed)? */
+const ffOn = (g, op, id) => [g.ffPending, g.ffAtk].some((x) => x && x.uid === op.uid && x.ids.includes(id));
+const startOfActivation = (op) => !Object.keys(op.acted || {}).some((k) => !['unseen', 'accelerant', 'free'].includes(k) && op.acted[k]);
+const sprungNow = (op) => op.prevOrder === 'conceal' && op.order === 'engage';
+const holdsObjective = (g, t) => (g.objectives || []).some((o) => dist(t, o) - radius(t) - OBJ_R <= CONTROL && controller(g, o) === t.side);
+
+/** Firefight ploy rules, keyed by id (names and descriptions are in teams.js). */
+const FF = {
+  // ---- Angels of Death ----
+  adjustDoctrine: { kind: 'button',
+    cond: (g, op) => (['docAssault', 'docDevastator', 'docTactical'].some((d) => hasPloy(g, op.side, d)) ? null : { zh: '本回合沒有用戰鬥教條', en: 'No Combat Doctrine this turning point' }),
+    apply(g, op) {
+      const docs = ['docAssault', 'docDevastator', 'docTactical'], cur = docs.find((d) => hasPloy(g, op.side, d));
+      const next = docs[(docs.indexOf(cur) + 1) % 3];
+      g.ploys[op.side] = g.ploys[op.side].map((p) => (p === cur ? next : p));
+      const nm = team(g, op.side).ploys.find((p) => p.id === next)?.name;
+      return nm ? { zh: `改為${nm.zh}`, en: `now ${nm.en}` } : null;
+    } },
+  wrathVengeance: { kind: 'button', cond: (g, op) => (op.counter && !op.acted.wrath ? null : { zh: '只能在反擊時', en: 'Only while counteracting' }), apply(g, op) { op.acted.wrath = true; op.ap += 1; } },
+  transhuman: { kind: 'auto' },
+  shockAssault: { kind: 'attack', fight: true, cond: (g, op) => (count(op, 'charge') ? null : { zh: '本次啟動沒有衝鋒', en: 'Didn\'t Charge this activation' }) },
+  // ---- Blooded ----
+  momentRepute: { kind: 'button', cond: (g, op) => (underGaze(g, op) ? null : { zh: '不在諸神注視下', en: 'Not under the Gaze of the Gods' }), apply(g, op) { op.ap += 1; } },
+  rewardEarned: { kind: 'auto' },
+  // ---- Death Korps ----
+  combinedArms: { kind: 'attack', shoot: true, cond: (g, op, t) => (t?.shotBy?.tp === g.tp && t.shotBy.uids.some((u) => u !== op.uid && getOp(g, u)?.side === op.side) ? null : { zh: '目標本回合還沒被其他友方射擊', en: 'Not shot by another friendly this TP' }) },
+  // ---- Exaction Squad ----
+  longArm: { kind: 'aim', cond: (g, op, t, w) => (w?.rules.range ? null : { zh: '武器沒有射程限制', en: 'The weapon has no Range rule' }) },
+  // ---- Fellgor Ravagers ----
+  animalisticFury: { kind: 'attack', fight: true },
+  wildRage: { kind: 'button', start: true, apply(g, op) { op.acted.moveBonus = (op.acted.moveBonus || 0) + 1; } },
+  ruthlessRampage: { kind: 'button',
+    cond: (g, op) => (count(op, 'fight') && !isEngaged(g, op) ? null : { zh: '要在近戰後、且不在敵人控制範圍內', en: 'After a Fight, out of enemy control range' }),
+    apply(g, op) { op.acted.free = { ...(op.acted.free || {}), charge: 'rampage' }; } },
+  // ---- Farstalker Kinband ----
+  slipAway: { kind: 'button', apply(g, op) { op.acted.slip = true; } },
+  vengeanceKinband: { kind: 'auto' },
+  savageAmbush: { kind: 'auto' },
+  // ---- Gellerpox Infected ----
+  putrescentDemise: { kind: 'auto' },
+  frighteningOnslaught: { kind: 'button',
+    cond: (g, op) => (tpl(op).hulk && count(op, 'fight') && fightTargets(g, op).length ? null : { zh: '噩夢巨獸近戰後才能用', en: 'A Nightmare Hulk, after a Fight' }),
+    apply(g, op) { op.acted.free = { ...(op.acted.free || {}), fight: 'any' }; } },
+  revoltingTech: { kind: 'auto' },
+  // ---- Hunter Clade ----
+  commandOverride: { kind: 'button', start: true,
+    apply(g, op) {
+      const mode = avgDmg(bestMelee(op)) > Math.max(0, ...tpl(op).weapons.filter((w) => w.type === 'ranged').map((w) => avgDmg(w))) ? 'conqueror' : 'protector';
+      op.docOverride = { tp: g.tp, mode };
+      const t = team(g, op.side).tactics.find((x) => x.id === mode);
+      return { zh: `改為${t.name.zh}`, en: `now ${t.name.en}` };
+    } },
+  omnissiah: { kind: 'button', cond: (g, op) => (doctrina(g, op) ? null : { zh: '沒有教條指令', en: 'No Doctrina Imperative' }), apply(g, op) { op.omniTP = g.tp; } },
+  scrapcode: { kind: 'button', start: true, cond: (g, op) => (tpl(op).infiltrator ? null : { zh: '只有滲透者', en: 'Infiltrators only' }), apply(g, op) { (g.scrapcode ||= [null, null])[op.side] = op.uid; } },
+  // ---- Hearthkyn Salvagers ----
+  sturdy: { kind: 'auto' },
+  engageToAcquire: { kind: 'attack', cond: (g, op, t) => (t && holdsObjective(g, t) ? null : { zh: '目標沒有控制目標點', en: 'The target doesn\'t control an objective' }) },
+  ancestorsWatching: { kind: 'button', apply(g, op) { op.acted.ancestors = true; op.acted.free = { ...(op.acted.free || {}), shoot: 'any', fight: 'any' }; } },
+  // ---- Hierotek Circle ----
+  livingLightning: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w?.id === 'teslaCarbine' ? null : { zh: '只能用特斯拉卡賓槍', en: 'Tesla carbine only' }) },
+  // ---- Imperial Navy Breachers ----
+  blitz: { kind: 'attack', cond: (g, op, t) => (t && edgeDist(op, t) <= 6 && g.attackTP?.[op.side] !== g.tp ? null : { zh: '要是本回合第一次攻擊、目標在 6" 內', en: 'The team\'s first attack this TP, within 6"' }) },
+  overwhelmTarget: { kind: 'button', start: true, cond: (g, op) => (op.acted.breached || op.breach?.length ? null : { zh: '要在突破清場啟動時', en: 'Only when activated with Breach and Clear' }), apply(g, op) { op.ap += 1; } },
+  // ---- Kommandos ----
+  justScratch: { kind: 'auto' },
+  shakeItOff: { kind: 'button', start: true, apply(g, op) { op.shakeTP = g.tp; if ((op.aplNext || 0) < 0 && !op.counter) op.ap += Math.min(1, -op.aplNext); } },
+  // ---- Pathfinders ----
+  supportingFire: { kind: 'aim' },
+  // ---- Phobos Strike Team ----
+  criticalShot: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w && isBoltWeapon(w) ? null : { zh: '只能用爆彈武器', en: 'Bolt weapons only' }) },
+  // ---- Plague Marines ----
+  sickeningResilience: { kind: 'auto' },
+  virulentPoison: { kind: 'button',
+    cond: (g, op) => (poisonTargets(g, op).length ? null : { zh: '附近沒有未中毒的敵人', en: 'No unpoisoned enemy nearby' }),
+    apply(g, op) {
+      const t = poisonTargets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+      t.poison = true;
+      return { zh: `${opName(t, 'zh')} 中毒`, en: `${opName(t, 'en')} is poisoned` };
+    } },
+  poisonousDemise: { kind: 'auto' },
+  // ---- Warpcoven ----
+  allIsDust: { kind: 'auto' },
+  capricious: { kind: 'button', cond: (g, op) => (tpl(op).sorcerer && !isEngaged(g, op) ? null : { zh: '只有巫師、且不在交戰中', en: 'Sorcerers only, not engaged' }), apply(g, op) { op.acted.free = { ...(op.acted.free || {}), dash: 'capricious' }; } },
+  // ---- Wyrmblade ----
+  slink: { kind: 'button', cond: (g, op) => (op.order === 'engage' && !op.slinkUsed ? null : { zh: '要是交戰指令（每名整場一次）', en: 'Engage order only (once per operative per battle)' }), apply(g, op) { op.acted.slink = true; op.slinkUsed = true; } },
+  coiledSerpent: { kind: 'attack', cond: (g, op) => (sprungNow(op) && !count(op, 'shoot') && !count(op, 'fight') ? null : { zh: '要在隱蔽轉交戰後的第一次攻擊', en: 'First attack after switching from Conceal' }) },
+};
+const poisonTargets = (g, op) => foes(g, op).filter((t) => !t.poison && t.side < 2 && (edgeDist(op, t) <= 3 || (edgeDist(op, t) <= 7 && visibility(g, op, t).visible)));
+
+/** Button ploys for the active operative: [{id, cp, ok, why}]. */
+export function ffButtons(g, op) {
+  if (!op || op.side > 1 || g.phase !== 'firefight' || g.active !== op.uid) return [];
+  return (TEAM_MAP[op.team].firefight || []).filter((p) => FF[p.id]?.kind === 'button').map((p) => {
+    const def = FF[p.id];
+    const why = ffUsedNow(g, op.side, p.id) ? { zh: '本回合已用過', en: 'Already used this TP' }
+      : g.cp[op.side] < p.cp ? { zh: 'CP 不足', en: 'Not enough CP' }
+      : def.start && !startOfActivation(op) ? { zh: '只能在啟動時（第一個動作前）', en: 'Only when activated (before its first action)' }
+      : def.cond?.(g, op) || null;
+    return { id: p.id, cp: p.cp, ok: !why, why };
+  });
+}
+export function useFFButton(g, op, id) {
+  const b = ffButtons(g, op).find((x) => x.id === id);
+  if (!b?.ok) return false;
+  spendFF(g, op.side, id);
+  const msg = FF[id].apply(g, op);
+  if (msg) log(g, { zh: `${opName(op, 'zh')}：${msg.zh}`, en: `${opName(op, 'en')}: ${msg.en}` }, `side${op.side}`);
+  return true;
+}
+/** Aim / attack ploys that fit this Shoot or Fight: [{id, cp, ok, why, on}]. */
+export function ffAttackOptions(g, op, kind, weapon, target, aim = false) {
+  if (!op || op.side > 1) return [];
+  return (TEAM_MAP[op.team].firefight || []).filter((p) => {
+    const d = FF[p.id];
+    if (!d || (aim ? d.kind !== 'aim' : d.kind !== 'attack')) return false;
+    return kind === 'fight' ? !d.shoot && (aim ? false : true) : !d.fight;
+  }).map((p) => {
+    const why = ffUsedNow(g, op.side, p.id) ? { zh: '本回合已用過', en: 'Already used this TP' }
+      : g.cp[op.side] < p.cp ? { zh: 'CP 不足', en: 'Not enough CP' } : FF[p.id].cond?.(g, op, target, weapon) || null;
+    return { id: p.id, cp: p.cp, ok: !why, why, on: ffOn(g, op, p.id) };
+  });
+}
+/** Choose / unchoose an aim or attack ploy for the operative's next Shoot or Fight (paid when the dice are rolled). */
+export function ffToggle(g, op, id) {
+  const p = (g.ffPending && g.ffPending.uid === op.uid) ? g.ffPending : (g.ffPending = { uid: op.uid, ids: [] });
+  const i = p.ids.indexOf(id);
+  if (i >= 0) p.ids.splice(i, 1);
+  else if (ffReady(g, op.side, id)) p.ids.push(id);
+}
+export function ffClearPending(g) { g.ffPending = null; }
+/** The dice are about to be rolled: pay for the chosen ploys (dropping any that no longer apply). */
+export function ffCommit(g, op, kind, weapon, target) {
+  const p = g.ffPending && g.ffPending.uid === op.uid ? g.ffPending : null;
+  g.ffPending = null;
+  const ids = [];
+  for (const id of p?.ids || []) {
+    const ok = [...ffAttackOptions(g, op, kind, weapon, target, true), ...ffAttackOptions(g, op, kind, weapon, target)].find((x) => x.id === id && x.ok);
+    if (ok) { spendFF(g, op.side, id); ids.push(id); }
+  }
+  g.ffAtk = ids.length ? { uid: op.uid, ids } : null;
+  (g.attackTP ||= [0, 0])[op.side] = g.tp; // (Blitz: the team's first attack this turning point)
+}
 /** Inviolate Jurisdiction (ploy): shot within 2" of an objective marker or an enemy — re-roll one defence die. */
 const inviolate = (g, op) => op.side < 2 && TEAM_MAP[op.team].ruthless && hasPloy(g, op.side, 'inviolate')
   && ((g.objectives || []).some((o) => dist(op, o) - radius(op) - OBJ_R <= 2) || foes(g, op).some((e) => edgeDist(e, op) <= 2));
@@ -2755,7 +2951,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (astartesShot(weapon)) op.acted.shotBolt = true;
   if (weapon.rules.limited) (op.used ||= {})[weapon.id] = (op.used[weapon.id] || 0) + 1;
   (op.used ||= {}).shoot = (op.used.shoot || 0) + 1; // Concealed Position
-  if (op.acted.free?.shoot) op.acted.free.shoot = null;
+  if (op.acted.free?.shoot) { op.acted.free.shoot = null; if (op.acted.ancestors) op.acted.free.fight = null; } // (The Ancestors Are Watching: a free Shoot OR Fight)
   const logShot = (t, s) => log(g, {
     zh: `${opName(op, 'zh')} 以${weapon.name.zh}（${weapon.name.en}）射擊 ${opName(t, 'zh')}：${s.dmg} 傷害`,
     en: `${opName(op, 'en')} shoots ${opName(t, 'en')} with ${weapon.name.en}: ${s.dmg} damage`,
@@ -2854,7 +3050,7 @@ export function startFight(g, op, weapon, target) {
   aRoll = violent(op, aRoll, weapon, ar, aHit, aPost);
   dRoll = violent(target, dRoll, dWeapon, dr, dHit, bless(target));
   spend(g, op, 'fight');
-  if (free) op.acted.free.fight = null;
+  if (free) { op.acted.free.fight = null; if (op.acted.ancestors && op.acted.free.shoot === 'any') op.acted.free.shoot = null; }
   // dueller: (Chapter Tactic) a normal success can block a critical success.
   // tox: Toxic bonus (foe poisoned at the start of the action); shock: Shock not used yet this sequence;
   // hardy: Cold-blood takes Normal Dmg from critical strikes; extraStrike: Stealth Attack.
