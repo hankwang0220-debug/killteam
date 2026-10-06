@@ -329,12 +329,20 @@ const setupTactics = (side) => ui.setup.tactics[side] || TEAM_MAP[ui.setup.teams
 
 function rosterPick(side) {
   const t = TEAM_MAP[ui.setup.teams[side]], cur = ui.setup.roster?.[side] || {};
-  return Object.entries(t.replacements || {}).map(([slot, ids]) => `<label>${esc(bi(t.ops.find((o) => o.id === slot).name))}<select data-act="roster" data-side="${side}" data-id="${slot}">${ids.map((id) => `<option value="${id}" ${(cur[slot] || slot) === id ? 'selected' : ''}>${esc(bi(t.ops.find((o) => o.id === id).name))}</option>`).join('')}</select></label>`).join('');
+  const sel = (slot, ids, k, now) => `<select data-act="roster" data-side="${side}" data-id="${slot}"${k != null ? ` data-k="${k}"` : ''}>${ids.map((id) => `<option value="${id}" ${now === id ? 'selected' : ''}>${esc(bi(t.ops.find((o) => o.id === id).name))}</option>`).join('')}</select>`;
+  return Object.entries(t.replacements || {}).map(([slot, ids]) => {
+    const n = t.ops.find((o) => o.id === slot).count;
+    // Blades of Khaine: every copy of a slot is picked on its own.
+    if (t.perCopyRoster && n > 1) return Array.from({ length: n }, (_, k) => `<label>${esc(bi(t.ops.find((o) => o.id === slot).name))} #${k + 1}${sel(slot, ids, k, (Array.isArray(cur[slot]) ? cur[slot][k] : cur[slot]) || slot)}</label>`).join('');
+    return `<label>${esc(bi(t.ops.find((o) => o.id === slot).name))}${sel(slot, ids, null, cur[slot] || slot)}</label>`;
+  }).join('');
 }
 function loadoutPick(side) {
   const t = TEAM_MAP[ui.setup.teams[side]];
   const cur = ui.setup.loadouts?.[side] || {};
-  return t.ops.filter((o) => o.loadouts && (o.count || Object.values(ui.setup.roster?.[side] || {}).includes(o.id))).map((o) => `<label>${esc(bi(o.name))}<select data-act="loadout" data-side="${side}" data-id="${o.id}">${Object.entries(o.loadouts).map(([id, ws]) => `<option value="${id}" ${(cur[o.id] || Object.keys(o.loadouts)[0]) === id ? 'selected' : ''}>${ws.map((w) => esc(tx(w.name))).join(' + ')}</option>`).join('')}</select></label>`).join('');
+  const rs = ui.setup.roster?.[side] || {};
+  const picked = new Set(t.ops.filter((o) => o.count).flatMap((o) => (rs[o.id] ? [rs[o.id]].flat() : [o.id]))); // templates in the roster
+  return t.ops.filter((o) => o.loadouts && picked.has(o.id)).map((o) => `<label>${esc(bi(o.name))}<select data-act="loadout" data-side="${side}" data-id="${o.id}">${Object.entries(o.loadouts).map(([id, ws]) => `<option value="${id}" ${(cur[o.id] || Object.keys(o.loadouts)[0]) === id ? 'selected' : ''}>${ws.map((w) => esc(tx(w.name))).join(' + ')}${o.loadoutExtra?.[id] ? ` + ${esc(tx(o.loadoutExtra[id]))}` : ''}</option>`).join('')}</select></label>`).join('');
 }
 
 /** Universal equipment: up to 4 options (the computer takes its usual kit). */
@@ -401,6 +409,7 @@ function roster(t) {
     ${teamInfo(t)}
     <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
     ${t.firefight?.length ? `<p class="rule small"><b>${L('交戰計謀', 'Firefight ploys')}</b>：${t.firefight.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
+    ${t.techniques?.length ? `<p class="rule small"><b>${L('方陣技法', 'Aspect Techniques')}</b>：${t.techniques.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
     ${t.ops.filter((o) => o.count).map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
       <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>`).join('')}
   </div>`;
@@ -760,7 +769,7 @@ function gambitView(side) {
     </div>`;
   }
   // Reaction firefight ploys: used automatically while switched on (and affordable, once per turning point).
-  const autos = (team(g, side).firefight || []).filter((p) => ffKind(p.id) === 'auto' || p.id === 'animalisticFury'); // (Animalistic Fury: automatic when retaliating)
+  const autos = [...(team(g, side).firefight || []), ...(team(g, side).techniques || [])].filter((p) => ffKind(p.id) === 'auto' || p.id === 'animalisticFury'); // (Animalistic Fury: automatic when retaliating)
   if (autos.length && !isAI(side)) {
     html += `<div class="gambit"><h4>${L('自動使用的交戰計謀', 'Firefight ploys used automatically')}</h4>
       <p class="hint small">${L('這些計謀在觸發時機（被射擊、受傷、倒下…）自動花 CP 使用；不想用就取消勾選。', 'These are spent automatically when their moment comes (shot, damaged, incapacitated…); untick to keep the CP.')}</p>
@@ -1022,7 +1031,11 @@ function firefightPanel() {
   const undoBtn = ui.undo.length ? `<button class="wide" data-act="undo">↶ ${L('回復上一動作', 'Undo last action')}</button>` : '';
   if (!op && g.counter) {
     const cands = counterCandidates(g, g.turn);
-    html += `<p><b>${L('反擊機會', 'Counteract')}</b></p>
+    html += g.netcounter ? `<p><b>${L('網路反擊', 'Network Counteract')}</b></p>
+      <p class="hint">${L('噪聲網路：選一名 APL 2 以上、本回合還沒反擊過的僕從（準備中的也可以，之後仍能正常啟動），先選指令，再免費執行一個 1AP 動作（移動不超過 2"），或略過。',
+    'Noospheric Network: pick a servitor with APL 2+ that hasn\'t counteracted this TP (a ready one too — it can still activate later); select its order, then it performs one free 1AP action (moving no more than 2"), or pass.')}</p>
+      <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
+      : `<p><b>${L('反擊機會', 'Counteract')}</b></p>
       <p class="hint">${L('你已沒有準備中的特工。可選一名已行動、交戰指令且本回合未反擊過的特工，免費執行一個 1AP 動作（移動不超過 2"），或略過。',
     'You have no ready operatives. Pick an expended Engage-order operative that has not counteracted this TP to perform one free 1AP action (moving no more than 2"), or pass.')}</p>
       <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`;
@@ -1133,6 +1146,8 @@ function modeView(op) {
       signal: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
       systemJam: L('點擊一個可見的敵人，它下次啟動 APL -1。', 'Tap a visible enemy: -1 APL for its next activation.'),
       medikit: L('點擊控制範圍內受傷的友方（無人機除外），回復 2D3 生命。', 'Tap a wounded friendly (not a drone) in control range to regain 2D3 wounds.'),
+      omniscanner: L('點擊一個可見或 8" 內的敵人，讓它獲得掃描標記（戰鬥支隊對它攻擊時「無休」）。', 'Tap an enemy visible or within 8" to give it an Omniscanner token (Battleclade weapons have Ceaseless against it).'),
+      networkOverride: L('點擊它或自動代理僕從 6" 內的一名僕從，讓它立刻網路反擊。', 'Tap a servitor within 6" of it or the Auto-proxy to network counteract right away.'),
       miasma: L('點擊 7" 內可見（或可射擊）的敵人：未中毒則中毒，已中毒則受到 3 傷害。', 'Tap an enemy visible within 7" (or a valid target): it is poisoned, or takes 3 damage if it already was.'),
       getItDun: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
       listenIn: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
@@ -1403,6 +1418,22 @@ const ABILITIES = {
   emperorProtects: () => ['帝皇庇佑', 'The Emperor Protects', '被射擊時可重擲任意防禦骰（自動重擲失敗的）。', 'When shot, re-roll any defence dice (failed ones are re-rolled automatically).'],
   uplifting: () => ['振奮祈禱書', 'Uplifting Primer', '3" 內的友方武器獲得「嚴厲」。', 'Friendlies within 3" have Severe.'],
   vitality: () => ['腐敗活力', 'Putrescent Vitality', '1AP（靈能，每回合一次）：3" 內可見的友方擲 2D6，7 回復 7，否則回復較高的骰。', '1AP (Psychic, once per TP): a friendly visible within 3" rolls 2D6 — 7 regains 7, otherwise the highest die.'],
+  // Blades of Khaine
+  aspect: (v) => ({ da: ['狂怒復仇者', 'Dire Avenger', '可用狂怒復仇者技法。', 'Can use Dire Avenger Techniques.'], hb: ['嚎叫女妖', 'Howling Banshee', '可用嚎叫女妖技法。', 'Can use Howling Banshee Techniques.'], ss: ['突擊天蠍', 'Striking Scorpion', '可用突擊天蠍技法。', 'Can use Striking Scorpion Techniques.'] }[v]),
+  exarch: () => ['督軍', 'Exarch', '每次啟動可以射擊兩次或近戰兩次。', 'It can perform two Shoot or two Fight actions in its activation.'],
+  defenceTactics: () => ['防禦戰術', 'Defence Tactics', '爭奪目標點時、或射擊正在爭奪目標點的敵人時，武器「平衡」。', 'While contesting an objective, or shooting an enemy that does, its weapons have Balanced.'],
+  bansheeMask: () => ['女妖面具', 'Banshee Mask', '它近戰時，敵人的近戰武器命中值變差 1（不和受傷疊加）。', 'When it fights, the enemy\'s melee Hit is worsened by 1 (not cumulative with being injured).'],
+  mandiblasters: () => ['下顎爆能器', 'Mandiblasters', '近戰動作擲攻擊骰前，對敵人造成 2 傷害（自動）。', 'Fight action, before the attack dice: 2 damage to the enemy (automatic).'],
+  shimmershield: () => ['微光盾', 'Shimmershield', '選了微光盾的配置時：它 2" 內看得到的友方（含自己）被射擊時忽略穿甲。', 'With the shimmershield option: friendlies visible within 2" of it (itself too) ignore Piercing when shot.'],
+  // Battleclade
+  servitor: () => ['噪聲網路', 'Noospheric Network', '每次啟動一次，可花 1AP「轉移能量」（APL 要 2 以上）；這次啟動結束後，另一名僕從可以「網路反擊」：先選指令，再免費執行一個 1AP 動作（移動不超過 2"），準備中的僕從之後仍可正常啟動。網路反擊過的僕從本回合不能再反擊。', 'Once per activation, spend 1AP to Transfer Power (APL 2+); after that activation another servitor can Network Counteract: select its order, then one free 1AP action (moving no more than 2"). A ready servitor can still activate later. One that network counteracted can\'t counteract again this TP.'],
+  omniscanner: () => ['全知掃描儀', 'Omniscanner', '1AP（不在交戰中）：一名可見或 8" 內的敵人獲得掃描標記；戰鬥支隊對它射擊、近戰或反擊時，武器「無休」。', '1AP (not engaged): an enemy visible or within 8" gains an Omniscanner token; Battleclade weapons have Ceaseless against it.'],
+  datacoronal: () => ['數據冠累加器', 'Datacoronal Accumulator', '1AP（支援，不在交戰中）：數一數它或自動代理僕從 6" 內的友方爭奪的目標點數，擲 D3 不大於該數就得 1CP。', '1AP (Support, not engaged): count the objectives contested by friendlies within 6" of it or the Auto-proxy; roll a D3 — equal or less = +1CP.'],
+  networkOverride: () => ['網路覆寫', 'Network Override', '1AP（支援，不在交戰中，每次啟動最多兩次、各選不同特工）：它或自動代理僕從 6" 內的一名僕從立刻網路反擊（不用轉移能量），之後繼續本次啟動。（「免費衝刺」的選項未實作）', '1AP (Support, not engaged, twice per activation on different operatives): a servitor within 6" of it or the Auto-proxy network counteracts right away (no Transfer Power needed); then this activation continues. (The free Dash option isn\'t modelled.)'],
+  achillanEye: () => ['阿基蘭之眼', 'Achillan Eye', '友方射擊它看得到的敵人時武器「飽和」（它在敵人控制範圍內時無效）。', 'Friendlies shooting an enemy it can see have Saturate (not while it\'s within an enemy\'s control range).'],
+  spotAll: () => ['歐姆尼賽亞的凝視', 'Gaze of the Omnissiah', '它的觀測對全隊有效（不限 3" 內）。', 'Its Spot works for the whole team (not just within 3").'],
+  medicNoApl: () => ['機械縫合陣列', 'Mechanosuture Array', '用「醫療兵！」救人時雙方都不會 APL -1。', 'Medic! doesn\'t cost either operative -1 APL.'],
+  medikitBig: () => ['快速修復', 'Expedient Repair', '醫療包回復 D3+3 生命。', 'Its Medikit regains D3+3 wounds.'],
 };
 
 function abilityList(t) {
@@ -1752,7 +1783,17 @@ modalRoot.addEventListener('click', (e) => {
   if (b) handle(b.dataset.act, b.dataset, e);
 });
 app.addEventListener('change', (e) => {
-  if (e.target.dataset.act === 'roster') { ((ui.setup.roster ||= [{}, {}])[+e.target.dataset.side])[e.target.dataset.id] = e.target.value; return render(); }
+  if (e.target.dataset.act === 'roster') {
+    const r = ((ui.setup.roster ||= [{}, {}])[+e.target.dataset.side]), id = e.target.dataset.id;
+    if (e.target.dataset.k == null) r[id] = e.target.value;
+    else {
+      // One pick per copy (Blades of Khaine Aspect Warriors).
+      const n = TEAM_MAP[ui.setup.teams[+e.target.dataset.side]].ops.find((o) => o.id === id).count;
+      const list = Array.isArray(r[id]) ? r[id] : Array(n).fill(r[id] || id);
+      list[+e.target.dataset.k] = e.target.value; r[id] = list;
+    }
+    return render();
+  }
   if (e.target.dataset.act === 'loadout') {
     const side = +e.target.dataset.side;
     ((ui.setup.loadouts ||= [{}, {}])[side])[e.target.dataset.id] = e.target.value;
@@ -1940,7 +1981,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (mission(g).actions?.includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
       ui.path = null;

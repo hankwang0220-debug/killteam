@@ -1,6 +1,6 @@
 import {
   activate, activeOp, actionCost, availableActions, missionActionsFor, deployZones, weaponsFor, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, setSkills, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
-  engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
+  netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
 } from './game.js';
@@ -250,7 +250,12 @@ function aiButtonPloys(g, op) {
   const use = (id) => ok[id] && useFFButton(g, op, id);
   const fresh = !Object.keys(op.acted).some((k) => !['unseen', 'accelerant', 'free'].includes(k));
   if (ok.shakeItOff && (op.aplNext || 0) < 0) return use('shakeItOff');
+  // Blades of Khaine Aspect Techniques (free): Raging Heat when injured, One with the Gloom before its last action.
+  if (ok.avRagingHeat && isInjured(op)) return use('avRagingHeat');
+  if (ok.ssGloom && op.order === 'conceal' && op.ap <= 1 && !engagedEnemies(g, op).length) return use('ssGloom');
   if (!spare) return false;
+  if (ok.bladewind && engagedEnemies(g, op).length && !tpl(op).exarch && prefersMelee(op)) return use('bladewind');
+  if (ok.starfall && !tpl(op).exarch && op.ap >= 2 && shootOptions(g, op).length && !prefersMelee(op)) return use('starfall');
   if (fresh) {
     if (use('momentRepute') || use('overwhelmTarget')) return true;
     if (ok.wildRage && prefersMelee(op) && !engagedEnemies(g, op).length && foes(g, op).some((e) => edgeDist(op, e) <= moveAllowance(g, op, 'charge') + 1.5)) return use('wildRage');
@@ -274,6 +279,9 @@ function aiButtonPloys(g, op) {
 const count1 = (op, k) => op.acted?.[k] || 0;
 /** Tick the attack ploys that apply to this Shoot / Fight (they're paid when it's resolved). */
 function aiPloysFor(g, op, decl) {
+  // Free ones first (Blades of Khaine Aspect Techniques): one per activation, so take the first that fits.
+  const free = ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target).find((o) => o.ok && o.cp === 0);
+  if (free && !free.on && !g.ffPending?.ids.some((id) => ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target).find((x) => x.id === id && x.cp === 0))) ffToggle(g, op, free.id);
   if (g.cp[op.side] >= 2) {
     for (const o of ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target)) if (o.ok && !o.on && g.cp[op.side] - (g.ffPending?.ids.length || 0) >= 2) ffToggle(g, op, o.id);
   }
@@ -295,6 +303,7 @@ export function aiStep(g) {
       .filter((x) => x.s > 0).sort((a, b) => b.s - a.s)[0];
     if (!pick) { passCounter(g); return null; }
     activate(g, pick.o);
+    if (pick.o.netCounter) pick.o.order = 'engage'; // Network Counteract: it selects its order first
     return null;
   }
   if (!op) {
@@ -465,6 +474,19 @@ export function aiStep(g) {
     const t = TARGET_ACTIONS.medikit.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds - b.wounds)[0];
     if (t) { doTargetAction(g, op, 'medikit', t); return null; }
   }
+  // Battleclade: Network Override a servitor that can attack; Transfer Power when another servitor can attack
+  // and this one can't; Omniscanner the toughest enemy; Datacoronal Accumulator while contesting objectives.
+  const atkScore = (o) => (engagedEnemies(g, o).length ? 10 : shootOptions(g, o)[0]?.score || 0);
+  if (can.networkOverride) {
+    const t = TARGET_ACTIONS.networkOverride.targets(g, op).filter((o) => atkScore(o) > 0).sort((a, b) => atkScore(b) - atkScore(a))[0];
+    if (t) { doTargetAction(g, op, 'networkOverride', t); return null; }
+  }
+  if (can.transferPower && !atkScore(op) && netCands(g, op.side).some((o) => o !== op && atkScore(o) > 0)) { doSelfAction(g, op, 'transferPower'); return null; }
+  if (can.omniscanner && op.ap >= 2) {
+    const t = TARGET_ACTIONS.omniscanner.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'omniscanner', t); return null; }
+  }
+  if (can.datacoronal && (op.ap >= 2 || !shootOptions(g, op).length) && g.objectives.filter((m) => living(g, op.side).some((o) => dist(o, m) <= 2)).length >= 2) { doSelfAction(g, op, 'datacoronal'); return null; }
   if (can.knuxSmash) {
     const t = TARGET_ACTIONS.knuxSmash.targets(g, op).sort((a, b) => a.wounds - b.wounds)[0];
     if (t) { doTargetAction(g, op, 'knuxSmash', t); return null; }
@@ -520,6 +542,12 @@ export function aiStep(g) {
   // Melee operatives advance from cover to cover instead of walking straight at the enemy.
   const careful = prefersMelee(op) && !op.frenzy;
   const move = (kind) => (careful ? safeMove(g, op, kind, goal, op.order) : pathToward(g, op, kind, goal));
+  // Heavy (Dash only) weapons: Dash first — it still covers the same ground with a Reposition after,
+  // but leaves the weapon usable if a target comes into view.
+  if (goal && can.dash && !careful && weaponsFor(g, op).some((w) => w.type === 'ranged' && w.rules.heavy === 'dash')) {
+    const p = move('dash');
+    if (p) { doMove(g, op, 'dash', p); return null; }
+  }
   if (goal && can.reposition) {
     const p = move('reposition');
     if (p) { doMove(g, op, 'reposition', p); return null; }

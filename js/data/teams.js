@@ -418,6 +418,46 @@ const eviscerator = W('eviscerator', '懺悔者開膛鋸', 'Penitent eviscerator
 const maceRighteous = W('maceRighteous', '正義之錘', 'Mace of the Righteous', 'melee', 4, 4, 5, 5, { brutal: true, severe: true });
 const ministorumFlamer = W('ministorumFlamer', '國教噴火器', 'Ministorum flamer', 'ranged', 4, 2, 4, 4, { range: 8, saturate: true, torrent: 2 });
 
+// ---- Battleclade ----
+const taserGoadBC = W('taserGoadBC', '電擊刺棒', 'Taser goad', 'melee', 4, 4, 3, 4, { lethal: 5, shock: true });
+const igniter = W('igniter', '焚燒器', 'Incendine igniter', 'ranged', 4, 2, 4, 4, { range: 6, saturate: true, torrent: 1 });
+const meltaBC = W('meltaBC', '熱熔槍', 'Meltagun', 'ranged', 4, 4, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const phosphorBlaster = W('phosphorBlaster', '磷光爆能槍', 'Phosphor blaster', 'ranged', 4, 4, 3, 4, { blast: 1, severe: true });
+const servoClaw = W('servoClaw', '伺服爪', 'Servo-claw', 'melee', 3, 4, 3, 4);
+const eradPistol = W('eradPistol', '根除手槍', 'Eradication pistol', 'ranged', 4, 3, 4, 2, { range: 8, devastating: 3, devSplash: 1, lethal: 5 });
+const servoArcClaw = W('servoArcClaw', '伺服電弧爪', 'Servo-arc claw', 'melee', 4, 3, 3, 4, { severe: true, shock: true });
+const lascutterClose = W('lascutterClose', '雷射切割器（近距）', 'Lascutter (close range)', 'ranged', 4, 3, 4, 5, { range: 2, lethal: 5, piercing: 2 }, 'lascutter');
+const lascutterShort = W('lascutterShort', '雷射切割器（短距）', 'Lascutter (short range)', 'ranged', 4, 3, 4, 5, { range: 6, lethal: 5 }, 'lascutter');
+const pincer = W('pincer', '液壓鉗與雷射切割器', 'Hydraulic pincer & lascutter', 'melee', 4, 4, 4, 6, { lethal: 5 });
+const radiumPistolMC = W('radiumPistolMC', '大師級鐳手槍', 'Master-crafted radium pistol', 'ranged', 4, 3, 2, 4, { range: 8, balanced: true, rending: true });
+const dataspikes = W('dataspikes', '資料尖刺', 'Dataspikes', 'melee', 3, 5, 2, 3);
+const chirurgicClaw = W('chirurgicClaw', '伺服手術爪', 'Servo-chirurgic claw', 'melee', 4, 4, 3, 4, { rending: true });
+const heavyArcRifle = W('heavyArcRifle', '重型電弧步槍', 'Heavy arc rifle', 'ranged', 5, 4, 4, 6, { heavy: 'dash', piercing: 1, stun: true });
+const hbFocusedBC = W('hbFocusedBC', '重爆彈槍（集中）', 'Heavy bolter (focused)', 'ranged', 5, 4, 4, 5, { heavy: 'dash', piercingCrits: 1 }, 'heavyBolterBC');
+const hbSweepingBC = W('hbSweepingBC', '重爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', piercingCrits: 1, torrent: 1 }, 'heavyBolterBC');
+const augmeticClaw = W('augmeticClaw', '機械爪', 'Augmetic claw', 'melee', 3, 4, 4, 5, { brutal: true });
+
+// ---- Blades of Khaine ----
+const bkCatapult = W('bkCatapult', '手裡劍彈射器', 'Shuriken catapult', 'ranged', 4, 3, 3, 4, { rending: true });
+const bkTwinCatapult = W('bkTwinCatapult', '雙聯手裡劍彈射器', 'Twin shuriken catapult', 'ranged', 4, 3, 3, 4, { ceaseless: true, rending: true });
+const bkPistol = W('bkPistol', '手裡劍手槍', 'Shuriken pistol', 'ranged', 4, 3, 3, 4, { range: 8, rending: true });
+const bkTwinPistols = W('bkTwinPistols', '雙手裡劍手槍', 'Twin shuriken pistols', 'ranged', 4, 4, 3, 4, { range: 8, ceaseless: true, rending: true });
+const bkTriskThrow = W('bkTriskThrow', '三刃飛輪（投擲）', 'Triskele (throw)', 'ranged', 4, 3, 2, 3, { range: 8, rending: true, torrent: 2 });
+const bkTriskSlice = W('bkTriskSlice', '三刃飛輪（劈砍）', 'Triskele (slice)', 'melee', 5, 3, 4, 5, { rending: true });
+const bkDiresword = W('bkDiresword', '恐懼之劍', 'Diresword', 'melee', 5, 3, 4, 5, { lethal: 5, rending: true });
+const bkFists = W('bkFists', '拳頭', 'Fists', 'melee', 4, 3, 2, 4);
+const bkGunButts = W('bkGunButts', '槍托', 'Gun butts', 'melee', 3, 4, 2, 3);
+const bkPowerEx = W('bkPowerEx', '動力武器', 'Power weapon', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const bkPowerW = W('bkPowerW', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const bkExecutioner = W('bkExecutioner', '處決者', 'Executioner', 'melee', 5, 3, 3, 7, { lethal: 5 });
+const bkMirrorswords = W('bkMirrorswords', '鏡劍', 'Mirrorswords', 'melee', 5, 3, 4, 6, { ceaseless: true, lethal: 5 });
+const bkBitingBlade = W('bkBitingBlade', '噬咬之刃', 'Biting blade', 'melee', 5, 3, 5, 6, { rending: true });
+const bkScorpClaw = W('bkScorpClaw', '天蠍之爪與鏈鋸劍', 'Scorpion\'s claw & chainsword', 'melee', 5, 3, 4, 6, { brutal: true, lethal: 5 });
+const bkTwinChain = W('bkTwinChain', '雙鏈鋸劍', 'Twin chainswords', 'melee', 5, 3, 4, 5, { ceaseless: true, rending: true });
+const bkChainsword = W('bkChainsword', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5, { rending: true });
+/** Shriek-that-Kills (Howling Banshee Aspect Technique): a ranged weapon for one Shoot action. */
+export const BK_SHRIEK = { ...W('bkShriek', '殺戮尖嘯', 'Shriek-that-kills', 'ranged', 5, 3, 1, 2, { range: 6, saturate: true, seekLight: true, stun: true, torrent: 1 }), technique: 'hbShriek' };
+
 const shockMaulShield = W('shockMaulShield', '電擊錘與突擊盾', 'Shock maul & assault shield', 'melee', 4, 4, 4, 4, { shock: true, shield: true, repress: true });
 
 const op = (id, zh, en, stats, weapons, count = 1) => ({ id, name: { zh, en }, ...stats, weapons, count });
@@ -1389,6 +1429,108 @@ export const TEAMS = [
       op('nvReliquarius', '聖物守護者', 'Novitiate Reliquarius', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, iconBearer: true, raiseIcon: true }, [autopistol, gunButt]),
     ],
   },
+  {
+    id: 'battleclade',
+    name: { zh: '戰鬥支隊', en: 'Battleclade' },
+    color: '#8f3b2a',
+    style: { zh: '射擊隊・機械教僕從・聖靈網路', en: 'Shooting · Mechanicus servitors · Noospheric Network' },
+    blurb: {
+      zh: '兩名技術神甫帶著一群僕從機：槍砲與戰鬥僕從負責火力，聖靈網路讓僕從在別人的回合之間插入行動，靈活調度。',
+      en: 'Two Tech-Priests leading a pack of servitors: gun and combat servitors bring the firepower, and the Noospheric Network lets servitors act between activations.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '滲透', en: 'Infiltration' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能', en: 'Yes' },
+      size: { zh: '10 名特工', en: '10 operatives' },
+    },
+    noosphericNetwork: true,
+    rule: {
+      name: { zh: '聖靈網路', en: 'Noospheric Network' },
+      desc: {
+        zh: '僕從機每次啟動可花 1AP「轉移能量」：這次啟動結束後，可讓另一個僕從機「網路反擊」——先選指令，再免費做一個 1AP 動作（最多移動 2"），然後才輪到對手。網路反擊不需要已行動或交戰指令；還沒行動的僕從之後照樣能正常啟動。每個僕從每回合只能網路反擊一次，APL 低於 2 的不能轉移或反擊。',
+        en: 'Once per servitor activation, spend 1AP to TRANSFER POWER: after that activation, another servitor can NETWORK COUNTERACT — choose its order, then a free 1AP action (moving no more than 2") — before your opponent activates. It doesn\'t need to be expended or on Engage, and if it was ready it can still activate later. Once per TP per servitor; not with APL below 2.',
+      },
+    },
+    ploys: [
+      { id: 'dutyReclamation', cp: 1, name: { zh: '回收使命', en: 'Duty of Reclamation' },
+        desc: { zh: '本回合為爭奪目標點的友方擲骰時，每次行動可 0CP 使用一次指揮重擲。', en: 'This TP, once per action you can Command Re-roll for 0CP a die rolled for a friendly contesting an objective marker.' } },
+      { id: 'ironSoul', cp: 1, name: { zh: '鋼鐵之魂頌唱', en: 'Incantation of the Iron Soul' },
+        desc: { zh: '本回合友方受到 3 以上的傷害時擲 D6：4+ 傷害 -1。', en: 'This TP, whenever an attack die inflicts 3+ damage on a friendly, roll a D6: on a 4+, 1 less.' } },
+      { id: 'noosphericPossession', cp: 1, name: { zh: '聖靈附身', en: 'Noospheric Possession' },
+        desc: { zh: '本回合在自動代理或僕從監督者 6" 內的僕從機，武器「精準 1」。', en: 'This TP, servitors within 6" of an Auto-proxy or the Servitor Underseer have Accurate 1.' } },
+      { id: 'prioritisedAcq', cp: 1, name: { zh: '優先取得', en: 'Prioritised Acquisition' },
+        desc: { zh: '本回合自動指定一個目標點（離我方最近的）：爭奪它時我方 APL 總和 +1；它 3" 內的友方近戰 Atk +1（最多 4）。', en: 'This TP, an objective marker is picked for you (the one nearest your operatives): +1 to your total APL contesting it, and friendlies within 3" of it have +1 melee Atk (max 4).' } },
+    ],
+    ops: [
+      op('bcArcheo', '技術考古學家', 'Technoarcheologist', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, techPriest: true, omniscanner: true }, [eradPistol, servoArcClaw]),
+      op('bcUnderseer', '僕從監督者', 'Servitor Underseer', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, techPriest: true, underseer: true, datacoronal: true, networkOverride: true }, [radiumPistolMC, dataspikes]),
+      op('bcProxy', '自動代理僕從', 'Auto-proxy Servitor', { apl: 2, move: 5, save: 4, wounds: 8, base: 25, servitor: true, autoProxy: true, achillanEye: true, support: 'spot', spotAll: true }, [taserGoadBC]),
+      op('bcBreacher', '破障僕從', 'Breacher Servitor', { apl: 2, move: 5, save: 4, wounds: 8, base: 25, servitor: true }, [lascutterClose, lascutterShort, pincer]),
+      op('bcMedic', '技術醫療僕從', 'Technomedic Servitor', { apl: 2, move: 5, save: 4, wounds: 8, base: 25, servitor: true, medic: true, medicNoApl: true, medikit: true, medikitBig: true }, [chirurgicClaw]),
+      op('bcGunBolter', '槍砲僕從（重爆彈槍）', 'Gun Servitor (heavy bolter)', { apl: 2, move: 5, save: 4, wounds: 11, base: 32, servitor: true }, [hbFocusedBC, hbSweepingBC, augmeticClaw]),
+      op('bcGunArc', '槍砲僕從（重電弧步槍）', 'Gun Servitor (heavy arc rifle)', { apl: 2, move: 5, save: 4, wounds: 11, base: 32, servitor: true }, [heavyArcRifle, augmeticClaw]),
+      op('bcMelta', '戰鬥僕從（熱熔槍）', 'Combat Servitor (meltagun)', { apl: 2, move: 5, save: 4, wounds: 8, base: 25, servitor: true }, [meltaBC, servoClaw]),
+      op('bcIgniter', '戰鬥僕從（焚燒器）', 'Combat Servitor (incendine igniter)', { apl: 2, move: 5, save: 4, wounds: 8, base: 25, servitor: true }, [igniter, servoClaw]),
+      op('bcPhosphor', '戰鬥僕從（磷光爆能槍）', 'Combat Servitor (phosphor blaster)', { apl: 2, move: 5, save: 4, wounds: 8, base: 25, servitor: true }, [phosphorBlaster, servoClaw]),
+    ],
+  },
+  {
+    id: 'bladesOfKhaine',
+    name: { zh: '凱恩之刃', en: 'Blades of Khaine' },
+    color: '#2f8f5b',
+    style: { zh: '近戰隊・精英・技法', en: 'Melee · Elite · Techniques' },
+    blurb: {
+      zh: '八名靈族方陣戰士：一名督軍帶領狂怒復仇者、嚎叫女妖與突擊天蠍。每個方陣都有專屬「技法」，每回合各能用一次。',
+      en: 'Eight Aeldari Aspect Warriors: an Exarch leading Dire Avengers, Howling Banshees and Striking Scorpions. Each Aspect has its own Techniques, each usable once per turning point.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }, { zh: '偵察', en: 'Recon' }, { zh: '滲透', en: 'Infiltration' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '否，需要另外兩盒才能湊齊', en: 'No — you need two more boxes' },
+      buyable: { zh: '（未提供）', en: '(not given)' },
+      size: { zh: '8 名特工', en: '8 operatives' },
+    },
+    bladesOfKhaine: true,
+    perCopyRoster: true,
+    rule: {
+      name: { zh: '方陣技法', en: 'Aspect Techniques' },
+      desc: {
+        zh: '每種技法只能給同方陣（狂怒復仇者／嚎叫女妖／突擊天蠍）的友方使用，不花 CP；每次啟動或反擊最多一種技法，每種技法每回合一次（全隊同一方陣時每回合兩次）。技法在交戰計謀的同一處選用。',
+        en: 'Each Technique can only be used with a friendly of the matching Aspect (Dire Avenger / Howling Banshee / Striking Scorpion), for no CP; at most one per activation or counteraction, and each once per turning point (twice if the whole team shares one Aspect). They\'re picked where firefight ploys are.',
+      },
+    },
+    ploys: [
+      { id: 'forewarned', cp: 1, name: { zh: '預知', en: 'Forewarned' },
+        desc: { zh: '本回合敵人射擊準備中的友方時，可重擲同一種點數的防禦骰（自動挑失敗最多的點數）。', en: 'This TP, when a ready friendly is shot, re-roll any defence dice showing one result (the most common failing result is picked).' } },
+      { id: 'danceOfDeath', cp: 1, name: { zh: '死亡之舞', en: 'Dance of Death' },
+        desc: { zh: '選兩名彼此可見且 6" 內的友方交換位置（自動：把近戰較強、離敵人較遠的那名換到前面）。', en: 'Swap two friendlies visible to and within 6" of each other (automatic: the better fighter that is further from the enemy moves forward).' } },
+      { id: 'ruthlessPoise', cp: 1, name: { zh: '無情泰然', en: 'Ruthless Poise' },
+        desc: { zh: '本回合友方近戰準備中的敵人時，近戰武器「無休」。', en: 'This TP, friendlies fighting a ready enemy have Ceaseless melee weapons.' } },
+      { id: 'khainesVengeance', cp: 1, name: { zh: '凱恩之復仇', en: 'Khaine\'s Vengeance' },
+        desc: { zh: '本回合友方射擊已行動的敵人時，遠程武器「無休」。', en: 'This TP, friendlies shooting an expended enemy have Ceaseless ranged weapons.' } },
+    ],
+    // One Exarch, then seven Aspect Warriors in any mix (each slot picked separately).
+    replacements: {
+      bkScEx: ['bkScEx', 'bkHbEx', 'bkAvEx'],
+      bkScW: ['bkScW', 'bkHbW', 'bkAvW'], bkHbW: ['bkHbW', 'bkScW', 'bkAvW'], bkAvW: ['bkAvW', 'bkScW', 'bkHbW'],
+    },
+    ops: [
+      op('bkScEx', '突擊天蠍督軍', 'Striking Scorpion Exarch', { apl: 3, move: 7, save: 3, wounds: 9, base: 28, aspect: 'ss', exarch: true, mandiblasters: true,
+        loadouts: { biting: [bkPistol, bkBitingBlade], claw: [bkPistol, bkScorpClaw], twin: [bkTwinPistols, bkTwinChain] } }, [bkPistol, bkBitingBlade]),
+      op('bkHbEx', '嚎叫女妖督軍', 'Howling Banshee Exarch', { apl: 3, move: 7, save: 3, wounds: 9, base: 28, aspect: 'hb', exarch: true, bansheeMask: true,
+        loadouts: { mirror: [bkMirrorswords], executioner: [bkPistol, bkExecutioner], power: [bkPistol, bkPowerEx], triskele: [bkPistol, bkTriskThrow, bkTriskSlice], triskPower: [bkTriskThrow, bkTriskSlice, bkPowerEx] } }, [bkMirrorswords], 0),
+      op('bkAvEx', '狂怒復仇者督軍', 'Dire Avenger Exarch', { apl: 3, move: 7, save: 3, wounds: 9, base: 28, aspect: 'da', exarch: true, defenceTactics: true, shimmershield: true,
+        loadouts: { catapult: [bkCatapult, bkFists], twin: [bkTwinCatapult, bkGunButts], direPistol: [bkPistol, bkDiresword], direShield: [bkDiresword], powerPistol: [bkPistol, bkPowerEx], powerShield: [bkPowerEx] },
+        loadoutExtra: { direShield: { zh: '微光盾', en: 'Shimmershield' }, powerShield: { zh: '微光盾', en: 'Shimmershield' } } }, [bkCatapult, bkFists], 0),
+      op('bkScW', '突擊天蠍戰士', 'Striking Scorpion Warrior', { apl: 3, move: 7, save: 3, wounds: 8, base: 28, aspect: 'ss', mandiblasters: true }, [bkPistol, bkChainsword], 3),
+      op('bkHbW', '嚎叫女妖戰士', 'Howling Banshee Warrior', { apl: 3, move: 7, save: 4, wounds: 8, base: 28, aspect: 'hb', bansheeMask: true }, [bkPistol, bkPowerW], 2),
+      op('bkAvW', '狂怒復仇者戰士', 'Dire Avenger Warrior', { apl: 3, move: 7, save: 4, wounds: 8, base: 28, aspect: 'da', defenceTactics: true }, [bkCatapult, bkFists], 2),
+    ],
+  },
 ];
 
 TEAMS.push(...ELDAR_TEAMS);
@@ -1498,12 +1640,37 @@ const FIREFIGHT = {
     ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
     ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
   ],
+  bladesOfKhaine: [
+    ff('bladewind', '刃之風', 'Bladewind', '友方啟動中：本次啟動可以近戰兩次。', 'During a friendly\'s activation: it can perform two Fight actions.'),
+    ff('starfall', '星落', 'Starfall', '友方啟動中：本次啟動可以射擊兩次。', 'During a friendly\'s activation: it can perform two Shoot actions.'),
+    ff('fadingLight', '消逝之光', 'Fading Light', '友方啟動中：本次啟動撤退少 1AP。', 'During a friendly\'s activation: Fall Back costs 1 less AP.'),
+    ff('contempt', '輕蔑', 'Contempt', '自動：敵人射擊友方時（已擲攻擊骰、重擲之前），這次攻擊不能重擲攻擊骰。', 'Auto: when an enemy shoots a friendly (after rolling, before re-rolls), it can\'t re-roll its attack dice that sequence.'),
+  ],
+  battleclade: [
+    ff('autoFerric', '自動鐵之祈求', 'Auto-Ferric Supplication', '自動：敵人射擊友方技術神甫時，這次攻擊忽略「穿甲」。', 'Auto: when an enemy shoots a friendly Tech-Priest, ignore Piercing for that attack.'),
+  ],
   warpcoven: [
     ff('allIsDust', '萬物皆塵', 'All Is Dust', '自動：一顆對紅字星際戰士造成普通傷害的攻擊骰只造成 1 傷害。', 'Auto: one attack die inflicting Normal Dmg on a Rubric Marine inflicts 1 instead.'),
     ff('capricious', '多變的計畫', 'Capricious Plan', '巫師啟動中：免費衝刺一次（之前做過什麼都可以）。', 'During a Sorcerer\'s activation: a free Dash, whatever it did before.'),
   ],
 };
 for (const t of TEAMS) t.firefight = FIREFIGHT[t.id] || [];
+
+// Blades of Khaine Aspect Techniques: 0CP, used like firefight ploys but only by an operative of the matching Aspect.
+const tech = (aspect, id, zh, en, dzh, den) => ({ ...ff(id, zh, en, dzh, den), cp: 0, aspect, technique: true });
+TEAMS.find((t) => t.id === 'bladesOfKhaine').techniques = [
+  tech('da', 'avVigilance', '復仇者的警覺', 'Vigilance of the Avenger', '射擊時選手裡劍彈射器（或雙聯）：這次動作武器「致命 5+」。', 'Shooting with a shuriken catapult (or twin): Lethal 5+ until the end of the action.'),
+  tech('da', 'avThousand', '千刃之死', 'Death of a Thousand Blades', '射擊時選手裡劍彈射器（或雙聯）：這次動作武器「洪流 2\"」（最多一個次要目標）。', 'Shooting with a shuriken catapult (or twin): Torrent 2" (no more than one secondary target).'),
+  tech('da', 'avUnstinting', '堅定不移', 'Unstinting, Immovable', '自動：被射擊且擲出兩顆以上失敗的防禦骰時，丟掉一顆，把另一顆當成普通成功。', 'Auto: when shot and two or more defence dice fail, discard one to retain another as a normal success.'),
+  tech('da', 'avRagingHeat', '垂死之焰的熾熱', 'Raging Heat of the Dying Flame', '啟動中：直到下次啟動，不受受傷造成的數值變化影響（武器也是）。', 'During its activation: until its next activation, ignore stat changes from being injured (weapons too).'),
+  tech('hb', 'hbShriek', '殺戮尖嘯', 'Shriek-that-Kills', '射擊時可改用「殺戮尖嘯」：5 攻擊 3+ 1/2，射程 6"、飽和、搜尋（輕型）、昏迷、洪流 1"。', 'When shooting, it can use Shriek-that-kills: 5 Atk 3+ 1/2, Range 6", Saturate, Seek Light, Stun, Torrent 1".'),
+  tech('hb', 'hbWoe', '悲嘆', 'The Woe', '自動：衝鋒後近戰擊倒敵人、且已離開敵人控制範圍時，用剩下的衝鋒距離免費再衝鋒一次（這次啟動之前只能做過衝鋒與近戰）。', 'Auto: after a Charge, when it incapacitates the enemy in the Fight and is no longer in an enemy\'s control range, a free Charge with its remaining move (it did nothing but Charge and Fight before).'),
+  tech('ss', 'ssEye', '天蠍之眼', 'Scorpion\'s Eye', '射擊時選手裡劍手槍：這次動作武器「搜尋（輕型）」。', 'Shooting with a shuriken pistol: Seek Light until the end of the action.'),
+  tech('ss', 'ssMerciless', '無情打擊', 'Merciless Strikes', '近戰時：第一次以暴擊打擊後，這次序列近戰武器「震擊」。', 'Fighting: after its first critical strike, its melee weapon has Shock for the rest of the sequence.'),
+  tech('ss', 'ssGloom', '與幽暗合一', 'One with the Gloom', '啟動中：直到下次啟動，隱蔽指令且在掩體中時不能被選為目標（2" 內除外）。', 'During its activation: until its next activation, while Concealed and in cover it can\'t be selected as a valid target (except within 2").'),
+  tech('ss', 'ssFade', '打擊後隱沒', 'Strike and Fade', '自動：啟動中近戰擊倒敵人、且 3" 內沒有敵人時，改為隱蔽指令並免費衝刺一次。', 'Auto: when it incapacitates an enemy while fighting during its activation and no enemy is within 3", it switches to Conceal and can Dash for free.'),
+];
+for (const t of TEAMS) t.techniques ||= [];
 
 export const TEAM_MAP = Object.fromEntries([...TEAMS, NPO_TEAM].map((t) => [t.id, t]));
 

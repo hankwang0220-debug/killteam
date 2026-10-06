@@ -2,7 +2,7 @@ import { ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT } from './data/eldar.js';
 import { isCorsair, setupCorsair, corsairActivate, corsairCost, corsairSpend, corsairRules, corsairDefence, corsairStrategy, corsairShield, corsairEquip, registerCorsairActions, corsairPlunder, corsairAfterAction, slicingAttack } from './corsair.js';
 import { isArchon, setupArchon, archonWeapons, archonReady, archonActivate, archonRules, archonDefence, archonBeforeAttack, archonAfterAction, painSnapshot, archonDeath, stingerBurst, chainSnare, painRerollValues, painReroll, aiPain, gainPain } from './archon.js';
 
-import { TEAM_MAP, isBoltWeapon } from './data/teams.js';
+import { TEAM_MAP, isBoltWeapon, BK_SHRIEK } from './data/teams.js';
 import { MISSIONS, MISSION_ACTIONS, TAC_OPS, npoTargetFor, tacOnKill, tacOnTPEnd, tacOnBattleEnd, tacOnStrategyEnd } from './missions.js';
 import { dist, distPointRect, segRect } from './geometry.js';
 import { flatSight } from './sight.js';
@@ -46,7 +46,7 @@ export const rollCount = () => rolls;
 export const d6 = () => { rolls++; return 1 + Math.floor(Math.random() * 6); };
 const d3 = () => { rolls++; return 1 + Math.floor(Math.random() * 3); };
 /** Injured stat changes apply (And They Shall Know No Fear ignores them). */
-export const injuredPenalty = (g, op) => isInjured(op) && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op)
+export const injuredPenalty = (g, op) => isInjured(op) && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat // (Raging Heat of the Dying Flame)
   && !(markOf(op) === 'nurgle' && hasPloy(g, op.side, 'implacable')); // Implacable (Legionaries)
 /** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
 export const hasTactic = (g, op, id) => !!g.tactics?.[op.side]?.includes(id) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).wastelandStalker)); // (Wasteland Stalker: Ruststalkers)
@@ -104,6 +104,7 @@ export function moveAllowance(g, op, kind) {
   // Stealth Attack's free Charge can't exceed the Move stat.
   if (kind === 'charge') d = moveStat(g, op) + (op.acted?.free?.charge === 'stealth' ? 0 : op.acted?.boost ? 4 : 2); // Boost: +4"
   if (kind === 'charge' && op.acted?.free?.charge === 'rampage') d = 3; // Ruthless Rampage: a free Charge of up to 3"
+  if (kind === 'charge' && op.acted?.free?.charge === 'woe') d = op.acted.woeLeft || 0; // The Woe: what's left of the first Charge
   // Mission NEMESIS NPOs can't move more than a set distance per turning point.
   const cap = mission(g).npoMoveCap;
   if (cap && tpl(op).nemesis) d = Math.max(0, Math.min(d, cap - (op.movedTP || 0)));
@@ -151,11 +152,13 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
     let n = 0;
     for (const slot of TEAM_MAP[teams[side]].ops) {
       if (!slot.count) continue;
-      const chosen = roster[side]?.[slot.id] || slot.id;
+      // A slot's pick is one template id, or (perCopyRoster teams) a list with one id per copy.
+      const pick = roster[side]?.[slot.id];
       const allowed = TEAM_MAP[teams[side]].replacements?.[slot.id];
-      if (chosen !== slot.id && !allowed?.includes(chosen)) throw new Error('Invalid roster replacement');
-      const t = TEAM_MAP[teams[side]].ops.find((o) => o.id === chosen);
       for (let k = 0; k < slot.count; k++) {
+        const chosen = (Array.isArray(pick) ? pick[k] : pick) || slot.id;
+        if (chosen !== slot.id && !allowed?.includes(chosen)) throw new Error('Invalid roster replacement');
+        const t = TEAM_MAP[teams[side]].ops.find((o) => o.id === chosen);
         n++;
         g.ops.push({
           uid: `${side}-${n}`, side, team: teams[side], tplId: t.id, num: n, x: 0, y: 0,
@@ -171,6 +174,13 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   }
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
+  // Other teams' weapon options (Blades of Khaine Exarchs).
+  for (const o of g.ops) {
+    const choices = tpl(o).loadouts;
+    if (!choices || o.loadout) continue;
+    const id = loadouts[o.side]?.[o.tplId];
+    o.loadout = choices[id] ? id : Object.keys(choices)[0];
+  }
   // Deployment: players alternate setting up a third of their team (rounded up) at a time; a roll-off
   // decides who sets up first. Operatives not set up yet wait off the board (x = -99).
   for (const o of g.ops) { o.x = -99; o.y = -99; o.placed = false; }
@@ -510,6 +520,8 @@ export function finishPloys(g) {
   handOutGuardOrder(g, side);
   tacOnStrategyEnd(g, side); // Stake Claim / Envoy picks not made yet are made now
   skillsStrategyEnd(g, side); // Kasrkin: Skill at Arms (if not picked) and the Clearance Sweep marker
+  battlecladeStrategyEnd(g, side); // Battleclade: Prioritised Acquisition marker
+  danceOfDeath(g, side); // Blades of Khaine
   if (g.stratStep) startFirefight(g);
   else g.stratStep = 1;
 }
@@ -620,6 +632,7 @@ export function activate(g, op) {
   if (!g.counter) op.jam = false; // System Jam token removed when activated
   if (!g.counter) op.shieldingOn = false; // Shielding lasts until the start of its next activation
   if (!g.counter) op.gongOn = false; // so does Gong Knell
+  if (!g.counter) { op.ragingHeat = false; op.gloom = false; } // and Raging Heat / One with the Gloom (Blades of Khaine)
   if (!g.counter && g.mantle?.[op.side] === op.uid) g.mantle[op.side] = null; // and Mantle of Darkness
   // Cult Ambush (Wyrmblade): not visible to enemy operatives at the start of the activation.
   if (!g.counter && TEAM_MAP[op.team].cultAmbush) op.acted.unseen = !foes(g, op).some((e) => visibility(g, e, op).visible);
@@ -640,6 +653,8 @@ export function activate(g, op) {
     op.counter = true;
     op.ap = 1;
     op.orderSet = true;
+    // Network Counteract (Battleclade): any servitor, ready or not; first select its order. It stays ready if it was.
+    if (g.netcounter) { op.netCounter = true; op.netWasReady = op.ready; op.netTP = g.tp; op.orderSet = false; }
   } else {
     if (op.darkAnimus) { op.aplNext = (op.aplNext || 0) - 1; op.aplKeep = false; }
     op.ap = aplNow(g, op);
@@ -696,8 +711,8 @@ export function setOrder(g, op, order) {
 }
 
 /** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
-export const counterCandidates = (g, side) =>
-  living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o)) && !o.counteracted);
+export const counterCandidates = (g, side) => (g.netcounter?.side === side ? netCands(g, side) // Battleclade: NETWORK COUNTERACT
+  : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o)) && !o.counteracted));
 
 export function endActivation(g) {
   const op = activeOp(g);
@@ -709,6 +724,7 @@ export function endActivation(g) {
   if (op) {
     op.ready = false; op.ap = 0;
     if (op.counter) { op.counter = false; op.counteracted = true; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
+    if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
     // Frenzy: a Frenzied Fellgor falls when its activation or counteraction ends.
     if (op.frenzy && !op.dead) frenzyDie(g, op);
     // Mindburn lasts until the end of the target's next activation.
@@ -719,7 +735,22 @@ export function endActivation(g) {
   g.active = null;
   g.counter = false;
   g.chain = null;
+  const net = g.netcounter;
+  g.netcounter = null;
   if (checkWipe(g)) return;
+  // Battleclade: after a NETWORK COUNTERACT (or passing on one), Network Override resumes the Underseer's
+  // activation; otherwise the opponent activates as normal.
+  if (net && wasCounter) {
+    const back = net.resume && getOp(g, net.resume);
+    if (back && !back.dead) { g.active = back.uid; g.turn = back.side; g.counter = net.resumeCounter; return; }
+    handOff(g, net.side); return;
+  }
+  // Transfer Power: after this activation, one other friendly servitor may NETWORK COUNTERACT first.
+  if (op && !wasCounter && !wasNpo && count(op, 'transferPower')) {
+    g.netcounter = { side: op.side, by: op.uid };
+    if (netCands(g, op.side).length) { g.turn = op.side; g.counter = true; return; }
+    g.netcounter = null;
+  }
   // Group Activation (Trooper, mandatory) / Directive (Confidant, optional): one more friendly activation first.
   if (op && !wasCounter && !wasNpo && !op.dead && !op.chained) {
     const cur = op.side;
@@ -832,6 +863,8 @@ export function controller(g, obj) {
   for (let s = 0; s < 3; s++) if (nuncio[s]) sum[s] = Math.max(0, sum[s] - 1);
   // Horrifying Shrieking: a side's total counts 1 lower if one of its contesting operatives is within 3" of a Fleshscreamer.
   for (let s = 0; s < 3; s++) if (shriek[s]) sum[s] = Math.max(0, sum[s] - 1);
+  // Prioritised Acquisition (Battleclade ploy): +1 to the total while contesting the chosen marker.
+  for (const s of [0, 1]) if (sum[s] > 0 && g.acquisition?.[s]?.tp === g.tp && g.acquisition[s].id === obj.id && !obj.kind) sum[s]++;
   const best = Math.max(...sum);
   return best > 0 && sum.filter((v) => v === best).length === 1 ? sum.indexOf(best) : null;
 }
@@ -913,8 +946,10 @@ function attackAllowed(op, kind) {
   if (kind === 'shoot' && count(op, kind) === 1 && rapidOK(op) && op.acted.shotRapid) return true; // Rapid Fire (Kasrkin)
   if (kind === 'fight' && count(op, kind) < (op.acted.fightsAllowed || 1)) return true; // Enraged Ambull: two Fights
   if (kind === 'fight' && count(op, kind) === 1 && accelerant(op)) return true; // Accelerant Agents (Ruststalkers)
+  if (kind === 'shoot' && op.acted.starfall && count(op, kind) === 1) return true; // Starfall (Blades of Khaine)
   const otherKind = kind === 'shoot' ? 'fight' : 'shoot';
-  return isAstartes(op) && count(op, kind) === 1 && count(op, otherKind) === 0;
+  // Astartes / Exarch (Blades of Khaine): two Shoot or two Fight actions.
+  return (isAstartes(op) || !!tpl(op).exarch) && count(op, kind) === 1 && count(op, otherKind) === 0;
 }
 
 export const ACTIONS = {
@@ -982,6 +1017,10 @@ export const ACTIONS = {
   unleashDaemon: { ap: 0, name: { zh: '釋放惡魔', en: 'Unleash Daemon' } },
   eqStun: { ap: 1, name: { zh: '震撼彈', en: 'Stun Grenade' } },
   eqSmoke: { ap: 1, name: { zh: '煙霧彈', en: 'Smoke Grenade' } },
+  transferPower: { ap: 1, name: { zh: '轉移能量', en: 'Transfer Power' } },
+  omniscanner: { ap: 1, name: { zh: '全知掃描儀', en: 'Omniscanner' } },
+  datacoronal: { ap: 1, name: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' } },
+  networkOverride: { ap: 1, name: { zh: '網路覆寫', en: 'Network Override' } },
 };
 // Cryptek unique actions (an Apprentek can perform one of them per turning point).
 const CRYPTEK_ACTIONS = ['interstitial', 'canoptekRepair', 'augment', 'reinforce'];
@@ -1310,12 +1349,30 @@ export const TARGET_ACTIONS = {
     },
   },
   // Medikit: a wounded friendly non-drone Pathfinder within control range regains 2D3 wounds.
+  // Omniscanner (Technoarcheologist): an enemy visible or within 8" gains an Omniscanner token (Ceaseless against it).
+  omniscanner: {
+    targets: (g, op) => foes(g, op).filter((t) => !t.omni?.[op.side] && (edgeDist(op, t) <= 8 || visibility(g, op, t).visible)),
+    apply(g, op, t) {
+      (t.omni ||= [false, false])[op.side] = true;
+      return { zh: `全知掃描儀：${opName(t, 'zh')} 獲得掃描標記（戰鬥支隊對它攻擊時武器「無休」）`, en: `Omniscanner: ${opName(t, 'en')} gains an Omniscanner token (Battleclade weapons have Ceaseless against it)` };
+    },
+  },
+  // Network Override (Servitor Underseer): a friendly servitor within 6" of it or of the Auto-proxy NETWORK COUNTERACTS now.
+  networkOverride: {
+    targets: (g, op) => netCands({ ...g, netcounter: null }, op.side).filter((o) => !(op.acted.overrode || []).includes(o.uid) && (edgeDist(o, op) <= 6 || nearRelay(g, o))),
+    apply(g, op, t) {
+      (op.acted.overrode ||= []).push(t.uid);
+      g.netcounter = { side: op.side, only: [t.uid], resume: op.uid, resumeCounter: !!g.counter };
+      g.active = null; g.counter = true; g.turn = op.side;
+      return { zh: `網路覆寫：${opName(t, 'zh')} 立刻網路反擊（之後繼續本次啟動）`, en: `Network Override: ${opName(t, 'en')} network counteracts now (then this activation continues)` };
+    },
+  },
   medikit: {
     targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && !isDrone(t) && t.wounds < t.maxW
       && t !== op && t.medicTP !== g.tp && edgeDist(op, t) <= CONTROL + 0.01 && visibility(g, op, t).visible),
     apply(g, op, t) {
       const before = t.wounds;
-      t.wounds = Math.min(t.maxW, t.wounds + d3() + d3()); // up to 2D3
+      t.wounds = Math.min(t.maxW, t.wounds + (tpl(op).medikitBig ? d3() + 3 : d3() + d3())); // up to 2D3 (Expedient Repair: D3+3)
       return { zh: `醫療包：${opName(t, 'zh')} 回復 ${t.wounds - before} 生命（${t.wounds}/${t.maxW}）`, en: `Medikit: ${opName(t, 'en')} regains ${t.wounds - before} wounds (${t.wounds}/${t.maxW})` };
     },
   },
@@ -1468,7 +1525,7 @@ export function shootWeapon(g, op, w) {
       return { ok: op.ap >= ap, ap, why: null };
     }
     if (TEAM_MAP[op.team].rapidFire && !rapidWeapon(w)) return no('快速射擊兩次都要用爆彈手槍或熱射雷射槍／手槍', 'Rapid Fire: both Shoots need a bolt pistol or hot-shot lasgun / laspistol');
-    if (!TEAM_MAP[op.team].anyAstartesShot && !TEAM_MAP[op.team].rapidFire && !astartesShot(w) && !op.acted.shotBolt) return no('兩次射擊至少一次要用爆彈（或靈能）武器', 'One of the two Shoots must use a bolt (or Psychic) weapon');
+    if (!TEAM_MAP[op.team].anyAstartesShot && !TEAM_MAP[op.team].rapidFire && !TEAM_MAP[op.team].bladesOfKhaine && !astartesShot(w) && !op.acted.shotBolt) return no('兩次射擊至少一次要用爆彈（或靈能）武器', 'One of the two Shoots must use a bolt (or Psychic) weapon');
     if (w.rules.psychic && first === w.group) return no('同一把靈能武器不能用兩次', 'Same Psychic weapon twice');
     if (first === w.group && DOUBLE_SHOT_GROUPS.includes(w.group)) ap = 2;
   }
@@ -1504,12 +1561,12 @@ export function availableActions(g, op) {
   const chargeEngaged = engaged && !hasTactic(g, op, 'mobile');
   add('reposition', !engaged && !heavyBlocks('reposition') && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : heavyBlocks('reposition') ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
   const bladeDash = tpl(op).blademaster && count(op, 'charge') && (op.acted.chargeRemaining || 0) > 0;
-  const caprice = free.dash === 'capricious'; // Capricious Plan: a free Dash whatever it did before
+  const caprice = free.dash === 'capricious' || free.dash === 'fade'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
   add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
   const noCharge = conceal;
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
-  const rampage = free.charge === 'rampage'; // Ruthless Rampage: a free Charge even after one
+  const rampage = free.charge === 'rampage' || free.charge === 'woe'; // Ruthless Rampage / The Woe: a free Charge even after one
   add('charge', !chargeEngaged && !noCharge && (rampage || (!heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'))), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
   // Apprehend / Castigator's Arrest (Exaction Squad): held in place.
   const held = engaged && (arrested(g, op) || !!op.acted.fallBackDenied);
@@ -1559,6 +1616,13 @@ export function availableActions(g, op) {
   if (tpl(op).systemJam) unique('systemJam', !conceal, CONC);
   if (tpl(op).medikit) unique('medikit');
   if (tpl(op).veriscant) unique('veriscant');
+  // Battleclade: Noospheric Network and the Tech-Priests' actions.
+  if (TEAM_MAP[op.team].noosphericNetwork) {
+    if (isServitor(op) && !op.counter) add('transferPower', !count(op, 'transferPower') && aplNow(g, op) >= 2 && netCands(g, op.side).some((o) => o !== op), count(op, 'transferPower') ? DONE : aplNow(g, op) < 2 ? { zh: 'APL 低於 2', en: 'APL below 2' } : { zh: '沒有其他可網路反擊的僕從', en: 'No other servitor can network counteract' });
+    if (tpl(op).omniscanner) unique('omniscanner');
+    if (tpl(op).datacoronal) add('datacoronal', !engaged && !count(op, 'datacoronal'), engaged ? ENG : DONE);
+    if (tpl(op).networkOverride) add('networkOverride', !engaged && count(op, 'networkOverride') < 2 && TARGET_ACTIONS.networkOverride.targets(g, op).length > 0, engaged ? ENG : count(op, 'networkOverride') >= 2 ? DONE : NONE);
+  }
   // Universal equipment: grenades (not beasts or machines) and the Ammo Cache.
   if (!tpl(op).actionsOnly && op.side < 2) {
     if (eqLeft(g, op.side, 'stun') || adaptiveOk(g, op, 'stun')) unique('eqStun', !conceal, CONC);
@@ -1660,7 +1724,18 @@ export function doSelfAction(g, op, id) {
     ammoResupply: { zh: '補充彈藥：直到下回合，射擊時可重擲一顆攻擊骰', en: 'Ammo Resupply: until next TP, it re-rolls one attack die when shooting' },
     mdVision: { zh: '多維視覺：直到下次啟動，射擊時敵人不能被遮蔽', en: 'Multi-dimensional Vision: until its next activation, enemies cannot be obscured when it shoots' },
     guerrilla: { zh: `游擊戰：改為${op.order === 'conceal' ? '交戰' : '隱蔽'}指令`, en: `Guerrilla Warfare: switches to ${op.order === 'conceal' ? 'Engage' : 'Conceal'}` },
+    transferPower: { zh: '轉移能量：這次啟動結束後，另一名僕從可以網路反擊', en: 'Transfer Power: after this activation another servitor can network counteract' },
+    datacoronal: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' },
   }[id];
+  if (id === 'datacoronal') {
+    // Friendly Battleclade operatives within 6" of it or the Auto-proxy; D3 ≤ objectives they contest = +1CP.
+    const near = living(g, op.side).filter((o) => sameTeam(o, op) && (edgeDist(o, op) <= 6 || o === op || nearRelay(g, o)));
+    const n = (g.objectives || []).filter((m) => !m.carriedBy && near.some((o) => dist(o, m) - radius(o) - OBJ_R <= CONTROL)).length;
+    const r = d3(), ok = r <= n;
+    if (ok) g.cp[op.side]++;
+    msg.zh += `：擲 D3 = ${r}，爭奪 ${n} 個目標點${ok ? '，獲得 1CP' : '，沒有效果'}`;
+    msg.en += `: D3 = ${r}, contesting ${n} objective(s)${ok ? ' — +1CP' : ' — no effect'}`;
+  }
   if (id === 'auspexScan') (g.auspex ||= [null, null])[op.side] = op.uid;
   if (id === 'shieldingUp') op.shieldingOn = true;
   if (id === 'mdVision') op.optics = true; // same effect as Optics
@@ -1741,6 +1816,7 @@ export function doMove(g, op, kind, path) {
   op.acted.movedDist = (op.acted.movedDist || 0) + path.len; // Lumbering Death
   if (['charge', 'fallBack', 'reposition'].includes(kind)) op.bigMoveTP = g.tp; // Brace for Counterattack
   if (kind === 'charge') op.chargedTP = g.tp; // Emboldened
+  if (kind === 'charge' && isBlade(op) && !op.acted.free?.charge) op.acted.woeLeft = Math.max(0, moveAllowance(g, op, 'charge') - path.len); // (The Woe)
   op.movedTP = (op.movedTP || 0) + path.len; // NPO movement limit per turning point
   for (const m of carriables(g)) if (m.carriedBy === op.uid) { m.x = op.x; m.y = op.y; } // carried markers
   checkMines(g, op); // Mines (universal equipment)
@@ -1829,7 +1905,8 @@ function validTarget(g, op, target, weapon) {
     const mantled = sh && !sh.dead && edgeDist(sh, target) <= 3 && visibility(g, sh, target).visible;
     // Guilt Reveals Itself (Exaction Squad ploy): within 4" it can't be in cover for picking targets.
     const guilt = TEAM_MAP[op.team].ruthless && hasPloy(g, op.side, 'guiltReveals') && edgeDist(op, target) <= 4;
-    if ((vt.cover && !guilt) || ((tpl(target).small || mantled) && v.cover)) return null;
+    // One with the Gloom (Striking Scorpion Aspect Technique): the same, until its next activation.
+    if ((vt.cover && !guilt) || ((tpl(target).small || mantled || target.gloom) && v.cover)) return null;
   }
   return v;
 }
@@ -1971,6 +2048,24 @@ export function effectiveRules(g, op, weapon, target) {
     if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'terminalDecree') && edgeDist(op, target) <= 6) r.balanced = true; // Terminal Decree
   }
   if (tpl(op).aggressivePattern && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  // ---- Blades of Khaine ----
+  if (isBlade(op)) {
+    // Defence Tactics (Dire Avengers): contesting an objective, or shooting an enemy that does — Balanced.
+    if (tpl(op).defenceTactics && (contesting2(g, op) || (weapon.type === 'ranged' && target && contesting2(g, target)))) r.balanced = true;
+    if (weapon.type === 'melee' && target?.ready && hasPloy(g, op.side, 'ruthlessPoise')) r.ceaseless = true; // Ruthless Poise
+    if (weapon.type === 'ranged' && target && !target.ready && hasPloy(g, op.side, 'khainesVengeance')) r.ceaseless = true; // Khaine's Vengeance
+    if (ffOn(g, op, 'avVigilance')) r.lethal = Math.min(r.lethal || 6, 5); // Vigilance of the Avenger
+    if (ffOn(g, op, 'ssEye')) r.seekLight = true; // Scorpion's Eye
+    if (ffOn(g, op, 'ssMerciless')) r.shock = true; // Merciless Strikes (Shock only ever applies from the first critical strike)
+  }
+  // ---- Battleclade ----
+  if (TEAM_MAP[op.team].noosphericNetwork) {
+    if (weapon.type === 'ranged' && achillan(g, op, target)) r.saturate = true; // Achillan Eye
+    if (target?.omni?.[op.side]) r.ceaseless = true; // Omniscanner token
+    if (isServitor(op) && hasPloy(g, op.side, 'noosphericPossession') && nearRelay(g, op)) r.accurate = Math.max(r.accurate || 0, 1); // Noospheric Possession
+    const acq = g.acquisition?.[op.side];
+    if (weapon.type === 'melee' && acq?.tp === g.tp && dist(op, acq) - radius(op) <= 3) { r.atkPlus = 1; r.atkMax = 4; } // Prioritised Acquisition
+  }
   // ---- Novitiates ----
   if (weapon.rules.antiPsyker && target && isPsyker(target)) { r.lethal = Math.min(r.lethal || 6, 5); r.antiPsykerOn = true; } // Anti-PSYKER (+1 Dmg too)
   if (target && TEAM_MAP[op.team].actsOfFaith && hasPloy(g, op.side, 'ardentVengeance') && !target.ready) r.punishing = true; // Ardent Vengeance
@@ -2333,6 +2428,68 @@ const rapidOK = (op) => TEAM_MAP[op.team].rapidFire && !moved(op);
 const sweepOn = (g, op, target) => { const m = g.sweep?.[op.side]; return !!(m && m.tp === g.tp && target && dist(op, m) - radius(op) <= 5 && dist(target, m) - radius(target) <= 5); };
 const adaptiveOk = (g, op, k) => !!tpl(op).adaptive && g.adaptive?.[op.side]?.[k] !== g.tp;
 
+// ---------- Blades of Khaine ----------
+const CATAPULTS = ['bkCatapult', 'bkTwinCatapult'];
+const isBlade = (op) => !!TEAM_MAP[op.team]?.bladesOfKhaine;
+/** Shimmershield (Dire Avenger Exarch with that option): a friendly visible within 2" of it ignores Piercing when shot. */
+const shimmered = (g, target) => isBlade(target) && living(g, target.side).some((o) => tpl(o).shimmershield && ['direShield', 'powerShield'].includes(o.loadout)
+  && (o === target || (edgeDist(o, target) <= 2 && visibility(g, o, target).visible)));
+/** After a Fight in which a Blade incapacitated its enemy during its own activation: Strike and Fade, else The Woe. */
+function bladesAfterFight(g, a, d) {
+  if (!isBlade(a) || a.dead || !d.dead || g.active !== a.uid) return;
+  if (!foes(g, a).some((e) => edgeDist(e, a) <= 3) && autoFF(g, a.side, 'ssFade', a)) {
+    a.order = 'conceal';
+    a.acted.free = { ...(a.acted.free || {}), dash: 'fade' };
+    log(g, { zh: `${opName(a, 'zh')} 打擊後隱沒：改為隱蔽指令，可以免費衝刺一次`, en: `${opName(a, 'en')} Strike and Fade: switches to Conceal and may Dash for free` }, `side${a.side}`);
+    return;
+  }
+  // The Woe: it Charged, then Fought — nothing else — and isn't in an enemy's control range now.
+  const others = Object.keys(a.acted).some((k) => ACTIONS[k] && a.acted[k] && k !== 'charge' && k !== 'fight');
+  if (count(a, 'charge') === 1 && !others && (a.acted.woeLeft || 0) >= 0.5 && !isEngaged(g, a) && autoFF(g, a.side, 'hbWoe', a)) {
+    a.acted.free = { ...(a.acted.free || {}), charge: 'woe' };
+    log(g, { zh: `${opName(a, 'zh')} 悲嘆：用剩下的 ${a.acted.woeLeft.toFixed(1)}" 免費再衝鋒一次`, en: `${opName(a, 'en')} The Woe: a free Charge with the remaining ${a.acted.woeLeft.toFixed(1)}"` }, `side${a.side}`);
+  }
+}
+/** Dance of Death (strategy ploy, automatic): the better fighter further from the enemy swaps with a friendly in front. */
+function danceOfDeath(g, side) {
+  if (!TEAM_MAP[g.teams[side]].bladesOfKhaine || !hasPloy(g, side, 'danceOfDeath') || g.danceTP?.[side] === g.tp) return;
+  (g.danceTP ||= [0, 0])[side] = g.tp;
+  const mine = living(g, side), enemies = living(g, 1 - side);
+  if (!enemies.length) return;
+  const near = (o) => Math.min(...enemies.map((e) => dist(o, e)));
+  const melee = (o) => avgDmg(bestMelee(o)) - Math.max(0, ...weaponsFor(g, o).filter((w) => w.type === 'ranged').map((w) => avgDmg(w)));
+  let best = null;
+  for (const a of mine) for (const b of mine) {
+    if (a === b || edgeDist(a, b) > 6 || !visibility(g, a, b).visible) continue;
+    const gain = (near(a) - near(b)) * (melee(a) - melee(b)); // a: the fighter at the back, b: the one in front
+    if (gain > 1 && (!best || gain > best.gain)) best = { a, b, gain };
+  }
+  if (!best) return;
+  const { a, b } = best;
+  [a.x, a.y, b.x, b.y] = [b.x, b.y, a.x, a.y];
+  log(g, { zh: `${teamZh(g, side)} 死亡之舞：${opName(a, 'zh')} 與 ${opName(b, 'zh')} 交換位置`, en: `${team(g, side).name.en} Dance of Death: ${opName(a, 'en')} and ${opName(b, 'en')} swap places` }, `side${side}`);
+}
+
+// ---------- Battleclade ----------
+const isServitor = (op) => !!tpl(op).servitor;
+/** Within 6" of a friendly Auto-proxy or the Servitor Underseer (Noospheric Possession, Network Override, Datacoronal Accumulator). */
+const nearRelay = (g, op, d = 6) => living(g, op.side).some((r) => (tpl(r).autoProxy || tpl(r).underseer) && edgeDist(r, op) <= d);
+/** Achillan Eye (Auto-proxy): shooting an enemy it can see — Saturate (not while it's in an enemy's control range). */
+const achillan = (g, op, target) => !!target && living(g, op.side).some((p) => tpl(p).achillanEye && sameTeam(p, op) && !isEngaged(g, p) && visibility(g, p, target).visible);
+/** Servitors that can NETWORK COUNTERACT now (APL 2+, not done this TP, not the one that just activated). */
+export function netCands(g, side) {
+  const n = g.netcounter;
+  return living(g, side).filter((o) => isServitor(o) && o.netTP !== g.tp && !o.counteracted && aplNow(g, o) >= 2 && o.uid !== n?.by && (!n?.only || n.only.includes(o.uid)));
+}
+/** End of a side's Strategy phase: the Prioritised Acquisition marker is the objective nearest the team. */
+function battlecladeStrategyEnd(g, side) {
+  if (!TEAM_MAP[g.teams[side]].noosphericNetwork || !hasPloy(g, side, 'prioritisedAcq') || g.acquisition?.[side]?.tp === g.tp || !g.objectives?.length) return;
+  const mine = living(g, side), d = (o) => Math.min(...mine.map((m) => dist(m, o)));
+  const obj = [...g.objectives].sort((a, b) => d(a) - d(b))[0];
+  (g.acquisition ||= [null, null])[side] = { tp: g.tp, id: obj.id, x: obj.x, y: obj.y };
+  log(g, { zh: `${teamZh(g, side)} 優先取得：目標點 ${obj.id + 1}`, en: `${team(g, side).name.en} Prioritised Acquisition: objective ${obj.id + 1}` }, `side${side}`);
+}
+
 // ---------- Legionaries ----------
 const markOf = (op) => tpl(op).mark || null;
 /** Siphon Life (Balefire Acolyte, once per turning point): the most hurt friendly visible within 6" regains 1 per damaging die (D3 per critical one). */
@@ -2457,7 +2614,9 @@ const hasEquip = (g, side, id) => side < 2 && !!g.equip?.[side]?.includes(id);
 const eqLeft = (g, side, k) => g.eqUses?.[side]?.[k] || 0;
 /** The operative's weapons, plus the team's explosive grenades while any are left (not for beasts and machines). */
 export function weaponsFor(g, op) {
-  const ws = archonWeapons(op);
+  let ws = archonWeapons(op);
+  // Shriek-that-Kills (Howling Banshee Aspect Technique): an extra ranged weapon while the Technique is available.
+  if (tpl(op).aspect === 'hb' && op.side < 2 && g.phase === 'firefight' && g.active === op.uid && ffReady(g, op.side, 'hbShriek') && !techWhy(g, op, 'hbShriek')) ws = [...ws, BK_SHRIEK];
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -2545,8 +2704,21 @@ const ammoTarget = (g, op) => (g.markers || []).find((m) => m.kind === 'ammo' &&
 //  aim    — chosen while picking a Shoot target (it changes which targets are valid);
 //  attack — chosen with a declared Shoot / Fight, before the dice are rolled;
 //  auto   — reactions (when shot, damaged, incapacitated…): used automatically while armed and affordable.
-export const ffDef = (g, side, id) => TEAM_MAP[g.teams[side]]?.firefight?.find((p) => p.id === id) || null;
-const ffUsedNow = (g, side, id) => g.ffUsed?.[side]?.tp === g.tp && g.ffUsed[side].ids.includes(id);
+const ffList = (t) => [...(t?.firefight || []), ...(t?.techniques || [])]; // (Blades of Khaine: Aspect Techniques too)
+export const ffDef = (g, side, id) => ffList(TEAM_MAP[g.teams[side]]).find((p) => p.id === id) || null;
+// Aspect Techniques: each once per TP (twice if every operative shares one Aspect).
+const techLimit = (g, side) => (new Set(g.ops.filter((o) => o.side === side).map((o) => tpl(o).aspect)).size === 1 ? 2 : 1);
+const ffUsedNow = (g, side, id) => g.ffUsed?.[side]?.tp === g.tp && g.ffUsed[side].ids.filter((x) => x === id).length >= (ffDef(g, side, id)?.technique ? techLimit(g, side) : 1);
+/** The current activation or counteraction (one Aspect Technique per side in each). */
+const actKey = (g) => `${g.tp}|${g.active}|${(g.actCount || []).join(',')}|${g.counter ? 1 : 0}`;
+/** Why an Aspect Technique can't be used with this operative now (null = it can). */
+function techWhy(g, op, id) {
+  const p = ffDef(g, op.side, id);
+  if (!p?.technique) return null;
+  if (tpl(op).aspect !== p.aspect) return { zh: '方陣不符', en: 'Wrong Aspect' };
+  if (g.techKey?.[op.side] === actKey(g)) return { zh: '本次啟動已用過技法', en: 'Already used a Technique this activation' };
+  return null;
+}
 /** Can this side pay for and still use this firefight ploy this turning point? */
 const ffBaseCost = (g, side, id) => (['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id) => ffBaseCost(g, side, id) + (g.deviousTax?.[side] === id ? 1 : 0);
@@ -2559,6 +2731,7 @@ function spendFF(g, side, id) {
   g.cp[side] -= paid;
   if (g.deviousTax?.[side] === id) g.deviousTax[side] = null;
   if (id !== 'deviousScheme' && paid > 0 && !g.deviousTax?.[side] && autoFF(g, 1 - side, 'deviousScheme')) (g.deviousTax ||= [null, null])[side] = id;
+  if (p.technique) { (g.techKey ||= [null, null])[side] = actKey(g); log(g, { zh: `${teamZh(g, side)} 使用技法「${p.name.zh}」`, en: `${team(g, side).name.en} uses the Aspect Technique ${p.name.en}` }, `side${side}`); return; }
   log(g, { zh: `${teamZh(g, side)} 使用交戰計謀「${p.name.zh}」（${p.cp}CP）`, en: `${team(g, side).name.en} uses the firefight ploy ${p.name.en} (${p.cp}CP)` }, `side${side}`);
 }
 export function skipArchonActivation(g, side) {
@@ -2574,8 +2747,9 @@ export function ffToggleArm(g, side, id) {
   if (i >= 0) off.splice(i, 1); else off.push(id);
 }
 /** Use an auto ploy now if it's armed, affordable and unused. */
-function autoFF(g, side, id) {
+function autoFF(g, side, id, op = null) {
   if (side > 1 || !ffDef(g, side, id) || !ffArmed(g, side, id) || !ffReady(g, side, id)) return false;
+  if (ffDef(g, side, id).technique && (!op || techWhy(g, op, id))) return false;
   spendFF(g, side, id);
   return true;
 }
@@ -2624,6 +2798,22 @@ const FF = {
   slipAway: { kind: 'button', apply(g, op) { op.acted.slip = true; } },
   vengeanceKinband: { kind: 'auto' },
   savageAmbush: { kind: 'auto' },
+  autoFerric: { kind: 'auto' }, // (Battleclade)
+  // ---- Blades of Khaine (firefight ploys, then Aspect Techniques) ----
+  bladewind: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.fightsAllowed = 2; } },
+  starfall: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.starfall = true; } },
+  fadingLight: { kind: 'button', apply(g, o) { o.acted.slip = true; } },
+  contempt: { kind: 'auto' },
+  avVigilance: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w && CATAPULTS.includes(w.id) ? null : { zh: '要用手裡劍彈射器', en: 'Needs a shuriken catapult' }) },
+  avThousand: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w && CATAPULTS.includes(w.id) ? null : { zh: '要用手裡劍彈射器', en: 'Needs a shuriken catapult' }) },
+  avUnstinting: { kind: 'auto' },
+  avRagingHeat: { kind: 'button', apply(g, o) { o.ragingHeat = true; } },
+  hbShriek: { kind: 'weapon' }, // (picked as a weapon: BK_SHRIEK)
+  hbWoe: { kind: 'auto' },
+  ssEye: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w?.id === 'bkPistol' ? null : { zh: '要用手裡劍手槍', en: 'Needs a shuriken pistol' }) },
+  ssMerciless: { kind: 'attack', fight: true },
+  ssGloom: { kind: 'button', apply(g, o) { o.gloom = true; } },
+  ssFade: { kind: 'auto' },
   // ---- Gellerpox Infected ----
   putrescentDemise: { kind: 'auto' },
   frighteningOnslaught: { kind: 'button',
@@ -2698,12 +2888,12 @@ function archonPrey(g, op, target, pool) {
 /** Button ploys for the active operative: [{id, cp, ok, why}]. */
 export function ffButtons(g, op) {
   if (!op || op.side > 1 || g.phase !== 'firefight' || g.active !== op.uid) return [];
-  return (TEAM_MAP[op.team].firefight || []).filter((p) => FF[p.id]?.kind === 'button').map((p) => {
+  return ffList(TEAM_MAP[op.team]).filter((p) => FF[p.id]?.kind === 'button' && (!p.technique || tpl(op).aspect === p.aspect)).map((p) => {
     const def = FF[p.id];
     const why = ffUsedNow(g, op.side, p.id) ? { zh: '本回合已用過', en: 'Already used this TP' }
       : !ffReady(g, op.side, p.id) ? { zh: 'CP 不足', en: 'Not enough CP' }
       : def.start && !startOfActivation(op) ? { zh: '只能在啟動時（第一個動作前）', en: 'Only when activated (before its first action)' }
-      : def.cond?.(g, op) || null;
+      : techWhy(g, op, p.id) || def.cond?.(g, op) || null;
     return { id: p.id, cp: ffCostNow(g, op.side, p.id), ok: !why, why };
   });
 }
@@ -2718,13 +2908,13 @@ export function useFFButton(g, op, id) {
 /** Aim / attack ploys that fit this Shoot or Fight: [{id, cp, ok, why, on}]. */
 export function ffAttackOptions(g, op, kind, weapon, target, aim = false) {
   if (!op || op.side > 1) return [];
-  return (TEAM_MAP[op.team].firefight || []).filter((p) => {
+  return ffList(TEAM_MAP[op.team]).filter((p) => {
     const d = FF[p.id];
-    if (!d || (aim ? d.kind !== 'aim' : d.kind !== 'attack')) return false;
+    if (!d || (aim ? d.kind !== 'aim' : d.kind !== 'attack') || (p.technique && tpl(op).aspect !== p.aspect)) return false;
     return kind === 'fight' ? !d.shoot && (aim ? false : true) : !d.fight;
   }).map((p) => {
     const why = ffUsedNow(g, op.side, p.id) ? { zh: '本回合已用過', en: 'Already used this TP' }
-      : !ffReady(g, op.side, p.id) ? { zh: 'CP 不足', en: 'Not enough CP' } : FF[p.id].cond?.(g, op, target, weapon) || null;
+      : !ffReady(g, op.side, p.id) ? { zh: 'CP 不足', en: 'Not enough CP' } : techWhy(g, op, p.id) || FF[p.id].cond?.(g, op, target, weapon) || null;
     return { id: p.id, cp: ffCostNow(g, op.side, p.id), ok: !why, why, on: ffOn(g, op, p.id) };
   });
 }
@@ -2888,7 +3078,8 @@ function spotOn(g, op, target) {
   if (!s || s.tp !== g.tp || !target || s.t !== target.uid) return false;
   const spotter = getOp(g, s.by);
   // The Navy Breachers' C.A.T. unit spots for the whole team; the Death Korps / Hearthkyn spotters for friendlies within 3".
-  return !!spotter && !spotter.dead && sameTeam(spotter, op) && (tpl(spotter).catUnit || edgeDist(spotter, op) <= 3);
+  // (Gaze of the Omnissiah, Battleclade Auto-proxy: for the whole team too.)
+  return !!spotter && !spotter.dead && sameTeam(spotter, op) && (tpl(spotter).catUnit || tpl(spotter).spotAll || edgeDist(spotter, op) <= 3);
 }
 
 /** The enemy is within 1" of this side's Pech'ra marker. */
@@ -3011,7 +3202,13 @@ const noRerollHere = (g, op) => (!!mission(g).noRerollNearObjective && op.side !
 export function canCommandReroll(g, side, holder, which) {
   if (!holder || holder.rerolled?.[which] || holder.noReroll?.[which]) return false;
   const pool = holder[which === 'a' ? 'a' : 'd'];
-  return !!pool && g.cp[side] >= 1 && pool.dice.some((d) => !d.auto);
+  return !!pool && (g.cp[side] >= 1 || dutyFree(g, side, holder, which)) && pool.dice.some((d) => !d.auto);
+}
+/** Duty of Reclamation (Battleclade ploy): a free Command Re-roll for a friendly contesting an objective marker (once per sequence). */
+function dutyFree(g, side, holder, which) {
+  if (side > 1 || !hasPloy(g, side, 'dutyReclamation') || holder.dutyUsed) return false;
+  const o = getOp(g, holder.uid || (which === 'a' ? holder.op : holder.target));
+  return !!o && o.side === side && !!TEAM_MAP[o.team].noosphericNetwork && contesting2(g, o);
 }
 
 /** Re-roll one die (Command Re-roll): costs 1CP, the pool is tallied again. */
@@ -3019,12 +3216,14 @@ export function commandReroll(g, side, holder, which, index) {
   if (!canCommandReroll(g, side, holder, which)) return false;
   const pool = holder[which === 'a' ? 'a' : 'd'], die = pool.dice[index];
   if (!die || die.auto) return false;
-  g.cp[side]--;
+  const free = dutyFree(g, side, holder, which);
+  if (free) holder.dutyUsed = true; else g.cp[side]--;
   (holder.rerolled ||= {})[which] = true;
   const old = die.v;
   die.v = d6(); die.rr = true;
   tally(pool);
-  log(g, { zh: `${teamZh(g, side)} 指揮重擲（-1CP）：${old} → ${die.v}`, en: `${team(g, side).name.en} Command Re-roll (-1CP): ${old} → ${die.v}` }, `side${side}`);
+  const cost = free ? { zh: '0CP，回收使命', en: '0CP, Duty of Reclamation' } : { zh: '-1CP', en: '-1CP' };
+  log(g, { zh: `${teamZh(g, side)} 指揮重擲（${cost.zh}）：${old} → ${die.v}`, en: `${team(g, side).name.en} Command Re-roll (${cost.en}): ${old} → ${die.v}` }, `side${side}`);
   return true;
 }
 
@@ -3132,7 +3331,7 @@ function inflict(g, src, target, dmg) {
     // Survives on 1 wound for the rest of the action; both get -1 APL until the end of their next activations.
     target.wounds = tpl(medic).medicD3 ? d3() : 1; target.medicShield = true; target.medicTP = g.tp; // Helix Adept: D3 wounds
     (g.medicTP ||= [0, 0])[target.side] = g.tp;
-    changeApl(g, target, -1); changeApl(g, medic, -1);
+    if (!tpl(medic).medicNoApl) { changeApl(g, target, -1); changeApl(g, medic, -1); } // (Mechanosuture Array: no APL loss)
     if (g.active === target.uid) target.ap = 0; // used during its own activation: that activation ends
     log(g, { zh: `✚ ${opName(medic, 'zh')} 醫療兵！${opName(target, 'zh')} 以 ${target.wounds} 生命撐住`, en: `✚ ${opName(medic, 'en')} Medic! ${opName(target, 'en')} survives on ${target.wounds} wound(s)` }, `side${target.side}`);
     return false;
@@ -3258,8 +3457,10 @@ function resolveDice(target, amounts, g = null) {
   const emboldened = (!!g && tpl(target).emboldened && target.chargedTP === g.tp) || !!target.stimms?.fortified || !!tpl(target).toxicBlessings;
   // Zealous Dedication (Castigator): also on a 5+.
   const zealous = !!tpl(target).zealous;
-  const resilient = !!TEAM_MAP[target.team].resilient || !!tpl(target).resilient || emboldened || zealous;
-  const need = (emboldened || zealous) && !tpl(target).resilient ? 5 : 4;
+  // Incantation of the Iron Soul (Battleclade ploy): 3+ damage, on a 4+ 1 less.
+  const ironSoul = !!g && target.side < 2 && !!TEAM_MAP[target.team].noosphericNetwork && hasPloy(g, target.side, 'ironSoul');
+  const resilient = !!TEAM_MAP[target.team].resilient || !!tpl(target).resilient || emboldened || zealous || ironSoul;
+  const need = (emboldened || zealous) && !tpl(target).resilient && !ironSoul ? 5 : 4;
   // Brace for Counterattack / Reinforce Metal (Hierotek): Dmg of 3+ deals 1 less.
   // Sickening Resilience (Plague Marines firefight ploy): for the rest of this activation, Disgustingly Resilient
   // always takes 1 off (to a minimum of 2) without rolling. Used when it saves at least 2 damage or a life.
@@ -3313,6 +3514,8 @@ function stunOnCrit(g, rules, crits, target) {
  */
 function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAtStart = null) {
   const rules = effectiveRules(g, op, weapon, target);
+  // Contempt (Blades of Khaine firefight ploy): the shooter can't re-roll its attack dice this sequence.
+  if (!noReroll && target.side < 2 && isBlade(target) && (rules.balanced || rules.ceaseless || rules.relentless) && autoFF(g, target.side, 'contempt')) noReroll = true;
   if (corsairEquip(g, target, 'mistfield') && edgeDist(op, target) > 3 && rules.piercing && g.mistfieldTP?.[target.side] !== g.tp) { rules.piercing--; (g.mistfieldTP ||= [0, 0])[target.side] = g.tp; }
   if (noReroll) { delete rules.balanced; delete rules.ceaseless; delete rules.relentless; } // Suppressing Fire
   let hit = weapon.hit;
@@ -3342,11 +3545,14 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const camo = !!tpl(target).camoCloak; // Camo Cloak ignores Saturate
   const rogue = hasPloy(g, target.side, 'rogue'); // Rogue: ignore Saturate, and Stealthy-style cover saves
   const saturated = rules.saturate && !camo && !rogue && !tpl(target).cultAgent; // Cult Agents ignore Saturate
+  // Auto-Ferric Supplication (Battleclade firefight ploy): a Tech-Priest being shot ignores Piercing.
+  const ferric = (!!rules.piercing && tpl(target).techPriest && autoFF(g, target.side, 'autoFerric'))
+    || shimmered(g, target); // Shimmershield (Blades of Khaine) ignores Piercing too
   // Defence dice and retained saves, with or without the cover save.
   const defence = (useCover, crits) => {
     // Xenotech Shielding (Archivist) ignores Piercing.
     // Cult Agent (Wyrmblade): Piercing is ignored (Piercing Crits still applies).
-    const pierce = tpl(target).xenotech || tpl(target).daemonic ? 0 : tpl(target).cultAgent ? (crits > 0 ? rules.piercingCrits || 0 : 0) : (rules.piercing || 0) + (crits > 0 ? rules.piercingCrits || 0 : 0);
+    const pierce = tpl(target).xenotech || tpl(target).daemonic ? 0 : tpl(target).cultAgent || ferric ? (crits > 0 ? rules.piercingCrits || 0 : 0) : (rules.piercing || 0) + (crits > 0 ? rules.piercingCrits || 0 : 0);
     // Extra Defence (NEMESIS): one more defence die unless injured (Xenotech: even when injured).
     const extraDef = tpl(target).nemesis && (!isInjured(target) || tpl(target).xenotech) ? 1 : 0;
     // The number of defence dice is the target's Defence stat (datacards without one roll 3).
@@ -3433,7 +3639,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // Shielding (Trench Sweeper): re-roll any defence dice. Malevolent Grit (Blooded): re-roll one.
   const grit = TEAM_MAP[target.team].bloodedTokens && hasPloy(g, target.side, 'malevolentGrit') && (target.bloodToken || whollyIn(g, target, 1 - target.side));
   const defRules = { relentless: !!tpl(target).emperorProtects || psyOn(g, 'fate', target.side, target) || !!target.shieldingOn,
-    digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence'),
+    digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence')
+      || (target.ready && isBlade(target) && hasPloy(g, target.side, 'forewarned')), // Forewarned (Blades of Khaine)
     balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit || inviolate(g, target)
       || (base > 0 && TEAM_MAP[target.team].skillAtArms && hasPloy(g, target.side, 'engageFromCover')), // Engage From Cover (Kasrkin)
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
@@ -3447,6 +3654,10 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   } : null;
   const post = indomitus || wrought ? (pool) => { indomitus?.(pool); wrought?.(pool); } : null;
   const d = rollPool(defDice - coverN - coverC, save, hasTactic(g, target, 'hardy') ? 5 : 6, defRules, post);
+  // Unstinting, Immovable (Dire Avenger Aspect Technique): two or more fails — discard one, retain another as a normal save.
+  if (tpl(target).aspect === 'da' && d.dice.filter((x) => x.res === 'miss').length >= 2 && autoFF(g, target.side, 'avUnstinting', target)) {
+    const m = d.dice.find((x) => x.res === 'miss'); m.res = 'norm'; m.indo = true; d.norms++; // (the other fail is the one discarded)
+  }
   seq.d = d; seq.save = save; seq.defDice = defDice; seq.coverN = coverN; seq.coverC = coverC;
   yield { stage: 'defence', seq };
   // Fickle Fates (Legionaries): a ready Tzeentch operative that retains a critical save retains one fail as a normal save.
@@ -3511,8 +3722,9 @@ function secondaryTargets(g, op, weapon, primary) {
     return second ? [second] : [];
   }
   if (torrent) {
-    return foes(g, op).filter((t) => t !== primary && edgeDist(primary, t) <= torrent + 0.01
+    const ts = foes(g, op).filter((t) => t !== primary && edgeDist(primary, t) <= torrent + 0.01
       && shootCheck(g, op, t, weapon, true).ok);
+    return weapon.rules.torrentMax ? ts.sort((a, b) => a.wounds - b.wounds).slice(0, weapon.rules.torrentMax) : ts;
   }
   if (blast) {
     // Any operative (friend or foe) visible to and within x of the primary target; Conceal doesn't matter.
@@ -3561,6 +3773,8 @@ export function* shootFlow(g, op, weapon, target) {
   const ap = shootWeapon(g, op, weapon).ap;
   if (op.acted.barrage) op.acted.nextBarrageWeapon = weapon.id;
   ffCommit(g, op, 'shoot', weapon, target); // firefight ploys chosen for this Shoot are paid now
+  if (weapon.technique) spendFF(g, op.side, weapon.technique); // Shriek-that-Kills
+  if (ffOn(g, op, 'avThousand')) weapon = { ...weapon, rules: { ...weapon.rules, torrent: 2, torrentMax: 1 } }; // Death of a Thousand Blades
   if (ffOn(g, op, 'livingLightning')) { // Living Lightning: Blast 2" instead of 2" Devastating
     const rules = { ...weapon.rules, blast: 2 }; delete rules.devSplash;
     weapon = { ...weapon, rules };
@@ -3669,6 +3883,11 @@ export function startFight(g, op, weapon, target) {
   archonBeforeAttack(g, op, 'fight'); archonBeforeAttack(g, target, 'fight');
   const dWeapon = bestMelee(target);
   ffCommit(g, op, 'fight', weapon, target); // firefight ploys chosen for this Fight are paid now
+  // Mandiblasters (Striking Scorpions): at the start of the Roll Attack Dice step, 2 damage to the enemy.
+  if (tpl(op).mandiblasters && target.side < 2) {
+    log(g, { zh: `${opName(op, 'zh')} 下顎爆能器：${opName(target, 'zh')} 受到 2 傷害`, en: `${opName(op, 'en')} Mandiblasters: ${opName(target, 'en')} takes 2 damage` }, `side${op.side}`);
+    applyDamage(g, op, target, 2); // (if that incapacitates it, the fight ends at once — see advanceFight)
+  }
   const ar = effectiveRules(g, op, weapon, target);
   const dr = effectiveRules(g, target, dWeapon, op);
   // Rust Emanations (Gellerpox): a Nightmare Hulk fighting — the opponent can't retain results of 3.
@@ -3682,7 +3901,8 @@ export function startFight(g, op, weapon, target) {
   const aAssist = assist(op, target), dAssist = assist(target, op);
   // Quicksilver Speed (Legionaries): against a Legionary that moved this TP, melee Hit is worsened by 1 (not with injured).
   const aHit = clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) - (aAssist ? 1 : 0));
-  const dHit = clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) ? 1 : 0) - (dAssist ? 1 : 0));
+  // Banshee Mask (Howling Banshees): fighting, the enemy's melee Hit is worsened by 1 (not cumulative with injured).
+  const dHit = clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) || tpl(op).bansheeMask ? 1 : 0) - (dAssist ? 1 : 0));
   // Cut-throats: +1 Atk to a maximum of 5.
   const atk = (w, r) => (r.atkPlus ? Math.max(w.atk, Math.min(r.atkMax || 5, w.atk + r.atkPlus)) : w.atk); // (For Cadia!: max 4)
   // Whip Control (Herd-goad): -1 Atk on the melee weapons of a whipped enemy (to a minimum of 1).
@@ -3987,6 +4207,7 @@ function finishFight(g) {
     zh: `${opName(a, 'zh')} 與 ${opName(d, 'zh')} 近戰：造成 ${f.D.before - d.wounds}，承受 ${f.A.before - a.wounds}`,
     en: `${opName(a, 'en')} fights ${opName(d, 'en')}: dealt ${f.D.before - d.wounds}, took ${f.A.before - a.wounds}`,
   }, `side${a.side}`);
+  bladesAfterFight(g, a, d); // Strike and Fade / The Woe (Blades of Khaine)
   // Dat All You Got?: after fighting or retaliating, if still standing, inflict D3 damage on the enemy.
   for (const [me, foe] of [[a, d], [d, a]]) {
     if (!tpl(me).datAllYouGot || me.dead || foe.dead) continue;
