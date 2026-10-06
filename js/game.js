@@ -5,6 +5,7 @@ import { isArchon, setupArchon, archonWeapons, archonReady, archonActivate, arch
 import { TEAM_MAP, isBoltWeapon } from './data/teams.js';
 import { MISSIONS, MISSION_ACTIONS, TAC_OPS, npoTargetFor, tacOnKill, tacOnTPEnd, tacOnBattleEnd, tacOnStrategyEnd } from './missions.js';
 import { dist, distPointRect, segRect } from './geometry.js';
+import { flatSight } from './sight.js';
 
 export const BOARD = { w: 30, h: 22 };
 export const ER = 1;          // engagement range (inches, base edge to base edge)
@@ -1781,56 +1782,18 @@ export function opName(op, lang) {
 }
 
 // ---------- line of sight ----------
-// Checked on lines from the shooter to any part of the target (the shooter's best line is used):
-//  - Cover: intervening terrain within the target's control range (1").
-//  - Obscured: intervening Heavy terrain more than 1" from the target, while the shooter is within 1" of
-//    it (peeking round it / through a gap). Its attack crits become normal successes and one success is
-//    discarded.
-//  - Blocked (not visible): intervening Heavy terrain more than 1" from both operatives — in 2D this
-//    stands for the wall physically blocking the view.
-//  - Within 2" of the shooter: no cover and no obscuring.
-function targetPoints(t) {
-  const r = radius(t) * 0.95;
-  const pts = [{ x: t.x, y: t.y }];
-  for (let i = 0; i < 12; i++) pts.push({ x: t.x + Math.cos(i * Math.PI / 6) * r, y: t.y + Math.sin(i * Math.PI / 6) * r });
-  return pts;
-}
-
-/**
- * opts.noObscure: Heavy terrain never obscures (Optics).
- * opts.ignoreLight: Light terrain gives no cover (Seek Light, when picking valid targets).
- * opts.ignoreAll: no terrain gives cover (Seek, when picking valid targets).
- */
+// Visibility is a model check; cover/obscuring use a fan of base targeting lines.
+// Current terrain is flat: opaque heavy walls represent blocked head visibility.
 export function visibility(g, from, to, opts = {}) {
-  const rt = radius(to), rf = radius(from);
-  const close = edgeDist(from, to) <= 2;
-  // Rank lines for the shooter: clear < cover < obscured < both.
-  let best = null;
-  for (const p of targetPoints(to)) {
-    let cover = false, obscured = false, blocked = false;
-    for (const t of g.terrain) {
-      if (t.kind === 'wire') continue; // razor wire is Exposed: no cover, doesn't block
-      if (!segRect(from, p, t)) continue;
-      const dt = distPointRect(to, t) - rt;
-      if (t.kind === 'heavy' && dt > 1) {
-        if (distPointRect(from, t) - rf > 1) { blocked = true; break; } // a wall between them
-        if (!close && !opts.noObscure) obscured = true;
-        continue;
-      }
-      // One with the Shadows (Wyrmblade): a Concealed target behind Light terrain more than 1" from both is obscured.
-      if (t.kind === 'light' && dt > 1 && !close && !opts.noObscure && to.order === 'conceal' && to.side < 2 && hasPloy(g, to.side, 'oneWithShadows')
-        && distPointRect(from, t) - rf > 1) obscured = true;
-      if (dt <= 1 && !close && !opts.ignoreAll && !(opts.ignoreLight && t.kind === 'light')) cover = true;
-    }
-    if (blocked) continue;
-    const rank = (cover ? 1 : 0) + (obscured ? 2 : 0);
-    if (!best || rank < best.rank) best = { rank, cover, obscured };
-    if (rank === 0) break;
+  const v = flatSight(g.terrain, from, to, radius(from), radius(to), {
+    lightObscures: to.order === 'conceal' && to.side < 2 && hasPloy(g, to.side, 'oneWithShadows'), ...opts,
+  });
+  const smoked = v.visible && edgeDist(from, to) > 2 && !opts.noObscure && g.smoke?.length && (inSmoke(g, to) || inSmoke(g, from));
+  if (smoked) {
+    v.obscured = true;
+    v.defenceOptions = v.defenceOptions.map(o => ({ ...o, obscured: true }));
   }
-  if (!best) return { visible: false, cover: false, obscured: false };
-  // Smoke grenade: wholly within an area of smoke, it's obscured to (and from) operatives more than 2" away.
-  const smoked = !close && !opts.noObscure && g.smoke?.length && (inSmoke(g, to) || inSmoke(g, from));
-  return { visible: true, cover: best.cover, obscured: best.obscured || !!smoked };
+  return v;
 }
 
 export function inRange(op, target, weapon, extra = 0) {
@@ -1894,7 +1857,7 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   if (!inRange(op, target, weapon, ffOn(g, op, 'longArm') ? 3 : 0)) return { ok: false };
   // Markerlights: after a Markerlight this activation, Shoot must pick that same target.
   if (!secondary && op.acted?.mlTarget && op.acted.mlTarget !== target.uid) return { ok: false };
-  return { ok: true, cover: v.cover, obscured: v.obscured, relay: relay?.uid ?? null };
+  return { ok: true, cover: v.cover, obscured: v.obscured, defenceOptions: v.defenceOptions, relay: relay?.uid ?? null };
 }
 
 // ---------- dice ----------
@@ -3412,9 +3375,10 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     const save = Math.min(6, Math.max(2, tpl(target).save - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0)) + (deprecated(g, target, 'aggressor') ? 1 : 0));
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
-  // Obscured and in cover: the defender uses only one of them — whichever leaves less expected damage.
+  // Only a shared terrain feature forces a cover/obscuring choice. Independent features stack.
   let useObscured = !!vis.obscured, useCover = inCover;
-  if (useObscured && useCover) {
+  const coverChoice = useObscured && useCover && !!vis.defenceOptions?.length && !vis.defenceOptions.some(o => o.cover && o.obscured);
+  if (coverChoice) {
     const critOn = hasTactic(g, target, 'hardy') ? 5 : 6, devD = rules.devastating || 0;
     const ex = (ac, an, o) => expectedDamage(ac, an, o.defDice - o.coverN - o.coverC, o.save, critOn, o.coverN, o.coverC, dn, dc) + devD * ac;
     const att = a.crits + a.norms;
@@ -3443,7 +3407,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
       seq.d = { dice: [], crits: 0, norms: 0 }; seq.save = tpl(target).save; seq.defDice = 0; seq.coverN = 0; seq.coverC = 0;
       return {
         target: target.uid, rules, hit, atk, attack: a, save: tpl(target).save, defDice: 0, coverSaves: 0, coverCrit: 0,
-        inCover: useCover, obscured: useObscured, coverOrObscured: inCover && !!vis.obscured, saturated: false, skulk: 0, pierce: 0, defence: seq.d, dmg: devDmg, dev: devDmg, tox, resilient: [], poisoned: false, stunned: false,
+        inCover: useCover, obscured: useObscured, coverOrObscured: coverChoice, saturated: false, skulk: 0, pierce: 0, defence: seq.d, dmg: devDmg, dev: devDmg, tox, resilient: [], poisoned: false, stunned: false,
         remC: a.crits, remN: a.norms, before, after: 0, killed: true,
       };
     }
@@ -3532,7 +3496,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   }
   return {
     target: target.uid, rules, hit, atk, attack: a, save, defDice, coverSaves: coverN + coverC, coverCrit: coverC,
-    inCover: useCover, obscured: useObscured, coverOrObscured: inCover && !!vis.obscured, saturated: rules.saturate && useCover && !base, skulk, pierce, defence: d, dmg, dev, tox, resilient: res.rolls, poisoned, stunned,
+    inCover: useCover, obscured: useObscured, coverOrObscured: coverChoice, saturated: rules.saturate && useCover && !base, skulk, pierce, defence: d, dmg, dev, tox, resilient: res.rolls, poisoned, stunned,
     remC: block.remC, remN: block.remN, before, after: target.wounds, killed,
   };
 }
@@ -3852,8 +3816,7 @@ export const fightChooser = (g) => fightOp(g, g.fight.turn).side;
 
 /** Legal choices for the side whose turn it is. */
 export function fightOptions(g) {
-  const f = g.fight, k = f.turn, me = f[k], foe = f[other(k)];
-  const w = fightWeapon(g, k), foeOp = fightOp(g, other(k));
+  const f = g.fight;
   if (!f.stanceDone) {
     f.stanceDone = true;
   for (const k of ['A', 'D']) if (tpl(fightOp(g, k)).bladedStance) {
@@ -3863,7 +3826,11 @@ export function fightOptions(g) {
     syncFightSideFromCounts(me);
     syncFightSideFromCounts(foe);
   }
+    advanceFight(g); // Stance may remove the last die or change whose turn it is.
   }
+  if (f.done) return [];
+  const k = f.turn, me = f[k], foe = f[other(k)];
+  const w = fightWeapon(g, k), foeOp = fightOp(g, other(k));
   const opts = [];
   // Shock Assault (firefight ploy): the first strike deals 1 more (to a maximum of 7).
   const first = (d) => (me.firstBonus ? Math.max(d, Math.min(7, d + 1)) : d);
@@ -4054,9 +4021,10 @@ export function endFight(g) { g.fight = null; }
 export function fightAutoChoice(g) {
   if (g.fight.rrOpen) fightRerollDone(g); // automatic play skips the human Command Re-roll window
   if (g.fight.done) return null;
+  const opts = fightOptions(g);
+  if (g.fight.done) return null;
   const f = g.fight, k = f.turn, me = f[k], foe = f[other(k)];
   const meOp = fightOp(g, k), foeOp = fightOp(g, other(k));
-  const opts = fightOptions(g);
   const has = (id) => opts.find((o) => o.id === id);
   const killer = opts.filter((o) => o.act === 'strike' && o.dmg >= foeOp.wounds).sort((x, y) => x.dmg - y.dmg)[0];
   if (killer) return killer.id;

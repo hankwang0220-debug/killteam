@@ -1533,7 +1533,8 @@ function shotView(s, t, t0 = 0) {
   const tD = t0 + nA * STEP + 0.7, tO = tD + nD * STEP + 0.7, end = tO + 0.9;
   const notes = [];
   if (s.obscured) notes.push(L('遮擋：暴擊全部變普通，並扣除 1 顆成功', 'Obscured: crits become normal and one success is discarded'));
-  if (s.coverOrObscured) notes.push(L(`同時有掩體與遮擋，擇一：使用${s.obscured ? '遮擋' : '掩體'}`, `Cover and obscured — one only: ${s.obscured ? 'obscured' : 'cover'} used`));
+  if (s.coverOrObscured) notes.push(L(`同一地形提供掩護與遮擋，擇一：使用${s.obscured ? '遮擋' : '掩護'}`, `Same terrain: ${s.obscured ? 'obscured' : 'cover'} chosen`));
+  else if (s.inCover && s.obscured) notes.push(L('不同地形提供掩護與遮擋：兩者同時生效', 'Independent cover and obscuring: both apply'));
   if (s.coverSaves) notes.push(L(`掩護：保留 ${s.coverSaves} 顆豁免${crit ? `（${crit} 顆暴擊）` : ''}`, `Cover: ${s.coverSaves} save retained${crit ? ` (${crit} critical)` : ''}`));
   else if (s.saturated) notes.push(L('飽和：無法保留掩護豁免', 'Saturate: no cover saves'));
   if (s.pierce) notes.push(L(`穿甲：少擲 ${s.pierce} 顆`, `Piercing: ${s.pierce} fewer dice`));

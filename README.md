@@ -37,6 +37,7 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 | `js/archon.js` / `js/corsair.js` | Pain tokens, combat drugs, psychic actions, free actions and team reactions |
 | `js/game.js` | Game state, game flow, and the rules engine (line of sight, dice, combat) |
 | `js/path.js` | A* pathfinding and movement validation |
+| `js/sight.js` | Flat-board model visibility and intervening base fans for cover and obscuring |
 | `js/ai.js` | Computer opponent and NPO behaviours |
 | `js/missions.js` | Missions: maps, drop zones, markers, NPO decks, mission actions and scoring |
 | `js/board.js` | SVG board rendering |
@@ -56,3 +57,7 @@ Hand of the Archon and Corsair Voidscarred (虛空之痕海盜) each field 9 ope
 Optional reactions follow the simulator's automatic-selection convention: pain-token competition, combat-drug recipients, enemy marks, plunder moves, Hunter pursuit and One Step Ahead attacks may choose targets automatically. The Shade Runner's Slicing Attack checks the straight segment between its starting and ending positions. The roster picker offers one gunner or one heavy gunner; it does not offer every legal tabletop composition. These are simulator simplifications, so the linked official rules remain the reference for tabletop play.
 
 Run `node tests/eldar.mjs` to verify loadouts, pain tokens, free actions, pistol barrages, Warp Fold and seeded AI battles for both teams.
+
+Shooting geometry follows the explanations at [Can I Shoot It?](https://canishoot.it/rules/shooting/shoot): visibility is distinct from intervening base lines, cover uses intervening parts within 1 inch of the target, and obscuring uses Heavy parts more than 1 inch from both bases. Independent terrain benefits stack; the same feature offers a defensive choice. Run `node tests/sight.mjs` for these scenarios, including Seek versus Saturate.
+
+This remains a flat-board approximation: model centres/silhouettes stand in for head visibility, heavy rectangles are opaque walls unless `blocksSight:false`, and shooter-base origins/target arcs are sampled. It does not simulate model heights, vantage or floors. The automatic defender choice remains a simulator convenience.

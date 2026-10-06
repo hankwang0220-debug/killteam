@@ -31,9 +31,11 @@ export const HELP = {
   <h3>近戰結算</h3>
   <p>雙方同時擲骰，由啟動中的一方先結算，之後輪流<b>自己選擇</b>處理一顆成功骰：<b>打擊</b>（造成傷害）或<b>格擋</b>（抵消對方一顆尚未結算的成功骰；普通只能擋普通，暴擊可擋任意）。成功骰也可以選擇<b>放棄</b>不用。<b>友軍協助</b>：敵方的控制範圍內有你的其他友軍時，你的命中值改善 1（防守方也適用）。</p>
   <h3>視線、掩體與遮蔽</h3>
-  <p><b>掩體</b>：射手與目標之間的地形位於目標的控制範圍（1"）內，目標即在掩體中；但目標距離射手 2" 以內時不算掩體。</p>
-  <p><b>遮擋</b>：射線穿過<b>重型地形</b>（深色牆），且目標距離該地形超過 1"：攻擊方的暴擊全部變成普通成功，並扣除 1 顆成功。目標在該重型地形 1" 內時改為掩體。</p><p><b>看不到</b>：射手與目標都離那道重型地形超過 1" 時，視為牆完全擋住視線（2D 的簡化）。</p><p>同時有掩體與遮擋時<b>擇一</b>使用（自動選對防守方較有利的）。2" 內射擊沒有掩體也沒有遮擋。<b>斜紋</b>為輕型地形，只提供掩體。</p>
-  <p>隱蔽指令＋掩體＝無法被射擊；交戰指令＋掩體＝可被射擊，但獲得掩體豁免。</p>
+  <p><b>可見</b>與<b>介於其間</b>分開判定：先確認能看到模型，再由射手底座的一點向目標底座朝向射手的部分畫出射線區域；任一射線碰到的地形部分都算介於其間。</p>
+  <p><b>掩護</b>：介於其間的地形部分在目標底座 1" 內；射手與目標底座距離 2" 內時不算掩護。交戰目標仍可射擊，隱蔽＋掩護通常不能選為目標。「搜尋」可忽略選目標時的掩護，「飽和」只移除掩護豁免。</p>
+  <p><b>遮擋</b>：介於其間的重型地形部分距離雙方底座都超過 1"，攻擊暴擊改為普通成功並扣除 1 顆成功。只靠近同一地形的另一端不一定能避免遮擋。</p>
+  <p>同一地形同時提供掩護與遮擋時擇一（程式自動選防守方較有利的）；不同地形提供時可同時生效。煙霧依自己的規則另外判定。</p>
+  <p><b>平面模擬限制</b>：以棋子中心與輪廓近似模型視線，實心重型牆會擋視線；底座射線用取樣計算。尚未模擬模型頭部高度、高台、樓層與 3D 地形。參考：<a href="https://canishoot.it/rules/shooting/shoot" target="_blank" rel="noopener">Can I Shoot It?</a>。</p>
   <h3>計分：擊殺任務 (Kill Op)</h3>
   <p>依敵方起始人數，擊殺達到下表數量即升一個<b>擊殺等級</b>，每升一級得 1 VP（最多 5）。遊戲結束時擊殺等級較高者再得 1 VP。</p>
   <table>
@@ -133,9 +135,11 @@ export const HELP = {
   <h3>Fighting</h3>
   <p>Both roll. The active player resolves first, then players alternate, <b>choosing</b> per die: <b>strike</b> (deal damage) or <b>block</b> (cancel an unresolved enemy success; normal blocks normal, critical blocks either). A success may also be <b>held back</b> (discarded unused). <b>Assist</b>: if another friendly operative is within the enemy's control range, your Hit improves by 1 (for the defender too).</p>
   <h3>Cover & obscured</h3>
-  <p><b>Cover</b>: intervening terrain within the target's control range (1"); never while the target is within 2" of the shooter.</p>
-  <p><b>Obscured</b>: the line crosses <b>Heavy terrain</b> (dark walls) and the target is more than 1" from it: all attack crits become normal successes and one success is discarded. Within 1" of that terrain the target is in cover instead.</p><p><b>Not visible</b>: when both operatives are more than 1" from that Heavy terrain, the wall blocks the view entirely (a 2D simplification).</p><p>Cover and obscured together: <b>one only</b> (the better one for the defender is used automatically). Shooting within 2": no cover and no obscuring. <b>Hatched</b> barricades are light terrain: cover only.</p>
-  <p>Conceal + cover = cannot be shot. Engage + cover = can be shot, with a cover save.</p>
+  <p>Model visibility and intervening base lines are separate checks. Choose one point on the shooter's base, then check the fan to the target's facing base. Any crossing terrain part intervenes.</p>
+  <p><b>Cover</b>: an intervening part within 1" of the target's base; not when the bases are within 2". Engage targets remain valid; Conceal plus cover prevents targeting. Seek affects target selection; Saturate only removes cover saves.</p>
+  <p><b>Obscured</b>: an intervening Heavy part more than 1" from BOTH bases. Critical successes become normal and one success is discarded. Measure the intervening parts, not the closest unrelated corner of a feature.</p>
+  <p>The same feature forces a cover/obscuring choice (automatically optimised for the defender); separate features can give both. Smoke is checked separately.</p>
+  <p><b>Flat-board limits</b>: model visibility is approximated with the centre and silhouette; solid heavy walls block it. Base origins are sampled. Model head heights, vantage and 3D floors are not simulated. Reference: <a href="https://canishoot.it/rules/shooting/shoot" target="_blank" rel="noopener">Can I Shoot It?</a>.</p>
   <h3>Scoring: Kill Op</h3>
   <p>Based on the enemy's starting number of operatives, incapacitating enough enemies raises your <b>kill grade</b>; each new grade scores 1VP (max 5). At the end of the battle, the player with the higher kill grade scores 1VP.</p>
   <table>
