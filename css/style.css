@@ -171,7 +171,19 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .op.dragging { cursor: grabbing; opacity: .85; }
 #board .op .base { stroke: #0b0b0b; stroke-width: .07; }
 #board .op .base.conceal { stroke: #fff; stroke-dasharray: .15 .1; stroke-width: .06; }
-#board .op.spent { opacity: .45; }
+#board .op.spent .base { opacity: .45; }
+.operative-tokens { pointer-events: none; }
+.order-token { --token-color: #ec8a30; --token-edge: #ffe1ae; --token-ink: #24180d; }
+.order-token.conceal { --token-color: #439fc4; --token-edge: #b5e6ff; --token-ink: #071b2a; }
+.order-token.expended { --token-color: #47362a; --token-edge: #d38343; --token-ink: #f5b578; }
+.order-token.conceal.expended { --token-color: #203e51; --token-edge: #5caccb; --token-ink: #a8e0f4; }
+.counteract-token { --token-color: #e7dbc3; --token-edge: #93836c; --token-ink: #28231d; }
+.token-face { fill: var(--token-color); stroke: var(--token-edge); stroke-width: .055; stroke-linejoin: round; }
+.token-symbol { fill: none; stroke: var(--token-ink); stroke-width: .055; stroke-linecap: round; stroke-linejoin: round; }
+.token-used { fill: none; stroke: #fff2d6; stroke-width: .075; stroke-linecap: round; stroke-linejoin: round; }
+.token-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 8px 4px; color: var(--muted); font-size: .78rem; }
+.token-key { display: inline-flex; align-items: center; gap: 5px; }
+.token-key svg { width: 22px; height: 22px; overflow: visible; }
 #board .optxt { font-size: .48px; font-weight: 700; text-anchor: middle; fill: #fff; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: .06px; }
 #board .wbg { fill: rgba(0,0,0,.6); }
 #board .wfg { fill: var(--ok); }

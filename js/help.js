@@ -9,13 +9,13 @@ export const HELP = {
     <li><b>交火階段</b>：從先攻方開始，雙方<b>輪流啟動</b>一名特工，直到所有特工都行動完畢。</li>
   </ol>
   <h3>啟動與指令</h3>
-  <p>啟動時給予指令：<b>⚔ 交戰</b>（可正常行動、可反擊）或 <b>◐ 隱蔽</b>（不能射擊、衝鋒、反擊，但處於掩體時不是合法目標）。之後依 <b>APL</b> 執行動作，同一動作每次啟動只能做一次。</p>
+  <p>啟動時給予指令：<b>⚔ 交戰</b>（可正常行動、可反擊）或 <b>◐ 隱蔽</b>（只能用無聲武器射擊、不能衝鋒，反擊依特工能力；處於掩體時不是合法目標）。之後依 <b>APL</b> 執行動作，同一動作每次啟動只能做一次。</p>
   <table>
     <tr><td>移動 1AP</td><td>移動至多 Move。在敵人控制範圍內不能執行；同次啟動不能再撤退或衝鋒。移動結束時不能在敵人 1" 內。</td></tr>
     <tr><td>衝刺 1AP</td><td>移動至多 3"。在敵人控制範圍內不能執行；同次啟動不能再衝鋒。</td></tr>
     <tr><td>衝鋒 1AP</td><td>移動至多 Move+2"，結束時必須在敵人控制範圍內。隱蔽指令或已在控制範圍內不能執行；同次啟動不能再移動、衝刺或撤退。</td></tr>
     <tr><td>撤退 2AP</td><td>敵人在控制範圍內時才能使用，移動至多 Move 並離開控制範圍；同次啟動不能再移動或衝鋒。</td></tr>
-    <tr><td>射擊 1AP</td><td>隱蔽指令或敵人在控制範圍內時不能執行。</td></tr>
+    <tr><td>射擊 1AP</td><td>隱蔽指令下只能使用「無聲（Silent）」武器；敵人在控制範圍內時通常不能執行。</td></tr>
     <tr><td>近戰 1AP</td><td>攻擊控制範圍內的敵人。</td></tr>
   </table>
   <p><b>控制範圍</b>：1" 以內。<b>受傷</b>：生命低於起始一半時，Move -2"（但不會低於 4"），武器命中值變差 1。</p>
@@ -86,7 +86,7 @@ export const HELP = {
     <tr><td>飽和</td><td>防禦方不能保留掩護豁免。</td></tr>
     <tr><td>搜尋（輕型）</td><td>選擇目標時，隱蔽的敵人不能用輕型地形當掩護（仍保有掩護豁免）。</td></tr>
     <tr><td>搜尋</td><td>選擇目標時，隱蔽的敵人不能用任何地形當掩護。</td></tr>
-    <tr><td>無聲</td><td>（隱蔽指令一律不能射擊，此規則目前沒有效果。）</td></tr>
+    <tr><td>無聲（Silent）</td><td>可以在隱蔽指令下使用這把武器執行射擊；重型等其他限制仍然適用。</td></tr>
     <tr><td>限用 X</td><td>每名特工整場只能使用 X 次。</td></tr>
     <tr><td>過熱</td><td>使用後擲 1 顆 D6，若小於武器命中值，射手受到點數 ×2 的傷害。</td></tr>
     <tr><td>中毒</td><td>用這把武器造成傷害時，敵人獲得中毒標記；有中毒標記的特工每次啟動時受到 1 傷害。</td></tr>
@@ -111,13 +111,13 @@ export const HELP = {
     <li><b>Firefight phase</b>: starting with the initiative player, players <b>alternate activating</b> one operative until all are expended.</li>
   </ol>
   <h3>Activations & orders</h3>
-  <p>Give an order: <b>⚔ Engage</b> (act normally, can counteract) or <b>◐ Conceal</b> (cannot Shoot, Charge or counteract, but is not a valid target while in cover). Then spend <b>APL</b> on actions, each at most once per activation.</p>
+  <p>Give an order: <b>⚔ Engage</b> (act normally, can counteract) or <b>◐ Conceal</b> (can Shoot with Silent weapons only, cannot Charge, and counteracts only with an applicable ability; protected while in cover). Then spend <b>APL</b> on actions, each at most once per activation.</p>
   <table>
     <tr><td>Reposition 1AP</td><td>Move up to Move. Not within enemy control range; not with Fall Back or Charge. Cannot end within 1" of an enemy.</td></tr>
     <tr><td>Dash 1AP</td><td>Move up to 3". Not within enemy control range; not with Charge.</td></tr>
     <tr><td>Charge 1AP</td><td>Move up to Move+2", must end within an enemy's control range. Not on Conceal or while in control range; not with Reposition, Dash or Fall Back.</td></tr>
     <tr><td>Fall Back 2AP</td><td>Only while an enemy is in control range; move up to Move and leave it. Not with Reposition or Charge.</td></tr>
-    <tr><td>Shoot 1AP</td><td>Not on Conceal or while an enemy is in control range.</td></tr>
+    <tr><td>Shoot 1AP</td><td>On Conceal, only with a Silent weapon. Normally unavailable while an enemy is in control range.</td></tr>
     <tr><td>Fight 1AP</td><td>Attack an enemy within control range.</td></tr>
   </table>
   <p><b>Control range</b>: within 1". <b>Injured</b>: below half starting wounds, -2" Move (but not below 4") and Hit worsens by 1.</p>
@@ -188,7 +188,7 @@ export const HELP = {
     <tr><td>Saturate</td><td>The defender cannot retain cover saves.</td></tr>
     <tr><td>Seek Light</td><td>When picking targets, Concealed enemies can't use Light terrain for cover (they keep the cover save).</td></tr>
     <tr><td>Seek</td><td>When picking targets, Concealed enemies can't use any terrain for cover.</td></tr>
-    <tr><td>Silent</td><td>(Concealed operatives never Shoot, so this has no effect at the moment.)</td></tr>
+    <tr><td>Silent</td><td>Can Shoot with this weapon while Concealed. Other restrictions, such as Heavy, still apply.</td></tr>
     <tr><td>Limited X</td><td>Each operative can use it X times per battle.</td></tr>
     <tr><td>Hot</td><td>After use, roll a D6: if it's below the weapon's Hit, the shooter takes twice the result in damage.</td></tr>
     <tr><td>Poison</td><td>Damaging an enemy with it gives a Poison token; a poisoned operative takes 1 damage whenever it's activated.</td></tr>

@@ -3,6 +3,37 @@ import { getLang, tx } from './i18n.js';
 
 const f = (n) => +n.toFixed(3);
 
+/** Two-sided tabletop-style order marker; counteraction gets a separate marker. */
+function operativeTokens(o) {
+  const conceal = o.order === 'conceal', ready = !!o.ready;
+  const order = getLang() === 'zh' ? (conceal ? '隱蔽' : '交戰') : (conceal ? 'Conceal' : 'Engage');
+  const state = getLang() === 'zh' ? (ready ? '待行動' : '已行動') : (ready ? 'Ready' : 'Expended');
+  const icon = conceal
+    ? '<path class="token-symbol" d="M-.23 .03Q0-.22 .23 .03Q0 .24-.23 .03Z"/><circle class="token-symbol" cy=".03" r=".07"/><path class="token-symbol" d="M-.24 .23 .24-.22"/>'
+    : '<circle class="token-symbol" r=".16"/><path class="token-symbol" d="M-.27 0H-.08M.08 0H.27M0-.27V-.08M0 .08V.27"/>';
+  return `<g class="order-token ${conceal ? 'conceal' : 'engage'} ${ready ? 'ready' : 'expended'}" role="img" aria-label="${order} · ${state}">
+    <title>${order} · ${state}</title><path class="token-face" d="M-.43-.37H.43L0 .42Z"/>
+    ${icon}${ready ? '' : '<path class="token-used" d="M.19 .27 .25 .33 .36 .19"/>'}
+  </g>${o.counteracted ? counteractToken() : ''}`;
+}
+
+function counteractToken() {
+  return `<g class="counteract-token" transform="translate(0 .95)" role="img" aria-label="${getLang() === 'zh' ? '已反應' : 'Counteracted'}">
+    <title>${getLang() === 'zh' ? '本回合已反應' : 'Counteracted this turning point'}</title>
+    <circle class="token-face" r=".35"/><path class="token-symbol" d="M.2-.1A.22 .22 0 1 0 .19 .14M.2-.1V-.28M.2-.1H.02"/>
+  </g>`;
+}
+
+export function tokenLegend() {
+  const item = (order, ready, label, counteracted = false) => `<span class="token-key"><svg viewBox="-.5 -.45 1 ${counteracted ? 1.8 : 1}" aria-hidden="true">${operativeTokens({ order, ready, counteracted })}</svg>${label}</span>`;
+  return `<div class="token-legend" aria-label="${getLang() === 'zh' ? 'Token 圖例' : 'Token legend'}">${[
+    item('engage', true, getLang() === 'zh' ? '交戰' : 'Engage'),
+    item('conceal', true, getLang() === 'zh' ? '隱蔽' : 'Conceal'),
+    item('engage', false, getLang() === 'zh' ? '暗面＋勾：已行動' : 'Dark + tick: expended'),
+    `<span class="token-key"><svg viewBox="-.5 .5 1 1" aria-hidden="true">${counteractToken()}</svg>${getLang() === 'zh' ? '已反應' : 'Counteracted'}</span>`,
+  ].join('')}</div>`;
+}
+
 /**
  * ui.highlight: Map uid -> 'target' | 'cover' (valid targets)
  * ui.path: {pts, ok}
@@ -152,7 +183,6 @@ export function renderBoard(g, ui) {
     const w = r * 1.8, pct = o.wounds / o.maxW;
     s.push(`<rect x="${f(-w / 2)}" y="${f(r + 0.08)}" width="${f(w)}" height="0.16" class="wbg"/>`);
     s.push(`<rect x="${f(-w / 2)}" y="${f(r + 0.08)}" width="${f(w * pct)}" height="0.16" class="wfg ${isInjured(o) ? 'inj' : ''}"/>`);
-    if (o.order === 'conceal') s.push(`<text x="${f(r * 0.75)}" y="${f(-r * 0.55)}" class="badge">◐</text>`);
     if (g.mark?.[1 - o.side] === o.uid) s.push(`<g class="killmark"><circle r="${f(r + 0.45)}"/><line x1="${f(-r - 0.6)}" y1="0" x2="${f(-r - 0.25)}" y2="0"/><line x1="${f(r + 0.25)}" y1="0" x2="${f(r + 0.6)}" y2="0"/></g>`); // Call the Kill
     if (o.poison) s.push(`<circle cx="${f(-r * 0.75)}" cy="${f(r * 0.55)}" r="0.16" class="poisontok"/>`); // Poison token
     if (o.frenzy) s.push(`<text x="${f(-r * 0.8)}" y="${f(-r * 0.45)}" class="badge">🔥</text>`); // Frenzy token
@@ -166,6 +196,15 @@ export function renderBoard(g, ui) {
     if (hl?.includes('cover')) s.push(`<text x="${f(-r - 0.15)}" y="${f(-r)}" class="badge cov">🛡</text>`);
     if (hl?.includes('obscured')) s.push(`<text x="${f(r + 0.15)}" y="${f(-r)}" class="badge obs">◌</text>`);
     s.push('</g>');
+  }
+  // Draw markers above all bases so neighbouring operatives cannot cover them.
+  // Keep them within the killzone, and let clicks pass through to the board.
+  for (const o of g.ops) {
+    if (o.dead || o.x < -50) continue;
+    const r = radius(o), right = o.x + r + .65;
+    const x = right + .43 <= BOARD.w ? right : o.x - r - .65;
+    const y = Math.max(.4, Math.min(BOARD.h - (o.counteracted ? 1.35 : .45), o.y));
+    s.push(`<g class="operative-tokens" data-token-for="${o.uid}" transform="translate(${f(Math.max(.45, x))} ${f(y)})">${operativeTokens(o)}</g>`);
   }
   // Name tags: who is activating, and in an attack who attacks and who is the target.
   const tags = [];

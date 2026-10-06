@@ -3423,6 +3423,31 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     if (withCover < withObsc) useObscured = false; else useCover = false;
   }
   if (useObscured) { a.post = obscure; tally(a); }
+  // Devastating x: each retained critical success inflicts x damage straight away, before any defence dice.
+  // (x" Devastating also hits each other operative visible to and within x" of the target.)
+  const before = target.wounds;
+  let devDmg = 0;
+  if (rules.devastating && a.crits > 0) {
+    devDmg = resolveDice(target, Array(a.crits).fill(rules.devastating), g).dmg;
+    log(g, { zh: `毀滅：${a.crits} 個暴擊立刻造成 ${devDmg} 傷害`, en: `Devastating: ${a.crits} crit(s) inflict ${devDmg} damage at once` }, `side${op.side}`);
+    applyDamage(g, op, target, devDmg);
+    if (rules.devSplash) {
+      for (const o of g.ops.filter((x) => !x.dead && x !== target && !tpl(x).blastPadding && !corsairEquip(g, x, 'diuturnalMantles') && x.x > -50 && edgeDist(x, target) <= rules.devSplash && visibility(g, target, x).visible)) {
+        const sp = resolveDice(o, Array(a.crits).fill(rules.devastating), g).dmg;
+        log(g, { zh: `毀滅波及 ${opName(o, 'zh')}：${sp} 傷害`, en: `Devastating splashes ${opName(o, 'en')}: ${sp} damage` }, `side${op.side}`);
+        applyDamage(g, op, o, sp);
+      }
+    }
+    // Incapacitated by the Devastating damage: the sequence ends here, no defence dice are rolled.
+    if (target.dead) {
+      seq.d = { dice: [], crits: 0, norms: 0 }; seq.save = tpl(target).save; seq.defDice = 0; seq.coverN = 0; seq.coverC = 0;
+      return {
+        target: target.uid, rules, hit, atk, attack: a, save: tpl(target).save, defDice: 0, coverSaves: 0, coverCrit: 0,
+        inCover: useCover, obscured: useObscured, coverOrObscured: inCover && !!vis.obscured, saturated: false, skulk: 0, pierce: 0, defence: seq.d, dmg: devDmg, dev: devDmg, tox, resilient: [], poisoned: false, stunned: false,
+        remC: a.crits, remN: a.norms, before, after: 0, killed: true,
+      };
+    }
+  }
   // Sturdy (Hearthkyn firefight ploy): the attacker's retained crits become normal successes.
   if (a.crits > 0 && autoFF(g, target.side, 'sturdy')) {
     for (const x of a.dice) if (x.res === 'crit') { x.res = 'norm'; x.obsc = true; }
@@ -3472,7 +3497,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const gong = warGong(g, target) && (dn < dc || wasFrenzy);
   const block = bestBlock(a.crits, a.norms, d.crits + coverC, d.norms + coverN, dn, gong ? dn : dc);
   if (gong) dc = dn;
-  const dev = (rules.devastating || 0) * a.crits;
+  const dev = devDmg; // (already inflicted, straight after the attack dice)
   // Weavefield Crest (Theyn): once per battle, ignore the Normal Dmg of one attack die.
   const crest = block.remN > 0 && dn > 0 && useCrest(g, target);
   const normals = Array(Math.max(0, block.remN - (crest ? 1 : 0))).fill(dn);
@@ -3490,19 +3515,10 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (ffOn(g, op, 'blazingInferno') && weapon.id === 'ministorumFlamer' && block.remC > 0 && target.side < 2) target.blaze = op.side;
   // Unleash Daemon (4+ deals 1 less), else Disgusting Vigour (Nurgle) — never more than 1 off a die.
   for (let i = 0; i < normals.length; i++) { const a2 = daemonShell(target, normals[i]); normals[i] = a2 < normals[i] ? a2 : nurgleVigour(g, target, normals[i]); }
-  const res = resolveDice(target, [...Array(a.crits).fill(rules.devastating || 0), ...Array(block.remC).fill(daemonShell(target, dc)), ...normals, critShot].filter((x) => x > 0), g);
-  const dmg = res.dmg;
-  const before = target.wounds;
-  let killed = applyDamage(g, op, target, dmg);
+  const res = resolveDice(target, [...Array(block.remC).fill(daemonShell(target, dc)), ...normals, critShot].filter((x) => x > 0), g);
+  const dmg = res.dmg + devDmg; // (reported with the Devastating damage dealt earlier)
+  let killed = target.dead || applyDamage(g, op, target, res.dmg);
   if (killed && weapon.rules.stinger) stingerBurst(g, op, target);
-  // x" Devastating (tesla carbine): the Devastating damage also hits each other operative visible to and within x" of the target.
-  if (rules.devSplash && rules.devastating && a.crits > 0) {
-    for (const o of g.ops.filter((x) => !x.dead && x !== target && !tpl(x).blastPadding && !corsairEquip(g, x, 'diuturnalMantles') && x.x > -50 && edgeDist(x, target) <= rules.devSplash && visibility(g, target, x).visible)) {
-      const sp = resolveDice(o, Array(a.crits).fill(rules.devastating), g).dmg;
-      log(g, { zh: `毀滅波及 ${opName(o, 'zh')}：${sp} 傷害`, en: `Devastating splashes ${opName(o, 'en')}: ${sp} damage` }, `side${op.side}`);
-      applyDamage(g, op, o, sp);
-    }
-  }
   // Frenzy: shooting fells a Frenzied Fellgor with Critical Dmg, or Normal Dmg from two or more dice.
   if (wasFrenzy && ((block.remC > 0 && dc > 0 && !gong) || block.remN + (gong ? block.remC : 0) >= 2)) killed = frenzyDie(g, target, op);
   g.frenzyNow = null;

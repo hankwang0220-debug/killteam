@@ -17,7 +17,7 @@ import {
   NPO, mission, placeBid, doPickUp, doMissionAction, foes,
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
-import { renderBoard } from './board.js';
+import { renderBoard, tokenLegend } from './board.js';
 import { clampPath, findPath, moveCtx } from './path.js';
 import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices } from './missions.js';
@@ -410,7 +410,7 @@ function roster(t) {
 function gameView() {
   return `${topBar(scoreBar())}
   <main class="game">
-    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}${turnBanner()}${endBanner()}</div></div>
+    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}${turnBanner()}${endBanner()}</div>${tokenLegend()}</div>
     <aside class="panel">${panelView()}${logView()}</aside>
   </main>`;
 }
@@ -488,7 +488,7 @@ function replayView() {
     const sel = ui.sel && view.ops.find((o) => o.uid === ui.sel && !o.dead);
     return `${topBar(scoreBar())}
     <main class="game">
-      <div class="boardwrap"><div class="boardbox">${renderBoard(view, { sel: ui.sel, trails: trailsAt(R.rep, R.i) })}${measureBar()}</div></div>
+      <div class="boardwrap"><div class="boardbox">${renderBoard(view, { sel: ui.sel, trails: trailsAt(R.rep, R.i) })}${measureBar()}</div>${tokenLegend()}</div>
       <aside class="panel">
         <section class="card replayctl">
           <h2>📜 ${L('複盤', 'Replay')} <small>${esc(R.title)}</small></h2>
@@ -1065,7 +1065,7 @@ function firefightPanel() {
     html += `<div class="orders">
       <button class="${op.order === 'engage' ? 'on' : ''}" data-act="order" data-order="engage">⚔ ${L('交戰 Engage', 'Engage')}</button>
       <button class="${op.order === 'conceal' ? 'on' : ''}" data-act="order" data-order="conceal">◐ ${L('隱蔽 Conceal', 'Conceal')}</button>
-    </div><p class="hint small">${L('隱蔽：在掩體中時敵人無法選為目標，但不能射擊、衝鋒或反擊。執行第一個動作後鎖定。', 'Conceal: cannot be targeted while in cover, but cannot Shoot, Charge or counteract. Locks after the first action.')}</p>`;
+    </div><p class="hint small">${L('隱蔽：在掩體中時敵人無法選為目標；可用「無聲（Silent）」武器射擊，其他武器不能。不能衝鋒，反擊依特工能力。執行第一個動作後鎖定。', 'Conceal: protected while in cover; can Shoot with Silent weapons only. Cannot Charge; counteraction depends on operative abilities. Locks after the first action.')}</p>`;
   } else {
     html += `<p class="hint">${L('指令', 'Order')}：${op.order === 'engage' ? L('⚔ 交戰', '⚔ Engage') : L('◐ 隱蔽', '◐ Conceal')}</p>`;
   }
@@ -1537,7 +1537,8 @@ function shotView(s, t, t0 = 0) {
   if (s.coverSaves) notes.push(L(`掩護：保留 ${s.coverSaves} 顆豁免${crit ? `（${crit} 顆暴擊）` : ''}`, `Cover: ${s.coverSaves} save retained${crit ? ` (${crit} critical)` : ''}`));
   else if (s.saturated) notes.push(L('飽和：無法保留掩護豁免', 'Saturate: no cover saves'));
   if (s.pierce) notes.push(L(`穿甲：少擲 ${s.pierce} 顆`, `Piercing: ${s.pierce} fewer dice`));
-  if (s.dev) notes.push(L(`毀滅：額外 ${s.dev} 傷害`, `Devastating: ${s.dev} extra damage`));
+  if (s.dev) notes.push(L(`毀滅：暴擊一擲出就先造成 ${s.dev} 傷害（在防禦骰之前）`, `Devastating: ${s.dev} damage dealt as soon as the crits were rolled (before defence dice)`));
+  if (s.dev && !s.defDice && s.killed) notes.push(L('目標被毀滅傷害擊倒，不用擲防禦骰', 'The Devastating damage incapacitated the target: no defence dice'));
   if (s.tox) notes.push(L('劇毒：傷害 +1', 'Toxic: +1 damage'));
   if (s.skulk) notes.push(L('鬼祟潛行：多保留 1 顆防禦骰', 'Skulk About: one extra defence die retained'));
   if (s.resilient?.length) {
