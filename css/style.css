@@ -178,6 +178,8 @@ button.wide { width: 100%; margin-top: 10px; }
 .order-token.expended { --token-color: #47362a; --token-edge: #d38343; --token-ink: #f5b578; }
 .order-token.conceal.expended { --token-color: #203e51; --token-edge: #5caccb; --token-ink: #a8e0f4; }
 .counteract-token { --token-color: #e7dbc3; --token-edge: #93836c; --token-ink: #28231d; }
+.crossfire-token { --token-color: #7a5aa6; --token-edge: #d9c6f5; --token-ink: #fff; }
+.token-num { font-size: .38px; font-weight: 800; fill: var(--token-ink); }
 .token-face { fill: var(--token-color); stroke: var(--token-edge); stroke-width: .055; stroke-linejoin: round; }
 .token-symbol { fill: none; stroke: var(--token-ink); stroke-width: .055; stroke-linecap: round; stroke-linejoin: round; }
 .token-used { fill: none; stroke: #fff2d6; stroke-width: .075; stroke-linecap: round; stroke-linejoin: round; }

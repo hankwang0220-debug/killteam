@@ -14,7 +14,18 @@ function operativeTokens(o) {
   return `<g class="order-token ${conceal ? 'conceal' : 'engage'} ${ready ? 'ready' : 'expended'}" role="img" aria-label="${order} · ${state}">
     <title>${order} · ${state}</title><path class="token-face" d="M-.43-.37H.43L0 .42Z"/>
     ${icon}${ready ? '' : '<path class="token-used" d="M.19 .27 .25 .33 .36 .19"/>'}
-  </g>${o.counteracted ? counteractToken() : ''}`;
+  </g>${o.counteracted ? counteractToken() : ''}${crossfireToken(o)}`;
+}
+
+/** Crossfire tokens (Brood Brothers) on an enemy: a small badge with how many. */
+function crossfireToken(o) {
+  const n = (o.crossfire || []).reduce((s, x) => s + (x || 0), 0);
+  if (!n) return '';
+  const zh = getLang() === 'zh';
+  return `<g class="crossfire-token" transform="translate(0 ${o.counteracted ? 1.9 : .95})" role="img" aria-label="${zh ? `交叉火力 ${n}` : `Crossfire ${n}`}">
+    <title>${zh ? `交叉火力標記 ×${n}` : `Crossfire tokens ×${n}`}</title>
+    <circle class="token-face" r=".35"/><text class="token-num" y=".13" text-anchor="middle">${n}</text>
+  </g>`;
 }
 
 function counteractToken() {
@@ -75,7 +86,7 @@ export function renderBoard(g, ui) {
     const c = controller(g, m);
     const col = c == null ? 'var(--obj)' : team(g, c).color;
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
-    const sym = { infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠' }[m.kind] || '✦';
+    const sym = { infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
     if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);

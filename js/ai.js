@@ -487,6 +487,26 @@ export function aiStep(g) {
     if (t) { doTargetAction(g, op, 'omniscanner', t); return null; }
   }
   if (can.datacoronal && (op.ap >= 2 || !shootOptions(g, op).length) && g.objectives.filter((m) => living(g, op.side).some((o) => dist(o, m) <= 2)).length >= 2) { doSelfAction(g, op, 'datacoronal'); return null; }
+  // Brood Brothers: Conspire for CP, Mental Onslaught up close, Telepathic Overload / Jam on the most dangerous enemy,
+  // Explosives: place it near enemies, detonate when enemies (and no friendlies) are within 2" of it.
+  if (can.conspire && (op.ap >= 2 || !shootOptions(g, op).length)) { doSelfAction(g, op, 'conspire'); return null; }
+  if (can.mentalOnslaught) {
+    const t = TARGET_ACTIONS.mentalOnslaught.targets(g, op).filter((e) => edgeDist(op, e) <= 6).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'mentalOnslaught', t); return null; }
+  }
+  if (can.telepathicOverload && op.ap >= 2) {
+    const t = TARGET_ACTIONS.telepathicOverload.targets(g, op).filter((e) => e.ready).sort((a, b) => tpl(b).apl - tpl(a).apl || b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'telepathicOverload', t); return null; }
+  }
+  if (can.bbJam && (op.ap >= 2 || !shootOptions(g, op).length)) {
+    const t = TARGET_ACTIONS.bbJam.targets(g, op).sort((a, b) => tpl(b).apl * b.wounds - tpl(a).apl * a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'bbJam', t); return null; }
+  }
+  if (can.explosives) {
+    const m = (g.markers || []).find((x) => x.kind === 'explosives' && x.by === op.uid);
+    const within = (side) => living(g, side).some((o) => dist(o, m) - radius(o) <= 2);
+    if (m ? within(1 - op.side) && !within(op.side) : foes(g, op).some((e) => edgeDist(op, e) <= 5) && op.ap >= 2) { doSelfAction(g, op, 'explosives'); return null; }
+  }
   if (can.knuxSmash) {
     const t = TARGET_ACTIONS.knuxSmash.targets(g, op).sort((a, b) => a.wounds - b.wounds)[0];
     if (t) { doTargetAction(g, op, 'knuxSmash', t); return null; }

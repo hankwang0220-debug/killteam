@@ -437,6 +437,42 @@ const hbFocusedBC = W('hbFocusedBC', '重爆彈槍（集中）', 'Heavy bolter (
 const hbSweepingBC = W('hbSweepingBC', '重爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', piercingCrits: 1, torrent: 1 }, 'heavyBolterBC');
 const augmeticClaw = W('augmeticClaw', '機械爪', 'Augmetic claw', 'melee', 3, 4, 4, 5, { brutal: true });
 
+// ---- Brood Brothers ----
+const bbBoltPistol = W('bbBoltPistol', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const bbDrumAutogun = W('bbDrumAutogun', '彈鼓自動槍', 'Drum-fed autogun', 'ranged', 4, 3, 2, 3, { ceaseless: true });
+const bbLaspistolC = W('bbLaspistolC', '雷射手槍', 'Laspistol', 'ranged', 4, 3, 2, 3, { range: 8 });
+const bbBayonetC = W('bbBayonetC', '刺刀', 'Bayonet', 'melee', 3, 3, 2, 3);
+const bbChainClaw = W('bbChainClaw', '鏈鋸劍與爪', 'Chainsword & claw', 'melee', 4, 3, 4, 5, { balanced: true, rending: true });
+const bbPowerClaw = W('bbPowerClaw', '動力武器與爪', 'Power weapon & claw', 'melee', 4, 3, 4, 6, { balanced: true, lethal: 5 });
+const bbLasgun = W('bbLasgun', '雷射槍', 'Lasgun', 'ranged', 4, 4, 2, 3);
+const bbBayonet = W('bbBayonet', '刺刀', 'Bayonet', 'melee', 3, 4, 2, 3);
+const bbShockMaul = W('bbShockMaul', '電擊錘', 'Shock maul', 'melee', 4, 4, 4, 4, { shock: true });
+const bbLargeKnife = W('bbLargeKnife', '大刀', 'Large knife', 'melee', 4, 4, 3, 5);
+const bbFlamer = W('bbFlamer', '火焰噴射器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const bbGLFrag = W('bbGLFrag', '榴彈發射器（破片）', 'Grenade launcher (frag)', 'ranged', 4, 4, 2, 4, { blast: 2 }, 'bbGL');
+const bbGLKrak = W('bbGLKrak', '榴彈發射器（穿甲）', 'Grenade launcher (krak)', 'ranged', 4, 4, 4, 5, { piercing: 1 }, 'bbGL');
+const bbMelta = W('bbMelta', '熱熔槍', 'Meltagun', 'ranged', 4, 4, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const bbPlasmaStd = W('bbPlasmaStd', '電漿槍（標準）', 'Plasma gun (standard)', 'ranged', 4, 4, 4, 6, { piercing: 1 }, 'bbPlasma');
+const bbPlasmaSuper = W('bbPlasmaSuper', '電漿槍（超載）', 'Plasma gun (supercharge)', 'ranged', 4, 4, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'bbPlasma');
+const bbGeneNeedler = W('bbGeneNeedler', '基因針', 'Gene-needler', 'melee', 1, 4, 5, 7, { lethal: 5, limited: 1 });
+const bbDemoCharge = W('bbDemoCharge', '爆破炸藥', 'Demolition charge', 'ranged', 4, 3, 4, 6, { range: 3, blast: 2, heavy: 'reposition', limited: 1, piercing: 1, saturate: true });
+const bbPoisonKnives = W('bbPoisonKnives', '淬毒戰鬥刀', 'Poisoned fighting knives', 'melee', 4, 3, 3, 4, { ceaseless: true, lethal: 5 });
+const bbSniperConc = W('bbSniperConc', '狙擊步槍（隱蔽）', 'Sniper rifle (concealed)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true, silent: true, firstShotOnly: true }, 'bbSniper');
+const bbSniperMobile = W('bbSniperMobile', '狙擊步槍（機動）', 'Sniper rifle (mobile)', 'ranged', 4, 3, 3, 4, {}, 'bbSniper');
+const bbSniperStat = W('bbSniperStat', '狙擊步槍（定點）', 'Sniper rifle (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true }, 'bbSniper');
+const bbFists = W('bbFists', '拳頭', 'Fists', 'melee', 3, 4, 2, 3);
+const bbShotgunClose = W('bbShotgunClose', '戰鬥霰彈槍（近距）', 'Combat shotgun (close range)', 'ranged', 4, 3, 4, 4, { range: 6 }, 'bbShotgun');
+const bbShotgunLong = W('bbShotgunLong', '戰鬥霰彈槍（遠距）', 'Combat shotgun (long range)', 'ranged', 4, 5, 2, 2, {}, 'bbShotgun');
+const bbBayonetClaw = W('bbBayonetClaw', '刺刀與爪', 'Bayonet & claw', 'melee', 3, 4, 2, 3, { balanced: true });
+const bbAutopistol = W('bbAutopistol', '自動手槍', 'Autopistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const bbBioDagger = W('bbBioDagger', '生物匕首', 'Bio dagger', 'melee', 2, 4, 3, 6, { lethal: 4 });
+const bbForceStave = W('bbForceStave', '力場法杖', 'Force stave', 'melee', 4, 4, 4, 6, { psychic: true, shock: true });
+const bbNeedleShort = W('bbNeedleShort', '瞄準針槍（近距）', 'Scoped needle pistol (short range)', 'ranged', 4, 3, 2, 4, { range: 8, lethal: 5, silent: true }, 'bbNeedle');
+const bbNeedleLong = W('bbNeedleLong', '瞄準針槍（遠距）', 'Scoped needle pistol (long range)', 'ranged', 4, 3, 2, 4, { silent: true }, 'bbNeedle');
+const bbBonesword = W('bbBonesword', '骨劍與毒爪', 'Bonesword & toxin injector claw', 'melee', 5, 3, 4, 5, { lethal: 5, rending: true });
+const bbPatriarchClaws = W('bbPatriarchClaws', '利爪', 'Claws', 'melee', 5, 3, 5, 6, { relentless: true, rending: true });
+const bbFamiliarClaws = W('bbFamiliarClaws', '利爪', 'Claws', 'melee', 3, 4, 2, 3, { rending: true });
+
 // ---- Blades of Khaine ----
 const bkCatapult = W('bkCatapult', '手裡劍彈射器', 'Shuriken catapult', 'ranged', 4, 3, 3, 4, { rending: true });
 const bkTwinCatapult = W('bkTwinCatapult', '雙聯手裡劍彈射器', 'Twin shuriken catapult', 'ranged', 4, 3, 3, 4, { ceaseless: true, rending: true });
@@ -1478,6 +1514,83 @@ export const TEAMS = [
     ],
   },
   {
+    id: 'broodBrothers',
+    name: { zh: '族群裔兵', en: 'Brood Brothers' },
+    color: '#7a5aa6',
+    style: { zh: '射擊隊・人數多・交叉火力', en: 'Shooting · Horde · Crossfire' },
+    blurb: {
+      zh: '被基因竊取者教派感染的帝國士兵：一名指揮官帶領九名專家，還能找來族長、首領或巫師。被攻擊後活下來的敵人會得到交叉火力標記，之後攻擊它時可以拿來重擲。',
+      en: 'Imperial soldiers infected by a Genestealer Cult: a Commander leading nine specialists, with a Patriarch, Primus or Magus on call. Enemies that survive an attack gain Crossfire tokens, spent later to re-roll attack dice against them.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '滲透', en: 'Infiltration' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '否，需要多買一盒族群聖會（Broodcoven）', en: 'No — you also need a Broodcoven box' },
+      buyable: { zh: '能', en: 'Yes' },
+      size: { zh: '10 名特工（另有 3 個族群聖會名額）', en: '10 operatives (plus 3 Broodcoven selections)' },
+    },
+    broodBrothers: true,
+    perCopyRoster: true,
+    rule: {
+      name: { zh: '交叉火力', en: 'Crossfire' },
+      desc: {
+        zh: '友方射擊或近戰敵人後，若敵人沒倒下就得到一個交叉火力標記。之後友方射擊、近戰或反擊有標記的敵人時，每移除一個標記就能重擲一顆攻擊骰（自動用在失敗的骰子上）。',
+        en: 'After a friendly shoots or fights an enemy, if it isn\'t incapacitated it gains a Crossfire token. Friendlies shooting, fighting or retaliating against it can remove its tokens to re-roll one attack die each (used on fails automatically).',
+      },
+    },
+    ploys: [
+      { id: 'embedded', cp: 1, name: { zh: '嵌入陣地', en: 'Embedded' },
+        desc: { zh: '本回合敵人射擊友方時，若因重型地形能保留掩護豁免，可多保留一顆。', en: 'This TP, when an enemy shoots a friendly that can retain cover saves from Heavy terrain, it retains one more.' } },
+      { id: 'cultDevotion', cp: 1, name: { zh: '教派奉獻', en: 'Cult Devotion' },
+        desc: { zh: '本回合友方（族長除外）在近戰中倒下時，若還有未結算的成功，擲 D6：達到命中值可再用一顆普通成功打擊（擲出暴擊時任一顆成功）。', en: 'This TP, when a friendly (not the Patriarch) is incapacitated in a fight with unresolved successes, roll a D6: if it would hit, strike with an unresolved normal success (any success on a crit).' } },
+      { id: 'pervasive', cp: 1, name: { zh: '無所不在', en: 'Pervasive' },
+        desc: { zh: '本回合友方攀爬時可忽略第一段 2" 垂直距離。（2D 版沒有攀爬，沒有效果）', en: 'This TP, friendlies ignore the first 2" of one climb. (No climbing in this 2D version: no effect.)' } },
+      { id: 'uprising', cp: 1, name: { zh: '起義', en: 'Uprising' },
+        desc: { zh: '本回合友方從隱蔽改為交戰後的第一次射擊或近戰：選定目標時目標就先得到一個交叉火力標記（啟動時在敵人控制範圍內則無效）。', en: 'This TP, a friendly\'s first Shoot or Fight after switching from Conceal to Engage gives the target a Crossfire token as soon as it\'s selected (not if it activated within an enemy\'s control range).' } },
+    ],
+    // Nine specialists (each picked on its own; each option once except Troopers, at most three Gunners/Sniper),
+    // then three Broodcoven selections (packages).
+    replacements: Object.fromEntries(['bbAgitator', 'bbGunFlamer', 'bbGunGL', 'bbGunPlasma', 'bbIconward', 'bbKnife', 'bbMedic', 'bbSapper', 'bbVox']
+      .map((id) => [id, [id, ...['bbAgitator', 'bbGunFlamer', 'bbGunGL', 'bbGunMelta', 'bbGunPlasma', 'bbIconward', 'bbKnife', 'bbMedic', 'bbSapper', 'bbSniper', 'bbTrooper', 'bbVeteran', 'bbVox'].filter((x) => x !== id)]])),
+    packages: {
+      coven: {
+        name: { zh: '族群聖會名額（3 個）', en: 'Broodcoven selections (3)' },
+        options: {
+          troopers: { name: { zh: '3 名兵員', en: '3 Troopers' }, ops: ['bbTrooper', 'bbTrooper', 'bbTrooper'] },
+          magus: { name: { zh: '巫師＋1 名兵員', en: 'Magus + 1 Trooper' }, ops: ['bbMagus', 'bbTrooper'] },
+          primus: { name: { zh: '首領＋1 名兵員', en: 'Primus + 1 Trooper' }, ops: ['bbPrimus', 'bbTrooper'] },
+          patriarch: { name: { zh: '族長', en: 'Patriarch' }, ops: ['bbPatriarch'] },
+          familiars: { name: { zh: '2 隻靈能使魔＋2 名兵員', en: '2 Psychic Familiars + 2 Troopers' }, ops: ['bbFamiliar', 'bbFamiliar', 'bbTrooper', 'bbTrooper'] },
+          magusFam: { name: { zh: '巫師＋2 隻靈能使魔', en: 'Magus + 2 Psychic Familiars' }, ops: ['bbMagus', 'bbFamiliar', 'bbFamiliar'] },
+          primusFam: { name: { zh: '首領＋2 隻靈能使魔', en: 'Primus + 2 Psychic Familiars' }, ops: ['bbPrimus', 'bbFamiliar', 'bbFamiliar'] },
+          ploys: { name: { zh: '不帶特工：3 張族群裔兵計謀整場 0CP', en: 'No operatives: three Brood Brother ploys cost 0CP for the battle' }, ops: [], freePloys: 3 },
+        },
+      },
+    },
+    ops: [
+      op('bbCommander', '指揮官', 'Commander', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, bbLeader: true, coordinate: true,
+        loadouts: { chain: [bbBoltPistol, bbChainClaw], autogun: [bbDrumAutogun, bbBayonetC], power: [bbLaspistolC, bbPowerClaw] } }, [bbBoltPistol, bbChainClaw]),
+      op('bbAgitator', '煽動者', 'Agitator', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, devoted: true, psiren: true }, [bbShockMaul]),
+      op('bbGunFlamer', '槍手（火焰噴射器）', 'Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [bbFlamer, bbBayonet]),
+      op('bbGunGL', '槍手（榴彈發射器）', 'Gunner (grenade launcher)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [bbGLFrag, bbGLKrak, bbBayonet]),
+      op('bbGunPlasma', '槍手（電漿槍）', 'Gunner (plasma gun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [bbPlasmaStd, bbPlasmaSuper, bbBayonet]),
+      op('bbIconward', '聖像守衛', 'Iconward', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, cultIcon: true }, [bbLargeKnife]),
+      op('bbKnife', '刀鬥士', 'Knife Fighter', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, assassin: true, counterattack: true }, [bbPoisonKnives]),
+      op('bbMedic', '醫護兵', 'Medic', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, medic: true, medikit: true }, [bbLasgun, bbBayonet, bbGeneNeedler]),
+      op('bbSapper', '工兵', 'Sapper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, grenadier: true, explosives: true, finalDefiance: true }, [bbDemoCharge, bbBayonet]),
+      op('bbVox', '通訊兵', 'Vox-operator', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, signal: true, jam: true }, [bbLasgun, bbBayonet]),
+      op('bbGunMelta', '槍手（熱熔槍）', 'Gunner (meltagun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [bbMelta, bbBayonet], 0),
+      op('bbSniper', '狙擊手', 'Sniper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [bbSniperConc, bbSniperMobile, bbSniperStat, bbFists], 0),
+      op('bbVeteran', '老兵', 'Veteran', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, tough: true, bodyguard: true }, [bbShotgunClose, bbShotgunLong, bbBayonetClaw], 0),
+      op('bbTrooper', '兵員', 'Trooper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, groupAct: 'bbTrooper' }, [bbLasgun, bbBayonet], 0),
+      op('bbMagus', '巫師', 'Magus', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, psyker: true, broodcoven: true, bbLeader: true, spiritualLeader: true, telepathicOverload: true, mentalOnslaught: true }, [bbAutopistol, bbBioDagger, bbForceStave], 0),
+      op('bbPrimus', '首領', 'Primus', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, broodcoven: true, bbLeader: true, fistPatriarch: true, conspire: true }, [bbNeedleShort, bbNeedleLong, bbBonesword], 0),
+      op('bbPatriarch', '族長', 'Patriarch', { apl: 4, move: 6, save: 4, wounds: 21, base: 50, psyker: true, broodcoven: true, bbLeader: true, alphaPredator: true, brute: true, intoShadow: true }, [bbPatriarchClaws], 0),
+      op('bbFamiliar', '靈能使魔', 'Psychic Familiar', { apl: 2, move: 6, save: 5, wounds: 3, base: 25, small: true, disengage: true, groupAct: 'bbFamiliar' }, [bbFamiliarClaws], 0),
+    ],
+  },
+  {
     id: 'bladesOfKhaine',
     name: { zh: '凱恩之刃', en: 'Blades of Khaine' },
     color: '#2f8f5b',
@@ -1639,6 +1752,10 @@ const FIREFIGHT = {
     ff('mutability', '變化無常', 'Mutability and Change', '奸奇印記的友方啟動時：本次 APL +1。', 'When a Tzeentch operative is activated: +1 APL this activation.'),
     ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
     ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
+  ],
+  broodBrothers: [
+    ff('unquestioningLoyalty', '無條件忠誠', 'Unquestioning Loyalty', '自動：友方領袖被選為射擊或近戰目標時，改由它 3" 內看得到的另一名友方兵員（非領袖）承受（爆炸、洪流無效；老兵時 0CP）。', 'Auto: when a friendly Leader is picked as a Shoot or Fight target, another friendly Broodguard (not a Leader) visible within 3" of it becomes the target instead (not vs Blast/Torrent; 0CP for the Veteran).'),
+    ff('idolisation', '偶像崇拜', 'Idolisation', '友方（非領袖）在領袖或聖像守衛 6" 內攻擊時：一顆失敗當成普通成功，或一顆普通成功當成暴擊。', 'A friendly (not a Leader) within 6" of a Leader or the Iconward attacking: retain one fail as a normal success, or one normal as a critical.'),
   ],
   bladesOfKhaine: [
     ff('bladewind', '刃之風', 'Bladewind', '友方啟動中：本次啟動可以近戰兩次。', 'During a friendly\'s activation: it can perform two Fight actions.'),

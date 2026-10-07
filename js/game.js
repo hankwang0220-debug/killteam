@@ -108,6 +108,7 @@ export function moveAllowance(g, op, kind) {
   // Mission NEMESIS NPOs can't move more than a set distance per turning point.
   const cap = mission(g).npoMoveCap;
   if (cap && tpl(op).nemesis) d = Math.max(0, Math.min(d, cap - (op.movedTP || 0)));
+  if (tpl(op).alphaPredator) d = Math.max(0, Math.min(d, 9 - (op.movedTP || 0))); // Alpha Predator: no more than 9" a turning point
   return op.counter ? Math.min(d, 2) : d; // a counteracting operative cannot move more than 2"
 }
 
@@ -150,10 +151,16 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   };
   for (const side of [0, 1]) {
     let n = 0;
-    for (const slot of TEAM_MAP[teams[side]].ops) {
+    // Package picks (Brood Brothers' Broodcoven selections) add their operatives after the slots.
+    const extra = Object.entries(TEAM_MAP[teams[side]].packages || {}).flatMap(([pid, pk]) => {
+      const opt = pk.options[roster[side]?.[pid]] || Object.values(pk.options)[0];
+      if (opt.freePloys) (g.freePloyCount ||= [0, 0])[side] = opt.freePloys;
+      return opt.ops.map((id) => ({ id, count: 1, pkg: true }));
+    });
+    for (const slot of [...TEAM_MAP[teams[side]].ops, ...extra]) {
       if (!slot.count) continue;
       // A slot's pick is one template id, or (perCopyRoster teams) a list with one id per copy.
-      const pick = roster[side]?.[slot.id];
+      const pick = slot.pkg ? null : roster[side]?.[slot.id];
       const allowed = TEAM_MAP[teams[side]].replacements?.[slot.id];
       for (let k = 0; k < slot.count; k++) {
         const chosen = (Array.isArray(pick) ? pick[k] : pick) || slot.id;
@@ -480,7 +487,7 @@ function startTP(g) {
     log(g, { zh: `${opName(cm, 'zh')} 戰略監督（擲 ${r}）${r >= 4 ? '：+1CP' : '：沒有效果'}`, en: `${opName(cm, 'en')} Strategic Oversight (rolled ${r})${r >= 4 ? ': +1CP' : ': no effect'}` }, `side${s}`);
   }
   // actTP / movedTP: NPO activation and movement limits per turning point.
-  for (const o of g.ops) { o.ready = !o.dead; o.acted = {}; o.ap = 0; o.counteracted = false; o.actTP = 0; o.movedTP = 0; }
+  for (const o of g.ops) { o.ready = !o.dead; o.acted = {}; o.ap = 0; o.counteracted = false; o.actTP = 0; o.movedTP = 0; o.patSpent = 0; }
   for (const s of [0, 1]) { livingMetal(g, s); readyReanimation(g, s); readyFaith(g, s); } // Hierotek Circle / Novitiates
   archonReady(g);
   // Smoke grenades from the last turning point stay for D3 more activations (rolled in this Ready step).
@@ -522,6 +529,7 @@ export function finishPloys(g) {
   skillsStrategyEnd(g, side); // Kasrkin: Skill at Arms (if not picked) and the Clearance Sweep marker
   battlecladeStrategyEnd(g, side); // Battleclade: Prioritised Acquisition marker
   danceOfDeath(g, side); // Blades of Khaine
+  broodStrategyEnd(g, side); // Brood Brothers: Coordinate, Spiritual Leader
   if (g.stratStep) startFirefight(g);
   else g.stratStep = 1;
 }
@@ -548,7 +556,11 @@ const inEnemyTerritory = (g, op) => {
 // Command Breach (Sergeant-at-Arms): Attack / Defence Order cost 0CP.
 export const ployCost = (g, side, ploy) => (freePloyOp(g, side, ploy)
   || (ploy.id === 'contagion' && living(g, side).some((o) => tpl(o).iconBearer && inEnemyTerritory(g, o)))
-  || (ploy.group === 'navyOrder' && living(g, side).some((o) => tpl(o).commandBreach)) ? 0 : ploy.cp);
+  || (ploy.group === 'navyOrder' && living(g, side).some((o) => tpl(o).commandBreach))
+  || broodFreePloy(g, side, ploy) ? 0 : ploy.cp);
+/** Brood Brothers: Broodcoven selections taken as ploys — the first ones bought cost 0CP for the rest of the battle. */
+const broodFreePloy = (g, side, ploy) => !!g.freePloyCount?.[side] && team(g, side).ploys.includes(ploy)
+  && (g.bbFree?.[side]?.includes(ploy.id) || (g.bbFree?.[side]?.length || 0) < g.freePloyCount[side]);
 
 /**
  * Can't be used now: already used this ploy, or another from its group this turning point (e.g. one
@@ -565,6 +577,7 @@ export function buyPloy(g, side, ploy) {
   if (side !== ployChooser(g) || g.cp[side] < cost || ployTaken(g, side, ploy)) return false;
   g.cp[side] -= cost;
   g.ploys[side].push(ploy.id);
+  if (broodFreePloy(g, side, ploy) && !g.bbFree?.[side]?.includes(ploy.id)) ((g.bbFree ||= [[], []])[side]).push(ploy.id); // (free from now on)
   if (ploy.id === 'plunderers') corsairPlunder(g, side);
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
@@ -616,6 +629,7 @@ export function passChain(g) {
 
 export function activate(g, op) {
   op.chained = !!g.chain; // activated through Group Activation / Directive: doesn't chain again
+  op.orderPicked = false; // (see setOrder)
   op.chainFrom = g.chain; // restored if the player switches to another operative before acting
   if (g.chain?.kind === 'breach') {
     (g.breachTP ||= [0, 0])[op.side] = g.tp;
@@ -633,6 +647,7 @@ export function activate(g, op) {
   if (!g.counter) op.shieldingOn = false; // Shielding lasts until the start of its next activation
   if (!g.counter) op.gongOn = false; // so does Gong Knell
   if (!g.counter) { op.ragingHeat = false; op.gloom = false; } // and Raging Heat / One with the Gloom (Blades of Khaine)
+  if (!g.counter) op.bbStartEngaged = isEngaged(g, op); // (Uprising: no effect if activated within an enemy's control range)
   if (!g.counter && g.mantle?.[op.side] === op.uid) g.mantle[op.side] = null; // and Mantle of Darkness
   // Cult Ambush (Wyrmblade): not visible to enemy operatives at the start of the activation.
   if (!g.counter && TEAM_MAP[op.team].cultAmbush) op.acted.unseen = !foes(g, op).some((e) => visibility(g, e, op).visible);
@@ -658,6 +673,8 @@ export function activate(g, op) {
   } else {
     if (op.darkAnimus) { op.aplNext = (op.aplNext || 0) - 1; op.aplKeep = false; }
     op.ap = aplNow(g, op);
+    // Alpha Predator (Patriarch): two activations a turning point, no more than 4AP between them.
+    if (tpl(op).alphaPredator) { op.ap = Math.max(0, Math.min(op.ap, 4 - (op.patSpent || 0))); op.patStartAp = op.ap; }
     // Sorcerous Automata (Rubric Marines): -1 APL this activation unless a friendly Sorcerer is within 9".
     if (tpl(op).automata && !sorcererNear(g, op, 9)) {
       op.ap = Math.max(0, op.ap - 1);
@@ -708,6 +725,7 @@ export function setOrder(g, op, order) {
   if (op.orderSet) return;
   if (op.frenzy && order === 'conceal') return; // Frenzy: it can't have a Conceal order
   op.order = order;
+  op.orderPicked = true; // the player has chosen this activation's order (the UI asks before any action)
 }
 
 /** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
@@ -717,6 +735,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side ? net
 export function endActivation(g) {
   const op = activeOp(g);
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
+  const apLeft = op?.ap || 0; // (Alpha Predator: AP it didn't spend carry over to its second activation)
   if (g.proxy) endProxy(g); // an unused Interstitial Command Shoot is lost
   g.ffPending = null; g.ffAtk = null;
   if (g.smoke?.length) { for (const s of g.smoke) if (s.left != null) s.left--; g.smoke = g.smoke.filter((s) => s.left == null || s.left > 0); }
@@ -725,6 +744,12 @@ export function endActivation(g) {
     op.ready = false; op.ap = 0;
     if (op.counter) { op.counter = false; op.counteracted = true; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
+    // Alpha Predator (Patriarch): after its first activation it stays ready while it has AP left this turning point.
+    if (tpl(op).alphaPredator && !wasCounter && op.patStartAp != null) {
+      op.patSpent = (op.patSpent || 0) + Math.max(0, op.patStartAp - apLeft);
+      op.patStartAp = null;
+      if (op.patSecondTP !== g.tp && op.patSpent < 4 && !op.dead) { op.ready = true; op.patSecondTP = g.tp; }
+    }
     // Frenzy: a Frenzied Fellgor falls when its activation or counteraction ends.
     if (op.frenzy && !op.dead) frenzyDie(g, op);
     // Mindburn lasts until the end of the target's next activation.
@@ -865,6 +890,8 @@ export function controller(g, obj) {
   for (let s = 0; s < 3; s++) if (shriek[s]) sum[s] = Math.max(0, sum[s] - 1);
   // Prioritised Acquisition (Battleclade ploy): +1 to the total while contesting the chosen marker.
   for (const s of [0, 1]) if (sum[s] > 0 && g.acquisition?.[s]?.tp === g.tp && g.acquisition[s].id === obj.id && !obj.kind) sum[s]++;
+  // Cult Icon (Brood Brother Iconward): +1 to the total for a marker within 4" of it that a friendly contests.
+  for (const s of [0, 1]) if (sum[s] > 0 && living(g, s).some((o) => tpl(o).cultIcon && dist(o, obj) - radius(o) <= 4)) sum[s]++;
   const best = Math.max(...sum);
   return best > 0 && sum.filter((v) => v === best).length === 1 ? sum.indexOf(best) : null;
 }
@@ -948,8 +975,8 @@ function attackAllowed(op, kind) {
   if (kind === 'fight' && count(op, kind) === 1 && accelerant(op)) return true; // Accelerant Agents (Ruststalkers)
   if (kind === 'shoot' && op.acted.starfall && count(op, kind) === 1) return true; // Starfall (Blades of Khaine)
   const otherKind = kind === 'shoot' ? 'fight' : 'shoot';
-  // Astartes / Exarch (Blades of Khaine): two Shoot or two Fight actions.
-  return (isAstartes(op) || !!tpl(op).exarch) && count(op, kind) === 1 && count(op, otherKind) === 0;
+  // Astartes / Exarch (Blades of Khaine) / Fist of the Patriarch (Primus): two Shoot or two Fight actions.
+  return (isAstartes(op) || !!tpl(op).exarch || !!tpl(op).fistPatriarch) && count(op, kind) === 1 && count(op, otherKind) === 0;
 }
 
 export const ACTIONS = {
@@ -1021,6 +1048,12 @@ export const ACTIONS = {
   omniscanner: { ap: 1, name: { zh: '全知掃描儀', en: 'Omniscanner' } },
   datacoronal: { ap: 1, name: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' } },
   networkOverride: { ap: 1, name: { zh: '網路覆寫', en: 'Network Override' } },
+  explosives: { ap: 1, name: { zh: '爆破', en: 'Explosives' } },
+  bbJam: { ap: 1, name: { zh: '干擾', en: 'Jam' } },
+  telepathicOverload: { ap: 1, name: { zh: '心靈過載', en: 'Telepathic Overload' } },
+  mentalOnslaught: { ap: 1, name: { zh: '精神衝擊', en: 'Mental Onslaught' } },
+  conspire: { ap: 1, name: { zh: '密謀', en: 'Conspire' } },
+  intoShadow: { ap: 1, name: { zh: '隱入暗影', en: 'Into Shadow' } },
 };
 // Cryptek unique actions (an Apprentek can perform one of them per turning point).
 const CRYPTEK_ACTIONS = ['interstitial', 'canoptekRepair', 'augment', 'reinforce'];
@@ -1349,6 +1382,33 @@ export const TARGET_ACTIONS = {
     },
   },
   // Medikit: a wounded friendly non-drone Pathfinder within control range regains 2D3 wounds.
+  // Jam (Brood Brother Vox-operator): a ready enemy that's a valid target can't activate until it's the last one,
+  // or until the opponent has activated D6 other operatives.
+  bbJam: {
+    targets: (g, op) => foes(g, op).filter((t) => t.ready && t.side < 2 && broodValid(g, op, t)),
+    apply(g, op, t) {
+      const r = d6();
+      (g.scramble ||= [null, null])[op.side] = { uid: t.uid, tp: g.tp, n: (g.actCount?.[t.side] || 0) + r };
+      return { zh: `干擾：${opName(t, 'zh')} 要等對手再啟動 ${r} 名特工（或只剩它）才能行動`, en: `Jam: ${opName(t, 'en')} can't act until the opponent has activated ${r} more operatives (or it's the last)` };
+    },
+  },
+  // Telepathic Overload (Magus, PSYCHIC): a valid target gets -1 APL until the end of its activation.
+  telepathicOverload: {
+    targets: (g, op) => foes(g, op).filter((t) => broodValid(g, op, t)),
+    apply(g, op, t) { changeApl(g, t, -1); return { zh: `心靈過載：${opName(t, 'zh')} APL -1（到它啟動結束）`, en: `Telepathic Overload: ${opName(t, 'en')} -1 APL (until the end of its activation)` }; },
+  },
+  // Mental Onslaught (Magus, PSYCHIC): 2 damage (4 within 6"), then keep rolling a D6 above its APL for more, up to 8.
+  mentalOnslaught: {
+    targets: (g, op) => foes(g, op).filter((t) => broodValid(g, op, t)),
+    apply(g, op, t) {
+      const step = edgeDist(op, t) <= 6 ? 4 : 2, rolls = [];
+      let total = 0;
+      const hit = () => { const d = Math.min(step, 8 - total); total += d; applyDamage(g, op, t, d); };
+      hit();
+      while (!t.dead && total < 8) { const r = d6(); rolls.push(r); if (r <= aplNow(g, t)) break; hit(); }
+      return { zh: `精神衝擊：${opName(t, 'zh')} 受到 ${total} 傷害（擲骰 ${rolls.join('、') || '—'}）`, en: `Mental Onslaught: ${opName(t, 'en')} takes ${total} damage (rolls ${rolls.join(', ') || '—'})` };
+    },
+  },
   // Omniscanner (Technoarcheologist): an enemy visible or within 8" gains an Omniscanner token (Ceaseless against it).
   omniscanner: {
     targets: (g, op) => foes(g, op).filter((t) => !t.omni?.[op.side] && (edgeDist(op, t) <= 8 || visibility(g, op, t).visible)),
@@ -1525,7 +1585,7 @@ export function shootWeapon(g, op, w) {
       return { ok: op.ap >= ap, ap, why: null };
     }
     if (TEAM_MAP[op.team].rapidFire && !rapidWeapon(w)) return no('快速射擊兩次都要用爆彈手槍或熱射雷射槍／手槍', 'Rapid Fire: both Shoots need a bolt pistol or hot-shot lasgun / laspistol');
-    if (!TEAM_MAP[op.team].anyAstartesShot && !TEAM_MAP[op.team].rapidFire && !TEAM_MAP[op.team].bladesOfKhaine && !astartesShot(w) && !op.acted.shotBolt) return no('兩次射擊至少一次要用爆彈（或靈能）武器', 'One of the two Shoots must use a bolt (or Psychic) weapon');
+    if (!TEAM_MAP[op.team].anyAstartesShot && !TEAM_MAP[op.team].rapidFire && !TEAM_MAP[op.team].bladesOfKhaine && !TEAM_MAP[op.team].broodBrothers && !astartesShot(w) && !op.acted.shotBolt) return no('兩次射擊至少一次要用爆彈（或靈能）武器', 'One of the two Shoots must use a bolt (or Psychic) weapon');
     if (w.rules.psychic && first === w.group) return no('同一把靈能武器不能用兩次', 'Same Psychic weapon twice');
     if (first === w.group && DOUBLE_SHOT_GROUPS.includes(w.group)) ap = 2;
   }
@@ -1616,6 +1676,20 @@ export function availableActions(g, op) {
   if (tpl(op).systemJam) unique('systemJam', !conceal, CONC);
   if (tpl(op).medikit) unique('medikit');
   if (tpl(op).veriscant) unique('veriscant');
+  // Brood Brothers.
+  if (TEAM_MAP[op.team].broodBrothers) {
+    if (tpl(op).explosives) {
+      const n = op.explosivesUsed || 0, moved = did('charge', 'dash', 'fallBack');
+      add('explosives', !engaged && n < 2 && !count(op, 'explosives') && !moved, engaged ? ENG : n >= 2 || count(op, 'explosives') ? DONE : COMBO);
+      // (and not the other way round: no Charge, Dash or Fall Back after it this activation)
+      if (count(op, 'explosives')) for (const a of list) if (['charge', 'dash', 'fallBack'].includes(a.id)) { a.ok = false; a.why = COMBO; }
+    }
+    if (tpl(op).jam) unique('bbJam');
+    if (tpl(op).telepathicOverload) unique('telepathicOverload');
+    if (tpl(op).mentalOnslaught) unique('mentalOnslaught');
+    if (tpl(op).conspire) add('conspire', !engaged && op.conspireTP !== g.tp, engaged ? ENG : DONE);
+    if (tpl(op).intoShadow) add('intoShadow', !engaged && !count(op, 'intoShadow'), engaged ? ENG : DONE);
+  }
   // Battleclade: Noospheric Network and the Tech-Priests' actions.
   if (TEAM_MAP[op.team].noosphericNetwork) {
     if (isServitor(op) && !op.counter) add('transferPower', !count(op, 'transferPower') && aplNow(g, op) >= 2 && netCands(g, op.side).some((o) => o !== op), count(op, 'transferPower') ? DONE : aplNow(g, op) < 2 ? { zh: 'APL 低於 2', en: 'APL below 2' } : { zh: '沒有其他可網路反擊的僕從', en: 'No other servitor can network counteract' });
@@ -1726,7 +1800,17 @@ export function doSelfAction(g, op, id) {
     guerrilla: { zh: `游擊戰：改為${op.order === 'conceal' ? '交戰' : '隱蔽'}指令`, en: `Guerrilla Warfare: switches to ${op.order === 'conceal' ? 'Engage' : 'Conceal'}` },
     transferPower: { zh: '轉移能量：這次啟動結束後，另一名僕從可以網路反擊', en: 'Transfer Power: after this activation another servitor can network counteract' },
     datacoronal: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' },
+    explosives: (op.explosivesUsed || 0) === 0 ? { zh: '爆破：放置炸藥標記（下次爆破時引爆）', en: 'Explosives: places the Explosives marker (the next one detonates it)' } : { zh: '爆破：引爆炸藥', en: 'Explosives: detonates the charge' },
+    conspire: { zh: '密謀：獲得 1CP', en: 'Conspire: +1CP' },
+    intoShadow: { zh: `隱入暗影：改為${op.order === 'conceal' ? '交戰' : '隱蔽'}指令`, en: `Into Shadow: switches to ${op.order === 'conceal' ? 'Engage' : 'Conceal'}` },
   }[id];
+  if (id === 'explosives') {
+    if ((op.explosivesUsed || 0) === 0) g.markers.push({ id: g.markers.length, kind: 'explosives', owner: op.side, by: op.uid, x: op.x, y: op.y, carriedBy: null });
+    else detonateExplosives(g, op);
+    op.explosivesUsed = (op.explosivesUsed || 0) + 1;
+  }
+  if (id === 'conspire') { op.conspireTP = g.tp; g.cp[op.side]++; }
+  if (id === 'intoShadow') op.order = op.order === 'conceal' ? 'engage' : 'conceal';
   if (id === 'datacoronal') {
     // Friendly Battleclade operatives within 6" of it or the Auto-proxy; D3 ≤ objectives they contest = +1CP.
     const near = living(g, op.side).filter((o) => sameTeam(o, op) && (edgeDist(o, op) <= 6 || o === op || nearRelay(g, o)));
@@ -2428,6 +2512,97 @@ const rapidOK = (op) => TEAM_MAP[op.team].rapidFire && !moved(op);
 const sweepOn = (g, op, target) => { const m = g.sweep?.[op.side]; return !!(m && m.tp === g.tp && target && dist(op, m) - radius(op) <= 5 && dist(target, m) - radius(target) <= 5); };
 const adaptiveOk = (g, op, k) => !!tpl(op).adaptive && g.adaptive?.[op.side]?.[k] !== g.tp;
 
+// ---------- Brood Brothers ----------
+const isBrood = (op) => !!TEAM_MAP[op.team]?.broodBrothers;
+/** Leaders: the Broodcoven operative if one was selected, otherwise the Commander. */
+const broodLeader = (g, op) => isBrood(op) && !!tpl(op).bbLeader && (!!tpl(op).broodcoven || !g.ops.some((o) => o.side === op.side && tpl(o).broodcoven));
+/** Broodguard: everyone but the Broodcoven and the Psychic Familiars. */
+const broodguard = (op) => isBrood(op) && !tpl(op).broodcoven && op.tplId !== 'bbFamiliar';
+/** Spiritual Leader (Magus, strategic gambit): this side's chosen benefit, while the Magus lives. */
+const spiritual = (g, op, mode) => isBrood(op) && g.spiritual?.[op.side]?.tp === g.tp && g.spiritual[op.side].mode === mode
+  && living(g, op.side).some((o) => tpl(o).spiritualLeader);
+const crossfire = (t, side) => t?.crossfire?.[side] || 0;
+/** "A valid target for this operative" for actions (visible, and not Concealed in cover). */
+const PROBE = { id: 'bbProbe', name: { zh: '', en: '' }, type: 'ranged', atk: 0, hit: 6, dmg: [0, 0], rules: {}, group: 'bbProbe' };
+const broodValid = (g, op, t) => !!validTarget(g, op, t, PROBE);
+function gainCrossfire(g, side, t) {
+  if (!t || t.dead || t.side === side || t.side > 1) return;
+  (t.crossfire ||= [0, 0])[side]++;
+  log(g, { zh: `${opName(t, 'zh')} 得到交叉火力標記（${t.crossfire[side]}）`, en: `${opName(t, 'en')} gains a Crossfire token (${t.crossfire[side]})` }, `side${side}`);
+}
+/** After a Brood Brother's attack dice are resolved: the enemy, if still standing, gains a Crossfire token. */
+function broodMark(g, op, target) { if (isBrood(op) && op.side < 2 && target && !target.dead) gainCrossfire(g, op.side, target); }
+/** Uprising (ploy): the first Shoot / Fight after springing from Conceal marks the target as soon as it's selected. */
+function uprising(g, op, target) {
+  if (!isBrood(op) || !hasPloy(g, op.side, 'uprising') || op.counter || g.active !== op.uid || op.acted.uprisingUsed) return;
+  if (!sprungNow(op) || op.bbStartEngaged) return;
+  op.acted.uprisingUsed = true;
+  gainCrossfire(g, op.side, target);
+}
+/** Psiren Caster, Crossfire tokens (one re-roll each) and Idolisation, after a Brood Brother rolls its attack dice. */
+function broodRerolls(g, op, target, pool, noReroll = false) {
+  if (!isBrood(op) || !target || op.side > 1) return;
+  const fail = () => pool.dice.find((d) => d.res === 'miss' && !d.rr && !d.auto);
+  const blocked = noReroll || noRerollHere(g, op) || voxbroken(g, op) || neurostatic(g, op) || broadcastNear(g, op);
+  if (!blocked) {
+    const reroll = (d) => { d.v = d6(); d.rr = true; tally(pool); };
+    if (fail() && living(g, op.side).some((a) => tpl(a).psiren && edgeDist(a, target) <= 6)) {
+      reroll(fail());
+      log(g, { zh: '心靈警報器：重擲一顆攻擊骰', en: 'Psiren Caster: one attack die re-rolled' }, `side${op.side}`);
+    }
+    let used = 0;
+    while (crossfire(target, op.side) > 0 && fail()) { target.crossfire[op.side]--; used++; reroll(fail()); }
+    if (used) log(g, { zh: `交叉火力：移除 ${used} 個標記，重擲 ${used} 顆攻擊骰`, en: `Crossfire: ${used} token(s) removed to re-roll ${used} attack dice` }, `side${op.side}`);
+  }
+  // Idolisation (firefight ploy): one fail is retained as a normal success, else a normal as a critical.
+  if (ffOn(g, op, 'idolisation')) {
+    const m = pool.dice.find((d) => d.res === 'miss' && !d.auto), n = pool.dice.find((d) => d.res === 'norm' && !d.auto);
+    if (m) m.faith = 'norm'; else if (n) n.faith = 'crit';
+    tally(pool);
+  }
+}
+/** Unquestioning Loyalty (firefight ploy, automatic): a friendly Broodguard within 3" takes the Leader's place. */
+function loyalSwap(g, attacker, target, weapon) {
+  if (!target || target.side > 1 || !broodLeader(g, target) || weapon?.rules.blast || weapon?.rules.torrent || !ffDef(g, target.side, 'unquestioningLoyalty')) return target;
+  const guard = living(g, target.side).filter((o) => o !== target && broodguard(o) && !broodLeader(g, o) && edgeDist(o, target) <= 3 && visibility(g, target, o).visible)
+    .sort((a, b) => (tpl(b).bodyguard ? 1 : 0) - (tpl(a).bodyguard ? 1 : 0) || b.wounds - a.wounds)[0];
+  if (!guard) return target;
+  g.loyalFree = !!tpl(guard).bodyguard; // Bodyguard (Veteran): 0CP
+  const used = autoFF(g, target.side, 'unquestioningLoyalty');
+  g.loyalFree = false;
+  if (!used) return target;
+  log(g, { zh: `無條件忠誠：${opName(guard, 'zh')} 替 ${opName(target, 'zh')} 擋下攻擊`, en: `Unquestioning Loyalty: ${opName(guard, 'en')} takes the attack for ${opName(target, 'en')}` }, `side${target.side}`);
+  return guard;
+}
+/** Explosives (Sapper): the first use places the marker, the second deals 2D6 to everyone within 2" of it. */
+function detonateExplosives(g, op) {
+  const m = (g.markers || []).find((x) => x.kind === 'explosives' && x.owner === op.side && x.by === op.uid);
+  if (!m) return;
+  g.markers.splice(g.markers.indexOf(m), 1);
+  for (const o of g.ops.filter((x) => !x.dead && x.x > -50 && dist(x, m) - radius(x) <= 2)) {
+    // (Heavy terrain wholly in the way protects: the line from the marker to the operative's centre crosses Heavy terrain.)
+    if (g.terrain.some((t) => t.kind === 'heavy' && segRect(m, o, t))) continue;
+    const dmg = d6() + d6();
+    log(g, { zh: `爆破：${opName(o, 'zh')} 受到 ${dmg} 傷害`, en: `Explosives: ${opName(o, 'en')} takes ${dmg} damage` }, `side${op.side}`);
+    applyDamage(g, op, o, dmg);
+  }
+}
+/** Strategy phase gambits: Coordinate (Commander) marks an enemy; Spiritual Leader (Magus) picks ignore-Piercing. */
+function broodStrategyEnd(g, side) {
+  if (!TEAM_MAP[g.teams[side]].broodBrothers || g.broodTP?.[side] === g.tp) return;
+  (g.broodTP ||= [0, 0])[side] = g.tp;
+  const mine = living(g, side);
+  if (mine.some((o) => tpl(o).coordinate)) {
+    const near = (e) => Math.min(...mine.map((m) => dist(m, e)));
+    const t = living(g, 1 - side).filter((e) => e.side < 2).sort((a, b) => near(a) - near(b))[0];
+    if (t) { log(g, { zh: `${teamZh(g, side)} 協調：`, en: `${team(g, side).name.en} Coordinate:` }, `side${side}`); gainCrossfire(g, side, t); }
+  }
+  if (mine.some((o) => tpl(o).spiritualLeader)) {
+    (g.spiritual ||= [null, null])[side] = { tp: g.tp, mode: 'piercing' };
+    log(g, { zh: `${teamZh(g, side)} 精神領袖：本回合友方被射擊時忽略穿甲`, en: `${team(g, side).name.en} Spiritual Leader: this TP, friendlies ignore Piercing when shot` }, `side${side}`);
+  }
+}
+
 // ---------- Blades of Khaine ----------
 const CATAPULTS = ['bkCatapult', 'bkTwinCatapult'];
 const isBlade = (op) => !!TEAM_MAP[op.team]?.bladesOfKhaine;
@@ -2586,7 +2761,7 @@ const contesting2 = (g, op) => (g.objectives || []).some((o) => !o.carriedBy && 
 const isPsyker = (op) => !!tpl(op).psyker || !!tpl(op).sorcerer || tpl(op).weapons.some((w) => w.rules.psychic);
 /** Null Rod (Condemnor): an enemy within 6" of a Condemnor can't use PSYCHIC ranged weapons or actions. */
 const nullRodded = (g, op) => op.side < 2 && living(g, 1 - op.side).some((c) => tpl(c).nullRodAura && edgeDist(c, op) <= 6);
-const PSYCHIC_ACTIONS = ['fate', 'ravage', 'alight', 'miasma', 'soulChannel', 'soulHeal', 'wardingShield', 'warpFold'];
+const PSYCHIC_ACTIONS = ['fate', 'ravage', 'alight', 'miasma', 'soulChannel', 'soulHeal', 'wardingShield', 'warpFold', 'telepathicOverload', 'mentalOnslaught'];
 /** Auto-broadcaster (Dialogus): an enemy within 3" of the marker can't re-roll its attack dice. */
 const broadcastNear = (g, op) => op.side < 2 && (g.markers || []).some((m) => m.kind === 'broadcaster' && m.owner === 1 - op.side && dist(op, m) - radius(op) <= 3);
 /** Glorious Hymnal (Preceptor): friendlies within 3" of it have Severe. */
@@ -2609,6 +2784,8 @@ registerCorsairActions();
 ACTIONS.blinkToggle = { ap: 0, name: { zh: '切換瞬移背包', en: 'Toggle Blink Pack' } };
 const FRAG = { id: 'eqFrag', name: { zh: '破片手榴彈', en: 'Frag grenade' }, type: 'ranged', atk: 4, hit: 4, dmg: [2, 4], rules: { range: 6, blast: 2, saturate: true, equipGrenade: 'frag', noMarkerlight: true }, group: 'eqFrag' };
 const KRAK = { id: 'eqKrak', name: { zh: '穿甲手榴彈', en: 'Krak grenade' }, type: 'ranged', atk: 4, hit: 4, dmg: [4, 5], rules: { range: 6, piercing: 1, saturate: true, equipGrenade: 'krak', noMarkerlight: true }, group: 'eqKrak' };
+const grenadier = (w) => { const rules = { ...w.rules, limited: 1 }; delete rules.equipGrenade; return { ...w, id: `bb${w.id.slice(2)}`, hit: w.hit - 1, rules, group: `bb${w.group.slice(2)}` }; };
+const GRENADIER_FRAG = grenadier(FRAG), GRENADIER_KRAK = grenadier(KRAK);
 const hasEquip = (g, side, id) => side < 2 && !!g.equip?.[side]?.includes(id);
 /** Uses left of a team-limited grenade (frag / krak / stun / smoke). */
 const eqLeft = (g, side, k) => g.eqUses?.[side]?.[k] || 0;
@@ -2617,6 +2794,8 @@ export function weaponsFor(g, op) {
   let ws = archonWeapons(op);
   // Shriek-that-Kills (Howling Banshee Aspect Technique): an extra ranged weapon while the Technique is available.
   if (tpl(op).aspect === 'hb' && op.side < 2 && g.phase === 'firefight' && g.active === op.uid && ffReady(g, op.side, 'hbShriek') && !techWhy(g, op, 'hbShriek')) ws = [...ws, BK_SHRIEK];
+  // Grenadier (Brood Brother Sapper): its own frag and krak grenades, Hit improved by 1, not from the team's uses.
+  if (tpl(op).grenadier) ws = [...ws, GRENADIER_FRAG, GRENADIER_KRAK];
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -2720,7 +2899,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id) => (['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id) => (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id) => ffBaseCost(g, side, id) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -3422,6 +3601,11 @@ function killOff(g, src, target) {
     log(g, { zh: `☠ ${opName(target, 'zh')} 失去戰鬥能力！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
     dropMarkers(g, target);
     if (!target.frenzy) countKill(g, src, target);
+    // Final Defiance (Brood Brother Sapper): a free Explosives action before it's removed — it detonates a placed charge.
+    if (tpl(target).finalDefiance && (target.explosivesUsed || 0) === 1) {
+      log(g, { zh: `${opName(target, 'zh')} 最後的反抗：引爆炸藥`, en: `${opName(target, 'en')} Final Defiance: detonates the charge` }, `side${target.side}`);
+      target.explosivesUsed = 2; detonateExplosives(g, target);
+    }
     if (g.pechra?.[target.side]?.by === target.uid) g.pechra[target.side] = null;
     if (g.pan?.[target.side]?.by === target.uid) g.pan[target.side] = null; // Pan Spectral Scan marker
     if (g.auspex?.[target.side] === target.uid) g.auspex[target.side] = null; // Auspex Scan
@@ -3528,6 +3712,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const atk = Math.max(1, weapon.atk + (rules.atkPlus || 0) - (cursed(g, op, 'barrelwarp') ? 1 : 0)); // Barrelwarp (Gellerpox)
   const a = rollPool(atk, hit, rules.lethal || 6, rules);
   archonPrey(g, op, target, a);
+  broodRerolls(g, op, target, a, noReroll); // Psiren Caster, Crossfire tokens, Idolisation (Brood Brothers)
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
   const inCover = vis.cover && !rules.ignoreCover;
@@ -3547,7 +3732,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const saturated = rules.saturate && !camo && !rogue && !tpl(target).cultAgent; // Cult Agents ignore Saturate
   // Auto-Ferric Supplication (Battleclade firefight ploy): a Tech-Priest being shot ignores Piercing.
   const ferric = (!!rules.piercing && tpl(target).techPriest && autoFF(g, target.side, 'autoFerric'))
-    || shimmered(g, target); // Shimmershield (Blades of Khaine) ignores Piercing too
+    || shimmered(g, target) // Shimmershield (Blades of Khaine) ignores Piercing too
+    || tpl(target).alphaPredator || spiritual(g, target, 'piercing'); // Alpha Predator / Spiritual Leader (Brood Brothers)
   // Defence dice and retained saves, with or without the cover save.
   const defence = (useCover, crits) => {
     // Xenotech Shielding (Archivist) ignores Piercing.
@@ -3573,6 +3759,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     if (!base && !target.ready && TEAM_MAP[target.team].frenzy && hasPloy(g, target.side, 'recklessDetermination')) coverN++;
     // Undying Androids (Hierotek ploy): without cover saves, one defence die is retained as a normal success.
     if (!base && target.side < 2 && isHierotek(target) && hasPloy(g, target.side, 'undyingAndroids')) coverN++;
+    // Embedded (Brood Brothers ploy): cover saves from Heavy terrain — one more.
+    if (base && target.side < 2 && isBrood(target) && hasPloy(g, target.side, 'embedded') && shotVisibility(g, op, target, weapon, { ignoreLight: true }).cover) coverN++;
     coverC = Math.min(coverC, defDice);
     coverN = Math.min(coverN, defDice - coverC);
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
@@ -3705,6 +3893,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     (g.mindburn ||= [null, null])[op.side] = burnt ? target.uid : null;
     if (burnt) log(g, { zh: `心靈灼燒：${opName(target, 'zh')} 武器命中變差 1，直到它下次啟動結束`, en: `Mindburn: ${opName(target, 'en')}'s weapons worsen their Hit by 1 until the end of its next activation` }, `side${op.side}`);
   }
+  broodMark(g, op, target); // Crossfire: a Brood Brother's target that's still standing gains a token
   return {
     target: target.uid, rules, hit, atk, attack: a, save, defDice, coverSaves: coverN + coverC, coverCrit: coverC,
     inCover: useCover, obscured: useObscured, coverOrObscured: coverChoice, saturated: rules.saturate && useCover && !base, skulk, pierce, defence: d, dmg, dev, tox, resilient: res.rolls, poisoned, stunned,
@@ -3783,6 +3972,9 @@ export function* shootFlow(g, op, weapon, target) {
   const revolt = !weapon.rules.hot && target.side < 2 && autoFF(g, target.side, 'revoltingTech');
   const relay = weapon.rules.detonate ? null : magnifyRelay(g, op, target, weapon);
   const vis = weapon.rules.detonate ? { visible: true, cover: false, obscured: false } : shotVisibility(g, relay || op, target, weapon);
+  // Unquestioning Loyalty (Brood Brothers): a bodyguard takes the shot instead (in cover / obscured only if the Leader was).
+  target = loyalSwap(g, op, target, weapon);
+  uprising(g, op, target); // Uprising: the target gains a Crossfire token as soon as it's selected
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
   const others = secondaryTargets(g, op, weapon, target); // chosen before any damage is dealt
@@ -3851,8 +4043,10 @@ export function* shootFlow(g, op, weapon, target) {
 }
 
 export function bestMelee(op) {
-  const ws = archonWeapons(op).filter((w) => w.type === 'melee');
-  return ws.sort((a, b) => avgDmg(b) - avgDmg(a))[0];
+  const all = archonWeapons(op).filter((w) => w.type === 'melee');
+  // (a Limited melee weapon that's used up — e.g. the Brood Brother Medic's gene-needler — is left out)
+  const ws = all.filter((w) => !(w.rules.limited && (op.used?.[w.id] || 0) >= w.rules.limited));
+  return (ws.length ? ws : all).sort((a, b) => avgDmg(b) - avgDmg(a))[0];
 }
 
 export function avgDmg(w, hitMod = 0) {
@@ -3876,6 +4070,9 @@ export function startFight(g, op, weapon, target) {
     log(g, { zh: `${opName(hound, 'zh')} 脾氣暴躁：${opName(op, 'zh')} 必須改打牠`, en: `${opName(hound, 'en')} Bad-tempered: ${opName(op, 'en')} must fight it instead` }, `side${hound.side}`);
     target = hound;
   }
+  // Unquestioning Loyalty (Brood Brothers): a bodyguard is fought instead (treated as within control range).
+  target = loyalSwap(g, op, target, weapon);
+  uprising(g, op, target);
   const free = op.acted.free?.fight; // Savage Assault (an enemy uid), Stealth Attack ('stealth') or Swipe ('swipe')
   if (free === 'swipe') weapon = tpl(op).weapons.find((w) => w.rules.swipe); // the free Fight must use the swipe profile
   if (weapon.rules.swipe) (op.acted.swiped ||= []).push(target.uid);
@@ -3922,7 +4119,9 @@ export function startFight(g, op, weapon, target) {
   aRoll = violent(op, aRoll, weapon, ar, aHit, aPost);
   dRoll = violent(target, dRoll, dWeapon, dr, dHit, bless(target));
   archonPrey(g, op, target, aRoll);
+  broodRerolls(g, op, target, aRoll); broodRerolls(g, target, op, dRoll); // (Brood Brothers, fighting or retaliating)
   spend(g, op, 'fight');
+  for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons
   if (free) { op.acted.free.fight = null; if (op.acted.ancestors && op.acted.free.shoot === 'any') op.acted.free.shoot = null; }
   // dueller: (Chapter Tactic) a normal success can block a critical success.
   // tox: Toxic bonus (foe poisoned at the start of the action); shock: Shock not used yet this sequence;
@@ -4085,7 +4284,7 @@ export function fightApply(g, optId) {
   if (opt.act === 'strike') {
     const meOp = fightOp(g, k), foeOp = fightOp(g, other(k));
     // Bruiser: once per turning point, ignore the damage from one normal success when fighting or retaliating.
-    let shrug = opt.die === 'n' && tpl(foeOp).bruiser && foeOp.bruiserTP !== g.tp;
+    let shrug = opt.die === 'n' && (tpl(foeOp).bruiser || tpl(foeOp).devoted) && foeOp.bruiserTP !== g.tp; // (Devoted: Brood Brother Agitator)
     if (shrug) foeOp.bruiserTP = g.tp;
     if (!shrug && opt.die === 'n' && corsairShield(g, foeOp)) shrug = true;
     if (!shrug && opt.die === 'n' && useCrest(g, foeOp)) shrug = true; // Weavefield Crest (Theyn)
@@ -4152,6 +4351,18 @@ export function fightApply(g, optId) {
       const r2 = resolveDice(meOp, [dmg], g);
       const k2 = applyDamage(g, foeOp, meOp, r2.dmg);
       f.steps.push({ side: other(k), act: 'strike', crit, dmg: r2.dmg, killed: k2, lastBlow: true });
+    } else if (killed && isBrood(foeOp) && !tpl(foeOp).alphaPredator && hasPloy(g, foeOp.side, 'cultDevotion') && left(foe) > 0 && !meOp.dead) {
+      // Cult Devotion (Brood Brothers ploy): roll a D6 as an attack die — a hit strikes with a normal success, a crit with any.
+      const w = fightWeapon(g, other(k)), r = d6(), crit = r >= (w.rules.lethal || 6);
+      const die = crit && foe.c > 0 ? 'c' : r >= foe.hit && foe.n > 0 ? 'n' : null;
+      log(g, { zh: `教派奉獻：${opName(foeOp, 'zh')} 擲 ${r}${die ? '，倒下前再打一擊' : '，沒有效果'}`, en: `Cult Devotion: ${opName(foeOp, 'en')} rolls ${r}${die ? ' and strikes before it falls' : ' — no effect'}` }, `side${foeOp.side}`);
+      if (die) {
+        foe[die]--;
+        const dmg = die === 'c' ? w.dmg[1] + (foe.tox || 0) : normalDmg(w, meOp, g, foeOp) + (foe.tox || 0);
+        const r2 = resolveDice(meOp, [dmg], g);
+        const k2 = applyDamage(g, foeOp, meOp, r2.dmg);
+        f.steps.push({ side: other(k), act: 'strike', crit: die === 'c', dmg: r2.dmg, killed: k2, lastBlow: true });
+      }
     }
   } else if (opt.act === 'decline') {
     f.steps.push({ side: k, act: 'decline', crit: opt.die === 'c' });
@@ -4166,6 +4377,12 @@ export function fightApply(g, optId) {
     }
     f.steps.push({ side: k, act: 'parry', crit: opt.die === 'c', blocked: opt.target === 'c' });
     f.turn = other(k);
+  }
+  // Counterattack (Brood Brother Knife Fighter): each normal success its opponent resolves inflicts 1 damage on that opponent.
+  const resolver = fightOp(g, k), knife = fightOp(g, other(k));
+  if (opt.die === 'n' && opt.act !== 'decline' && tpl(knife).counterattack && !knife.dead && !resolver.dead) {
+    log(g, { zh: `${opName(knife, 'zh')} 反擊刀法：${opName(resolver, 'zh')} 受到 1 傷害`, en: `${opName(knife, 'en')} Counterattack: ${opName(resolver, 'en')} takes 1 damage` }, `side${knife.side}`);
+    applyDamage(g, knife, resolver, 1);
   }
   advanceFight(g);
 }
@@ -4208,6 +4425,7 @@ function finishFight(g) {
     en: `${opName(a, 'en')} fights ${opName(d, 'en')}: dealt ${f.D.before - d.wounds}, took ${f.A.before - a.wounds}`,
   }, `side${a.side}`);
   bladesAfterFight(g, a, d); // Strike and Fade / The Woe (Blades of Khaine)
+  broodMark(g, a, d); // Crossfire (Brood Brothers): the enemy fought, if still standing, gains a token
   // Dat All You Got?: after fighting or retaliating, if still standing, inflict D3 damage on the enemy.
   for (const [me, foe] of [[a, d], [d, a]]) {
     if (!tpl(me).datAllYouGot || me.dead || foe.dead) continue;
