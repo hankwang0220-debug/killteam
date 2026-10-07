@@ -487,6 +487,17 @@ export function aiStep(g) {
     if (t) { doTargetAction(g, op, 'omniscanner', t); return null; }
   }
   if (can.datacoronal && (op.ap >= 2 || !shootOptions(g, op).length) && g.objectives.filter((m) => living(g, op.side).some((o) => dist(o, m) <= 2)).length >= 2) { doSelfAction(g, op, 'datacoronal'); return null; }
+  // Celestian Insidiants: Spiritual Mentor the best fighter near the enemy, Nullifying Ritual when enemies are close,
+  // Speak of Her Deeds onto a hurt sister.
+  if (can.spiritualMentor) {
+    const t = TARGET_ACTIONS.spiritualMentor.targets(g, op).filter((o) => foes(g, o).some((e) => edgeDist(o, e) <= 8)).sort((a, b) => avgDmg(bestMelee(b)) - avgDmg(bestMelee(a)))[0];
+    if (t) { doTargetAction(g, op, 'spiritualMentor', t); return null; }
+  }
+  if (can.nullifyingRitual && op.ap >= 2 && foes(g, op).some((e) => edgeDist(op, e) <= 6)) { doSelfAction(g, op, 'nullifyingRitual'); return null; }
+  if (can.speakDeeds) {
+    const t = TARGET_ACTIONS.speakDeeds.targets(g, op).filter((o) => o.maxW - o.wounds >= 4 || (!o.wrath && foes(g, o).some((e) => edgeDist(o, e) <= 6))).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'speakDeeds', t); return null; }
+  }
   // Canoptek Circle: Canoptek Control a construct that can attack, Overcharge one that's still to act,
   // Cranial Overload the strongest ready enemy, Nanoscarab Beam the most hurt friendly, Geomantic Disturbance a weakened enemy.
   if (can.canoptekControl) {

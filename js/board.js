@@ -43,6 +43,12 @@ export function tokenLegend() {
     item('engage', false, getLang() === 'zh' ? '暗面＋勾：已行動' : 'Dark + tick: expended'),
     `<span class="token-key"><svg viewBox="-.5 .5 1 1" aria-hidden="true">${counteractToken()}</svg>${getLang() === 'zh' ? '已反應' : 'Counteracted'}</span>`,
   ].join('')}</div>
+  <div class="token-legend terrain-legend" aria-label="${getLang() === 'zh' ? '掩體圖例' : 'Cover legend'}">${[
+    ['heavy', getLang() === 'zh' ? '重' : 'H', getLang() === 'zh' ? '重掩體：可擋住視線，提供掩護與遮蔽' : 'Heavy cover: can block sight; gives cover and obscuring'],
+    ['light', getLang() === 'zh' ? '輕' : 'L', getLang() === 'zh' ? '輕掩體：不擋視線，只提供掩護' : 'Light cover: doesn\'t block sight, gives cover only'],
+    ['wire', getLang() === 'zh' ? '網' : 'W', getLang() === 'zh' ? '鐵絲網：穿越多算 1"' : 'Razor wire: crossing it costs 1" more'],
+  ].map(([k, lab, txt]) => `<span class="token-key"><svg viewBox="-.5 -.5 1 1" aria-hidden="true" class="terrain-key"><rect class="${k}" x="-.46" y="-.3" width=".92" height=".6" ${k === 'light' ? 'fill="url(#hatchKey)"' : ''}/><g class="tlabel tl-${k}"><rect x="-.24" y="-.24" width=".48" height=".48" rx=".12"/><text y=".15">${lab}</text></g></svg>${txt}</span>`).join('')}
+    <svg width="0" height="0" style="position:absolute"><defs><pattern id="hatchKey" width="0.2" height="0.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.2" height="0.2" fill="var(--light-t)"/><line x1="0" y1="0" x2="0" y2="0.2" stroke="var(--light-s)" stroke-width="0.08"/></pattern></defs></svg></div>
   <div class="token-legend role-legend" aria-label="${getLang() === 'zh' ? '特工圖示' : 'Operative icons'}">${Object.entries(ROLE_ICON).map(([k, icon]) => `<span class="token-key"><svg class="role-key" viewBox="-.5 -.5 1 1" aria-hidden="true"><circle r=".5" class="rk-bg"/>${roleGlyph(k, 0.3)}</svg>${{
     leader: ['領袖', 'Leader'], medic: ['醫療', 'Medic'], psyker: ['靈能', 'Psyker'], support: ['支援', 'Support'], heavy: ['重武器', 'Heavy weapon'], melee: ['近戰', 'Melee'], ranged: ['射手', 'Shooter'],
   }[k][getLang() === 'zh' ? 0 : 1]}</span>`).join('')}<span class="token-key">${getLang() === 'zh' ? '右下小字＝編號' : 'small number = operative #'}</span></div>`;
@@ -73,6 +79,14 @@ export function renderBoard(g, ui) {
     if (t.kind === 'heavy') s.push(`<rect class="heavy" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="0.08"/>`);
     else if (t.kind === 'wire') s.push(`<rect class="wire" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}"/>`); // razor wire
     else s.push(`<rect class="light" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" fill="url(#hatch)" rx="0.05"/>`);
+  }
+  // Each piece of cover is labelled: 重 (Heavy) / 輕 (Light) / 網 (razor wire), in its middle.
+  const zh = getLang() === 'zh';
+  for (const t of g.terrain) {
+    const lab = { heavy: zh ? '重' : 'H', light: zh ? '輕' : 'L', wire: zh ? '網' : 'W' }[t.kind] || (zh ? '輕' : 'L');
+    const kind = t.kind === 'heavy' ? 'heavy' : t.kind === 'wire' ? 'wire' : 'light';
+    const cx = t.x + t.w / 2, cy = t.y + t.h / 2;
+    s.push(`<g class="tlabel tl-${kind}" transform="translate(${f(cx)} ${f(cy)})" pointer-events="none"><rect x="-.24" y="-.24" width=".48" height=".48" rx=".12"/><text y=".15">${lab}</text></g>`);
   }
 
   for (const o of g.objectives) {
@@ -200,6 +214,9 @@ export function renderBoard(g, ui) {
       s.push(`<circle r="${f(r + 0.3)}" class="lastRing" stroke="${col}"/>`);
     }
     s.push(`<circle r="${f(r)}" fill="${col}" class="base ${o.order === 'conceal' ? 'conceal' : ''}"/>`);
+    // Celestian Insidiants: a gold halo while inspiring; the Censor's null range.
+    if (o.inspiring) s.push(`<circle r="${f(r + 0.12)}" class="inspireRing"/>`);
+    if (tpl(o).nullField) s.push(`<circle r="${f(r + (o.nullRange || 1))}" class="nullRing"/>`);
     // Role icon in the middle, its number small in the lower right.
     s.push(roleGlyph(roleOf(g, o), Math.min(0.26, r * 0.5)));
     s.push(`<text x="${f(r * 0.55)}" y="${f(r * 0.78)}" class="opnum">${o.num}</text>`);

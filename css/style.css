@@ -444,3 +444,21 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
   .chip-main { width: 100%; }
   .chip-name { font-size: .72rem; }
 }
+#board .inspireRing { fill: none; stroke: #ffd24a; stroke-width: .09; filter: drop-shadow(0 0 .12px #ffd24a); pointer-events: none; }
+#board .nullRing { fill: rgba(200, 200, 255, .05); stroke: #b9b9ff; stroke-width: .04; stroke-dasharray: .2 .12; pointer-events: none; }
+.chip-sub .tag.insp { color: #ffd24a; background: rgba(255, 210, 74, .14); }
+/* Cover labels on the board and in the legend */
+.tlabel { pointer-events: none; }
+.tlabel rect { stroke-width: .035; }
+.tlabel text { font-size: .36px; font-weight: 800; text-anchor: middle; stroke: none; }
+.tlabel.tl-heavy rect { fill: #e9ecf1; stroke: #20242b; }
+.tlabel.tl-heavy text { fill: #1b1f25; }
+.tlabel.tl-light rect { fill: #f3d58b; stroke: #6b5428; }
+.tlabel.tl-light text { fill: #4a3712; }
+.tlabel.tl-wire rect { fill: #d9d4c7; stroke: #6a6457; }
+.tlabel.tl-wire text { fill: #3a362e; }
+.terrain-key { width: 26px; height: 26px; overflow: visible; }
+.terrain-key .heavy { fill: var(--heavy); stroke: var(--heavy-s); stroke-width: .05; }
+.terrain-key .light { stroke: var(--light-s); stroke-width: .04; }
+.terrain-key .wire { fill: none; stroke: #b9b2a0; stroke-width: .07; stroke-dasharray: .14 .08; }
+.terrain-legend { padding-bottom: 0; }

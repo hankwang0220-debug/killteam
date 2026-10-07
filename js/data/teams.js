@@ -437,6 +437,23 @@ const hbFocusedBC = W('hbFocusedBC', '重爆彈槍（集中）', 'Heavy bolter (
 const hbSweepingBC = W('hbSweepingBC', '重爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', piercingCrits: 1, torrent: 1 }, 'heavyBolterBC');
 const augmeticClaw = W('augmeticClaw', '機械爪', 'Augmetic claw', 'melee', 3, 4, 4, 5, { brutal: true });
 
+// ---- Celestian Insidiants ----
+const ciInferno = W('ciInferno', '地獄火手槍', 'Inferno pistol', 'ranged', 4, 3, 4, 2, { range: 3, devastating: 3, piercing: 2 });
+const ciRelicBolt = W('ciRelicBolt', '聖遺物爆彈手槍', 'Relic bolt pistol', 'ranged', 4, 3, 3, 5, { range: 8, lethal: 5 });
+const ciRelicStake = W('ciRelicStake', '聖遺物譴責樁射器', 'Relic condemnor stakethrower', 'ranged', 4, 3, 2, 2, { devastating: 2, lethal: 5, piercingCrits: 1, silent: true, antiPsykerL: true });
+const ciNullMace = W('ciNullMace', '虛無錘', 'Null mace', 'melee', 4, 3, 4, 4, { shock: true, antiPsykerL: true });
+const ciSwordDef = W('ciSwordDef', '祝聖之劍與守護盾（防禦）', 'Blessed sword & praesidium protectiva (defensive)', 'melee', 4, 3, 4, 6, { shield: true }, 'ciSword');
+const ciSwordOff = W('ciSwordOff', '祝聖之劍與守護盾（進攻）', 'Blessed sword & praesidium protectiva (offensive)', 'melee', 4, 3, 4, 6, { lethal: 5 }, 'ciSword');
+const ciHandFlamer = W('ciHandFlamer', '手持火焰噴射器（標準）', 'Hand flamer (standard)', 'ranged', 4, 2, 3, 3, { range: 6, saturate: true, torrent: 1 }, 'ciFlamer');
+const ciDeluge = W('ciDeluge', '手持火焰噴射器（洪流）', 'Hand flamer (deluge)', 'ranged', 4, 2, 3, 3, { range: 4, saturate: true, seekLight: true, torrent: 0 }, 'ciFlamer');
+const ciVirge = W('ciVirge', '告誡權杖', 'Virge of admonition', 'melee', 4, 4, 5, 5, { brutal: true, shock: true, antiPsykerL: true });
+const ciVoice = W('ciVoice', '譴責之聲', 'Voice of condemnation', 'ranged', 5, 3, 1, 1, { range: 6, seek: true, stun: true });
+const ciStaff = W('ciStaff', '宣告之杖', 'Staff of declamation', 'melee', 4, 3, 3, 3, { shock: true });
+const ciBroadsword = W('ciBroadsword', '祝聖闊劍', 'Blessed broadsword', 'melee', 4, 3, 4, 6, { lethal: 5, brutal: true });
+const ciBoltPistol = W('ciBoltPistol', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const ciStake = W('ciStake', '譴責樁射器', 'Condemnor stakethrower', 'ranged', 4, 3, 2, 2, { devastating: 1, piercingCrits: 1, silent: true, antiPsykerL: true });
+const ciGunButt = W('ciGunButt', '槍托', 'Gun butt', 'melee', 3, 3, 2, 3);
+
 // ---- Canoptek Circle ----
 const ccPartMatter = W('ccPartMatter', '震波戟（分離物質）', 'Tremorglaive (part matter)', 'ranged', 4, 3, 4, 5, { piercing: 1, piercingCrits: 2 }, 'ccGlaive');
 const ccQuake = W('ccQuake', '震波戟（地震）', 'Tremorglaive (quake)', 'ranged', 5, 3, 1, 2, { blast: 2, seekLight: true, stun: true }, 'ccGlaive');
@@ -1531,6 +1548,58 @@ export const TEAMS = [
     ],
   },
   {
+    id: 'celestianInsidiants',
+    name: { zh: '潔天使隱伏者', en: 'Celestian Insidiants' },
+    color: '#c9a227',
+    style: { zh: '近戰隊・精英・反靈能', en: 'Melee · Elite · Anti-psyker' },
+    blurb: {
+      zh: '修女會的獵巫老兵：一名隊長帶領八名專家。衝鋒或擊殺強敵後變得「激勵」（武器嚴厲）；激勵中的姊妹殘廢時，身邊的姊妹會獲得祝福。',
+      en: 'Veteran witch hunters of the Adepta Sororitas: a Superior with eight specialists. Charging or felling a strong foe makes them INSPIRING (Severe weapons); when an inspiring sister is incapacitated, a nearby sister gains a Benediction.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '能，但建議買兩盒（普通特工很好用）', en: 'Yes, but two boxes are recommended (the Warriors are useful)' },
+      buyable: { zh: '能', en: 'Yes' },
+      size: { zh: '9 名特工', en: '9 operatives' },
+    },
+    insidiants: true,
+    perCopyRoster: true,
+    rule: {
+      name: { zh: '激勵與殉道', en: 'Inspiration & Martyrdom' },
+      desc: {
+        zh: '友方衝鋒（移動前）或使生命 6 以上的敵人殘廢時變為「激勵」：資料卡上的武器「嚴厲」。激勵中的友方殘廢時，它看得到或 6" 內的另一名友方獲得一個祝福（自動挑選）：熱忱（整場 APL +1，隊長不行）、憤怒（整場武器「無休」）、復原（回復 D3+2）。（「緊急」祝福未實作）獵巫武器：3" 內的敵人不能做靈能動作或用靈能遠程武器，靈能遠程武器傷不了友方。',
+        en: 'A friendly becomes INSPIRING when it Charges (before moving) or incapacitates an enemy with a Wounds stat of 6+: its datacard weapons have Severe. When an inspiring friendly is incapacitated, another friendly it\'s visible to or within 6" of gains a Benediction (picked automatically): Ardour (+1 APL for the battle, not the Superior), Wrath (Ceaseless for the battle) or Restoration (regain D3+2). (Exigence isn\'t modelled.) Weapons of the Witch Hunters: enemies within 3" can\'t perform Psychic actions or use Psychic ranged weapons, and Psychic ranged weapons can\'t damage friendlies.',
+      },
+    },
+    ploys: [
+      { id: 'sufferingSacrifice', cp: 1, name: { zh: '苦難與犧牲', en: 'Suffering & Sacrifice' },
+        desc: { zh: '本回合受過傷的友方攻擊敵人時，武器「平衡」。', en: 'This TP, a wounded friendly attacking an enemy has Balanced.' } },
+      { id: 'holyResilience', cp: 1, name: { zh: '神聖韌性', en: 'Holy Resilience' },
+        desc: { zh: '本回合激勵中的友方近戰或反擊時，4 以上的普通與暴擊傷害 -1。', en: 'This TP, an inspiring friendly fighting or retaliating takes 1 less from Normal and Critical Dmg of 4+.' } },
+      { id: 'suspectEliminate', cp: 1, name: { zh: '懷疑與剷除', en: 'Suspect & Eliminate' },
+        desc: { zh: '本回合選一名敵人（自動：離我方最近、身邊敵人最多的）：它和 2" 內看得到的敵人得到懷疑標記，友方射擊或近戰它們時武器「懲罰」。', en: 'This TP, pick an enemy (automatic: the one nearest your team with the most enemies around it): it and enemies visible within 2" of it gain Suspicion tokens — friendlies shooting or fighting them have Punishing.' } },
+      { id: 'wrathfulDetermination', cp: 1, name: { zh: '憤怒的決心', en: 'Wrathful Determination' },
+        desc: { zh: '本回合交戰指令的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, an Engage-order friendly that\'s shot re-rolls one defence die.' } },
+    ],
+    // Eight from the list: each once, except Warriors and up to two Cremators.
+    replacements: Object.fromEntries(['ciAbjuror', 'ciCensor', 'ciCremator', 'ciCremator2', 'ciDenuncia', 'ciMortis', 'ciReliq', 'ciWarrior']
+      .map((id) => [id, [id, ...['ciAbjuror', 'ciCensor', 'ciCremator', 'ciDenuncia', 'ciMortis', 'ciReliq', 'ciWarrior'].filter((x) => x !== id)]])),
+    ops: [
+      op('ciSuperior', '隊長', 'Insidiant Superior', { apl: 3, move: 6, save: 3, wounds: 10, base: 32, ciLeader: true, spiritualMentor: true,
+        loadouts: { relics: [ciRelicStake, ciRelicBolt, ciNullMace], inferno: [ciInferno, ciNullMace] } }, [ciRelicStake, ciRelicBolt, ciNullMace]),
+      op('ciAbjuror', '護衛修女', 'Insidiant Abjuror', { apl: 2, move: 6, save: 2, wounds: 11, base: 32, holyDefender: true }, [ciSwordDef, ciSwordOff]),
+      op('ciCensor', '審查修女', 'Insidiant Censor', { apl: 2, move: 6, save: 3, wounds: 9, base: 32, controlPlus: true, nullField: true }, [ciVirge]),
+      op('ciCremator', '焚化修女', 'Insidiant Cremator', { apl: 2, move: 6, save: 3, wounds: 9, base: 32, pyre: true }, [ciHandFlamer, ciDeluge, ciNullMace]),
+      op('ciCremator2', '焚化修女', 'Insidiant Cremator', { apl: 2, move: 6, save: 3, wounds: 9, base: 32, pyre: true }, [ciHandFlamer, ciDeluge, ciNullMace]),
+      op('ciDenuncia', '譴責修女', 'Insidiant Denuncia', { apl: 2, move: 6, save: 3, wounds: 9, base: 32, speakDeeds: true, accusingExorcist: true }, [ciVoice, ciStaff]),
+      op('ciMortis', '死亡聖者', 'Insidiant Mortisanctus', { apl: 2, move: 6, save: 3, wounds: 9, base: 32, bladedStance: true, ultimatum: true }, [ciBroadsword]),
+      op('ciReliq', '聖物修女', 'Insidiant Reliquarius', { apl: 2, move: 6, save: 3, wounds: 9, base: 32, simulacrum: true, devotion: true }, [ciBoltPistol, ciStake, ciGunButt]),
+      op('ciWarrior', '修女戰士', 'Insidiant Warrior', { apl: 2, move: 6, save: 3, wounds: 9, base: 32, inspiredStrikes: true }, [ciBoltPistol, ciStake, ciNullMace]),
+    ],
+  },
+  {
     id: 'canoptekCircle',
     name: { zh: '冥工之環', en: 'Canoptek Circle' },
     color: '#2fb59a',
@@ -1817,6 +1886,12 @@ const FIREFIGHT = {
     ff('mutability', '變化無常', 'Mutability and Change', '奸奇印記的友方啟動時：本次 APL +1。', 'When a Tzeentch operative is activated: +1 APL this activation.'),
     ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
     ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
+  ],
+  celestianInsidiants: [
+    ff('unshakeablePursuit', '不屈追擊', 'Unshakeable Pursuit', '友方啟動中：本次啟動無視 Move 的變化；激勵中再 +1"。', 'During a friendly\'s activation: ignore changes to its Move this activation; +1" if it\'s inspiring.'),
+    ff('ferventHate', '狂熱仇恨', 'Fervent Hate', '攻擊非帝國的敵人：這次序列武器「無休」；敵人是混沌或靈能者時改為「無情」。', 'Attacking a non-Imperium enemy: Ceaseless this sequence; Relentless instead against Chaos or a psyker.'),
+    ff('gloryMartyrs', '榮耀歸於殉道者', 'Glory to the Martyrs', '自動：友方在近戰中殘廢時，先用一顆未結算的成功打擊對手；若因此使對手殘廢，它變為激勵並觸發殉道。', 'Auto: when a friendly is incapacitated in a fight, it strikes with an unresolved success first; if that incapacitates the enemy it becomes inspiring and Martyrdom applies.'),
+    ff('faithFury', '信仰與怒火', 'Faith & Fury', '近戰時以暴擊打擊對手後，對它 2" 內看得到的其他敵人各造成 D3 傷害。', 'Fighting: after a critical strike, D3 damage to each other enemy visible within 2" of it.'),
   ],
   canoptekCircle: [
     ff('sacrificialThrall', '犧牲奴僕', 'Sacrificial Thrall', '自動：地占術士被選為射擊或近戰目標時，改由它 3" 內看得到的另一名冥工機械承受（爆炸、洪流無效）。', 'Auto: when the Geomancer is picked as a Shoot or Fight target, another Canoptek visible within 3" of it becomes the target instead (not vs Blast/Torrent).'),

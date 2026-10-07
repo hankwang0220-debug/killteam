@@ -71,9 +71,11 @@ export const statPenalty = (g, op) => injuredPenalty(g, op) || contagion(g, op);
 export function moveStat(g, op) {
   // Injured: -2" Move, but never below 4" (unless the Move stat itself is lower).
   const base = tpl(op).move;
+  if (op.acted?.pursuit) return base + (op.inspiring ? 1 : 0); // Unshakeable Pursuit (Celestian Insidiants): no Move changes, +1" if inspiring
   let m = statPenalty(g, op) && !tpl(op).engenderedFocus && !(isArchon(op) && op.drug === 'hypex' && !contagion(g, op)) ? Math.max(Math.min(base, 4), base - 2) : base;
   if (artOfWar(g, op, 'montka')) m += 1;
   if (op.shieldingOn) m -= 2; // Shielding (Trench Sweeper)
+  if (nullFielded(g, op)) m -= 2; // Null Field (Celestian Insidiant Censor)
   if (optimised(g, op, 'aggressor')) m += 1; // Aggressor Imperative
   if (markOf(op) === 'slaanesh') m += 1; // Unnatural Agility (Legionaries)
   m += op.acted?.moveBonus || 0; // Wild Rage (firefight ploy)
@@ -90,7 +92,8 @@ export const aplNow = (g, op) => matrixApl(g, op, tpl(op).nemesis && op.cardApl 
   : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
     : Math.max(-1, Math.min((op.aplNext || 0) > 0 && cursed(g, op, 'voxStatic') ? 0 : 1, op.aplNext || 0)))));
 /** Obelisk Node Matrix (Canoptek Circle): +1 APL within it, to a maximum of 3. */
-const matrixApl = (g, op, v) => (v < 3 && op.side < 2 && TEAM_MAP[op.team]?.obeliskNodes && inMatrix(g, op.side, op) ? v + 1 : v);
+// (Ardour, a Celestian Insidiant Benediction: +1 APL for the rest of the battle.)
+const matrixApl = (g, op, v0) => { const v = v0 + (op.ardour ? 1 : 0); return v < 3 && op.side < 2 && TEAM_MAP[op.team]?.obeliskNodes && inMatrix(g, op.side, op) ? v + 1 : v; };
 
 /** Change APL until the end of the operative's next activation (not the one it's in right now). */
 function changeApl(g, op, n) {
@@ -533,6 +536,7 @@ export function finishPloys(g) {
   danceOfDeath(g, side); // Blades of Khaine
   broodStrategyEnd(g, side); // Brood Brothers: Coordinate, Spiritual Leader
   placeNodes(g, side); ceaselessScuttling(g, side); // Canoptek Circle: obelisk nodes, A Ceaseless Scuttling
+  insidiantsStrategyEnd(g, side); // Celestian Insidiants: Zealous Ultimatum, Suspect & Eliminate
   if (g.stratStep) startFirefight(g);
   else g.stratStep = 1;
 }
@@ -560,7 +564,8 @@ const inEnemyTerritory = (g, op) => {
 export const ployCost = (g, side, ploy) => (freePloyOp(g, side, ploy)
   || (ploy.id === 'contagion' && living(g, side).some((o) => tpl(o).iconBearer && inEnemyTerritory(g, o)))
   || (ploy.group === 'navyOrder' && living(g, side).some((o) => tpl(o).commandBreach))
-  || broodFreePloy(g, side, ploy) ? 0 : ploy.cp);
+  || broodFreePloy(g, side, ploy)
+  || (ploy.id === 'suspectEliminate' && living(g, side).some((o) => tpl(o).accusingExorcist && o.inspiring)) ? 0 : ploy.cp); // Accusing Exorcist (Denuncia)
 /** Brood Brothers: Broodcoven selections taken as ploys — the first ones bought cost 0CP for the rest of the battle. */
 const broodFreePloy = (g, side, ploy) => !!g.freePloyCount?.[side] && team(g, side).ploys.includes(ploy)
   && (g.bbFree?.[side]?.includes(ploy.id) || (g.bbFree?.[side]?.length || 0) < g.freePloyCount[side]);
@@ -749,6 +754,11 @@ export function endActivation(g) {
     op.ready = false; op.ap = 0;
     if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
+    // Devotion (Insidiant Reliquarius): inspiring and controlling an objective at the end of its activation — inspire a friendly within 6".
+    if (!wasCounter && tpl(op).devotion && op.inspiring && !op.dead && (g.objectives || []).some((m) => dist(op, m) - radius(op) - OBJ_R <= CONTROL && controller(g, m) === op.side)) {
+      const t = pickInspire(g, op, 6);
+      if (t) inspire(g, t, { zh: '奉獻', en: 'Devotion' });
+    }
     // Alpha Predator (Patriarch): after its first activation it stays ready while it has AP left this turning point.
     if (tpl(op).alphaPredator && !wasCounter && op.patStartAp != null) {
       op.patSpent = (op.patSpent || 0) + Math.max(0, op.patStartAp - apLeft);
@@ -879,20 +889,22 @@ export function passCounter(g) {
 /** The side whose operatives control a marker (highest total APL contesting it), or null. */
 export function controller(g, obj) {
   if (obj.carriedBy) { const c = getOp(g, obj.carriedBy); return c && !c.dead ? c.side : null; } // a carried marker belongs to its carrier
-  const sum = [0, 0, 0], shriek = [false, false, false], nuncio = [false, false, false], present = [false, false, false];
+  const sum = [0, 0, 0], shriek = [false, false, false], nuncio = [false, false, false], present = [false, false, false], simu = [false, false, false];
   for (const o of living(g)) {
     if (o.brutalDisplayTP === g.tp) continue;
     // Drones count as 1 APL lower for objective control, the Icon Bearer as 1 higher; NEMESIS NPOs use their Control stat.
     // Ravage Destiny (Warpcoven): the target counts 1 lower. Frenzy (Fellgor): APL 1, whatever else applies.
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
     // (the Deathknell, an Icon Bearer, keeps its APL even with a Frenzy token)
-    const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer ? 1 : 0) - ravaged);
-    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; present[o.side] = true; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o) || grislyNear(g, o)) nuncio[o.side] = true; }
+    const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer || tpl(o).controlPlus ? 1 : 0) - ravaged); // (controlPlus: Censor, Virge of Admonition Icon Bearer)
+    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; present[o.side] = true; if (simulacrumNear(g, o)) simu[o.side] = true; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o) || grislyNear(g, o)) nuncio[o.side] = true; }
   }
   // Nuncio-aquila (Exaction Squad): likewise 1 lower if one is within 3" of the Proctor-exactant (cumulative).
   for (let s = 0; s < 3; s++) if (nuncio[s]) sum[s] = Math.max(0, sum[s] - 1);
   // Horrifying Shrieking: a side's total counts 1 lower if one of its contesting operatives is within 3" of a Fleshscreamer.
   for (let s = 0; s < 3; s++) if (shriek[s]) sum[s] = Math.max(0, sum[s] - 1);
+  // Simulacrum Nullificatus (Insidiant Reliquarius): likewise 1 lower if one is within 3" of it.
+  for (let s = 0; s < 3; s++) if (simu[s]) sum[s] = Math.max(0, sum[s] - 1);
   // Prioritised Acquisition (Battleclade ploy): +1 to the total while contesting the chosen marker.
   for (const s of [0, 1]) if (sum[s] > 0 && g.acquisition?.[s]?.tp === g.tp && g.acquisition[s].id === obj.id && !obj.kind) sum[s]++;
   // Cult Icon (Brood Brother Iconward): +1 to the total for a marker within 4" of it that a friendly contests.
@@ -1064,6 +1076,9 @@ export const ACTIONS = {
   mentalOnslaught: { ap: 1, name: { zh: '精神衝擊', en: 'Mental Onslaught' } },
   conspire: { ap: 1, name: { zh: '密謀', en: 'Conspire' } },
   intoShadow: { ap: 1, name: { zh: '隱入暗影', en: 'Into Shadow' } },
+  spiritualMentor: { ap: 1, name: { zh: '靈性導師', en: 'Spiritual Mentor' } },
+  nullifyingRitual: { ap: 1, name: { zh: '虛無儀式', en: 'Nullifying Ritual' } },
+  speakDeeds: { ap: 1, name: { zh: '宣揚她的事蹟', en: 'Speak of Her Deeds' } },
   geomantic: { ap: 1, name: { zh: '地占擾動', en: 'Geomantic Disturbance' } },
   canoptekControl: { ap: 1, name: { zh: '冥工控制', en: 'Canoptek Control' } },
   molecularBreach: { ap: 1, name: { zh: '分子穿越', en: 'Molecular Breach' } },
@@ -1398,6 +1413,24 @@ export const TARGET_ACTIONS = {
     },
   },
   // Medikit: a wounded friendly non-drone Pathfinder within control range regains 2D3 wounds.
+  // ---- Celestian Insidiants ----
+  // Spiritual Mentor (Superior, SUPPORT, once per TP): a friendly visible within 6" becomes inspiring.
+  spiritualMentor: {
+    targets: (g, op) => living(g, op.side).filter((t) => t !== op && isCI(t) && !t.inspiring && edgeDist(op, t) <= 6 + commsBonus(g, op) && visibility(g, op, t).visible),
+    apply(g, op, t) { op.mentorTP = g.tp; inspire(g, t, { zh: '靈性導師', en: 'Spiritual Mentor' }); return { zh: `靈性導師：${opName(t, 'zh')}`, en: `Spiritual Mentor: ${opName(t, 'en')}` }; },
+  },
+  // Speak of Her Deeds (Denuncia, SUPPORT): an inspiring friendly within 6" stops being inspiring, and another friendly
+  // within 6" gets a Benediction.
+  speakDeeds: {
+    targets: (g, op) => (deedsSource(g, op) ? living(g, op.side).filter((t) => isCI(t) && (t === op || (edgeDist(op, t) <= 6 + commsBonus(g, op) && visibility(g, op, t).visible))
+      && living(g, op.side).some((s) => s !== t && s.inspiring && (s === op || (edgeDist(op, s) <= 6 && visibility(g, op, s).visible)))) : []),
+    apply(g, op, t) {
+      const s = living(g, op.side).find((x) => x !== t && x.inspiring && (x === op || (edgeDist(op, x) <= 6 && visibility(g, op, x).visible)));
+      s.inspiring = false;
+      benediction(g, t);
+      return { zh: `宣揚她的事蹟：${opName(s, 'zh')} 不再激勵，${opName(t, 'zh')} 獲得祝福`, en: `Speak of Her Deeds: ${opName(s, 'en')} is no longer inspiring; ${opName(t, 'en')} gains a Benediction` };
+    },
+  },
   // ---- Canoptek Circle ----
   // Geomantic Disturbance (Geomancer): a point on terrain visible within 8" — 2D6 for each operative within 2" of it,
   // the excess over its remaining wounds is damage. (Picked here by tapping an enemy near terrain; the point is the
@@ -1630,6 +1663,7 @@ export function shootWeapon(g, op, w) {
   const no = (zh, en) => ({ ok: false, ap: 1, why: { zh, en } });
   if (w.type !== 'ranged') return no('不是遠程武器', 'Not a ranged weapon');
   if (op.order === 'conceal' && !w.rules.silent) return no('隱蔽指令無法射擊', 'Cannot Shoot while Concealed');
+  if (w.rules.psychic && witchHunted(g, op)) return no('3" 內有隱伏者，不能用靈能武器', 'An Insidiant within 3": no Psychic weapons');
   // Heavy (X only): any move other than X rules the weapon out.
   const h = w.rules.heavy;
   const heavyMoved = typeof h === 'string' ? ['reposition', 'dash', 'charge', 'fallBack'].some((k) => k !== h && count(op, k)) : h && moved(op);
@@ -1747,6 +1781,12 @@ export function availableActions(g, op) {
   if (tpl(op).systemJam) unique('systemJam', !conceal, CONC);
   if (tpl(op).medikit) unique('medikit');
   if (tpl(op).veriscant) unique('veriscant');
+  // Celestian Insidiants.
+  if (TEAM_MAP[op.team].insidiants) {
+    if (tpl(op).spiritualMentor) unique('spiritualMentor', op.mentorTP !== g.tp, DONE);
+    if (tpl(op).nullField) add('nullifyingRitual', !engaged && op.ritualTP !== g.tp && (op.nullRange || 1) < 5, engaged ? ENG : (op.nullRange || 1) >= 5 ? { zh: '虛無範圍已達 5"', en: 'Null range is already 5"' } : DONE);
+    if (tpl(op).speakDeeds) unique('speakDeeds');
+  }
   // Canoptek Circle.
   if (TEAM_MAP[op.team].obeliskNodes) {
     if (tpl(op).geomantic) unique('geomantic', !conceal, CONC);
@@ -1843,7 +1883,7 @@ export function availableActions(g, op) {
     return list.filter((a) => core.includes(a.id));
   }
   const allowed = tpl(op).actionsOnly;
-  const nulled = nullRodded(g, op) ? list.filter((a) => !PSYCHIC_ACTIONS.includes(a.id)) : list; // Null Rod (Condemnor)
+  const nulled = nullRodded(g, op) || witchHunted(g, op) ? list.filter((a) => !PSYCHIC_ACTIONS.includes(a.id)) : list; // Null Rod (Condemnor) / Weapons of the Witch Hunters
   return allowed ? nulled.filter((a) => allowed.includes(a.id)) : nulled;
 }
 
@@ -1882,6 +1922,7 @@ export function doSelfAction(g, op, id) {
     datacoronal: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' },
     explosives: (op.explosivesUsed || 0) === 0 ? { zh: '爆破：放置炸藥標記（下次爆破時引爆）', en: 'Explosives: places the Explosives marker (the next one detonates it)' } : { zh: '爆破：引爆炸藥', en: 'Explosives: detonates the charge' },
     conspire: { zh: '密謀：獲得 1CP', en: 'Conspire: +1CP' },
+    nullifyingRitual: { zh: `虛無儀式：虛無範圍變為 ${(op.nullRange || 1) + 1}"`, en: `Nullifying Ritual: null range is now ${(op.nullRange || 1) + 1}"` },
     intoShadow: { zh: `隱入暗影：改為${op.order === 'conceal' ? '交戰' : '隱蔽'}指令`, en: `Into Shadow: switches to ${op.order === 'conceal' ? 'Engage' : 'Conceal'}` },
   }[id];
   if (id === 'explosives') {
@@ -1890,6 +1931,7 @@ export function doSelfAction(g, op, id) {
     op.explosivesUsed = (op.explosivesUsed || 0) + 1;
   }
   if (id === 'conspire') { op.conspireTP = g.tp; g.cp[op.side]++; }
+  if (id === 'nullifyingRitual') { op.ritualTP = g.tp; op.nullRange = Math.min(5, (op.nullRange || 1) + 1); }
   if (id === 'intoShadow') op.order = op.order === 'conceal' ? 'engage' : 'conceal';
   if (id === 'datacoronal') {
     // Friendly Battleclade operatives within 6" of it or the Auto-proxy; D3 ≤ objectives they contest = +1CP.
@@ -1980,6 +2022,7 @@ export function doMove(g, op, kind, path) {
   op.acted.movedDist = (op.acted.movedDist || 0) + path.len; // Lumbering Death
   if (['charge', 'fallBack', 'reposition'].includes(kind)) op.bigMoveTP = g.tp; // Brace for Counterattack
   if (kind === 'charge') op.chargedTP = g.tp; // Emboldened
+  if (kind === 'charge') inspire(g, op, { zh: '衝鋒', en: 'Charge' }); // Inspiration (Celestian Insidiants; only for them)
   if (kind === 'charge' && isBlade(op) && !op.acted.free?.charge) op.acted.woeLeft = Math.max(0, moveAllowance(g, op, 'charge') - path.len); // (The Woe)
   op.movedTP = (op.movedTP || 0) + path.len; // NPO movement limit per turning point
   for (const m of carriables(g)) if (m.carriedBy === op.uid) { m.x = op.x; m.y = op.y; } // carried markers
@@ -2056,6 +2099,7 @@ const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, 
 function validTarget(g, op, target, weapon) {
   const v = shotVisibility(g, op, target, weapon);
   if (!v.visible) return null;
+  if (weapon.rules?.psychic && isCI(target) && target.side !== op.side) return null; // (Psychic ranged weapons can't damage Insidiants)
   if (target.order === 'conceal') {
     const ml = mlLevel(g, op, weapon, target);
     const seek = weapon.rules.seek || ml >= 5 || (tpl(op).deathmark && !!target.dmk?.[op.side]); // Deathmarked
@@ -2213,6 +2257,23 @@ export function effectiveRules(g, op, weapon, target) {
     if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'terminalDecree') && edgeDist(op, target) <= 6) r.balanced = true; // Terminal Decree
   }
   if (tpl(op).aggressivePattern && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  // ---- Celestian Insidiants ----
+  if (isCI(op) && op.side < 2) {
+    if (!weapon.rules.equipGrenade && op.inspiring) r.severe = true; // Inspiration
+    if (!weapon.rules.equipGrenade && op.wrath) r.ceaseless = true; // Wrath (Benediction)
+    if (weapon.rules.antiPsykerL && target && isPsyker(target)) r.lethal = Math.min(r.lethal || 6, 5); // Anti-PSYKER
+    if (target && op.wounds < op.maxW && hasPloy(g, op.side, 'sufferingSacrifice')) r.balanced = true; // Suffering & Sacrifice
+    if (target?.suspect?.[op.side] === g.tp) r.punishing = true; // Suspect & Eliminate
+    if (target && ffOn(g, op, 'ferventHate') && !IMPERIUM_TEAMS.has(target.team)) { if (CHAOS_TEAMS.has(target.team) || isPsyker(target)) r.relentless = true; else r.ceaseless = true; } // Fervent Hate
+    // Zealous Ultimatum accepted: +1 Atk for the broadsword against that enemy, and +1 for good once it's slain (max 5).
+    const ult = g.ultimatum?.[op.side];
+    if (tpl(op).ultimatum && weapon.type === 'melee') {
+      const plus = (ult?.accepted && ult.by === op.uid && target?.uid === ult.uid ? 1 : 0) + (op.ultBonus || 0);
+      if (plus) { r.atkPlus = (r.atkPlus || 0) + plus; r.atkMax = 5; }
+    }
+  }
+  // Weapons of the Witch Hunters: within 3" of an Insidiant, Psychic melee weapons have no weapon rules.
+  if (weapon.type === 'melee' && weapon.rules.psychic && witchHunted(g, op)) return {};
   // ---- Canoptek Circle ----
   if (isCC(op) && op.side < 2) {
     if (!weapon.rules.equipGrenade && inMatrix(g, op.side, op)) r.accurate = Math.max(r.accurate || 0, 1); // Obelisk Node Matrix
@@ -2412,7 +2473,8 @@ const mindburned = (g, op) => [0, 1].some((s) => s !== op.side && g.mindburn?.[s
 // Apprehend (Cyber-mastiff) worsens it the same way. Engendered Focus (Castigator) ignores it all;
 // Stubborn Subjugator (Subductor) ignores it for melee weapons.
 const hitWorse = (g, op, w = null) => !tpl(op).engenderedFocus && !(w?.type === 'melee' && tpl(op).stubbornSubjugator)
-  && ((statPenalty(g, op) && !(op.acted?.ancestors && injuredPenalty(g, op) && !contagion(g, op))) || mindburned(g, op) || apprehended(g, op) || radSaturated(g, op) || doctrinaHit(g, op, w));
+  && ((statPenalty(g, op) && !(op.acted?.ancestors && injuredPenalty(g, op) && !contagion(g, op))) || mindburned(g, op) || apprehended(g, op) || radSaturated(g, op) || doctrinaHit(g, op, w)
+    || nullFielded(g, op)); // Null Field (Censor)
 
 // ---------- Exaction Squad ----------
 /** Nuncio-aquila: an enemy within 3" of the Proctor-exactant (it carries the marker in this version). */
@@ -2597,6 +2659,84 @@ const rapidOK = (op) => TEAM_MAP[op.team].rapidFire && !moved(op);
 /** Clearance Sweep (ploy): the marker's 5" area. */
 const sweepOn = (g, op, target) => { const m = g.sweep?.[op.side]; return !!(m && m.tp === g.tp && target && dist(op, m) - radius(op) <= 5 && dist(target, m) - radius(target) <= 5); };
 const adaptiveOk = (g, op, k) => !!tpl(op).adaptive && g.adaptive?.[op.side]?.[k] !== g.tp;
+
+// ---------- Celestian Insidiants ----------
+const isCI = (op) => !!TEAM_MAP[op?.team]?.insidiants;
+// Keywords the team's rules look at (Fervent Hate).
+const IMPERIUM_TEAMS = new Set(['angels', 'kasrkin', 'deathKorps', 'exaction', 'novitiates', 'battleclade', 'hunterClade', 'navyBreachers', 'phobos', 'celestianInsidiants']);
+const CHAOS_TEAMS = new Set(['legionaries', 'warpcoven', 'gellerpox', 'blooded', 'plagueMarines', 'fellgor']);
+/** Inspiration: the operative becomes INSPIRING (its datacard weapons have Severe). */
+function inspire(g, op, why) {
+  if (!op || op.dead || !isCI(op) || op.inspiring) return;
+  op.inspiring = true;
+  log(g, { zh: `${opName(op, 'zh')} 變為激勵（${why.zh}）`, en: `${opName(op, 'en')} becomes INSPIRING (${why.en})` }, `side${op.side}`);
+}
+/** A friendly to inspire from `from` (visible within range, not inspiring yet): the strongest fighter. */
+const pickInspire = (g, from, range = 6, not = null) => living(g, from.side).filter((o) => o !== not && o !== from && isCI(o) && !o.inspiring
+  && edgeDist(o, from) <= range && visibility(g, from, o).visible).sort((a, b) => avgDmg(bestMelee(b)) - avgDmg(bestMelee(a)))[0] || null;
+/** Null Field (Censor): an enemy within its null range (1" to 5"). */
+const nullFielded = (g, op) => op.side < 2 && living(g, 1 - op.side).some((c) => tpl(c).nullField && edgeDist(c, op) <= (c.nullRange || 1));
+/** Weapons of the Witch Hunters: within 3" of an enemy Insidiant — no Psychic actions or Psychic ranged weapons. */
+const witchHunted = (g, op) => op.side < 2 && living(g, 1 - op.side).some((c) => isCI(c) && edgeDist(c, op) <= 3);
+/** A Benediction (Martyrdom / Speak of Her Deeds), picked automatically: heal if hurt, else Ardour, else Wrath. */
+function benediction(g, op) {
+  let kind = op.maxW - op.wounds >= 4 ? 'restoration' : !op.ardour && !tpl(op).ciLeader ? 'ardour' : !op.wrath ? 'wrath' : 'restoration';
+  if (kind === 'restoration' && op.wounds >= op.maxW) kind = !op.wrath ? 'wrath' : !op.ardour && !tpl(op).ciLeader ? 'ardour' : 'restoration';
+  const name = { ardour: { zh: '熱忱：整場 APL +1', en: 'Ardour: +1 APL for the battle' }, wrath: { zh: '憤怒：整場武器「無休」', en: 'Wrath: Ceaseless for the battle' }, restoration: { zh: '復原', en: 'Restoration' } }[kind];
+  if (kind === 'ardour') op.ardour = true;
+  if (kind === 'wrath') op.wrath = true;
+  let healed = 0;
+  if (kind === 'restoration') { const b = op.wounds; op.wounds = Math.min(op.maxW, op.wounds + d3() + 2); healed = op.wounds - b; }
+  log(g, { zh: `${opName(op, 'zh')} 獲得祝福「${name.zh}」${healed ? `，回復 ${healed} 生命` : ''}`, en: `${opName(op, 'en')} gains a Benediction — ${name.en}${healed ? `, regains ${healed}` : ''}` }, `side${op.side}`);
+}
+/** Martyrdom: an inspiring friendly is incapacitated — a friendly it's visible to or within 6" of gains a Benediction. */
+function martyrdom(g, dead) {
+  if (!isCI(dead) || !dead.inspiring || dead.side > 1) return;
+  const t = living(g, dead.side).filter((o) => o !== dead && isCI(o) && (edgeDist(o, dead) <= 6 || visibility(g, dead, o).visible))
+    .sort((a, b) => edgeDist(a, dead) - edgeDist(b, dead))[0];
+  if (!t) return;
+  log(g, { zh: `殉道：${opName(dead, 'zh')} 的犧牲激勵了 ${opName(t, 'zh')}`, en: `Martyrdom: ${opName(dead, 'en')}'s sacrifice blesses ${opName(t, 'en')}` }, `side${dead.side}`);
+  benediction(g, t);
+}
+/** Speak of Her Deeds needs an inspiring friendly within 6" of the Denuncia. */
+const deedsSource = (g, op) => living(g, op.side).some((s) => s.inspiring && (s === op || (edgeDist(op, s) <= 6 && visibility(g, op, s).visible)));
+/** Simulacrum Nullificatus (Reliquarius): an enemy contesting a marker within 3" of it. */
+const simulacrumNear = (g, o) => o.side < 2 && living(g, 1 - o.side).some((r) => tpl(r).simulacrum && edgeDist(r, o) <= 3);
+/** Inspired Strikes (Insidiant Warrior): +1 Critical Dmg while inspiring. */
+const inspCrit = (op) => (tpl(op).inspiredStrikes && op.inspiring ? 1 : 0);
+/** Zealous Ultimatum declined: that enemy fighting or retaliating against an Insidiant has -1 Atk. */
+const declinedVs = (g, o, foe) => !!foe && isCI(foe) && g.ultimatum?.[foe.side]?.uid === o.uid && g.ultimatum[foe.side].accepted === false;
+/** Holy Defender (Abjuror, once per TP): it takes the attack meant for a friendly within 2" of it. */
+function holySwap(g, target, weapon) {
+  if (!target || target.side > 1 || !isCI(target) || tpl(target).holyDefender || weapon?.rules.blast || weapon?.rules.torrent) return target;
+  const ab = living(g, target.side).find((o) => tpl(o).holyDefender && o.holyTP !== g.tp && edgeDist(o, target) <= 2 && visibility(g, o, target).visible);
+  if (!ab) return target;
+  ab.holyTP = g.tp;
+  log(g, { zh: `聖衛：${opName(ab, 'zh')} 替 ${opName(target, 'zh')} 擋下攻擊`, en: `Holy Defender: ${opName(ab, 'en')} takes the attack for ${opName(target, 'en')}` }, `side${target.side}`);
+  return ab;
+}
+/** Strategy phase: Zealous Ultimatum (Mortisanctus, once per battle) and Suspect & Eliminate (ploy). */
+function insidiantsStrategyEnd(g, side) {
+  if (!TEAM_MAP[g.teams[side]].insidiants || g.ciTP?.[side] === g.tp) return;
+  (g.ciTP ||= [0, 0])[side] = g.tp;
+  const mort = living(g, side).find((o) => tpl(o).ultimatum);
+  if (mort && !g.ultimatum?.[side]) {
+    const t = living(g, 1 - side).filter((e) => e.side < 2 && edgeDist(e, mort) <= 8).sort((a, b) => b.maxW - a.maxW)[0];
+    if (t) {
+      // (Whether the opponent accepts is rolled here, as for an NPO: 4+ accepts.)
+      const r = d6(), accepted = r >= 4;
+      (g.ultimatum ||= [null, null])[side] = { by: mort.uid, uid: t.uid, accepted };
+      log(g, { zh: `${opName(mort, 'zh')} 熱誠的最後通牒：${opName(t, 'zh')}${accepted ? '接受（雙方近戰時闊劍 Atk +1）' : '拒絕（它對修女近戰時 Atk -1）'}（擲 ${r}）`, en: `${opName(mort, 'en')} Zealous Ultimatum: ${opName(t, 'en')} ${accepted ? 'accepts (+1 Atk for the broadsword between them)' : 'declines (-1 Atk fighting the Insidiants)'} (rolled ${r})` }, `side${side}`);
+    }
+  }
+  if (hasPloy(g, side, 'suspectEliminate')) {
+    const mine = living(g, side), near = (e) => Math.min(...mine.map((m) => dist(m, e)));
+    const crowd = (e) => living(g, 1 - side).filter((o) => o !== e && edgeDist(o, e) <= 2 && visibility(g, e, o).visible);
+    const t = living(g, 1 - side).filter((e) => e.side < 2).sort((a, b) => crowd(b).length - crowd(a).length || near(a) - near(b))[0];
+    if (t) for (const e of [t, ...crowd(t)]) (e.suspect ||= [0, 0])[side] = g.tp;
+    if (t) log(g, { zh: `懷疑與剷除：${opName(t, 'zh')} 和身邊 ${crowd(t).length} 名敵人得到懷疑標記`, en: `Suspect & Eliminate: ${opName(t, 'en')} and ${crowd(t).length} enemies by it gain Suspicion tokens` }, `side${side}`);
+  }
+}
 
 // ---------- Canoptek Circle ----------
 const MATRIX_HALF = 0.39; // the matrix lines are 20mm wide
@@ -2940,6 +3080,11 @@ const isPsyker = (op) => !!tpl(op).psyker || !!tpl(op).sorcerer || tpl(op).weapo
 /** Null Rod (Condemnor): an enemy within 6" of a Condemnor can't use PSYCHIC ranged weapons or actions. */
 const nullRodded = (g, op) => op.side < 2 && living(g, 1 - op.side).some((c) => tpl(c).nullRodAura && edgeDist(c, op) <= 6);
 const PSYCHIC_ACTIONS = ['fate', 'ravage', 'alight', 'miasma', 'soulChannel', 'soulHeal', 'wardingShield', 'warpFold', 'telepathicOverload', 'mentalOnslaught'];
+// Weapons of the Witch Hunters: Psychic actions can't select enemy Insidiants (nor count them within their distances).
+for (const id of PSYCHIC_ACTIONS) {
+  const ta = TARGET_ACTIONS[id];
+  if (ta) { const f = ta.targets; ta.targets = (g, op) => f(g, op).filter((t) => !(isCI(t) && t.side !== op.side)); }
+}
 /** Auto-broadcaster (Dialogus): an enemy within 3" of the marker can't re-roll its attack dice. */
 const broadcastNear = (g, op) => op.side < 2 && (g.markers || []).some((m) => m.kind === 'broadcaster' && m.owner === 1 - op.side && dist(op, m) - radius(op) <= 3);
 /** Glorious Hymnal (Preceptor): friendlies within 3" of it have Severe. */
@@ -3161,6 +3306,11 @@ const FF = {
   idolisation: { kind: 'attack', cond: (g, op) => (!broodLeader(g, op) && living(g, op.side).some((o) => o !== op && (broodLeader(g, o) || tpl(o).cultIcon) && edgeDist(o, op) <= 6)
     ? null : { zh: '要在領袖或聖像守衛 6" 內（自己不是領袖）', en: 'Needs a Leader or the Iconward within 6" (and not be a Leader)' }) },
   sacrificialThrall: { kind: 'auto' },
+  // ---- Celestian Insidiants ----
+  unshakeablePursuit: { kind: 'button', apply(g, o) { o.acted.pursuit = true; } },
+  ferventHate: { kind: 'attack', cond: (g, op, t) => (t && !IMPERIUM_TEAMS.has(t.team) ? null : { zh: '目標是帝國特工', en: 'The target is Imperium' }) },
+  gloryMartyrs: { kind: 'auto' },
+  faithFury: { kind: 'attack', fight: true },
   shieldFlare: { kind: 'auto' },
   // ---- Blades of Khaine (firefight ploys, then Aspect Techniques) ----
   bladewind: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.fightsAllowed = 2; } },
@@ -3786,6 +3936,11 @@ function killOff(g, src, target) {
     log(g, { zh: `☠ ${opName(target, 'zh')} 殘廢！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
     dropMarkers(g, target);
     if (!target.frenzy) countKill(g, src, target);
+    // Celestian Insidiants: incapacitating an enemy with Wounds 6+ inspires; an inspiring one falling is a martyr.
+    if (src && !src.dead && isCI(src) && src.side !== target.side && target.maxW >= 6) inspire(g, src, { zh: '使強敵殘廢', en: 'incapacitated a strong enemy' });
+    const ult = src && g.ultimatum?.[src.side];
+    if (ult?.accepted && ult.by === src.uid && ult.uid === target.uid && g.fight && !src.ultBonus) src.ultBonus = 1; // Zealous Ultimatum fulfilled
+    martyrdom(g, target);
     // Final Defiance (Brood Brother Sapper): a free Explosives action before it's removed — it detonates a placed charge.
     if (tpl(target).finalDefiance && (target.explosivesUsed || 0) === 1) {
       log(g, { zh: `${opName(target, 'zh')} 最後的反抗：引爆炸藥`, en: `${opName(target, 'en')} Final Defiance: detonates the charge` }, `side${target.side}`);
@@ -3917,7 +4072,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const refined = isArchon(op) && op.acted.refinedSequence && ['haSplinterRifle', 'haSplinterPistol', 'haCannonF', 'haCannonS', 'haShardcarbine', 'haStinger'].includes(weapon.id) ? 1 : 0;
   const dn = tough(shield(refined + normalDmg(weapon, target, g, op) + tox));
   // Hardy (Cold-blood): a critical hit can inflict Normal Dmg instead.
-  let dc = tpl(target).hardyCrit ? Math.min(shield(weapon.dmg[1] + tox), dn) : shield(weapon.dmg[1] + tox);
+  let dc = tpl(target).hardyCrit ? Math.min(shield(weapon.dmg[1] + tox + inspCrit(op)), dn) : shield(weapon.dmg[1] + tox + inspCrit(op)); // (Inspired Strikes: +1 Critical Dmg)
   const camo = !!tpl(target).camoCloak; // Camo Cloak ignores Saturate
   const rogue = hasPloy(g, target.side, 'rogue'); // Rogue: ignore Saturate, and Stealthy-style cover saves
   const saturated = rules.saturate && !camo && !rogue && !tpl(target).cultAgent; // Cult Agents ignore Saturate
@@ -4022,6 +4177,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
       || (target.ready && isBlade(target) && hasPloy(g, target.side, 'forewarned')) // Forewarned (Blades of Khaine)
       || (target.side < 2 && isCC(target) && hasPloy(g, target.side, 'hypershielding') && matrixCovers(g, target.side, op, target)), // Hypershielding (Canoptek Circle)
     balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit || inviolate(g, target)
+      || (target.side < 2 && isCI(target) && target.order === 'engage' && hasPloy(g, target.side, 'wrathfulDetermination')) // Wrathful Determination
       || (base > 0 && TEAM_MAP[target.team].skillAtArms && hasPloy(g, target.side, 'engageFromCover')), // Engage From Cover (Kasrkin)
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
   archonDefence(g, target, op, defRules);
@@ -4166,7 +4322,7 @@ export function* shootFlow(g, op, weapon, target) {
   const relay = weapon.rules.detonate ? null : magnifyRelay(g, op, target, weapon);
   const vis = weapon.rules.detonate ? { visible: true, cover: false, obscured: false } : shotVisibility(g, relay || op, target, weapon);
   // Unquestioning Loyalty (Brood Brothers): a bodyguard takes the shot instead (in cover / obscured only if the Leader was).
-  target = loyalSwap(g, op, target, weapon);
+  target = loyalSwap(g, op, holySwap(g, target, weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
   uprising(g, op, target); // Uprising: the target gains a Crossfire token as soon as it's selected
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
@@ -4176,6 +4332,11 @@ export function* shootFlow(g, op, weapon, target) {
   const poisonedAtStart = new Set(g.ops.filter((o) => o.poison).map((o) => o.uid));
   const main = yield* shootSequence(g, op, weapon, target, vis, noReroll, poisonedAtStart);
   if (weapon.rules.banish) banish(g, op, target, main); // Dimensional Banishment (Tomb Crawler)
+  // Inspirational Pyre (Cremator, once per TP): the hand flamer hurt an enemy without incapacitating it — inspire a friendly within 6".
+  if (tpl(op).pyre && weapon.group === 'ciFlamer' && main?.dmg > 0 && !target.dead && op.pyreTP !== g.tp) {
+    const t = pickInspire(g, op, 6);
+    if (t) { op.pyreTP = g.tp; inspire(g, t, { zh: '激勵之火', en: 'Inspirational Pyre' }); }
+  }
   spend(g, op, 'shoot', ap);
   // Crossfire (Wyrmblade): remember who shot this target this turning point.
   if (target.shotBy?.tp !== g.tp) target.shotBy = { tp: g.tp, uids: [] };
@@ -4265,7 +4426,7 @@ export function startFight(g, op, weapon, target) {
     target = hound;
   }
   // Unquestioning Loyalty (Brood Brothers): a bodyguard is fought instead (treated as within control range).
-  target = loyalSwap(g, op, target, weapon);
+  target = loyalSwap(g, op, holySwap(g, target, weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
   uprising(g, op, target);
   const free = op.acted.free?.fight; // Savage Assault (an enemy uid), Stealth Attack ('stealth') or Swipe ('swipe')
   if (free === 'swipe') weapon = tpl(op).weapons.find((w) => w.rules.swipe); // the free Fight must use the swipe profile
@@ -4297,7 +4458,7 @@ export function startFight(g, op, weapon, target) {
   // Cut-throats: +1 Atk to a maximum of 5.
   const atk = (w, r) => (r.atkPlus ? Math.max(w.atk, Math.min(r.atkMax || 5, w.atk + r.atkPlus)) : w.atk); // (For Cadia!: max 4)
   // Whip Control (Herd-goad): -1 Atk on the melee weapons of a whipped enemy (to a minimum of 1).
-  const whip = (o, n) => (n > 0 && whipped(g, o) ? Math.max(1, n - 1) : n);
+  const whip = (o, n) => (n > 0 && (whipped(g, o) || declinedVs(g, o, o === op ? target : op)) ? Math.max(1, n - 1) : n);
   // Ambush (Fellgor ploy): when it fights after springing from Conceal, a normal becomes a crit (or a fail a normal).
   const ambush = TEAM_MAP[op.team].frenzy && hasPloy(g, op.side, 'ambushFG') && !op.frenzy && op.prevOrder === 'conceal' && op.order === 'engage';
   const ambushPost = (pool) => {
@@ -4326,6 +4487,7 @@ export function startFight(g, op, weapon, target) {
     tox: (r.toxic && foe.poison ? 1 : 0) + (r.antiPsykerOn ? 1 : 0), poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute') && !tpl(foe).chemEnhanced && !tpl(foe).toxicBlessings, hardy: !!tpl(o).hardyCrit,
     a: roll, rerolled: {}, noReroll: { a: noRerollHere(g, o) || neurostatic(g, o) || broadcastNear(g, o) },
     // +1 damage on the first critical strike: Canticle of Destruction (Ruststalkers near the Princeps).
+    critAll: inspCrit(o),
     critBonus: tpl(o).ruststalker && living(g, o.side).some((p) => tpl(p).canticleDestruction && edgeDist(p, o) <= 3) ? 1 : 0,
   });
   // Repress (Exaction Squad shields): retaliating with it, the defender resolves the first die.
@@ -4454,7 +4616,7 @@ export function fightOptions(g) {
   const normal = first(plus(normalDmg(w, foeOp, g, fightOp(g, k)) + (me.tox || 0)));
   // Headtaker: the skullcleaver's Critical Dmg grows with each kill.
   // Canticle of Destruction / Animalistic Fury: more damage on the first critical strike of the sequence.
-  const critD = first(plus(w.dmg[1]) + (me.tox || 0) + (w.rules.headtaker ? fightOp(g, k).headBonus || 0 : 0) + (me.critBonus && !me.critBonusUsed ? me.critBonus : 0));
+  const critD = first(plus(w.dmg[1]) + (me.tox || 0) + (w.rules.headtaker ? fightOp(g, k).headBonus || 0 : 0) + (me.critBonus && !me.critBonusUsed ? me.critBonus : 0) + (me.critAll || 0)); // (critAll: Inspired Strikes)
   if (me.c) opts.push({ id: 'strike-c', act: 'strike', die: 'c', dmg: foe.hardy ? Math.min(critD, normal) : critD });
   if (me.n) opts.push({ id: 'strike-n', act: 'strike', die: 'n', dmg: normal });
   // Parry: a crit cancels any success, a normal cancels a normal (not vs Brutal).
@@ -4495,6 +4657,8 @@ export function fightApply(g, optId) {
     const gong = opt.die === 'c' && warGong(g, foeOp) && (normalHit < opt.dmg || wasFrenzy);
     const dmg0 = gong ? normalHit : opt.dmg, asNormal = opt.die === 'n' || gong;
     let amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || ((tpl(foeOp).tough || bulwark(g, foeOp)) && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
+    // Holy Resilience (Celestian Insidiants ploy): an inspiring friendly takes 1 less from Normal and Critical Dmg of 4+.
+    if (amount >= 4 && foeOp.inspiring && isCI(foeOp) && hasPloy(g, foeOp.side, 'holyResilience')) amount--;
     if (!shrug && opt.die === 'n' && amount >= 2 && tpl(foeOp).automata && autoFF(g, foeOp.side, 'allIsDust')) amount = 1; // All Is Dust (Rubric Marines)
     // Ice In Your Veins (Kasrkin): the first Normal Dmg of 3+ in the sequence deals 1 less.
     if (!shrug && asNormal && amount >= 3 && skillOn(g, foeOp, 'iceInVeins') && !foe.iceUsed) { foe.iceUsed = true; amount--; }
@@ -4506,6 +4670,15 @@ export function fightApply(g, optId) {
     if (opt.die === 'c' && me.shock) {
       me.shock = false;
       if (foe.n) { foe.n--; shocked = 'n'; } else if (foe.c) { foe.c--; shocked = 'c'; }
+    }
+    // Faith & Fury (Celestian Insidiants ploy): after its first critical strike, D3 to each other enemy visible within 2".
+    if (opt.die === 'c' && k === 'A' && !me.furyUsed && ffOn(g, meOp, 'faithFury')) {
+      me.furyUsed = true;
+      for (const e of foes(g, meOp).filter((x) => x !== foeOp && x.side < 2 && edgeDist(x, meOp) <= 2 && visibility(g, meOp, x).visible)) {
+        const d = d3();
+        log(g, { zh: `信仰與怒火：${opName(e, 'zh')} 受到 ${d} 傷害`, en: `Faith & Fury: ${opName(e, 'en')} takes ${d} damage` }, `side${meOp.side}`);
+        applyDamage(g, meOp, e, d);
+      }
     }
     if (opt.die === 'c' && fightWeapon(g, k).rules.flay && !me.flayUsed) { me.flayUsed = true; const pick = living(g, meOp.side).filter((x) => edgeDist(x, meOp) <= 6).sort((a, b) => (a.pain || 0) - (b.pain || 0))[0]; if (pick) gainPain(g, pick); }
     let killed = applyDamage(g, meOp, foeOp, res.dmg);
@@ -4549,6 +4722,16 @@ export function fightApply(g, optId) {
       const r2 = resolveDice(meOp, [dmg], g);
       const k2 = applyDamage(g, foeOp, meOp, r2.dmg);
       f.steps.push({ side: other(k), act: 'strike', crit, dmg: r2.dmg, killed: k2, lastBlow: true });
+    } else if (killed && isCI(foeOp) && left(foe) > 0 && !meOp.dead && autoFF(g, foeOp.side, 'gloryMartyrs')) {
+      // Glory to the Martyrs (Celestian Insidiants ploy): it strikes with an unresolved success before it's removed;
+      // if that incapacitates the enemy, it becomes inspiring and Martyrdom applies.
+      const w = fightWeapon(g, other(k)), crit = foe.c > 0;
+      foe[crit ? 'c' : 'n']--;
+      const dmg = crit ? w.dmg[1] + (foe.tox || 0) : normalDmg(w, meOp, g, foeOp) + (foe.tox || 0);
+      const r2 = resolveDice(meOp, [dmg], g);
+      const k2 = applyDamage(g, foeOp, meOp, r2.dmg);
+      f.steps.push({ side: other(k), act: 'strike', crit, dmg: r2.dmg, killed: k2, lastBlow: true });
+      if (k2 && !foeOp.inspiring) { foeOp.inspiring = true; martyrdom(g, foeOp); }
     } else if (killed && isBrood(foeOp) && !tpl(foeOp).alphaPredator && hasPloy(g, foeOp.side, 'cultDevotion') && left(foe) > 0 && !meOp.dead) {
       // Cult Devotion (Brood Brothers ploy): roll a D6 as an attack die — a hit strikes with a normal success, a crit with any.
       const w = fightWeapon(g, other(k)), r = d6(), crit = r >= (w.rules.lethal || 6);

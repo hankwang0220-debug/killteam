@@ -344,6 +344,14 @@ function packagePick(t, side, cur) {
 }
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
 function rosterWarning(t, cur) {
+  if (t.insidiants) {
+    const ids = Object.keys(t.replacements).map((slot) => cur[slot] || slot).map((id) => (id === 'ciCremator2' ? 'ciCremator' : id));
+    const dup = ids.filter((id, i) => !['ciWarrior', 'ciCremator'].includes(id) && ids.indexOf(id) !== i);
+    const crem = ids.filter((id) => id === 'ciCremator').length;
+    const bad = [...(dup.length ? [L(`重複選了：${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join('、')}（只有修女戰士、焚化修女能重複）`, `Picked more than once: ${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join(', ')}`)] : []),
+      ...(crem > 2 ? [L(`焚化修女 ${crem} 名，最多 2 名`, `${crem} Cremators — two at most`)] : [])];
+    return bad.length ? `<p class="bad small">⚠ ${bad.map(esc).join('；')}</p>` : '';
+  }
   if (t.obeliskNodes) {
     const isos = (Array.isArray(cur.ccCrawler) ? cur.ccCrawler : []).filter((id) => id === 'ccCrawlerIso').length + (cur.ccCrawler === 'ccCrawlerIso' ? 2 : 0);
     return isos > 1 ? `<p class="bad small">⚠ ${L('跨維度隔離器最多 1 把', 'One transdimensional isolator at most')}</p>` : '';
@@ -454,6 +462,7 @@ function opRoster(side) {
     const tags = [
       o.dead ? '' : `<span class="tag ${o.order}">${o.order === 'conceal' ? L('◐隱蔽', '◐ Conceal') : L('⚔交戰', '⚔ Engage')}</span>`,
       !o.dead && isInjured(o) ? `<span class="tag inj">${L('重傷', 'Injured')}</span>` : '',
+      !o.dead && o.inspiring ? `<span class="tag insp">${L('激勵', 'Inspiring')}</span>` : '',
       !o.dead && o.counteracted && g.phase === 'firefight' ? `<span class="tag">${L('↺已反應', '↺ Countered')}</span>` : '',
     ].join('');
     const cls = ['opchip', o.dead ? 'dead' : '', !o.dead && !o.ready && g.active !== o.uid ? 'spent' : '', g.active === o.uid ? 'active' : '', (ui.peek || ui.sel) === o.uid ? 'sel' : ''].join(' ');
@@ -1205,6 +1214,8 @@ function modeView(op) {
       signal: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
       systemJam: L('點擊一個可見的敵人，它下次啟動 APL -1。', 'Tap a visible enemy: -1 APL for its next activation.'),
       medikit: L('點擊控制範圍內受傷的友方（無人機除外），回復 2D3 生命。', 'Tap a wounded friendly (not a drone) in control range to regain 2D3 wounds.'),
+      spiritualMentor: L('點擊 6" 內看得到的友方：它變為激勵。', 'Tap a friendly visible within 6": it becomes inspiring.'),
+      speakDeeds: L('點擊要獲得祝福的友方（6" 內一名激勵中的友方會不再激勵）。', 'Tap the friendly to gain a Benediction (an inspiring friendly within 6" stops being inspiring).'),
       geomantic: L('點擊一名靠近地形（2" 內）、離你 8" 內的敵人：在離它最近的地形點引爆，2" 內每名特工擲 2D6。', 'Tap an enemy within 2" of terrain and within 8": the terrain point nearest it erupts — every operative within 2" rolls 2D6.'),
       canoptekControl: L('點擊一名冥工機械：它立刻免費做一個 1AP 動作。', 'Tap a Canoptek: it performs a free 1AP action now.'),
       molecularBreach: L('點擊一名友方：它下次移動改為直接傳送。', 'Tap a friendly: its next move is a teleport.'),
@@ -1278,6 +1289,12 @@ function datacard(op, extra = '') {
   else if (isInjured(op)) flags.push(`<span class="flag inj">${L('重傷（無所畏懼：無減益）', 'Injured (Know No Fear: no penalty)')}</span>`);
   if (!injuredPenalty(g, op) && statPenalty(g, op)) flags.push(`<span class="flag inj">${L('傳染：Move -2"、命中 -1', 'Contagion: -2" Move, -1 to hit')}</span>`);
   if (op.poison) flags.push(`<span class="flag poison">${L('中毒', 'Poisoned')}</span>`);
+  // Celestian Insidiants: inspiring, Benedictions, null range, Suspicion.
+  if (op.inspiring) flags.push(`<span class="flag mk">${L('激勵：武器「嚴厲」', 'Inspiring: Severe')}</span>`);
+  if (op.ardour) flags.push(`<span class="flag">${L('熱忱：APL +1', 'Ardour: +1 APL')}</span>`);
+  if (op.wrath) flags.push(`<span class="flag">${L('憤怒：武器「無休」', 'Wrath: Ceaseless')}</span>`);
+  if (tpl(op).nullField) flags.push(`<span class="flag">${L(`虛無範圍 ${op.nullRange || 1}"`, `Null range ${op.nullRange || 1}"`)}</span>`);
+  if ([0, 1].some((s) => op.suspect?.[s] === g.tp)) flags.push(`<span class="flag inj">${L('懷疑標記', 'Suspicion')}</span>`);
   if (op.counteracted && g.phase === 'firefight') flags.push(`<span class="flag">↺ ${L('本回合已反應', 'Counteracted this TP')}</span>`); // (the board shows the Counteracted token too)
   if (g.mark?.[1 - op.side] === op.uid) flags.push(`<span class="flag mk">${L('被標記', 'Marked')}</span>`);
   if (engagedEnemies(g, op).some((m) => m.apprehend === op.uid)) flags.push(`<span class="flag inj">${L('被扣押：命中 -1、不能撤退', 'Apprehended: -1 to hit, no Fall Back')}</span>`);
@@ -1488,6 +1505,19 @@ const ABILITIES = {
   emperorProtects: () => ['帝皇庇佑', 'The Emperor Protects', '被射擊時可重擲任意防禦骰（自動重擲失敗的）。', 'When shot, re-roll any defence dice (failed ones are re-rolled automatically).'],
   uplifting: () => ['振奮祈禱書', 'Uplifting Primer', '3" 內的友方武器獲得「嚴厲」。', 'Friendlies within 3" have Severe.'],
   vitality: () => ['腐敗活力', 'Putrescent Vitality', '1AP（靈能，每回合一次）：3" 內可見的友方擲 2D6，7 回復 7，否則回復較高的骰。', '1AP (Psychic, once per TP): a friendly visible within 3" rolls 2D6 — 7 regains 7, otherwise the highest die.'],
+  // Celestian Insidiants
+  ciLeader: () => ['神聖榜樣', 'Holy Example', '激勵時，每回合一次以它為對象的交戰計謀 0CP。（未實作）', 'While inspiring, once per TP a firefight ploy for it costs 0CP. (Not modelled.)'],
+  spiritualMentor: () => ['靈性導師', 'Spiritual Mentor', '1AP（支援，每回合一次）：6" 內看得到的友方變為激勵。', '1AP (Support, once per TP): a friendly visible within 6" becomes inspiring.'],
+  holyDefender: () => ['聖衛', 'Holy Defender', '每回合一次，2" 內看得到的友方被選為射擊或近戰目標時，改由它承受（爆炸、洪流無效；自動）。', 'Once per TP, when a friendly visible within 2" is picked as a Shoot or Fight target, it takes the attack instead (not vs Blast/Torrent; automatic).'],
+  controlPlus: () => ['告誡權杖掌旗手', 'Virge Icon Bearer', '爭奪標記時 APL 多算 1。', 'Counts 1 higher APL when controlling markers.'],
+  nullField: () => ['虛無力場', 'Null Field', '虛無範圍內（起始 1"，虛無儀式每次 +1"，最多 5"）的敵人 Move -2"、命中變差 1（不與重傷疊加）。1AP 虛無儀式每回合一次。', 'Enemies within its null range (1" to start, +1" per Nullifying Ritual, max 5") have -2" Move and worse Hit (not on top of injured). 1AP Nullifying Ritual once per TP.'],
+  pyre: () => ['激勵之火', 'Inspirational Pyre', '每回合一次，手持火焰噴射器傷到敵人但沒使它殘廢時，6" 內一名友方變為激勵。', 'Once per TP, when its hand flamer damages an enemy without incapacitating it, a friendly within 6" becomes inspiring.'],
+  speakDeeds: () => ['宣揚她的事蹟', 'Speak of Her Deeds', '1AP（支援）：讓 6" 內一名激勵中的友方不再激勵，另一名 6" 內的友方獲得祝福。', '1AP (Support): an inspiring friendly within 6" stops being inspiring; another friendly within 6" gains a Benediction.'],
+  accusingExorcist: () => ['控訴驅魔師', 'Accusing Exorcist', '它激勵時，「懷疑與剷除」0CP。', 'While it\'s inspiring, Suspect & Eliminate costs 0CP.'],
+  ultimatum: () => ['熱誠的最後通牒', 'Zealous Ultimatum', '整場一次（策略階段，自動）：向 8" 內的敵人下通牒，擲 D6 4+ 接受。接受：雙方近戰時闊劍 Atk +1，使它殘廢後永久 +1（最多 5）；拒絕：它對修女近戰時 Atk -1。', 'Once per battle (Strategy phase, automatic): an enemy within 8" is issued an ultimatum — a D6 4+ accepts. Accepted: +1 Atk for the broadsword between them, +1 for good after slaying it (max 5); declined: it has -1 Atk fighting the Insidiants.'],
+  simulacrum: () => ['虛無擬像掌旗手', 'Simulacrum Icon Bearer', '爭奪標記的敵人中有人在它 3" 內時，敵方 APL 總和 -1。', 'Enemies contesting a marker count 1 lower total APL if one is within 3" of it.'],
+  devotion: () => ['奉獻', 'Devotion', '啟動結束時若激勵且控制目標點，6" 內一名友方變為激勵。', 'At the end of its activation, if inspiring and controlling an objective, a friendly within 6" becomes inspiring.'],
+  inspiredStrikes: () => ['激勵打擊', 'Inspired Strikes', '激勵時武器暴擊傷害 +1。', 'While inspiring, +1 Critical Dmg.'],
   // Canoptek Circle
   canoptek: () => ['冥工機械', 'Canoptek', '在方尖碑節點矩陣內：武器「精準 1」、APL +1（最多 3）。（全隊特工都適用）', 'Within the Obelisk Node Matrix: Accurate 1 and +1 APL (max 3). (Every friendly gets this.)'],
   ccLeader: () => ['地占術士', 'Geomancer', '在矩陣內同樣獲得精準 1、APL +1（最多 3）。（以節點代替自己做任務動作未實作）', 'Within the matrix it also has Accurate 1 and +1 APL (max 3). (Obelisk Node Control isn\'t modelled.)'],
@@ -2113,7 +2143,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (mission(g).actions?.includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
       ui.path = null;
