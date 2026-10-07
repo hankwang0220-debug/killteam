@@ -42,7 +42,10 @@ export function tokenLegend() {
     item('conceal', true, getLang() === 'zh' ? '隱蔽' : 'Conceal'),
     item('engage', false, getLang() === 'zh' ? '暗面＋勾：已行動' : 'Dark + tick: expended'),
     `<span class="token-key"><svg viewBox="-.5 .5 1 1" aria-hidden="true">${counteractToken()}</svg>${getLang() === 'zh' ? '已反應' : 'Counteracted'}</span>`,
-  ].join('')}</div>`;
+  ].join('')}</div>
+  <div class="token-legend role-legend" aria-label="${getLang() === 'zh' ? '特工圖示' : 'Operative icons'}">${Object.entries(ROLE_ICON).map(([k, icon]) => `<span class="token-key"><svg class="role-key" viewBox="-.5 -.5 1 1" aria-hidden="true"><circle r=".5" class="rk-bg"/>${roleGlyph(k, 0.3)}</svg>${{
+    leader: ['領袖', 'Leader'], medic: ['醫療', 'Medic'], psyker: ['靈能', 'Psyker'], support: ['支援', 'Support'], heavy: ['重武器', 'Heavy weapon'], melee: ['近戰', 'Melee'], ranged: ['射手', 'Shooter'],
+  }[k][getLang() === 'zh' ? 0 : 1]}</span>`).join('')}<span class="token-key">${getLang() === 'zh' ? '右下小字＝編號' : 'small number = operative #'}</span></div>`;
 }
 
 /**
@@ -80,13 +83,21 @@ export function renderBoard(g, ui) {
     s.push(`<text x="${o.x}" y="${o.y + 0.16}" class="objtxt" pointer-events="none">${o.id + 1}</text>`);
   }
 
+  // Obelisk Node Matrix (Canoptek Circle): 20mm-wide lines between a side's nodes within 6" of each other.
+  for (const side of [0, 1]) {
+    const nodes = (g.markers || []).filter((m) => m.kind === 'obeliskNode' && m.owner === side);
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      if (Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y) > 6) continue;
+      s.push(`<line x1="${f(nodes[i].x)}" y1="${f(nodes[i].y)}" x2="${f(nodes[j].x)}" y2="${f(nodes[j].y)}" class="matrix" stroke="${team(g, side).color}" pointer-events="none"/>`);
+    }
+  }
   // Mission markers on the ground (carried ones are drawn on their carrier).
   for (const m of g.markers || []) {
     if (m.carriedBy) continue;
     const c = controller(g, m);
     const col = c == null ? 'var(--obj)' : team(g, c).color;
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
-    const sym = { infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣' }[m.kind] || '✦';
+    const sym = { infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
     if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);
@@ -189,7 +200,9 @@ export function renderBoard(g, ui) {
       s.push(`<circle r="${f(r + 0.3)}" class="lastRing" stroke="${col}"/>`);
     }
     s.push(`<circle r="${f(r)}" fill="${col}" class="base ${o.order === 'conceal' ? 'conceal' : ''}"/>`);
-    s.push(`<text y="0.17" class="optxt">${shortLabel(o)}</text>`);
+    // Role icon in the middle, its number small in the lower right.
+    s.push(roleGlyph(roleOf(g, o), Math.min(0.26, r * 0.5)));
+    s.push(`<text x="${f(r * 0.55)}" y="${f(r * 0.78)}" class="opnum">${o.num}</text>`);
     // wound bar
     const w = r * 1.8, pct = o.wounds / o.maxW;
     s.push(`<rect x="${f(-w / 2)}" y="${f(r + 0.08)}" width="${f(w)}" height="0.16" class="wbg"/>`);
@@ -244,8 +257,36 @@ function shortName(o) {
   return t.count > 1 ? `${n} #${o.num}` : n;
 }
 
-function shortLabel(o) {
-  const t = tpl(o);
-  const abbrev = { sgt: '★', boss: '★', shasui: '★', gunner: 'P', plasma: 'P', melta: 'M', assault: 'A', burna: 'B', rokkit: 'R', rail: 'R', ion: 'I' };
-  return abbrev[t.id] || String(o.num);
+// ---------- operative role icons ----------
+const LEADER_NAME = /sergeant|leader|boss|nob\b|captain|commander|exarch|archon|felarch|shas'ui|chieftain|watchmaster|champion|despotek|technomancer|geomancer|theyn|sorcerer|superior|patriarch|primus|magus|proctor|kill broker|technoarcheologist|alpha|kommando boss|veteran sergeant|brother-sergeant|cryptek|tyrant|keeper|kâhl|kahl|herald|lord/i;
+const SUPPORT_KEYS = ['signal', 'signalAny', 'support', 'jam', 'jamToken', 'markerlight', 'panScan', 'systemJam', 'pulse', 'auspex', 'battleComms', 'tacticalCommand',
+  'canoptekControl', 'networkOverride', 'overcharge', 'datacoronal', 'omniscanner', 'eyeAbove', 'pechra', 'veriscant', 'interstitial', 'confidant', 'tactician'];
+export const ROLE_ICON = { leader: '★', medic: '✚', psyker: '✦', support: '◎', heavy: '◆', melee: '⚔', ranged: '⌖' };
+/** The role icon as SVG shapes (drawn, not a font glyph, so it reads the same everywhere), centred on 0,0 with half-size s. */
+export function roleGlyph(role, s = 0.22) {
+  const k = (n) => f(n * s);
+  const star = Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 0.42 : 1; return `${k(Math.cos(a) * rr)},${k(Math.sin(a) * rr)}`; }).join(' ');
+  const shapes = {
+    leader: `<polygon points="${star}" class="rg-fill"/>`,
+    medic: `<path d="M${k(-0.3)} ${k(-0.95)}h${k(0.6)}v${k(0.65)}h${k(0.65)}v${k(0.6)}h${k(-0.65)}v${k(0.65)}h${k(-0.6)}v${k(-0.65)}h${k(-0.65)}v${k(-0.6)}h${k(0.65)}z" class="rg-fill"/>`,
+    psyker: `<path d="M${k(0.25)} ${k(-1)}L${k(-0.55)} ${k(0.15)}H${k(0)}L${k(-0.25)} ${k(1)}L${k(0.6)} ${k(-0.2)}H${k(0.05)}z" class="rg-fill"/>`,
+    support: `<circle r="${k(0.28)}" class="rg-fill"/><path d="M${k(-0.55)} ${k(-0.55)}A${k(0.78)} ${k(0.78)} 0 0 0 ${k(-0.55)} ${k(0.55)}M${k(0.55)} ${k(-0.55)}A${k(0.78)} ${k(0.78)} 0 0 1 ${k(0.55)} ${k(0.55)}" class="rg-line"/>`,
+    heavy: `<polygon points="0,${k(-1)} ${k(0.85)},0 0,${k(1)} ${k(-0.85)},0" class="rg-fill"/>`,
+    melee: `<path d="M${k(-0.85)} ${k(-0.85)}L${k(0.85)} ${k(0.85)}M${k(0.85)} ${k(-0.85)}L${k(-0.85)} ${k(0.85)}M${k(-0.85)} ${k(0.35)}L${k(-0.35)} ${k(0.85)}M${k(0.85)} ${k(0.35)}L${k(0.35)} ${k(0.85)}" class="rg-line"/>`,
+    ranged: `<circle r="${k(0.6)}" class="rg-line"/><path d="M0 ${k(-1)}V${k(-0.3)}M0 ${k(0.3)}V${k(1)}M${k(-1)} 0H${k(-0.3)}M${k(0.3)} 0H${k(1)}" class="rg-line"/>`,
+  };
+  return `<g class="role-glyph" style="--rgw:${k(0.28)}px">${shapes[role]}</g>`;
+}
+/** What an operative is for, at a glance: leader, medic, psyker, support, heavy weapon, fighter or shooter. */
+export function roleOf(g, o) {
+  const t = tpl(o), tm = team(g, o.side);
+  if (o.side < 2 && (t === tm.ops[0] || t.bbLeader || t.ccLeader || t.exarch || LEADER_NAME.test(t.name.en))) return 'leader';
+  if (t.medic || t.medikit || t.stimms) return 'medic';
+  if (t.psyker || t.destiny) return 'psyker';
+  if (SUPPORT_KEYS.some((k) => t[k])) return 'support';
+  const ws = t.loadouts?.[o.loadout] || t.weapons || [];
+  const r = ws.filter((w) => w.type === 'ranged'), m = ws.filter((w) => w.type === 'melee');
+  if (r.some((w) => w.rules.heavy || w.rules.devastating || w.rules.blast || w.rules.torrent || w.rules.hot || (w.rules.piercing || 0) >= 2)) return 'heavy';
+  const best = (list) => Math.max(0, ...list.map((w) => w.atk * w.dmg[0]));
+  return best(m) > best(r) * 1.1 ? 'melee' : 'ranged';
 }

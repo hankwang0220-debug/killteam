@@ -17,7 +17,7 @@ import {
   NPO, mission, placeBid, doPickUp, doMissionAction, foes,
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
-import { renderBoard, tokenLegend } from './board.js';
+import { renderBoard, tokenLegend, roleGlyph, roleOf } from './board.js';
 import { clampPath, findPath, moveCtx } from './path.js';
 import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices } from './missions.js';
@@ -344,6 +344,10 @@ function packagePick(t, side, cur) {
 }
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
 function rosterWarning(t, cur) {
+  if (t.obeliskNodes) {
+    const isos = (Array.isArray(cur.ccCrawler) ? cur.ccCrawler : []).filter((id) => id === 'ccCrawlerIso').length + (cur.ccCrawler === 'ccCrawlerIso' ? 2 : 0);
+    return isos > 1 ? `<p class="bad small">⚠ ${L('跨維度隔離器最多 1 把', 'One transdimensional isolator at most')}</p>` : '';
+  }
   if (!t.broodBrothers) return '';
   const ids = Object.keys(t.replacements).map((slot) => cur[slot] || slot);
   const dup = ids.filter((id, i) => id !== 'bbTrooper' && ids.indexOf(id) !== i);
@@ -434,9 +438,33 @@ function roster(t) {
 function gameView() {
   return `${topBar(scoreBar())}
   <main class="game">
-    <div class="boardwrap"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}${turnBanner()}${endBanner()}</div>${tokenLegend()}</div>
+    <div class="boardwrap">${opRoster(0)}<div class="boardcol"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}${turnBanner()}${endBanner()}</div>${tokenLegend()}</div>${opRoster(1)}</div>
     <aside class="panel">${panelView()}${logView()}</aside>
   </main>`;
+}
+
+/** One side's operatives beside the board: role, wounds, ready / expended, injured, order; tap for its datacard. */
+function opRoster(side) {
+  if (g.phase === 'deploy' && !g.ops.some((o) => o.side === side && o.placed)) return `<aside class="oproster side${side}"></aside>`;
+  const tm = team(g, side);
+  const ops = g.ops.filter((o) => o.side === side);
+  const alive = ops.filter((o) => !o.dead).length;
+  const chip = (o) => {
+    const status = o.dead ? L('殘廢', 'Incapacitated') : g.active === o.uid ? L('啟動中', 'Active') : o.ready ? L('待行動', 'Ready') : L('已行動', 'Expended');
+    const tags = [
+      o.dead ? '' : `<span class="tag ${o.order}">${o.order === 'conceal' ? L('◐隱蔽', '◐ Conceal') : L('⚔交戰', '⚔ Engage')}</span>`,
+      !o.dead && isInjured(o) ? `<span class="tag inj">${L('重傷', 'Injured')}</span>` : '',
+      !o.dead && o.counteracted && g.phase === 'firefight' ? `<span class="tag">${L('↺已反應', '↺ Countered')}</span>` : '',
+    ].join('');
+    const cls = ['opchip', o.dead ? 'dead' : '', !o.dead && !o.ready && g.active !== o.uid ? 'spent' : '', g.active === o.uid ? 'active' : '', (ui.peek || ui.sel) === o.uid ? 'sel' : ''].join(' ');
+    return `<button class="${cls}" data-act="peek" data-uid="${o.uid}" title="${esc(opName(o, getLang()))}">
+      <svg class="chip-icon" viewBox="-.5 -.5 1 1" aria-hidden="true"><circle r=".48" fill="${tm.color}"/>${roleGlyph(roleOf(g, o), 0.26)}</svg>
+      <span class="chip-main"><span class="chip-name"><b>${o.num}</b><span class="nm"> ${esc(tx(tpl(o).name))}</span></span>
+        <span class="chip-bar"><i class="${isInjured(o) ? 'inj' : ''}" style="width:${o.dead ? 0 : Math.round(o.wounds / o.maxW * 100)}%"></i></span>
+        <span class="chip-sub"><span class="st">${status}</span> ${o.dead ? '' : `${o.wounds}/${o.maxW}`} ${tags}</span></span>
+    </button>`;
+  };
+  return `<aside class="oproster side${side}" style="--tc:${tm.color}"><h4>${esc(tx(tm.name))} <small>${alive}/${ops.length}</small></h4>${ops.map(chip).join('')}</aside>`;
 }
 
 // ---------- turn banner ----------
@@ -751,7 +779,7 @@ function gambitView(side) {
   if (kb) {
     const cur = g.mark?.[side];
     html += `<div class="gambit"><h4>${L('呼喚獵殺（獵殺掮客）', 'Call the Kill (Kill-broker)')}</h4>
-      <p class="hint small">${L('選一名敵人作為本回合的標記：射擊、近戰或反擊它時武器獲得「平衡」。標記倒下時會自動選下一個，並觸發勝利尖嘯。', 'Mark an enemy for the turning point: weapons have Balanced against it. When it falls, a new mark is picked and Victory Shriek triggers.')}</p>
+      <p class="hint small">${L('選一名敵人作為本回合的標記：射擊、近戰或反擊它時武器獲得「平衡」。標記殘廢時會自動選下一個，並觸發勝利尖嘯。', 'Mark an enemy for the turning point: weapons have Balanced against it. When it falls, a new mark is picked and Victory Shriek triggers.')}</p>
       <select data-act="mark" data-side="${side}"><option value="">${L('（不標記）', '(no mark)')}</option>
         ${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${cur === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}
       </select></div>`;
@@ -787,7 +815,7 @@ function gambitView(side) {
   const autos = [...(team(g, side).firefight || []), ...(team(g, side).techniques || [])].filter((p) => ffKind(p.id) === 'auto' || p.id === 'animalisticFury'); // (Animalistic Fury: automatic when retaliating)
   if (autos.length && !isAI(side)) {
     html += `<div class="gambit"><h4>${L('自動使用的交戰計謀', 'Firefight ploys used automatically')}</h4>
-      <p class="hint small">${L('這些計謀在觸發時機（被射擊、受傷、倒下…）自動花 CP 使用；不想用就取消勾選。', 'These are spent automatically when their moment comes (shot, damaged, incapacitated…); untick to keep the CP.')}</p>
+      <p class="hint small">${L('這些計謀在觸發時機（被射擊、受傷、殘廢…）自動花 CP 使用；不想用就取消勾選。', 'These are spent automatically when their moment comes (shot, damaged, incapacitated…); untick to keep the CP.')}</p>
       ${autos.map((p) => `<label class="small"><input type="checkbox" data-act="ffarm" data-side="${side}" data-id="${p.id}" ${ffArmed(g, side, p.id) ? 'checked' : ''}> ${esc(tx(p.name))}（${p.cp}CP）<span class="hint">${esc(tx(p.desc))}</span></label>`).join('')}
     </div>`;
   }
@@ -817,7 +845,7 @@ function gambitView(side) {
   if (team(g, side).justiceMark) {
     const cur = g.mark?.[side];
     html += `<div class="gambit"><h4>${L('正義標記', 'Marked for Justice')}</h4>
-      <p class="hint small">${L('選一名敵人：本回合友方射擊、近戰或反擊它時，武器獲得「懲罰」。它倒下時會自動改標記剩餘生命最多的敵人。', 'Select an enemy: this TP, friendly weapons have Punishing against it. When it falls, the enemy with the most wounds left becomes the new mark.')}</p>
+      <p class="hint small">${L('選一名敵人：本回合友方射擊、近戰或反擊它時，武器獲得「懲罰」。它殘廢時會自動改標記剩餘生命最多的敵人。', 'Select an enemy: this TP, friendly weapons have Punishing against it. When it falls, the enemy with the most wounds left becomes the new mark.')}</p>
       <select data-act="mark" data-side="${side}"><option value="">${L('（不選）', '(none)')}</option>
         ${living(g, 1 - side).map((o) => `<option value="${o.uid}" ${cur === o.uid ? 'selected' : ''}>${nm(o)} ${o.wounds}/${o.maxW}</option>`).join('')}
       </select></div>`;
@@ -860,7 +888,7 @@ function gambitView(side) {
   if (living(g, side).some((o) => tpl(o).eyeOfAncestors)) {
     const left = eyeLeft(g, side);
     html += `<div class="gambit"><h4>${L(`先祖之眼（領主）：還可給 ${left} 名`, `Eye of the Ancestors (Theyn): ${left} left`)}</h4>
-      <p class="hint small">${L('選敵人給一個宿怨標記（友方倒下 3 人以上時可選 2 名）。標記整場保留。', 'Give enemies a Grudge token (two if three or more friendlies are down). Tokens last the battle.')}</p>
+      <p class="hint small">${L('選敵人給一個宿怨標記（友方殘廢 3 人以上時可選 2 名）。標記整場保留。', 'Give enemies a Grudge token (two if three or more friendlies are down). Tokens last the battle.')}</p>
       <div class="readylist">${living(g, 1 - side).map((o) => `<button data-act="grudge" data-side="${side}" data-uid="${o.uid}" ${left ? '' : 'disabled'}>${nm(o)} <small>${o.grudge?.[side] ? `⚑${o.grudge[side]}` : ''}</small></button>`).join('')}</div></div>`;
   }
   if (living(g, side).some((o) => tpl(o).tactician)) {
@@ -1046,7 +1074,10 @@ function firefightPanel() {
   const undoBtn = ui.undo.length ? `<button class="wide" data-act="undo">↶ ${L('回復上一動作', 'Undo last action')}</button>` : '';
   if (!op && g.counter) {
     const cands = counterCandidates(g, g.turn);
-    html += g.netcounter ? `<p><b>${L('網路反擊', 'Network Counteract')}</b></p>
+    html += g.netcounter?.kind === 'control' ? `<p><b>${L('冥工控制', 'Canoptek Control')}</b></p>
+      <p class="hint">${L('選定的冥工機械免費執行一個 1AP 動作（移動不超過 2"），之後地占術士繼續啟動；也可以略過。', 'The chosen Canoptek performs a free 1AP action (moving no more than 2"), then the Geomancer\'s activation continues; or pass.')}</p>
+      <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
+      : g.netcounter ? `<p><b>${L('網路反擊', 'Network Counteract')}</b></p>
       <p class="hint">${L('噪聲網路：選一名 APL 2 以上、本回合還沒反擊過的僕從（準備中的也可以，之後仍能正常啟動），先選指令，再免費執行一個 1AP 動作（移動不超過 2"），或略過。',
     'Noospheric Network: pick a servitor with APL 2+ that hasn\'t counteracted this TP (a ready one too — it can still activate later); select its order, then it performs one free 1AP action (moving no more than 2"), or pass.')}</p>
       <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
@@ -1143,7 +1174,7 @@ function modeView(op) {
     const status = p ? (p.ok ? `<p class="ok">✔ ${p.len.toFixed(1)}" / ${max}"</p>` : `<p class="bad">✘ ${esc(p.why)}</p>`) : '';
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
-    const canPin = !!(p && m.dest && !p.unreachable && p.len < max - 0.05);
+    const canPin = !!(p && m.dest && !p.unreachable && !p.breach && p.len < max - 0.05);
     const wpRow = `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
     return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
@@ -1174,6 +1205,12 @@ function modeView(op) {
       signal: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
       systemJam: L('點擊一個可見的敵人，它下次啟動 APL -1。', 'Tap a visible enemy: -1 APL for its next activation.'),
       medikit: L('點擊控制範圍內受傷的友方（無人機除外），回復 2D3 生命。', 'Tap a wounded friendly (not a drone) in control range to regain 2D3 wounds.'),
+      geomantic: L('點擊一名靠近地形（2" 內）、離你 8" 內的敵人：在離它最近的地形點引爆，2" 內每名特工擲 2D6。', 'Tap an enemy within 2" of terrain and within 8": the terrain point nearest it erupts — every operative within 2" rolls 2D6.'),
+      canoptekControl: L('點擊一名冥工機械：它立刻免費做一個 1AP 動作。', 'Tap a Canoptek: it performs a free 1AP action now.'),
+      molecularBreach: L('點擊一名友方：它下次移動改為直接傳送。', 'Tap a friendly: its next move is a teleport.'),
+      overcharge: L('點擊一名冥工機械：下次啟動 APL +1。', 'Tap a Canoptek: +1 APL next activation.'),
+      cranialOverload: L('點擊一名敵人：下次啟動 APL -1。', 'Tap an enemy: -1 APL next activation.'),
+      nanoscarab: L('點擊一名受傷的友方：回復 3D3 生命。', 'Tap a wounded friendly: regains 3D3 wounds.'),
       bbJam: L('點擊一名準備中、可以當目標的敵人：擲 D6，它要等對手再啟動那麼多名特工（或只剩它）才能行動。', 'Tap a ready enemy that\'s a valid target: roll a D6 — it can\'t act until the opponent has activated that many more operatives (or it\'s the last).'),
       telepathicOverload: L('點擊一名可以當目標的敵人：APL -1，直到它的啟動結束。', 'Tap an enemy that\'s a valid target: -1 APL until the end of its activation.'),
       mentalOnslaught: L('點擊一名可以當目標的敵人：2 傷害（6" 內 4），再擲 D6 大於它的 APL 就繼續，最多 8。', 'Tap an enemy that\'s a valid target: 2 damage (4 within 6"), then keep rolling a D6 above its APL for more, up to 8.'),
@@ -1222,8 +1259,9 @@ function weaponLine(w) {
 
 /** Floating card on the board for an inspected (clicked) operative that isn't the active one. */
 function inspectView() {
-  const op = ui.sel && getOp(g, ui.sel);
-  if (!op || op.dead || op.uid === g.active) return '';
+  // ui.peek: picked from the operative lists beside the board (the active one and fallen ones too).
+  const op = (ui.peek && getOp(g, ui.peek)) || (ui.sel && getOp(g, ui.sel));
+  if (!op || (!ui.peek && (op.dead || op.uid === g.active))) return '';
   // Sit in the corner away from the operative so it never covers it.
   const pos = `${op.x > 15 ? 'left' : 'right'} ${op.y > 11 ? 'top' : 'bottom'}`;
   const who = g.ai === op.side ? L('敵方（電腦）', 'Enemy (computer)')
@@ -1236,8 +1274,8 @@ function datacard(op, extra = '') {
   const t = tpl(op);
   const tm = team(g, op.side);
   const flags = [];
-  if (injuredPenalty(g, op)) flags.push(`<span class="flag inj">${L('受傷：Move -2"、命中 -1', 'Injured: -2" Move, -1 to hit')}</span>`);
-  else if (isInjured(op)) flags.push(`<span class="flag inj">${L('受傷（無所畏懼：無減益）', 'Injured (Know No Fear: no penalty)')}</span>`);
+  if (injuredPenalty(g, op)) flags.push(`<span class="flag inj">${L('重傷：Move -2"、命中 -1', 'Injured: -2" Move, -1 to hit')}</span>`);
+  else if (isInjured(op)) flags.push(`<span class="flag inj">${L('重傷（無所畏懼：無減益）', 'Injured (Know No Fear: no penalty)')}</span>`);
   if (!injuredPenalty(g, op) && statPenalty(g, op)) flags.push(`<span class="flag inj">${L('傳染：Move -2"、命中 -1', 'Contagion: -2" Move, -1 to hit')}</span>`);
   if (op.poison) flags.push(`<span class="flag poison">${L('中毒', 'Poisoned')}</span>`);
   if (op.counteracted && g.phase === 'firefight') flags.push(`<span class="flag">↺ ${L('本回合已反應', 'Counteracted this TP')}</span>`); // (the board shows the Counteracted token too)
@@ -1298,7 +1336,7 @@ const ABILITIES = {
   signal: () => ['信號', 'Signal', '1AP：6" 內可見的另一名友方下次啟動 APL +1。', '1AP: another visible friendly within 6" gets +1 APL next activation.'],
   systemJam: () => ['系統干擾', 'System Jam', '1AP（非隱蔽）：可見敵人下次啟動 APL -1。', '1AP (not Concealed): a visible enemy gets -1 APL next activation.'],
   medikit: () => ['醫療包', 'Medikit', '1AP：控制範圍內受傷的友方（無人機除外）回復 2D3 生命。', '1AP: a wounded friendly (not a drone) in control range regains 2D3 wounds.'],
-  medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將失去戰鬥能力時改為剩 1 生命，雙方下次啟動 APL -1。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation.'],
+  medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將殘廢時改為剩 1 生命，雙方下次啟動 APL -1。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation.'],
   multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
   droneController: () => ['無人機操控員', 'Drone Controller', '在場時友方無人機 Move +2"。', 'While it is in the killzone, friendly drones get +2" Move.'],
   veteran: () => ['老兵', 'Veteran', '使用蒙卡或考陽的回合，兩者效果都適用於它。', "In a TP with Mont'ka or Kauyon, it gets both."],
@@ -1315,32 +1353,32 @@ const ABILITIES = {
   adaptive: () => ['應變裝備', 'Adaptive Equipment', '每回合士兵們可各用一次震撼彈與煙霧彈（不算裝備次數）。', 'Each TP, Troopers can use a stun and a smoke grenade once each (not from equipment).'],
   mark: (v) => [{ khorne: '恐虐印記', nurgle: '納垢印記', slaanesh: '色孽印記', tzeentch: '奸奇印記', undivided: '混沌不分印記' }[v], { khorne: 'Mark of Khorne', nurgle: 'Mark of Nurgle', slaanesh: 'Mark of Slaanesh', tzeentch: 'Mark of Tzeentch', undivided: 'Undivided' }[v], { khorne: '近戰武器「重創」。', nurgle: '受到 3 以上普通傷害時擲 D6，5+ -1。', slaanesh: 'Move +1"。', tzeentch: '遠程武器「重創」。', undivided: '攻擊 6" 內的敵人時武器「無休」。' }[v], { khorne: 'Melee weapons have Severe.', nurgle: 'Normal Dmg of 3+: on a 5+, 1 less.', slaanesh: '+1" Move.', tzeentch: 'Ranged weapons have Severe.', undivided: 'Ceaseless against enemies within 6".' }[v]],
   daemonicAura: () => ['惡魔光環', 'Daemonic Aura', '控制範圍內的敵人撤退時擲 D6，3+ 就不能撤退。', 'An enemy falling back from its control range: on a D6 3+ it can\'t.'],
-  soulGorge: () => ['靈魂吞噬', 'Soul Gorge', '近戰後若擊倒敵人或造成暴擊傷害，回復 D3+1。', 'After a fight in which it incapacitated the enemy or inflicted Critical Dmg, regains D3+1.'],
+  soulGorge: () => ['靈魂吞噬', 'Soul Gorge', '近戰後若使敵人殘廢或造成暴擊傷害，回復 D3+1。', 'After a fight in which it incapacitated the enemy or inflicted Critical Dmg, regains D3+1.'],
   noAssistVs: () => ['毀滅猛攻', 'Devastating Onslaught', '和它近戰的敵人不能得到協助。', 'Enemies fighting it can\'t be assisted.'],
   viciousReflexes: () => ['兇猛反射', 'Vicious Reflexes', '反擊時由它先出手。', 'When retaliating, it resolves the first die.'],
-  dismember: () => ['恐怖肢解', 'Horrifying Dismemberment', '近戰擊倒敵人時，附近另一名敵人下次 APL -1。', 'When it incapacitates an enemy in a fight, another enemy nearby gets -1 APL.'],
+  dismember: () => ['恐怖肢解', 'Horrifying Dismemberment', '近戰使敵人殘廢時，附近另一名敵人下次 APL -1。', 'When it incapacitates an enemy in a fight, another enemy nearby gets -1 APL.'],
   grisly: () => ['血腥標記', 'Grisly Mark', '2AP（整場一次）：放下標記；3" 內的敵人撿標記與任務動作 +1AP，爭奪目標 APL 總和 -1。', '2AP (once): place the marker; enemies within 3" pay +1AP for Pick Up / mission actions and count 1 less total APL for control.'],
   unleashDaemon: () => ['釋放惡魔', 'Unleash Daemon', '啟動時（整場一次）：之後 4 以上的傷害 -1，惡魔爪「無休」＋「致命 5+」，但不能撿標記或做任務動作。', 'When activated (once): from then on 4+ damage deals 1 less and its claw has Ceaseless and Lethal 5+, but it can\'t pick up markers or do mission actions.'],
   wastelandStalker: () => ['荒地潛行者', 'Wasteland Stalker', '被射擊時若能保留掩護豁免，可多保留 1 顆，或把 1 顆當暴擊保留。', 'When shot, if it can retain cover saves, it retains one more, or one as a critical success.'],
   canticleDestruction: () => ['毀滅頌歌', 'Canticle of Destruction', '3" 內的友方潛行者（包括自己）近戰時，第一次用暴擊打擊多造成 1 傷害。', 'A friendly Ruststalker within 3" (itself included) fighting: its first critical strike of the sequence deals 1 more damage.'],
   targetingProtocol: () => ['瞄準協議', 'Targeting Protocol', '本次啟動還沒移動（或反擊時）射擊，遠程武器「致命 5+」；射擊後仍可移動。', 'Shooting before it has moved this activation (or counteracting): ranged weapons have Lethal 5+; it can still move afterwards.'],
-  radSat: () => ['輻射飽和', 'Rad-Saturation', '友方先鋒軍 2" 內的敵人命中變差 1（不與受傷疊加）。', 'Enemies within 2" of friendly Vanguard have their Hit worsened by 1 (not cumulative with injured).'],
+  radSat: () => ['輻射飽和', 'Rad-Saturation', '友方先鋒軍 2" 內的敵人命中變差 1（不與重傷疊加）。', 'Enemies within 2" of friendly Vanguard have their Hit worsened by 1 (not cumulative with injured).'],
   magnifyRelay: () => ['放大節點', 'Magnify node', '交戰指令且不在敵人控制範圍內時，友方技師／學徒的「放大」武器可借它的位置射擊。', 'With an Engage order and not in an enemy\'s control range, friendly Cryptek / Apprentek Magnify weapons can shoot through it.'],
   interstitial: () => ['間隙指令', 'Interstitial Command', '1AP（支援，非反擊）：6" 內可見的另一名友方（技師、學徒除外；技師也可選不朽者指揮官 6" 內的）立刻免費射擊一次。本版只能用來射擊；本回合已射擊或已被指揮過的不能選。', '1AP (Support, not counteracting): another visible friendly within 6" (not a Cryptek or Apprentek; for a Cryptek, also within 6" of a visible Despotek) shoots for free right away. Here it can only Shoot; not one that already shot or was commanded this TP.'],
   canoptekRepair: () => ['聖甲蟲修復', 'Canoptek Repair', '1AP（支援，每回合全隊一次）：6" 內可見的友方回復 2D3 生命。', '1AP (Support, once per TP for the team): a visible friendly within 6" regains 2D3 wounds.'],
   augment: () => ['強化武器', 'Augment Weapon', '1AP（支援）：直到它下次啟動，6" 內可見友方的一把武器獲得兩條規則（自動選：致命 5+、撕裂；已有就改選重創、飽和）。', '1AP (Support): until its next activation, one weapon of a visible friendly within 6" gains two rules (picked for you: Lethal 5+ and Rending, or Severe / Saturate if it already has them).'],
   reinforce: () => ['強化金屬', 'Reinforce Metal', '1AP（支援）：直到它下次啟動，6" 內可見的一名友方受到 3 以上的傷害時 -1。', '1AP (Support): until its next activation, attack dice inflicting 3+ damage on a visible friendly within 6" deal 1 less.'],
   apprentek: () => ['學徒協助', 'Apprentek Assistance', '擁有技師的特殊動作，但每回合只能用其中一個。', 'Has the Cryptek\'s unique actions, but can only use one of them per turning point.'],
-  deathmark: () => ['死亡標記', 'Deathmarked', '射擊後沒倒下的目標獲得死亡標記；死亡標記射擊有標記的敵人時武器「搜尋」。', 'A target it shoots that survives gains a Deathmarked token; Deathmarks shooting a token holder have Seek.'],
+  deathmark: () => ['死亡標記', 'Deathmarked', '射擊後沒殘廢的目標獲得死亡標記；死亡標記射擊有標記的敵人時武器「搜尋」。', 'A target it shoots that survives gains a Deathmarked token; Deathmarks shooting a token holder have Seek.'],
   mdVision: () => ['多維視覺', 'Multi-dimensional Vision', '1AP：直到下次啟動，射擊時敵人不能被遮蔽。', '1AP: until its next activation, enemies cannot be obscured when it shoots.'],
   steadfast: () => ['堅定', 'Steadfast', '爭奪目標時 APL 一律算 3。', 'Counts as APL 3 when determining control of a marker.'],
   accelerate: () => ['加速', 'Accelerate', '1AP：6" 內可見的死亡標記或不朽者下次啟動 APL +1。', '1AP: a visible Deathmark or Immortal within 6" gets +1 APL next activation.'],
-  reanimate: () => ['復甦', 'Reanimate', '1AP 擲 D6，3+ 讓 6" 內看得到的復甦標記上的友方復甦；花 2AP 則自動成功。這回合已行動過才倒下的，復甦後是已行動狀態。', '1AP: roll a D6, on a 3+ the friendly of a Reanimation marker visible within 6" is REANIMATED; 2AP: automatic. One that had already acted this TP comes back expended.'],
+  reanimate: () => ['復甦', 'Reanimate', '1AP 擲 D6，3+ 讓 6" 內看得到的復甦標記上的友方復甦；花 2AP 則自動成功。這回合已行動過才殘廢的，復甦後是已行動狀態。', '1AP: roll a D6, on a 3+ the friendly of a Reanimation marker visible within 6" is REANIMATED; 2AP: automatic. One that had already acted this TP comes back expended.'],
   nuncio: () => ['使節天鷹', 'Nuncio-aquila', '3" 內的敵人執行撿起標記與任務動作要多花 1AP；爭奪目標時，若有敵人在它 3" 內，對方 APL 總和 -1。（本版以隊長本身代替標記）', 'Enemies within 3" pay +1AP for Pick Up Marker and mission actions; when a marker is contested, the enemy total APL is 1 lower if one of them is within 3" of it. (The Proctor itself stands in for the marker.)'],
-  engenderedFocus: () => ['堅定專注', 'Engendered Focus', '無視自身數值的變化（豁免除外）：受傷不減 Move、命中，APL 不受影響。', 'Ignores changes to its stats (except Save): no injured Move/Hit penalty, APL unchanged.'],
+  engenderedFocus: () => ['堅定專注', 'Engendered Focus', '無視自身數值的變化（豁免除外）：重傷不減 Move、命中，APL 不受影響。', 'Ignores changes to its stats (except Save): no injured Move/Hit penalty, APL unchanged.'],
   zealous: () => ['狂熱奉獻', 'Zealous Dedication', '受到 3 以上的傷害時擲 D6：5+ 傷害 -1。', 'Whenever an attack die inflicts 3+ damage on it, roll a D6: on a 5+, 1 less.'],
   arrest: () => ['懲戒者的逮捕', "Castigator's Arrest", '若它控制範圍內只有一名敵人，該敵人不能撤退。', 'If only one enemy is in its control range, that enemy cannot Fall Back.'],
-  apprehend: () => ['扣押', 'Apprehend', '0AP：控制範圍內一名敵人，在它離開前命中變差 1（不與受傷疊加）且不能撤退。', "0AP: an enemy in its control range has its Hit worsened by 1 (not cumulative with injured) and can't Fall Back while it stays there."],
+  apprehend: () => ['扣押', 'Apprehend', '0AP：控制範圍內一名敵人，在它離開前命中變差 1（不與重傷疊加）且不能撤退。', "0AP: an enemy in its control range has its Hit worsened by 1 (not cumulative with injured) and can't Fall Back while it stays there."],
   aggressivePattern: () => ['攻擊模式', 'Attack Pattern', '馴犬師為牠選了「凶猛」（近戰武器「無情」）與「迅捷」（Move +2"，已算入 8"）。', 'The Leashmaster picked Aggressive (melee Relentless) and Swift (+2" Move, included in its 8").'],
   veriscant: () => ['真相鑑定', 'Veriscant', '1AP（敏銳專注時 0AP）：一名可見敵人，直到它下次啟動，友方攻擊它時武器「致命 5+」＋「重創」。', '1AP (0AP with Acute Focus): a visible enemy — until its next activation, friendly weapons have Lethal 5+ and Severe against it.'],
   acuteFocus: () => ['敏銳專注', 'Acute Focus', '每次啟動一次：撿起標記、真相鑑定或任務動作少花 1AP。', 'Once per activation: Pick Up Marker, Veriscant or a mission action costs 1 less AP.'],
@@ -1359,22 +1397,22 @@ const ABILITIES = {
   toxicBlessings: () => ['劇毒祝福', 'Toxic Blessings', '無視 APL 變化，不受震撼影響；受到 3 以上傷害時擲 D6，5+ 減 1。（瘟疫炸彈未實作）', 'Ignores APL changes and Shock; whenever it takes 3+ damage, roll a D6: on a 5+, 1 less. (Pox Bomb isn\'t modelled.)'],
   sweepingBlow: () => ['橫掃重擊', 'Sweeping Blow', '1AP（非隱蔽，有狂暴標記也能用）：2" 內可見的每名其他特工（包括友方）受 D3+1 傷害。', '1AP (not Concealed; usable with a Frenzy token): D3+1 to every other operative visible within 2" (friends too).'],
   leadWithStrength: () => ['以力服眾', 'Lead With Strength', '持有血祭標記、或完全在敵方領域內時，視為受到諸神注視。（血祭聖像未實作）', 'With a Blooded token, or wholly within enemy territory, it counts as under the Gaze of the Gods. (Blooded Icon isn\'t modelled.)'],
-  explosiveDemise: () => ['爆炸死亡', 'Explosive Demise', '倒下時擲 2D6（在敵人控制範圍內 1D6），有 4+ 就對 2" 內可見的每名特工造成 D3+2 傷害（還沒丟炸彈則 D6+2）。', 'When incapacitated, roll 2D6 (1D6 if engaged): any 4+ deals D3+2 (D6+2 if the bomb is unused) to each visible operative within 2".'],
-  unholySustenance: () => ['邪惡滋養', 'Unholy Sustenance', '近戰或反擊時擊倒對手，回復 D3 生命。', 'Incapacitating the enemy when fighting or retaliating regains D3 wounds.'],
+  explosiveDemise: () => ['爆炸死亡', 'Explosive Demise', '殘廢時擲 2D6（在敵人控制範圍內 1D6），有 4+ 就對 2" 內可見的每名特工造成 D3+2 傷害（還沒丟炸彈則 D6+2）。', 'When incapacitated, roll 2D6 (1D6 if engaged): any 4+ deals D3+2 (D6+2 if the bomb is unused) to each visible operative within 2".'],
+  unholySustenance: () => ['邪惡滋養', 'Unholy Sustenance', '近戰或反擊時使對手殘廢，回復 D3 生命。', 'Incapacitating the enemy when fighting or retaliating regains D3 wounds.'],
   actuation: () => ['褻瀆啟動', 'Sacrilegious Actuation', '1AP（自己持有血祭標記時）：獲得一個血祭標記。', '1AP (while it has a Blooded token): gain a Blooded token.'],
   stimms: () => ['興奮劑', 'Stimms', '1AP：控制範圍內的友方，受傷時注射「回春」（回復 2D3），否則給「強化」或「狂怒」（整場）。開局給歐格林「強化」。', '1AP: a friendly in control range gets Rejuvenated (2D3 wounds) if hurt, otherwise Fortified or Enraged for the battle. The Ogryn starts Fortified.'],
-  wretched: () => ['卑劣者', 'Wretched', '在近戰中倒下時，可先用一顆未結算的成功骰打擊對方。（隱蔽衝鋒依基本規則停用）', 'If incapacitated in a fight, strikes with an unresolved success first. (Charging while Concealed is disabled by the basic rules.)'],
+  wretched: () => ['卑劣者', 'Wretched', '在近戰中殘廢時，可先用一顆未結算的成功骰打擊對方。（隱蔽衝鋒依基本規則停用）', 'If incapacitated in a fight, strikes with an unresolved success first. (Charging while Concealed is disabled by the basic rules.)'],
   camo1: () => ['迷彩斗篷', 'Camo Cloak', '被射擊時若能保留掩護豁免，多保留 1 顆。（以血之名未實作）', 'When shot with cover saves, retains one more. (A Name Whispered in Blood isn\'t modelled.)'],
   tough: () => ['堅韌', 'Tough', '近戰、反擊或被射擊時，3 以上的普通傷害 -1。', 'When fighting, retaliating or shot, Normal Dmg of 3+ deals 1 less.'],
   shielding: () => ['舉盾', 'Shielding', '0AP（啟動時）：直到下次啟動 Move -2"，被射擊時可重擲任意防禦骰。', '0AP (when activated): until its next activation, -2" Move and re-roll any defence dice when shot.'],
-  disciplinarian: () => ['嚴酷的紀律官', 'Gruelling Disciplinarian', '6" 內的友方無視受傷造成的數值變化。（強制命令未實作）', 'Friendlies within 6" ignore stat changes from being injured. (Enforce isn\'t modelled.)'],
+  disciplinarian: () => ['嚴酷的紀律官', 'Gruelling Disciplinarian', '6" 內的友方無視重傷造成的數值變化。（強制命令未實作）', 'Friendlies within 6" ignore stat changes from being injured. (Enforce isn\'t modelled.)'],
   chemEnhanced: () => ['化學強化', 'Chem-enhanced', '無視 APL 變化，不受震撼與昏迷影響。', 'Ignores APL changes and isn\'t affected by Shock or Stun.'],
   brute: () => ['蠻牛', 'Brute', '隱蔽時，敵人選目標不能用輕型地形擋它（仍保留掩護豁免）。', 'While Concealed, enemies can\'t use Light terrain as cover for it when picking targets (it keeps the cover save).'],
   slowWitted: () => ['遲鈍', 'Slow-witted', '撿標記與任務動作多花 1AP。', '+1AP for Pick Up and mission actions.'],
   avalanche: () => ['肌肉雪崩', 'Avalanche of Muscle', '衝鋒結束時，對控制範圍內一名敵人造成 D3 傷害。', 'After a Charge, D3 damage to one enemy in its control range.'],
   cultAgent: () => ['教派特工', 'Cult Agent', '被射擊時無視「穿甲」與「飽和」；能保留掩護豁免時多保留 1 顆，或把 1 顆當暴擊。', 'When shot, ignores Piercing and Saturate; with cover saves, retains one more or one as a critical.'],
   twoShoots: () => ['神槍手', 'Expert Gunslinger', '每次啟動可執行兩次射擊。', 'Can perform two Shoot actions per activation.'],
-  heroic: () => ['英雄的鼓舞', 'Heroic Inspiration', '本回合擊倒過敵人後，3" 內可見的友方新信徒武器「嚴厲」。', 'Once it has incapacitated an enemy this TP, friendly Neophytes visible within 3" of it have Severe.'],
+  heroic: () => ['英雄的鼓舞', 'Heroic Inspiration', '本回合使敵人殘廢過後，3" 內可見的友方新信徒武器「嚴厲」。', 'Once it has incapacitated an enemy this TP, friendly Neophytes visible within 3" of it have Severe.'],
   twoFights: () => ['劍術大師', 'Expert Swordsman', '每次啟動可執行兩次近戰。（之後的 3" 免費衝鋒、閃電突擊、刃之架勢未實作）', 'Can perform two Fight actions per activation. (The free 3" Charge, Quicksilver Strike and Bladed Stance aren\'t modelled.)'],
   bipod: () => ['重武器腳架', 'Heavy Weapon Bipod', '本次啟動沒移動（或反擊時）射擊：武器「無休」，已有無休則改為「無情」。', 'Shooting without having moved this activation (or when counteracting): Ceaseless, or Relentless if it already has it.'],
   miasma: () => ['毒瘴', 'Poisonous Miasma', '1AP（靈能）：7" 內可見的敵人中毒；已中毒則受到 3 傷害。', '1AP (Psychic): an enemy visible within 7" is poisoned, or takes 3 damage if it already was.'],
@@ -1387,9 +1425,9 @@ const ABILITIES = {
   dakkaDash: () => ['達卡衝刺', 'Dakka Dash', '1AP（非隱蔽）：免費衝刺一次並用達卡槍免費射擊一次，順序不限。', '1AP (not Concealed): a free Dash and a free dakka shoota Shoot, in either order.'],
   datAllYouGot: () => ['就這樣？', 'Dat All You Got?', '近戰或反擊後若還站著，對方受到 D3 傷害。', 'After fighting or retaliating, if still standing, the enemy takes D3 damage.'],
   wotNotz: () => ['戰術小玩意', 'Taktical Wot-notz', '每回合一次，一名小子可丟震撼手雷：6" 內可見的敵人及其 1" 內的特工擲 D6，3+ 下次啟動 APL -1。', 'Once per TP, one Boy can throw a Stun Grenade: an enemy visible within 6" and every operative within 1" of it roll a D6 — on a 3+, -1 APL next activation.'],
-  callTheKill: () => ['呼喚獵殺／勝利尖嘯', 'Call the Kill / Victory Shriek', '策略階段標記一名敵人，對它攻擊時武器獲得「平衡」；標記倒下時，6" 內一名友方之後都獲得「平衡」（每名一次）。', 'Mark an enemy in the Strategy phase: Balanced against it. When it falls, a friendly within 6" has Balanced for the rest of the battle (once each).'],
+  callTheKill: () => ['呼喚獵殺／勝利尖嘯', 'Call the Kill / Victory Shriek', '策略階段標記一名敵人，對它攻擊時武器獲得「平衡」；標記殘廢時，6" 內一名友方之後都獲得「平衡」（每名一次）。', 'Mark an enemy in the Strategy phase: Balanced against it. When it falls, a friendly within 6" has Balanced for the rest of the battle (once each).'],
   energise: () => ['充能', 'Energise', '1AP：加速弓獲得「致命 5+」，直到本回合結束或用弓射擊後。', '1AP: the accelerator bow has Lethal 5+ until the end of the TP or until it shoots.'],
-  coldBlooded: () => ['冷血', 'Cold-blooded', '攻擊受過傷的敵人時「致命 5+」；對方已受傷（生命低於一半）時再加「撕裂」。', 'Lethal 5+ against a wounded enemy; also Rending if it is injured.'],
+  coldBlooded: () => ['冷血', 'Cold-blooded', '攻擊受過傷的敵人時「致命 5+」；對方已重傷（生命低於一半）時再加「撕裂」。', 'Lethal 5+ against a wounded enemy; also Rending if it is injured.'],
   hardyCrit: () => ['強韌', 'Hardy', '受到暴擊時只承受普通傷害（若較低）。', 'Critical hits on it inflict Normal Dmg instead (if lower).'],
   viciousDuellist: () => ['兇猛決鬥者', 'Vicious Duellist', '近戰或反擊時，對方每顆失敗的攻擊骰造成 1 傷害。', 'When fighting or retaliating, each enemy attack die that fails deals 1 damage to that enemy.'],
   savageAssault: () => ['野蠻突擊', 'Savage Assault', '每次啟動第一次近戰後若雙方都還站著，可對同一敵人免費再近戰一次。', 'After its first Fight each activation, if both still stand, a free Fight against the same enemy.'],
@@ -1419,14 +1457,14 @@ const ABILITIES = {
   emboldened: () => ['奮勇', 'Emboldened', '本回合衝鋒過時，每顆攻擊骰造成 3 以上傷害時擲 D6，5+ 傷害 -1。', 'In a turning point it Charged, whenever an attack die inflicts 3+ damage on it, roll a D6: on a 5+, 1 less.'],
   disengage: () => ['脫離', 'Disengage', '撤退少花 1AP。', 'Fall Back costs 1 less AP.'],
   voidGrenadier: () => ['擲彈兵', 'Grenadier', '破片／穿甲手雷命中 3+；虛空裝甲對爆炸／洪流可重擲兩顆防禦骰。', 'Frag/krak grenades hit on 3+; Void Armour re-rolls two defence dice against Blast/Torrent.'],
-  surveyor: () => ['勘測員', 'Surveyor', '操控 C.A.T. 偵察車：它倒下後偵察車不能再啟動。（遙控動作未實作）', 'Operates the C.A.T. unit, which can\'t activate once it falls. (Remote Control isn\'t modelled.)'],
-  catUnit: () => ['機械（偵察車）', 'Machine (C.A.T.)', '只能衝鋒、衝刺、撤退、轉移、觀測；不能反擊；敵人控制範圍內或勘測員倒下後不能啟動；觀測對全隊有效；控制目標時 APL -1；不計入擊殺任務。', 'Only Charge, Dash, Fall Back, Reposition and Spot; can\'t retaliate; can\'t activate in enemy control range or once the Surveyor falls; its Spot helps the whole team; -1 APL for control; ignored for the kill op.'],
+  surveyor: () => ['勘測員', 'Surveyor', '操控 C.A.T. 偵察車：它殘廢後偵察車不能再啟動。（遙控動作未實作）', 'Operates the C.A.T. unit, which can\'t activate once it falls. (Remote Control isn\'t modelled.)'],
+  catUnit: () => ['機械（偵察車）', 'Machine (C.A.T.)', '只能衝鋒、衝刺、撤退、轉移、觀測；不能反擊；敵人控制範圍內或勘測員殘廢後不能啟動；觀測對全隊有效；控制目標時 APL -1；不計入擊殺任務。', 'Only Charge, Dash, Fall Back, Reposition and Spot; can\'t retaliate; can\'t activate in enemy control range or once the Surveyor falls; its Spot helps the whole team; -1 APL for control; ignored for the kill op.'],
   gheistskull: () => ['機械（鬼骷髏）', 'Machine (Gheistskull)', '只能加速、衝鋒、衝刺、撤退、轉移；不能反擊；控制目標時 APL -1；不計入擊殺任務。虛空干擾員可引爆它。', 'Only Boost, Charge, Dash, Fall Back and Reposition; can\'t retaliate; -1 APL for control; ignored for the kill op. The Void-jammer can detonate it.'],
   boost: () => ['加速', 'Boost', '1AP（整場一次，第 1 回合除外）：這次啟動的下一次衝鋒多移動 4"。', '1AP (once per battle, not TP1): its next Charge this activation moves +4".'],
   pulse: () => ['干擾脈衝', 'Interference Pulse', '1AP：鬼骷髏 8" 內可見的敵人擲 D6（是鬼骷髏的有效目標 +1），3+ 下次啟動 APL -1。', '1AP: an enemy visible within 8" of the Gheistskull rolls a D6 (+1 if a valid target for it): 3+ = -1 APL next activation.'],
-  eyeOfAncestors: () => ['先祖之眼', 'Eye of the Ancestors', '策略階段給一名敵人宿怨標記（友方倒下 3 人以上時 2 名）。', 'Strategy phase: an enemy gains a Grudge token (two enemies once three friendlies are down).'],
+  eyeOfAncestors: () => ['先祖之眼', 'Eye of the Ancestors', '策略階段給一名敵人宿怨標記（友方殘廢 3 人以上時 2 名）。', 'Strategy phase: an enemy gains a Grudge token (two enemies once three friendlies are down).'],
   weavefield: () => ['編織力場紋章', 'Weavefield Crest', '整場一次，無視一顆攻擊骰的普通傷害（自動用在第一次）。', 'Once per battle, ignore one attack die\'s Normal Dmg (used automatically the first time).'],
-  brawler: () => ['鬥毆者', 'Brawler', '近戰或反擊時：敵人不能有友軍協助；4 以上的普通傷害 -1；倒下時可先用一顆未結算的成功骰打對方。', 'Fighting or retaliating: enemies can\'t be assisted; Normal Dmg of 4+ deals 1 less; if incapacitated, strikes with an unresolved success first.'],
+  brawler: () => ['鬥毆者', 'Brawler', '近戰或反擊時：敵人不能有友軍協助；4 以上的普通傷害 -1；殘廢時可先用一顆未結算的成功骰打對方。', 'Fighting or retaliating: enemies can\'t be assisted; Normal Dmg of 4+ deals 1 less; if incapacitated, strikes with an unresolved success first.'],
   knux: () => ['指虎重擊', 'Knux Smash', '1AP：控制範圍內的敵人受 D3+1 傷害；D3 擲出 3 時對方下次啟動 APL -1。（推開 3" 與免費衝鋒未實作）', '1AP: an enemy in control range takes D3+1; on a 3, -1 APL next activation. (The 3" push and free Charge aren\'t modelled.)'],
   jumpPack: () => ['噴射背包', 'Jump Pack', '移動時可飛越地形與特工，只看落點。', 'Moves fly over terrain and operatives; only where it lands matters.'],
   signalAny: () => ['信號', 'Signal', '1AP（支援）：場上任一名其他友方下次啟動 APL +1。', '1AP (Support): any other friendly gets +1 APL next activation.'],
@@ -1436,8 +1474,8 @@ const ABILITIES = {
   wellSupplied: () => ['補給充足', 'Well Supplied', '第 1 回合多得 1CP。', '+1CP in the first turning point.'],
   gotIt: () => ['交給我', 'I\'ve Got It', '每次啟動一次，任務動作少 1AP。', 'Once per activation, a mission action costs 1 less AP.'],
   watchmaster: () => ['看守長', 'Watchmaster', '策略階段下達衛兵命令（6" 內友方），並可「集火摧毀！」：選一名敵人，本回合攻擊它時武器獲得「懲罰」。', 'Issues Guardsman Orders (friendlies within 6") in the Strategy phase, and Bring it Down!: pick an enemy — Punishing against it this TP.'],
-  confidant: () => ['心腹', 'Confidant', '副指揮官：看守長倒下後改由它下達衛兵命令。指令：啟動時選定 6" 內可見的準備中友方，行動完後可接著啟動其中一名（用過副指揮官後不能再用）。', 'Second in Command: issues Guardsman Orders once the Watchmaster falls. Directive: friendlies visible within 6" and ready when it activates — one may activate right after it (not after Second in Command is used).'],
-  bruiser: () => ['打手', 'Bruiser', '每回合一次，近戰或反擊時無視一次普通成功的傷害；在近戰中倒下時，可先用一顆未結算的成功骰打擊對方。', 'Once per TP when fighting or retaliating, ignores the damage of one normal success; if incapacitated in a fight, strikes with one unresolved success first.'],
+  confidant: () => ['心腹', 'Confidant', '副指揮官：看守長殘廢後改由它下達衛兵命令。指令：啟動時選定 6" 內可見的準備中友方，行動完後可接著啟動其中一名（用過副指揮官後不能再用）。', 'Second in Command: issues Guardsman Orders once the Watchmaster falls. Directive: friendlies visible within 6" and ready when it activates — one may activate right after it (not after Second in Command is used).'],
+  bruiser: () => ['打手', 'Bruiser', '每回合一次，近戰或反擊時無視一次普通成功的傷害；在近戰中殘廢時，可先用一顆未結算的成功骰打擊對方。', 'Once per TP when fighting or retaliating, ignores the damage of one normal success; if incapacitated in a fight, strikes with one unresolved success first.'],
   groupAct: () => ['群體啟動', 'Group Activation', '行動完後必須接著啟動另一名準備中的同類特工，再換對手（最多連續兩名）。', 'When expended, another ready operative of the same kind must activate before the opponent (two in a row at most).'],
   hulk: () => ['夢魘巨怪', 'Nightmare Hulk', '敵人選目標時不能用輕型地形擋它（仍保留掩護豁免）；撿標記與任務動作多花 1AP（伏爾格拉除外）。', 'Enemies can\'t use Light terrain as cover for it when picking targets (it keeps the cover save); +1AP for Pick Up and mission actions (not Vulgrar).'],
   resilient: () => ['令人作嘔的韌性', 'Revoltingly Resilient', '每顆攻擊骰造成 3 以上傷害時擲 D6，4+ 傷害 -1。', 'Whenever an attack die inflicts 3+ damage on it, roll a D6: on a 4+, 1 less.'],
@@ -1450,6 +1488,18 @@ const ABILITIES = {
   emperorProtects: () => ['帝皇庇佑', 'The Emperor Protects', '被射擊時可重擲任意防禦骰（自動重擲失敗的）。', 'When shot, re-roll any defence dice (failed ones are re-rolled automatically).'],
   uplifting: () => ['振奮祈禱書', 'Uplifting Primer', '3" 內的友方武器獲得「嚴厲」。', 'Friendlies within 3" have Severe.'],
   vitality: () => ['腐敗活力', 'Putrescent Vitality', '1AP（靈能，每回合一次）：3" 內可見的友方擲 2D6，7 回復 7，否則回復較高的骰。', '1AP (Psychic, once per TP): a friendly visible within 3" rolls 2D6 — 7 regains 7, otherwise the highest die.'],
+  // Canoptek Circle
+  canoptek: () => ['冥工機械', 'Canoptek', '在方尖碑節點矩陣內：武器「精準 1」、APL +1（最多 3）。（全隊特工都適用）', 'Within the Obelisk Node Matrix: Accurate 1 and +1 APL (max 3). (Every friendly gets this.)'],
+  ccLeader: () => ['地占術士', 'Geomancer', '在矩陣內同樣獲得精準 1、APL +1（最多 3）。（以節點代替自己做任務動作未實作）', 'Within the matrix it also has Accurate 1 and +1 APL (max 3). (Obelisk Node Control isn\'t modelled.)'],
+  geomantic: () => ['地占擾動', 'Geomantic Disturbance', '1AP（非隱蔽、不在交戰中）：8" 內地形上的一點，2" 內每名特工擲 2D6，超過剩餘生命的部分就是傷害（點一名靠近地形的敵人來選點）。', '1AP (not Concealed, not engaged): a point on terrain within 8" — every operative within 2" of it rolls 2D6, the excess over its remaining wounds is damage (tap an enemy near terrain to pick the point).'],
+  canoptekControl: () => ['冥工控制', 'Canoptek Control', '1AP（支援，非反擊）：6" 內看得到（或在矩陣內看得到）的冥工機械立刻免費執行一個 1AP 動作（移動不超過 2"），之後繼續本次啟動。', '1AP (Support, not counteracting): a Canoptek visible within 6" (or visible within the matrix) performs a free 1AP action (moving no more than 2"), then this activation continues.'],
+  molecularBreach: () => ['分子穿越', 'Molecular Breach', '1AP（支援）：6" 內（或矩陣內）的友方下次移動改為傳送，直接放到移動力（衝刺 3"）範圍內的位置。', '1AP (Support): a friendly within 6" (or within the matrix) teleports on its next move — set up within its Move (3" for a Dash).'],
+  overcharge: () => ['超載', 'Overcharge', '1AP：3" 內看得到（或雙方都在矩陣內）的另一名冥工機械下次啟動 APL +1。', '1AP: another Canoptek visible within 3" (or both within the matrix) gets +1 APL next activation.'],
+  cranialOverload: () => ['顱腦過載', 'Cranial Overload', '1AP：3" 內看得到（或雙方都在矩陣內）的敵人下次啟動 APL -1。', '1AP: an enemy visible within 3" (or both within the matrix) gets -1 APL next activation.'],
+  nanoscarab: () => ['奈米聖甲蟲光束', 'Nanoscarab Beam', '1AP（每回合一次）：6" 內看得到（或雙方都在矩陣內）的友方回復 3D3 生命。', '1AP (once per TP): a friendly visible within 6" (or both within the matrix) regains up to 3D3 wounds.'],
+  matrixMedic: () => ['復甦', 'Reanimate', '「醫療兵！」範圍是 6"，或雙方都在矩陣內。', 'Its Medic! reaches 6", or anywhere both are within the matrix.'],
+  aggressiveDefence: () => ['侵略性防禦', 'Aggressive Defence', '被 2" 內的敵人打成殘廢時擲 D3，2+ 對該敵人造成等量傷害。', 'Incapacitated by an enemy within 2": roll a D3 — on a 2+, that much damage to it.'],
+  expendable: () => ['消耗品', 'Expendable', '不計入對手的擊殺任務。從第 2 回合起，少於 3 隻時每回合在降落區補 1 隻（無盡爬行）。', 'Ignored for the opponent\'s kill op. From the second TP, if fewer than three remain, a new one is set up in your drop zone each TP (A Ceaseless Scuttling).'],
   // Brood Brothers
   bbLeader: () => ['領袖', 'Leader', '有族群聖會特工（巫師、首領或族長）時由它當領袖，指揮官就不是。', 'With a Broodcoven operative (Magus, Primus or Patriarch) it is the Leader instead of the Commander.'],
   coordinate: () => ['協調', 'Coordinate', '策略階段：離我方最近的敵人得到一個交叉火力標記（自動）。', 'Strategy phase: the enemy nearest your operatives gains a Crossfire token (automatic).'],
@@ -1460,7 +1510,7 @@ const ABILITIES = {
   assassin: () => ['刺客', 'Assassin', '隱蔽指令也能衝鋒。（本遊戲規定隱蔽不能衝鋒，此規則不生效）', 'Can Charge with a Conceal order. (This game\'s house rule — Concealed can\'t Charge — overrides it.)'],
   grenadier: () => ['擲彈兵', 'Grenadier', '自帶破片與穿甲手榴彈（命中改善 1，不占用全隊次數，各限用一次）。', 'Its own frag and krak grenades (Hit improved by 1, not from the team\'s uses, once each).'],
   explosives: () => ['爆破', 'Explosives', '1AP（整場兩次，不在交戰中，不能和衝鋒／衝刺／撤退同一次啟動）：第一次放置炸藥標記，第二次引爆，標記 2" 內每名特工受 2D6（中間有重型地形擋住則無）。', '1AP (twice per battle, not engaged, not in an activation with Charge/Dash/Fall Back): first places the marker, then detonates it — 2D6 to every operative within 2" (unless Heavy terrain is in the way).'],
-  finalDefiance: () => ['最後的反抗', 'Final Defiance', '倒下時若已放置炸藥，立刻引爆。', 'If incapacitated with its charge placed, it detonates it.'],
+  finalDefiance: () => ['最後的反抗', 'Final Defiance', '殘廢時若已放置炸藥，立刻引爆。', 'If incapacitated with its charge placed, it detonates it.'],
   jam: () => ['干擾', 'Jam', '1AP：一名準備中、可當目標的敵人要等對手再啟動 D6 名特工（或只剩它）才能行動。（花 2AP 選看得到但非有效目標的版本未實作）', '1AP: a ready enemy that\'s a valid target can\'t act until the opponent has activated D6 more operatives (or it\'s the last). (The 2AP visible-only option isn\'t modelled.)'],
   bodyguard: () => ['保鑣', 'Bodyguard', '由它承受攻擊時，「無條件忠誠」只要 0CP。', 'Unquestioning Loyalty costs 0CP when it\'s the one taking the attack.'],
   telepathicOverload: () => ['心靈過載', 'Telepathic Overload', '1AP（靈能）：可當目標的敵人 APL -1，直到它的啟動結束。', '1AP (Psychic): an enemy valid target gets -1 APL until the end of its activation.'],
@@ -1474,7 +1524,7 @@ const ABILITIES = {
   aspect: (v) => ({ da: ['狂怒復仇者', 'Dire Avenger', '可用狂怒復仇者技法。', 'Can use Dire Avenger Techniques.'], hb: ['嚎叫女妖', 'Howling Banshee', '可用嚎叫女妖技法。', 'Can use Howling Banshee Techniques.'], ss: ['突擊天蠍', 'Striking Scorpion', '可用突擊天蠍技法。', 'Can use Striking Scorpion Techniques.'] }[v]),
   exarch: () => ['督軍', 'Exarch', '每次啟動可以射擊兩次或近戰兩次。', 'It can perform two Shoot or two Fight actions in its activation.'],
   defenceTactics: () => ['防禦戰術', 'Defence Tactics', '爭奪目標點時、或射擊正在爭奪目標點的敵人時，武器「平衡」。', 'While contesting an objective, or shooting an enemy that does, its weapons have Balanced.'],
-  bansheeMask: () => ['女妖面具', 'Banshee Mask', '它近戰時，敵人的近戰武器命中值變差 1（不和受傷疊加）。', 'When it fights, the enemy\'s melee Hit is worsened by 1 (not cumulative with being injured).'],
+  bansheeMask: () => ['女妖面具', 'Banshee Mask', '它近戰時，敵人的近戰武器命中值變差 1（不和重傷疊加）。', 'When it fights, the enemy\'s melee Hit is worsened by 1 (not cumulative with being injured).'],
   mandiblasters: () => ['下顎爆能器', 'Mandiblasters', '近戰動作擲攻擊骰前，對敵人造成 2 傷害（自動）。', 'Fight action, before the attack dice: 2 damage to the enemy (automatic).'],
   shimmershield: () => ['微光盾', 'Shimmershield', '選了微光盾的配置時：它 2" 內看得到的友方（含自己）被射擊時忽略穿甲。', 'With the shimmershield option: friendlies visible within 2" of it (itself too) ignore Piercing when shot.'],
   // Battleclade
@@ -1537,7 +1587,7 @@ function fightView(readonly = false) {
       if (s.resil) extra.push(L(`韌性擲 ${s.resil.roll}${s.resil.saved ? '，-1' : ''}`, `Resilient rolled ${s.resil.roll}${s.resil.saved ? ', -1' : ''}`));
       if (s.again) extra.push(L('潛行突襲：立刻再打擊一次', 'Stealth Attack: strikes again'));
       if (s.shrug) extra.push(L('無視這次普通傷害（打手／編織力場紋章）', 'Shrugged off this normal hit (Bruiser / Weavefield Crest)'));
-      if (s.lastBlow) extra.push(L('倒下前的最後一擊', 'A last blow before falling'));
+      if (s.lastBlow) extra.push(L('殘廢前的最後一擊', 'A last blow before falling'));
       if (s.shocked) extra.push(L(`震撼：移除對方一個${s.shocked === 'c' ? '暴擊' : '普通'}`, `Shock: discards an enemy ${s.shocked === 'c' ? 'crit' : 'normal'}`));
       return `<li>${who(s.side)} ${L('打擊', 'strikes')}${s.crit ? L('（暴擊）', ' (crit)') : ''} → ${s.dmg} ${L('傷害', 'dmg')}${s.killed ? ' ☠' : ''}${extra.length ? ` <small>(${extra.join(' · ')})</small>` : ''}</li>`;
     }
@@ -1622,7 +1672,7 @@ function shotView(s, t, t0 = 0) {
   else if (s.saturated) notes.push(L('飽和：無法保留掩護豁免', 'Saturate: no cover saves'));
   if (s.pierce) notes.push(L(`穿甲：少擲 ${s.pierce} 顆`, `Piercing: ${s.pierce} fewer dice`));
   if (s.dev) notes.push(L(`毀滅：暴擊一擲出就先造成 ${s.dev} 傷害（在防禦骰之前）`, `Devastating: ${s.dev} damage dealt as soon as the crits were rolled (before defence dice)`));
-  if (s.dev && !s.defDice && s.killed) notes.push(L('目標被毀滅傷害擊倒，不用擲防禦骰', 'The Devastating damage incapacitated the target: no defence dice'));
+  if (s.dev && !s.defDice && s.killed) notes.push(L('目標被毀滅傷害打成殘廢，不用擲防禦骰', 'The Devastating damage incapacitated the target: no defence dice'));
   if (s.tox) notes.push(L('劇毒：傷害 +1', 'Toxic: +1 damage'));
   if (s.skulk) notes.push(L('鬼祟潛行：多保留 1 顆防禦骰', 'Skulk About: one extra defence die retained'));
   if (s.resilient?.length) {
@@ -1717,6 +1767,7 @@ function svgPoint(evt) {
 }
 
 function onBoardClick(evt) {
+  ui.peek = null; // (a datacard opened from the lists beside the board closes when the board is used)
   const opEl = evt.target.closest('[data-uid]');
   const p = svgPoint(evt);
   const clicked = opEl ? getOp(g, opEl.dataset.uid) : null;
@@ -1808,6 +1859,15 @@ function previewMove(op, action, p) {
   const ctx = moveCtx(g, op);
   const max = moveAllowance(g, op, action);
   const r = radius(op);
+  // Molecular Breach (Canoptek Circle): removed and set up again within its Move (3" for a Dash) — no route needed.
+  if (op.breachMove) {
+    const reach = Math.min(max, action === 'dash' ? 3 : tpl(op).move), len = Math.hypot(p.x - op.x, p.y - op.y);
+    const why = !ctx.free(p) ? L('那裡放不下', 'It can\'t be placed there') : len > reach + 0.01 ? L(`距離 ${len.toFixed(1)}" 超過 ${reach}"`, `${len.toFixed(1)}" exceeds ${reach}"`)
+      : action === 'charge' ? (ctx.inEnemyER(p) ? null : L('衝鋒必須結束於敵人 1" 內', 'Charge must end within 1" of an enemy'))
+      : ctx.inEnemyER(p) ? L('不能放在敵人 1" 交戰範圍內', 'Cannot be set up within 1" of an enemy') : null;
+    ui.path = { pts: [{ x: op.x, y: op.y }, p], len, ok: !why, why, r, breach: true };
+    return render();
+  }
   const full = routeThrough(ctx, op, p);
   if (!full) {
     const from = ui.mode?.wps?.at(-1) || { x: op.x, y: op.y };
@@ -1992,7 +2052,8 @@ function handle(act, d) {
     case 'ploysdone': if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
-    case 'closeinspect': ui.sel = null; return render();
+    case 'closeinspect': if (ui.peek) ui.peek = null; else ui.sel = null; return render();
+    case 'peek': ui.peek = ui.peek === d.uid ? null : d.uid; return render(); // operative lists beside the board: show / hide its datacard
     case 'mstart': measure.mode = true; measure.pts = []; measure.cursor = null; return drawMeasure();
     case 'mundo': measure.pts.pop(); return drawMeasure();
     case 'mclear': measure.pts = []; return drawMeasure();

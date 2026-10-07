@@ -29,9 +29,9 @@ export const ELDAR_TEAMS = [{
   tactics: [
     { id: 'adrenalight', name: B('腎上腺之光', 'Adrenalight'), desc: B('每回合準備步驟自動給一名使用此藥劑的友方 1 痛苦代幣，優先選代幣最少者。', 'Each Ready step automatically gives one eligible friendly a Pain token, prioritising the fewest tokens.') },
     { id: 'painbringer', name: B('痛苦使者', 'Painbringer'), desc: B('每顆造成至少 3 傷害的攻擊骰：D6 擲 6，傷害 -1。', 'Each attack die dealing 3+ damage: on a D6 of 6, reduce damage by 1.') },
-    { id: 'hypex', name: B('亢奮劑', 'Hypex'), desc: B('無視受傷造成的移動減值。', 'Ignore injured Move penalties.') },
+    { id: 'hypex', name: B('亢奮劑', 'Hypex'), desc: B('無視重傷造成的移動減值。', 'Ignore injured Move penalties.') },
   ],
-  rule: { name: B('源於痛苦的力量・步槍', 'Power from Pain · Rifles'), desc: B('動作造成敵人新受傷或倒下後獲得痛苦代幣；倒下敵人原生命達 12 時獲得 2。每次啟動／反擊可花 1 代幣使用一次強化：APL +1、回復 D3+1 或擊殺後免費衝刺；另可花 1 代幣重擲同一點數的骰子一次。破片步槍在本次尚未轉移、衝鋒或撤退時精準 1。', 'After an action injures or incapacitates an enemy, gain Pain (two for a kill with 12+ Wounds). Spend one token on +1 APL, D3+1 healing or a free post-kill Dash, once per activation/counteraction; additionally re-roll dice of one result once. Splinter rifles gain Accurate 1 before Reposition, Charge or Fall Back.') },
+  rule: { name: B('源於痛苦的力量・步槍', 'Power from Pain · Rifles'), desc: B('動作造成敵人新受傷或殘廢後獲得痛苦代幣；殘廢的敵人原生命達 12 時獲得 2。每次啟動／反擊可花 1 代幣使用一次強化：APL +1、回復 D3+1 或擊殺後免費衝刺；另可花 1 代幣重擲同一點數的骰子一次。破片步槍在本次尚未轉移、衝鋒或撤退時精準 1。', 'After an action injures or incapacitates an enemy, gain Pain (two for a kill with 12+ Wounds). Spend one token on +1 APL, D3+1 healing or a free post-kill Dash, once per activation/counteraction; additionally re-roll dice of one result once. Splinter rifles gain Accurate 1 before Reposition, Charge or Fall Back.') },
   ploys: [
     P('bladeArtists', '刀刃藝術家', 'Blade Artists', '近戰武器獲得撕裂。', 'Melee weapons gain Rending.'),
     P('mercilessSadists', '無情虐待者', 'Merciless Sadists', '射擊或近戰攻擊受過傷害的敵人時，武器獲得平衡。', 'Balanced when shooting or fighting a wounded enemy.'),

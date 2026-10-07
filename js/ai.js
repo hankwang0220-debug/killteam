@@ -487,6 +487,28 @@ export function aiStep(g) {
     if (t) { doTargetAction(g, op, 'omniscanner', t); return null; }
   }
   if (can.datacoronal && (op.ap >= 2 || !shootOptions(g, op).length) && g.objectives.filter((m) => living(g, op.side).some((o) => dist(o, m) <= 2)).length >= 2) { doSelfAction(g, op, 'datacoronal'); return null; }
+  // Canoptek Circle: Canoptek Control a construct that can attack, Overcharge one that's still to act,
+  // Cranial Overload the strongest ready enemy, Nanoscarab Beam the most hurt friendly, Geomantic Disturbance a weakened enemy.
+  if (can.canoptekControl) {
+    const t = TARGET_ACTIONS.canoptekControl.targets(g, op).filter((o) => atkScore(o) > 0).sort((a, b) => atkScore(b) - atkScore(a))[0];
+    if (t) { doTargetAction(g, op, 'canoptekControl', t); return null; }
+  }
+  if (can.nanoscarab) {
+    const t = TARGET_ACTIONS.nanoscarab.targets(g, op).filter((o) => o.maxW - o.wounds >= 4).sort((a, b) => (b.maxW - b.wounds) - (a.maxW - a.wounds))[0];
+    if (t) { doTargetAction(g, op, 'nanoscarab', t); return null; }
+  }
+  if (can.overcharge && (op.ap >= 2 || !shootOptions(g, op).length)) {
+    const t = TARGET_ACTIONS.overcharge.targets(g, op).filter((o) => o.ready).sort((a, b) => b.maxW - a.maxW)[0];
+    if (t) { doTargetAction(g, op, 'overcharge', t); return null; }
+  }
+  if (can.cranialOverload && (op.ap >= 2 || !shootOptions(g, op).length)) {
+    const t = TARGET_ACTIONS.cranialOverload.targets(g, op).filter((e) => e.ready).sort((a, b) => tpl(b).apl - tpl(a).apl || b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'cranialOverload', t); return null; }
+  }
+  if (can.geomantic && (op.ap >= 2 || !shootOptions(g, op).length)) {
+    const t = TARGET_ACTIONS.geomantic.targets(g, op).filter((e) => e.wounds <= 7 && !living(g, op.side).some((f) => edgeDist(f, e) <= 2.5)).sort((a, b) => a.wounds - b.wounds)[0];
+    if (t) { doTargetAction(g, op, 'geomantic', t); return null; }
+  }
   // Brood Brothers: Conspire for CP, Mental Onslaught up close, Telepathic Overload / Jam on the most dangerous enemy,
   // Explosives: place it near enemies, detonate when enemies (and no friendlies) are within 2" of it.
   if (can.conspire && (op.ap >= 2 || !shootOptions(g, op).length)) { doSelfAction(g, op, 'conspire'); return null; }

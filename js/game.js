@@ -86,9 +86,11 @@ export function moveStat(g, op) {
 // The APL stat can't be changed by more than 1 in total.
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
-export const aplNow = (g, op) => (tpl(op).nemesis && op.cardApl ? op.cardApl
+export const aplNow = (g, op) => matrixApl(g, op, tpl(op).nemesis && op.cardApl ? op.cardApl
   : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
     : Math.max(-1, Math.min((op.aplNext || 0) > 0 && cursed(g, op, 'voxStatic') ? 0 : 1, op.aplNext || 0)))));
+/** Obelisk Node Matrix (Canoptek Circle): +1 APL within it, to a maximum of 3. */
+const matrixApl = (g, op, v) => (v < 3 && op.side < 2 && TEAM_MAP[op.team]?.obeliskNodes && inMatrix(g, op.side, op) ? v + 1 : v);
 
 /** Change APL until the end of the operative's next activation (not the one it's in right now). */
 function changeApl(g, op, n) {
@@ -530,6 +532,7 @@ export function finishPloys(g) {
   battlecladeStrategyEnd(g, side); // Battleclade: Prioritised Acquisition marker
   danceOfDeath(g, side); // Blades of Khaine
   broodStrategyEnd(g, side); // Brood Brothers: Coordinate, Spiritual Leader
+  placeNodes(g, side); ceaselessScuttling(g, side); // Canoptek Circle: obelisk nodes, A Ceaseless Scuttling
   if (g.stratStep) startFirefight(g);
   else g.stratStep = 1;
 }
@@ -669,7 +672,8 @@ export function activate(g, op) {
     op.ap = 1;
     op.orderSet = true;
     // Network Counteract (Battleclade): any servitor, ready or not; first select its order. It stays ready if it was.
-    if (g.netcounter) { op.netCounter = true; op.netWasReady = op.ready; op.netTP = g.tp; op.orderSet = false; }
+    // (Canoptek Control: just a free 1AP action — no order change, and it doesn't count as its counteraction.)
+    if (g.netcounter) { op.netCounter = true; op.netWasReady = op.ready; if (g.netcounter.kind === 'control') op.ctlCounter = true; else { op.netTP = g.tp; op.orderSet = false; } }
   } else {
     if (op.darkAnimus) { op.aplNext = (op.aplNext || 0) - 1; op.aplKeep = false; }
     op.ap = aplNow(g, op);
@@ -729,7 +733,8 @@ export function setOrder(g, op, order) {
 }
 
 /** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
-export const counterCandidates = (g, side) => (g.netcounter?.side === side ? netCands(g, side) // Battleclade: NETWORK COUNTERACT
+export const counterCandidates = (g, side) => (g.netcounter?.side === side // Battleclade: NETWORK COUNTERACT (Canoptek Control: just the one picked)
+  ? (g.netcounter.kind === 'control' ? living(g, side).filter((o) => g.netcounter.only.includes(o.uid)) : netCands(g, side))
   : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o)) && !o.counteracted));
 
 export function endActivation(g) {
@@ -742,7 +747,7 @@ export function endActivation(g) {
   if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `${opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `${opName(op, 'en')} Slink into Darkness: now Concealed` }, `side${op.side}`); }
   if (op) {
     op.ready = false; op.ap = 0;
-    if (op.counter) { op.counter = false; op.counteracted = true; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
+    if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
     // Alpha Predator (Patriarch): after its first activation it stays ready while it has AP left this turning point.
     if (tpl(op).alphaPredator && !wasCounter && op.patStartAp != null) {
@@ -874,7 +879,7 @@ export function passCounter(g) {
 /** The side whose operatives control a marker (highest total APL contesting it), or null. */
 export function controller(g, obj) {
   if (obj.carriedBy) { const c = getOp(g, obj.carriedBy); return c && !c.dead ? c.side : null; } // a carried marker belongs to its carrier
-  const sum = [0, 0, 0], shriek = [false, false, false], nuncio = [false, false, false];
+  const sum = [0, 0, 0], shriek = [false, false, false], nuncio = [false, false, false], present = [false, false, false];
   for (const o of living(g)) {
     if (o.brutalDisplayTP === g.tp) continue;
     // Drones count as 1 APL lower for objective control, the Icon Bearer as 1 higher; NEMESIS NPOs use their Control stat.
@@ -882,7 +887,7 @@ export function controller(g, obj) {
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
     // (the Deathknell, an Icon Bearer, keeps its APL even with a Frenzy token)
     const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer ? 1 : 0) - ravaged);
-    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o) || grislyNear(g, o)) nuncio[o.side] = true; }
+    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; present[o.side] = true; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o) || grislyNear(g, o)) nuncio[o.side] = true; }
   }
   // Nuncio-aquila (Exaction Squad): likewise 1 lower if one is within 3" of the Proctor-exactant (cumulative).
   for (let s = 0; s < 3; s++) if (nuncio[s]) sum[s] = Math.max(0, sum[s] - 1);
@@ -892,6 +897,11 @@ export function controller(g, obj) {
   for (const s of [0, 1]) if (sum[s] > 0 && g.acquisition?.[s]?.tp === g.tp && g.acquisition[s].id === obj.id && !obj.kind) sum[s]++;
   // Cult Icon (Brood Brother Iconward): +1 to the total for a marker within 4" of it that a friendly contests.
   for (const s of [0, 1]) if (sum[s] > 0 && living(g, s).some((o) => tpl(o).cultIcon && dist(o, obj) - radius(o) <= 4)) sum[s]++;
+  // Obelisk nodes (Canoptek Circle) control a marker within 1" that no enemy contests (unless both players' nodes would).
+  if (obj.kind !== 'obeliskNode') {
+    const nodeSides = [0, 1].filter((s) => !present[1 - s] && nodesOf(g, s).some((n) => dist(n, obj) - OBJ_R <= 1));
+    if (nodeSides.length === 1) return nodeSides[0];
+  }
   const best = Math.max(...sum);
   return best > 0 && sum.filter((v) => v === best).length === 1 ? sum.indexOf(best) : null;
 }
@@ -1054,6 +1064,12 @@ export const ACTIONS = {
   mentalOnslaught: { ap: 1, name: { zh: '精神衝擊', en: 'Mental Onslaught' } },
   conspire: { ap: 1, name: { zh: '密謀', en: 'Conspire' } },
   intoShadow: { ap: 1, name: { zh: '隱入暗影', en: 'Into Shadow' } },
+  geomantic: { ap: 1, name: { zh: '地占擾動', en: 'Geomantic Disturbance' } },
+  canoptekControl: { ap: 1, name: { zh: '冥工控制', en: 'Canoptek Control' } },
+  molecularBreach: { ap: 1, name: { zh: '分子穿越', en: 'Molecular Breach' } },
+  overcharge: { ap: 1, name: { zh: '超載', en: 'Overcharge' } },
+  cranialOverload: { ap: 1, name: { zh: '顱腦過載', en: 'Cranial Overload' } },
+  nanoscarab: { ap: 1, name: { zh: '奈米聖甲蟲光束', en: 'Nanoscarab Beam' } },
 };
 // Cryptek unique actions (an Apprentek can perform one of them per turning point).
 const CRYPTEK_ACTIONS = ['interstitial', 'canoptekRepair', 'augment', 'reinforce'];
@@ -1382,6 +1398,61 @@ export const TARGET_ACTIONS = {
     },
   },
   // Medikit: a wounded friendly non-drone Pathfinder within control range regains 2D3 wounds.
+  // ---- Canoptek Circle ----
+  // Geomantic Disturbance (Geomancer): a point on terrain visible within 8" — 2D6 for each operative within 2" of it,
+  // the excess over its remaining wounds is damage. (Picked here by tapping an enemy near terrain; the point is the
+  // terrain nearest that enemy.)
+  geomantic: {
+    targets: (g, op) => foes(g, op).filter((t) => geoPoint(g, op, t)),
+    apply(g, op, t) {
+      const p = geoPoint(g, op, t), hits = [];
+      for (const o of g.ops.filter((x) => !x.dead && x.x > -50 && dist(x, p) - radius(x) <= 2)) {
+        const r = d6() + d6(), dmg = Math.max(0, r - o.wounds);
+        hits.push(`${opName(o, 'zh')} ${r}${dmg ? `→${dmg}` : ''}`);
+        if (dmg) applyDamage(g, op, o, dmg);
+      }
+      return { zh: `地占擾動：${hits.join('、')}`, en: `Geomantic Disturbance: ${hits.join(', ')}` };
+    },
+  },
+  // Canoptek Control (Geomancer, SUPPORT): a Canoptek within 6" (or visible and within the matrix) performs a free 1AP
+  // action (moving no more than 2"), then the Geomancer's activation continues.
+  canoptekControl: {
+    targets: (g, op) => living(g, op.side).filter((t) => t !== op && tpl(t).canoptek && sameTeam(t, op) && visibility(g, op, t).visible
+      && (edgeDist(op, t) <= 6 + commsBonus(g, op) || inMatrix(g, op.side, t))),
+    apply(g, op, t) {
+      g.netcounter = { side: op.side, only: [t.uid], resume: op.uid, resumeCounter: !!g.counter, kind: 'control' };
+      g.active = null; g.counter = true; g.turn = op.side;
+      return { zh: `冥工控制：${opName(t, 'zh')} 立刻免費執行一個 1AP 動作（移動不超過 2"）`, en: `Canoptek Control: ${opName(t, 'en')} performs a free 1AP action now (moving no more than 2")` };
+    },
+  },
+  // Molecular Breach (Geomancer, SUPPORT): the friendly's next move is a teleport within its Move (3" for a Dash).
+  molecularBreach: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && !t.breachMove && (t === op || visibility(g, op, t).visible)
+      && (edgeDist(op, t) <= 6 + commsBonus(g, op) || inMatrix(g, op.side, t))),
+    apply(g, op, t) { t.breachMove = true; return { zh: `分子穿越：${opName(t, 'zh')} 下次移動改為直接傳送`, en: `Molecular Breach: ${opName(t, 'en')}'s next move is a teleport` }; },
+  },
+  // Overcharge (Accelerator): another Canoptek visible within 3" (or both within the matrix) gets +1 APL.
+  overcharge: {
+    targets: (g, op) => living(g, op.side).filter((t) => t !== op && tpl(t).canoptek && sameTeam(t, op)
+      && ((edgeDist(op, t) <= 3 && visibility(g, op, t).visible) || (inMatrix(g, op.side, op) && inMatrix(g, op.side, t)))),
+    apply(g, op, t) { changeApl(g, t, 1); return { zh: `超載：${opName(t, 'zh')} 下次啟動 APL +1`, en: `Overcharge: ${opName(t, 'en')} +1 APL for its next activation` }; },
+  },
+  // Cranial Overload (Accelerator): an enemy visible within 3" (or within the matrix, if it is too) gets -1 APL.
+  cranialOverload: {
+    targets: (g, op) => foes(g, op).filter((t) => t.side < 2 && ((edgeDist(op, t) <= 3 && visibility(g, op, t).visible) || (inMatrix(g, op.side, op) && inMatrix(g, op.side, t)))),
+    apply(g, op, t) { changeApl(g, t, -1); return { zh: `顱腦過載：${opName(t, 'zh')} 下次啟動 APL -1`, en: `Cranial Overload: ${opName(t, 'en')} -1 APL for its next activation` }; },
+  },
+  // Nanoscarab Beam (Reanimator, once per TP): a friendly visible within 6" (or within the matrix) regains up to 3D3.
+  nanoscarab: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && t.wounds < t.maxW && t.medicTP !== g.tp && (t === op || visibility(g, op, t).visible)
+      && (edgeDist(op, t) <= 6 || (inMatrix(g, op.side, op) && inMatrix(g, op.side, t)))),
+    apply(g, op, t) {
+      op.nanoTP = g.tp;
+      const before = t.wounds;
+      t.wounds = Math.min(t.maxW, t.wounds + d3() + d3() + d3());
+      return { zh: `奈米聖甲蟲光束：${opName(t, 'zh')} 回復 ${t.wounds - before} 生命`, en: `Nanoscarab Beam: ${opName(t, 'en')} regains ${t.wounds - before} wounds` };
+    },
+  },
   // Jam (Brood Brother Vox-operator): a ready enemy that's a valid target can't activate until it's the last one,
   // or until the opponent has activated D6 other operatives.
   bbJam: {
@@ -1676,6 +1747,15 @@ export function availableActions(g, op) {
   if (tpl(op).systemJam) unique('systemJam', !conceal, CONC);
   if (tpl(op).medikit) unique('medikit');
   if (tpl(op).veriscant) unique('veriscant');
+  // Canoptek Circle.
+  if (TEAM_MAP[op.team].obeliskNodes) {
+    if (tpl(op).geomantic) unique('geomantic', !conceal, CONC);
+    if (tpl(op).canoptekControl) unique('canoptekControl', !op.counter, { zh: '反擊時不能執行', en: 'Not while counteracting' });
+    if (tpl(op).molecularBreach) unique('molecularBreach');
+    if (tpl(op).overcharge) unique('overcharge');
+    if (tpl(op).cranialOverload) unique('cranialOverload');
+    if (tpl(op).nanoscarab) unique('nanoscarab', op.nanoTP !== g.tp, DONE);
+  }
   // Brood Brothers.
   if (TEAM_MAP[op.team].broodBrothers) {
     if (tpl(op).explosives) {
@@ -1906,6 +1986,7 @@ export function doMove(g, op, kind, path) {
   checkMines(g, op); // Mines (universal equipment)
   if (kind === 'dash' && op.acted.free?.dash) op.acted.free.dash = false;
   if (kind === 'charge' && op.acted.free?.charge) op.acted.free.charge = null;
+  if (op.breachMove) op.breachMove = false; // Molecular Breach used up (it was set up rather than moved)
   log(g, { zh: `${opName(op, 'zh')} ${ACTIONS[kind].name.zh} ${path.len.toFixed(1)}"`, en: `${opName(op, 'en')} ${ACTIONS[kind].name.en} ${path.len.toFixed(1)}"` }, `side${op.side}`);
   // Markerlights: once per activation, a marked operative that moves loses one token.
   if (op.ml > 0 && !op.acted.mlDrop) {
@@ -2132,6 +2213,11 @@ export function effectiveRules(g, op, weapon, target) {
     if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'terminalDecree') && edgeDist(op, target) <= 6) r.balanced = true; // Terminal Decree
   }
   if (tpl(op).aggressivePattern && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  // ---- Canoptek Circle ----
+  if (isCC(op) && op.side < 2) {
+    if (!weapon.rules.equipGrenade && inMatrix(g, op.side, op)) r.accurate = Math.max(r.accurate || 0, 1); // Obelisk Node Matrix
+    if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'transdynamic') && (inMatrix(g, op.side, target) || matrixBetween(g, op.side, op, target))) r.ceaseless = true; // Transdynamic Amplification
+  }
   // ---- Blades of Khaine ----
   if (isBlade(op)) {
     // Defence Tactics (Dire Avengers): contesting an objective, or shooting an enemy that does — Balanced.
@@ -2285,11 +2371,11 @@ function bloodedOnDeath(g, dead) {
     for (const s of [0, 1]) if (t[s].tp !== g.tp) t[s] = { tp: g.tp };
     // The first enemy incapacitated each TP.
     const foe = 1 - dead.side;
-    if (dead.side < 2 && isBloodedTeam(g, foe) && !t[foe].enemy) { t[foe].enemy = true; gainBlood(g, foe, { zh: '本回合第一次擊倒敵人', en: 'first enemy down this TP' }); }
+    if (dead.side < 2 && isBloodedTeam(g, foe) && !t[foe].enemy) { t[foe].enemy = true; gainBlood(g, foe, { zh: '本回合第一次使敵人殘廢', en: 'first enemy down this TP' }); }
     if (!isBloodedTeam(g, dead.side)) break gains;
     dead.bloodToken = false;
     // The first friendly incapacitated within 6" of an enemy each TP.
-    if (!t[dead.side].friend && foes(g, dead).some((e) => edgeDist(e, dead) <= 6)) { t[dead.side].friend = true; gainBlood(g, dead.side, { zh: '本回合第一次友方在敵人附近倒下', en: 'first friendly down near the enemy this TP' }); }
+    if (!t[dead.side].friend && foes(g, dead).some((e) => edgeDist(e, dead) <= 6)) { t[dead.side].friend = true; gainBlood(g, dead.side, { zh: '本回合第一次友方在敵人附近殘廢', en: 'first friendly down near the enemy this TP' }); }
   }
   // Explosive Demise (Brimstone Grenadier): 2D6 (1 if engaged), any 4+ → D3+2 (D6+2 with the bomb unused) to each visible operative within 2".
   if (tpl(dead).explosiveDemise) {
@@ -2512,6 +2598,93 @@ const rapidOK = (op) => TEAM_MAP[op.team].rapidFire && !moved(op);
 const sweepOn = (g, op, target) => { const m = g.sweep?.[op.side]; return !!(m && m.tp === g.tp && target && dist(op, m) - radius(op) <= 5 && dist(target, m) - radius(target) <= 5); };
 const adaptiveOk = (g, op, k) => !!tpl(op).adaptive && g.adaptive?.[op.side]?.[k] !== g.tp;
 
+// ---------- Canoptek Circle ----------
+const MATRIX_HALF = 0.39; // the matrix lines are 20mm wide
+const isCC = (op) => !!TEAM_MAP[op.team]?.obeliskNodes;
+const nodesOf = (g, side) => (g.markers || []).filter((m) => m.kind === 'obeliskNode' && m.owner === side);
+/** The matrix: the lines between this side's obelisk nodes that are within 6" of each other. */
+function matrixSegs(g, side) {
+  const n = nodesOf(g, side), segs = [];
+  for (let i = 0; i < n.length; i++) for (let j = i + 1; j < n.length; j++) if (dist(n[i], n[j]) <= 6) segs.push([n[i], n[j]]);
+  return segs;
+}
+const segDist = (p, a, b) => {
+  const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+};
+/** Is the operative (any part of its base) within this side's matrix? */
+export const inMatrix = (g, side, op) => !!op && side < 2 && matrixSegs(g, side).some(([a, b]) => segDist(op, a, b) - (op.tplId ? radius(op) : 0) <= MATRIX_HALF);
+const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+const segsCross = (p1, p2, q1, q2) => cross(p1, p2, q1) * cross(p1, p2, q2) < 0 && cross(q1, q2, p1) * cross(q1, q2, p2) < 0;
+/** Is this side's matrix intervening between the shooter and the target? */
+const matrixBetween = (g, side, from, to) => matrixSegs(g, side).some(([a, b]) => segsCross(from, to, a, b));
+/** Within the matrix, or with the matrix in the way of this shot (Hypershielding, Transdynamic Amplification, Shield Flare). */
+const matrixCovers = (g, side, shooter, target) => inMatrix(g, side, target) || (!!shooter && matrixBetween(g, side, shooter, target));
+const souldrained = (g, o, foe) => o.side < 2 && foe.side < 2 && TEAM_MAP[g.teams[1 - o.side]]?.obeliskNodes && hasPloy(g, 1 - o.side, 'souldrain')
+  && !isCC(o) && (inMatrix(g, 1 - o.side, o) || (isCC(foe) && inMatrix(g, foe.side, foe)));
+/** Nodes: set up in the first Strategy phase (in your territory), then moved up to 3" each turning point after. */
+function placeNodes(g, side) {
+  if (!TEAM_MAP[g.teams[side]].obeliskNodes || g.nodeTP?.[side] === g.tp) return;
+  (g.nodeTP ||= [0, 0])[side] = g.tp;
+  const mine = living(g, side);
+  if (!mine.length) return;
+  const along = g.axis === 'y' ? 'y' : 'x', perp = along === 'x' ? 'y' : 'x';
+  const size = { x: BOARD.w, y: BOARD.h }, mid = size[along] / 2;
+  const low = territoryOf(g, { [along]: 1, [perp]: size[perp] / 2 }) === side; // our territory is the low half
+  const c = { x: mine.reduce((s, o) => s + o.x, 0) / mine.length, y: mine.reduce((s, o) => s + o.y, 0) / mine.length };
+  const clampPerp = (v) => Math.max(1, Math.min(size[perp] - 1, v));
+  const nodes = nodesOf(g, side);
+  if (!nodes.length) {
+    // In a line across the killzone, 5" apart, as far forward as our territory allows.
+    const front = low ? Math.min(c[along] + 2, mid - 1) : Math.max(c[along] - 2, mid + 1);
+    const centre = clampPerp(Math.max(6, Math.min(size[perp] - 6, c[perp])));
+    for (const off of [-5, 0, 5]) g.markers.push({ id: g.markers.length, kind: 'obeliskNode', owner: side, [along]: front, [perp]: clampPerp(centre + off), carriedBy: null });
+    log(g, { zh: `${teamZh(g, side)} 放置 3 個方尖碑節點`, en: `${team(g, side).name.en} sets up its three obelisk nodes` }, `side${side}`);
+    return;
+  }
+  // Up to 3" each, together (so the matrix holds): towards the nearest objective we don't control.
+  const nc = { x: nodes.reduce((s, n) => s + n.x, 0) / nodes.length, y: nodes.reduce((s, n) => s + n.y, 0) / nodes.length };
+  const goal = (g.objectives || []).filter((o) => controller(g, o) !== side).sort((a, b) => dist(a, nc) - dist(b, nc))[0];
+  if (!goal) return;
+  const d = dist(goal, nc), step = Math.min(3, Math.max(0, d - 1));
+  if (step < 0.5) return;
+  const vx = (goal.x - nc.x) / d * step, vy = (goal.y - nc.y) / d * step;
+  for (const n of nodes) { n.x = Math.max(0.5, Math.min(BOARD.w - 0.5, n.x + vx)); n.y = Math.max(0.5, Math.min(BOARD.h - 0.5, n.y + vy)); }
+  log(g, { zh: `${teamZh(g, side)} 方尖碑節點移動 ${step.toFixed(1)}"`, en: `${team(g, side).name.en} moves its obelisk nodes ${step.toFixed(1)}"` }, `side${side}`);
+}
+/** Geomantic Disturbance: the point of terrain nearest this enemy, if within 2" of it and within 8" of the Geomancer. */
+function geoPoint(g, op, t) {
+  let best = null;
+  for (const r of g.terrain) {
+    const p = { x: Math.max(r.x, Math.min(r.x + r.w, t.x)), y: Math.max(r.y, Math.min(r.y + r.h, t.y)) };
+    if (dist(p, t) - radius(t) > 2 || dist(op, p) - radius(op) > 8) continue;
+    if (!best || dist(p, t) < dist(best, t)) best = p;
+  }
+  return best;
+}
+/** A Ceaseless Scuttling (Macrocyte Warriors): from the second turning point, a new Warrior if fewer than three remain. */
+function ceaselessScuttling(g, side) {
+  if (!TEAM_MAP[g.teams[side]].obeliskNodes || g.tp < 2 || g.scuttleTP?.[side] === g.tp) return;
+  (g.scuttleTP ||= [0, 0])[side] = g.tp;
+  if (living(g, side).filter((o) => tpl(o).ccWarrior).length >= 3) return;
+  const t = TEAM_MAP[g.teams[side]].ops.find((o) => o.id === 'ccWarrior');
+  const num = g.ops.filter((o) => o.side === side).length + 1;
+  const op = { uid: `${side}-${num}`, side, team: g.teams[side], tplId: t.id, num, x: -99, y: -99, wounds: t.wounds, maxW: t.wounds, order: 'conceal', ready: true, ap: 0, acted: {},
+    ml: 0, aplNext: 0, used: {}, poison: false, damagedTP: false, dead: false, counteracted: false, actTP: 0, movedTP: 0, placed: false };
+  g.ops.push(op);
+  placeAuto(g, side, [op]);
+  op.placed = true;
+  log(g, { zh: `${teamZh(g, side)} 無盡爬行：新的巨細胞戰士在降落區就位`, en: `${team(g, side).name.en} A Ceaseless Scuttling: a new Macrocyte Warrior is set up in the drop zone` }, `side${side}`);
+}
+/** Dimensional Banishment (transdimensional isolator): after it damaged or retained a crit, 2D6 above the wounds left = gone. */
+function banish(g, op, target, res) {
+  if (!target || target.dead || tpl(target).nemesis || !(res?.dmg > 0 || res?.attack?.crits > 0)) return;
+  const r = d6() + d6();
+  log(g, { zh: `跨維度放逐：擲 ${r}（${opName(target, 'zh')} 剩 ${target.wounds} 生命）`, en: `Dimensional Banishment: rolls ${r} (${opName(target, 'en')} has ${target.wounds} wounds left)` }, `side${op.side}`);
+  if (r > target.wounds) { target.noReanimate = true; killOff(g, op, target); }
+}
+
 // ---------- Brood Brothers ----------
 const isBrood = (op) => !!TEAM_MAP[op.team]?.broodBrothers;
 /** Leaders: the Broodcoven operative if one was selected, otherwise the Commander. */
@@ -2562,16 +2735,21 @@ function broodRerolls(g, op, target, pool, noReroll = false) {
   }
 }
 /** Unquestioning Loyalty (firefight ploy, automatic): a friendly Broodguard within 3" takes the Leader's place. */
+// (Sacrificial Thrall, Canoptek Circle: the same for the Geomancer, with a Canoptek construct.)
 function loyalSwap(g, attacker, target, weapon) {
-  if (!target || target.side > 1 || !broodLeader(g, target) || weapon?.rules.blast || weapon?.rules.torrent || !ffDef(g, target.side, 'unquestioningLoyalty')) return target;
-  const guard = living(g, target.side).filter((o) => o !== target && broodguard(o) && !broodLeader(g, o) && edgeDist(o, target) <= 3 && visibility(g, target, o).visible)
+  if (!target || target.side > 1 || weapon?.rules.blast || weapon?.rules.torrent) return target;
+  const thrall = !!tpl(target).ccLeader, id = thrall ? 'sacrificialThrall' : 'unquestioningLoyalty';
+  if ((!thrall && !broodLeader(g, target)) || !ffDef(g, target.side, id)) return target;
+  const fits = (o) => (thrall ? tpl(o).canoptek : broodguard(o) && !broodLeader(g, o));
+  const guard = living(g, target.side).filter((o) => o !== target && fits(o) && edgeDist(o, target) <= 3 && visibility(g, target, o).visible)
     .sort((a, b) => (tpl(b).bodyguard ? 1 : 0) - (tpl(a).bodyguard ? 1 : 0) || b.wounds - a.wounds)[0];
   if (!guard) return target;
   g.loyalFree = !!tpl(guard).bodyguard; // Bodyguard (Veteran): 0CP
-  const used = autoFF(g, target.side, 'unquestioningLoyalty');
+  const used = autoFF(g, target.side, id);
   g.loyalFree = false;
   if (!used) return target;
-  log(g, { zh: `無條件忠誠：${opName(guard, 'zh')} 替 ${opName(target, 'zh')} 擋下攻擊`, en: `Unquestioning Loyalty: ${opName(guard, 'en')} takes the attack for ${opName(target, 'en')}` }, `side${target.side}`);
+  const nm = ffDef(g, target.side, id).name;
+  log(g, { zh: `${nm.zh}：${opName(guard, 'zh')} 替 ${opName(target, 'zh')} 擋下攻擊`, en: `${nm.en}: ${opName(guard, 'en')} takes the attack for ${opName(target, 'en')}` }, `side${target.side}`);
   return guard;
 }
 /** Explosives (Sapper): the first use places the marker, the second deals 2D6 to everyone within 2" of it. */
@@ -2978,6 +3156,12 @@ const FF = {
   vengeanceKinband: { kind: 'auto' },
   savageAmbush: { kind: 'auto' },
   autoFerric: { kind: 'auto' }, // (Battleclade)
+  // ---- Brood Brothers / Canoptek Circle ----
+  unquestioningLoyalty: { kind: 'auto' },
+  idolisation: { kind: 'attack', cond: (g, op) => (!broodLeader(g, op) && living(g, op.side).some((o) => o !== op && (broodLeader(g, o) || tpl(o).cultIcon) && edgeDist(o, op) <= 6)
+    ? null : { zh: '要在領袖或聖像守衛 6" 內（自己不是領袖）', en: 'Needs a Leader or the Iconward within 6" (and not be a Leader)' }) },
+  sacrificialThrall: { kind: 'auto' },
+  shieldFlare: { kind: 'auto' },
   // ---- Blades of Khaine (firefight ploys, then Aspect Techniques) ----
   bladewind: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.fightsAllowed = 2; } },
   starfall: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.starfall = true; } },
@@ -3445,8 +3629,9 @@ function bestBlock(ac, an, sc, sn, dn, dc) {
 function medicFor(g, target) {
   if (isDrone(target) || g.medicTP?.[target.side] === g.tp) return null;
   if (isEngaged(g, target)) return null;
-  return living(g, target.side).find((m) => tpl(m).medic && m !== target && edgeDist(m, target) <= 3
-    && visibility(g, m, target).visible && !isEngaged(g, m) && !g.shotTargets?.includes(m.uid)) || null;
+  // Reanimate (Canoptek Macrocyte Reanimator): within 6", or both within the Obelisk Node Matrix.
+  return living(g, target.side).find((m) => tpl(m).medic && m !== target && ((edgeDist(m, target) <= (tpl(m).medicRange || 3) && visibility(g, m, target).visible)
+    || (tpl(m).matrixMedic && inMatrix(g, m.side, m) && inMatrix(g, m.side, target))) && !isEngaged(g, m) && !g.shotTargets?.includes(m.uid)) || null;
 }
 
 export function applyDamage(g, src, target, dmg) {
@@ -3598,7 +3783,7 @@ function killOff(g, src, target) {
     const wasReady = target.ready && g.active !== target.uid;
     target.readyAtDeath = target.ready; // (Unflinching Example: incapacitating a ready enemy)
     target.wounds = 0; target.dead = true; target.ready = false;
-    log(g, { zh: `☠ ${opName(target, 'zh')} 失去戰鬥能力！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
+    log(g, { zh: `☠ ${opName(target, 'zh')} 殘廢！`, en: `☠ ${opName(target, 'en')} is incapacitated!` }, 'kill');
     dropMarkers(g, target);
     if (!target.frenzy) countKill(g, src, target);
     // Final Defiance (Brood Brother Sapper): a free Explosives action before it's removed — it detonates a placed charge.
@@ -3612,14 +3797,20 @@ function killOff(g, src, target) {
     if (src && tpl(src).heroic) src.killTP = g.tp; // Heroic Inspiration (Kelermorph)
     // Grudge (Hearthkyn): the enemy operative that incapacitated a Kin gains a Grudge token.
     if (TEAM_MAP[target.team].grudges && src && !src.dead && src.side !== target.side && src.side !== NPO) {
-      addGrudge(g, target.side, src, { zh: '擊倒了戰友', en: 'killed one of the Kin' });
+      addGrudge(g, target.side, src, { zh: '使戰友殘廢', en: 'killed one of the Kin' });
     }
     archonDeath(g, src, target);
     mission(g).onIncapacitated?.(g, target, src);
     bloodedOnDeath(g, target);
     ffOnDeath(g, src, target); // firefight ploys used when an operative is incapacitated
+    // Aggressive Defence (Macrocyte Warrior): incapacitated by an enemy within 2" — D3, on a 2+ that much damage to it.
+    if (tpl(target).aggressiveDefence && src && !src.dead && src.side !== target.side && edgeDist(src, target) <= 2) {
+      const r = d3();
+      log(g, { zh: `${opName(target, 'zh')} 侵略性防禦：擲 ${r}${r >= 2 ? `，${opName(src, 'zh')} 受到 ${r} 傷害` : ''}`, en: `${opName(target, 'en')} Aggressive Defence: rolls ${r}${r >= 2 ? ` — ${opName(src, 'en')} takes ${r} damage` : ''}` }, `side${target.side}`);
+      if (r >= 2) applyDamage(g, target, src, r);
+    }
     // Reanimation Protocols (Hierotek Circle): the first time it falls, a Reanimation marker is left in its place.
-    if (TEAM_MAP[target.team].reanimation && !target.reanimUsed && target.side < 2) {
+    if (TEAM_MAP[target.team].reanimation && !target.reanimUsed && target.side < 2 && !target.noReanimate) { // (not after Dimensional Banishment)
       target.reanimUsed = true;
       target.diedReady = wasReady ? g.tp : 0; // brought back by the Reanimator this TP: expended unless it hadn't activated
       (g.reanim ||= []).push({ uid: target.uid, side: target.side, x: target.x, y: target.y });
@@ -3828,7 +4019,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const grit = TEAM_MAP[target.team].bloodedTokens && hasPloy(g, target.side, 'malevolentGrit') && (target.bloodToken || whollyIn(g, target, 1 - target.side));
   const defRules = { relentless: !!tpl(target).emperorProtects || psyOn(g, 'fate', target.side, target) || !!target.shieldingOn,
     digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence')
-      || (target.ready && isBlade(target) && hasPloy(g, target.side, 'forewarned')), // Forewarned (Blades of Khaine)
+      || (target.ready && isBlade(target) && hasPloy(g, target.side, 'forewarned')) // Forewarned (Blades of Khaine)
+      || (target.side < 2 && isCC(target) && hasPloy(g, target.side, 'hypershielding') && matrixCovers(g, target.side, op, target)), // Hypershielding (Canoptek Circle)
     balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit || inviolate(g, target)
       || (base > 0 && TEAM_MAP[target.team].skillAtArms && hasPloy(g, target.side, 'engageFromCover')), // Engage From Cover (Kasrkin)
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
@@ -3865,6 +4057,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const crest = block.remN > 0 && dn > 0 && useCrest(g, target);
   const normals = Array(Math.max(0, block.remN - (crest ? 1 : 0))).fill(dn);
   if (normals.length && corsairShield(g, target)) normals.shift();
+  else if (normals.length && target.side < 2 && isCC(target) && matrixCovers(g, target.side, op, target) && autoFF(g, target.side, 'shieldFlare')) normals.shift(); // Shield Flare
   // Just a Scratch (Kommandos) ignores one normal hit; All Is Dust (Rubric Marines) makes one deal 1.
   if (normals.length && dn >= 3 && autoFF(g, target.side, 'justScratch')) normals.pop();
   else if (normals.length && dn >= 2 && tpl(target).automata && autoFF(g, target.side, 'allIsDust')) normals[0] = 1;
@@ -3982,6 +4175,7 @@ export function* shootFlow(g, op, weapon, target) {
   g.shotTargets = [target.uid, ...others.map((t) => t.uid)];
   const poisonedAtStart = new Set(g.ops.filter((o) => o.poison).map((o) => o.uid));
   const main = yield* shootSequence(g, op, weapon, target, vis, noReroll, poisonedAtStart);
+  if (weapon.rules.banish) banish(g, op, target, main); // Dimensional Banishment (Tomb Crawler)
   spend(g, op, 'shoot', ap);
   // Crossfire (Wyrmblade): remember who shot this target this turning point.
   if (target.shotBy?.tp !== g.tp) target.shotBy = { tp: g.tp, uids: [] };
@@ -4150,6 +4344,8 @@ export function startFight(g, op, weapon, target) {
   if (skillOn(g, op, 'forCadia') || (TEAM_MAP[op.team].marksOfChaos && hasPloy(g, op.side, 'bloodGod') && markOf(op) !== 'khorne')) g.fight.A.firstBonus = 1;
   // Blood for the Blood God: Khorne operatives' melee weapons +1 to both Dmg (max 7).
   for (const [k, o] of [['A', op], ['D', target]]) if (markOf(o) === 'khorne' && hasPloy(g, o.side, 'bloodGod')) g.fight[k].dmgPlus = 1;
+  // Souldrain (Canoptek Circle ploy): an enemy within the matrix, or fighting a Canoptek Circle operative within it.
+  for (const [k, o, foe] of [['A', op, target], ['D', target, op]]) if (souldrained(g, o, foe)) g.fight[k].drain = true;
   if (tpl(target).viciousReflexes) g.fight.turn = 'D'; // Vicious Reflexes (Shrivetalon): it resolves first when retaliating
   // Savage Ambush (Kinband firefight ploy): a ready Kroot by terrain that's fought against strikes first.
   if (target.ready && g.terrain.some((t) => distPointRect(target, t) - radius(target) <= CONTROL) && autoFF(g, target.side, 'savageAmbush')) g.fight.turn = 'D';
@@ -4253,7 +4449,8 @@ export function fightOptions(g) {
   const opts = [];
   // Shock Assault (firefight ploy): the first strike deals 1 more (to a maximum of 7).
   const first = (d) => (me.firstBonus ? Math.max(d, Math.min(7, d + 1)) : d);
-  const plus = (d) => (me.dmgPlus ? Math.max(d, Math.min(7, d + me.dmgPlus)) : d); // Blood for the Blood God (Khorne)
+  // Blood for the Blood God (Khorne): +1; Souldrain (Canoptek Circle ploy): -1 to a minimum of 2.
+  const plus = (d) => { const v = me.dmgPlus ? Math.max(d, Math.min(7, d + me.dmgPlus)) : d; return me.drain ? Math.max(Math.min(v, 2), v - 1) : v; };
   const normal = first(plus(normalDmg(w, foeOp, g, fightOp(g, k)) + (me.tox || 0)));
   // Headtaker: the skullcleaver's Critical Dmg grows with each kill.
   // Canticle of Destruction / Animalistic Fury: more damage on the first critical strike of the sequence.
@@ -4288,6 +4485,7 @@ export function fightApply(g, optId) {
     if (shrug) foeOp.bruiserTP = g.tp;
     if (!shrug && opt.die === 'n' && corsairShield(g, foeOp)) shrug = true;
     if (!shrug && opt.die === 'n' && useCrest(g, foeOp)) shrug = true; // Weavefield Crest (Theyn)
+    if (!shrug && opt.die === 'n' && foeOp.side < 2 && isCC(foeOp) && inMatrix(g, foeOp.side, foeOp) && autoFF(g, foeOp.side, 'shieldFlare')) shrug = true; // Shield Flare (Canoptek Circle)
     if (!shrug && opt.die === 'n' && opt.dmg >= 3 && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
     // Brawler (Dôzr): Normal Dmg of 4 or more inflicts 1 less when it's fighting or retaliating.
     // Tough (Blooded Thug): Normal Dmg of 3 or more inflicts 1 less.
@@ -4355,7 +4553,7 @@ export function fightApply(g, optId) {
       // Cult Devotion (Brood Brothers ploy): roll a D6 as an attack die — a hit strikes with a normal success, a crit with any.
       const w = fightWeapon(g, other(k)), r = d6(), crit = r >= (w.rules.lethal || 6);
       const die = crit && foe.c > 0 ? 'c' : r >= foe.hit && foe.n > 0 ? 'n' : null;
-      log(g, { zh: `教派奉獻：${opName(foeOp, 'zh')} 擲 ${r}${die ? '，倒下前再打一擊' : '，沒有效果'}`, en: `Cult Devotion: ${opName(foeOp, 'en')} rolls ${r}${die ? ' and strikes before it falls' : ' — no effect'}` }, `side${foeOp.side}`);
+      log(g, { zh: `教派奉獻：${opName(foeOp, 'zh')} 擲 ${r}${die ? '，殘廢前再打一擊' : '，沒有效果'}`, en: `Cult Devotion: ${opName(foeOp, 'en')} rolls ${r}${die ? ' and strikes before it falls' : ' — no effect'}` }, `side${foeOp.side}`);
       if (die) {
         foe[die]--;
         const dmg = die === 'c' ? w.dmg[1] + (foe.tox || 0) : normalDmg(w, meOp, g, foeOp) + (foe.tox || 0);

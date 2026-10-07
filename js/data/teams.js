@@ -437,6 +437,23 @@ const hbFocusedBC = W('hbFocusedBC', '重爆彈槍（集中）', 'Heavy bolter (
 const hbSweepingBC = W('hbSweepingBC', '重爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', piercingCrits: 1, torrent: 1 }, 'heavyBolterBC');
 const augmeticClaw = W('augmeticClaw', '機械爪', 'Augmetic claw', 'melee', 3, 4, 4, 5, { brutal: true });
 
+// ---- Canoptek Circle ----
+const ccPartMatter = W('ccPartMatter', '震波戟（分離物質）', 'Tremorglaive (part matter)', 'ranged', 4, 3, 4, 5, { piercing: 1, piercingCrits: 2 }, 'ccGlaive');
+const ccQuake = W('ccQuake', '震波戟（地震）', 'Tremorglaive (quake)', 'ranged', 5, 3, 1, 2, { blast: 2, seekLight: true, stun: true }, 'ccGlaive');
+const ccSweep = W('ccSweep', '震波戟（橫掃）', 'Tremorglaive (sweep)', 'melee', 4, 4, 4, 5, { severe: true, shock: true, stun: true });
+const ccIsolator = W('ccIsolator', '跨維度隔離器', 'Transdimensional isolator', 'ranged', 5, 4, 5, 6, { banish: true });
+const ccReaperFocus = W('ccReaperFocus', '雙聯高斯收割者（集中）', 'Twin gauss reapers (focused)', 'ranged', 5, 4, 4, 5, { piercing: 1, severe: true }, 'ccReaper');
+const ccReaperSweep = W('ccReaperSweep', '雙聯高斯收割者（掃射）', 'Twin gauss reapers (sweeping)', 'ranged', 4, 4, 4, 5, { piercing: 1, severe: true, torrent: 1 }, 'ccReaper');
+const ccCrawlerClaws = W('ccCrawlerClaws', '利爪', 'Claws', 'melee', 4, 4, 4, 4);
+const ccSpark = W('ccSpark', '電火花', 'Spark', 'ranged', 4, 4, 2, 3, { range: 4, piercing: 1 });
+const ccClawsSpark = W('ccClawsSpark', '利爪與電火花', 'Claws & spark', 'melee', 3, 4, 3, 4, { lethal: 5, stun: true });
+const ccAtomiser = W('ccAtomiser', '原子化光束', 'Atomiser beam', 'ranged', 4, 4, 3, 4, { range: 6, lethal: 5 });
+const ccClawsTailR = W('ccClawsTailR', '利爪與尾刺', 'Claws & tail', 'melee', 4, 4, 3, 4);
+const ccScalpel = W('ccScalpel', '高斯手術刀', 'Gauss scalpel', 'ranged', 4, 4, 2, 3, { piercing: 1 });
+const ccTeslaFocus = W('ccTeslaFocus', '特斯拉施放器（集中）', 'Tesla caster (focused)', 'ranged', 4, 4, 2, 3, {}, 'ccTesla');
+const ccTeslaLightning = W('ccTeslaLightning', '特斯拉施放器（活體閃電）', 'Tesla caster (living lightning)', 'ranged', 4, 4, 2, 3, { blast: 2 }, 'ccTesla');
+const ccClawsTail = W('ccClawsTail', '利爪與尾刺', 'Claws & tail', 'melee', 3, 4, 3, 4);
+
 // ---- Brood Brothers ----
 const bbBoltPistol = W('bbBoltPistol', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
 const bbDrumAutogun = W('bbDrumAutogun', '彈鼓自動槍', 'Drum-fed autogun', 'ranged', 4, 3, 2, 3, { ceaseless: true });
@@ -545,7 +562,7 @@ export const TEAMS = [
       { id: 'indomitus', cp: 1, name: { zh: '帝國征程', en: 'Indomitus' },
         desc: { zh: '本回合友方被射擊時，若防禦骰失敗 2 顆以上，可把其中 1 顆改為普通成功。', en: 'This TP, when a friendly operative is shot and rolls two or more failed defence dice, one becomes a normal success.' } },
       { id: 'noFear', cp: 1, name: { zh: '無所畏懼', en: 'And They Shall Know No Fear' },
-        desc: { zh: '本回合友方無視受傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
+        desc: { zh: '本回合友方無視重傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
     ],
     ops: [
       op('sgt', '仲裁者士官', 'Intercessor Sergeant', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, doctrineWarfare: ['docDevastator', 'docTactical'] }, [boltRifle, chainswordSgt]),
@@ -680,7 +697,7 @@ export const TEAMS = [
     },
     ploys: [
       { id: 'contagion', cp: 1, name: { zh: '傳染', en: 'Contagion' },
-        desc: { zh: '本回合敵人若中毒且在友方 3" 內可見，或在掌旗手 3" 內可見：Move -2"、武器命中變差 1（不與受傷累加）。掌旗手在敵方領域時 0CP。', en: 'This TP, an enemy that is poisoned and visible within 3" of a friendly operative, or visible within 3" of the Icon Bearer, gets -2" Move and worsens its weapons\' Hit by 1 (not cumulative with injured). 0CP while the Icon Bearer is in enemy territory.' } },
+        desc: { zh: '本回合敵人若中毒且在友方 3" 內可見，或在掌旗手 3" 內可見：Move -2"、武器命中變差 1（不與重傷累加）。掌旗手在敵方領域時 0CP。', en: 'This TP, an enemy that is poisoned and visible within 3" of a friendly operative, or visible within 3" of the Icon Bearer, gets -2" Move and worsens its weapons\' Hit by 1 (not cumulative with injured). 0CP while the Icon Bearer is in enemy territory.' } },
       { id: 'lumbering', cp: 1, name: { zh: '笨重死神', en: 'Lumbering Death' },
         desc: { zh: '本回合友方在本次啟動移動不超過 3" 時射擊或近戰，以及反擊時，武器獲得「無休」。', en: 'This TP, friendly weapons have Ceaseless when shooting or fighting in an activation in which the operative moved no more than 3", and when retaliating.' } },
     ],
@@ -761,7 +778,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '衛兵命令・群體啟動', en: 'Guardsmen Orders · Group Activation' },
       desc: {
-        zh: '策略階段，看守長可下達一道衛兵命令給 6" 內的友方（看守長倒下後由心腹代替），效果到本回合結束：瞄準！（遠程武器「無休」，迫擊砲除外）、上刺刀！（近戰武器「無休」）、固守！（被射擊且能保留掩護豁免時，可重擲某一點數的所有防禦骰）、快快快！（轉移 Move +1"）。通訊兵可轉達命令給全隊（之後自己 APL -1）。步兵行動完後，必須接著啟動另一名步兵，再換對手。',
+        zh: '策略階段，看守長可下達一道衛兵命令給 6" 內的友方（看守長殘廢後由心腹代替），效果到本回合結束：瞄準！（遠程武器「無休」，迫擊砲除外）、上刺刀！（近戰武器「無休」）、固守！（被射擊且能保留掩護豁免時，可重擲某一點數的所有防禦骰）、快快快！（轉移 Move +1"）。通訊兵可轉達命令給全隊（之後自己 APL -1）。步兵行動完後，必須接著啟動另一名步兵，再換對手。',
         en: 'In the Strategy phase the Watchmaster can issue a Guardsman Order to friendlies within 6" (the Confidant takes over once it falls), lasting the turning point: Take Aim! (ranged Ceaseless, not the mortar), Fix Bayonets! (melee Ceaseless), Dig In! (when shot and cover saves can be retained, re-roll all defence dice of one result), Move! Move! Move! (+1" Move for Reposition). The Vox-operator can relay the order to the whole team (then -1 APL). After a Trooper is expended, another ready Trooper must activate before the opponent.',
       },
     },
@@ -859,7 +876,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '宿怨', en: 'Grudge' },
       desc: {
-        zh: '敵人擊倒友方時，獲得一個宿怨標記（整場保留）。友方射擊、近戰或反擊有宿怨標記的敵人時，每個標記可把一顆普通成功當成暴擊保留（包括精準保留的成功）。',
+        zh: '敵人使友方殘廢時，獲得一個宿怨標記（整場保留）。友方射擊、近戰或反擊有宿怨標記的敵人時，每個標記可把一顆普通成功當成暴擊保留（包括精準保留的成功）。',
         en: 'An enemy that incapacitates a friendly operative gains a Grudge token for the battle. Whenever a friendly operative shoots, fights or retaliates against an enemy with Grudge tokens, for each token one normal success can be retained as a critical success (including ones retained through Accurate).',
       },
     },
@@ -966,7 +983,7 @@ export const TEAMS = [
       { id: 'lethalAssaults', cp: 1, name: { zh: '致命突擊', en: 'Lethal Assaults' },
         desc: { zh: '本回合友方近戰時，近戰武器「平衡」；若本次啟動衝鋒過，再加「致命 5+」。', en: 'This TP, friendly melee weapons have Balanced when fighting; also Lethal 5+ in an activation in which it Charged.' } },
       { id: 'noFear', cp: 1, name: { zh: '無所畏懼', en: 'And They Shall Know No Fear' },
-        desc: { zh: '本回合友方無視受傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
+        desc: { zh: '本回合友方無視重傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
       { id: 'deadlyShots', cp: 1, name: { zh: '致命射擊', en: 'Deadly Shots' },
         desc: { zh: '本回合友方射擊時，若本次啟動沒有衝鋒／撤退／轉移，或目標不在掩體中且在 6" 外，遠程武器「平衡」。', en: 'This TP, friendly ranged weapons have Balanced when the shooter hasn\'t Charged, Fallen Back or Repositioned this activation, or the target isn\'t in cover and is more than 6" away.' } },
     ],
@@ -1092,7 +1109,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '血祭', en: 'Blooded' },
       desc: {
-        zh: '獲得血祭標記：每回合策略階段開始時；每回合第一次擊倒敵人時；每回合第一次友方在敵人 6" 內倒下時。策略階段可把標記分給友方（每名最多 1 個）；有 4 名以上持有標記時，可選一名受到「諸神注視」。持有標記的友方武器「精準 1」；受注視時，精準保留的成功可當暴擊。',
+        zh: '獲得血祭標記：每回合策略階段開始時；每回合第一次使敵人殘廢時；每回合第一次友方在敵人 6" 內殘廢時。策略階段可把標記分給友方（每名最多 1 個）；有 4 名以上持有標記時，可選一名受到「諸神注視」。持有標記的友方武器「精準 1」；受注視時，精準保留的成功可當暴擊。',
         en: 'Gain a Blooded token: in each Strategy phase; the first time an enemy is incapacitated each TP; the first time a friendly is incapacitated within 6" of an enemy each TP. In the Strategy phase, assign tokens to friendlies (one each); with four or more holders, one can be under the Gaze of the Gods. Holders\' weapons have Accurate 1; under the Gaze, the success retained through Accurate can be a critical.',
       },
     },
@@ -1104,7 +1121,7 @@ export const TEAMS = [
       { id: 'gloryKill', cp: 1, name: { zh: '榮耀擊殺', en: 'Glory Kill' },
         desc: { zh: '選一名友方看得到的敵人：本回合攻擊它時武器「無休」，持有標記時改為「無情」。（使用時自動選生命最高的敵人，可在策略面板更換）', en: 'Pick an enemy a friendly can see: this TP, weapons have Ceaseless against it, or Relentless with a token. (The toughest enemy is picked automatically; change it in the strategy panel.)' } },
       { id: 'bitterDemise', cp: 1, name: { zh: '苦澀的死亡', en: 'Bitter Demise' },
-        desc: { zh: '本回合友方倒下時擲 D3：擲出 3（持有標記時 2+）就對 2" 內一名可見敵人造成等量傷害。', en: 'This TP, when a friendly is incapacitated roll a D3: on a 3 (2+ with a token), that much damage to a visible enemy within 2".' } },
+        desc: { zh: '本回合友方殘廢時擲 D3：擲出 3（持有標記時 2+）就對 2" 內一名可見敵人造成等量傷害。', en: 'This TP, when a friendly is incapacitated roll a D3: on a 3 (2+ with a token), that much damage to a visible enemy within 2".' } },
     ],
     ops: [
       op('chieftain', '叛軍首領', 'Traitor Chieftain', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, leadWithStrength: true }, [laspistolBL, chainswordBL]),
@@ -1127,7 +1144,7 @@ export const TEAMS = [
     color: '#7a5a2a',
     style: { zh: '近戰隊・狂暴・野獸', en: 'Melee · Frenzy · Beasts' },
     blurb: {
-      zh: '10 名混沌獸人：生命歸零時不會立刻倒下，而是陷入狂暴繼續戰鬥，直到被暴擊或連續命中才真正倒地。',
+      zh: '10 名混沌獸人：生命歸零時不會立刻殘廢，而是陷入狂暴繼續戰鬥，直到被暴擊或連續命中才真正倒地。',
       en: '10 Chaos Beastmen: dropping to 0 wounds sends them into a Frenzy instead of down — they keep fighting until a critical or repeated hit finally fells them.',
     },
     // Collector notes supplied by the player.
@@ -1142,7 +1159,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '狂暴', en: 'Frenzy' },
       desc: {
-        zh: '沒有狂暴標記的友方將失去戰鬥能力時，改為不倒下並獲得狂暴標記（剩下的攻擊骰全部作廢；隱蔽改為交戰），對手此時就算它被擊殺。有狂暴標記時：視為受傷、不能隱蔽、不能撿標記與做獨特或任務動作、控制目標時 APL 視為 1。它在以下情況才真正倒下：自己的啟動或反擊結束；近戰中被暴擊打中；近戰中第二次被普通成功打中；被射擊時受到暴擊傷害；被射擊時有 2 顆以上攻擊骰造成普通傷害；戰鬥結束。',
+        zh: '沒有狂暴標記的友方將殘廢時，改為不殘廢並獲得狂暴標記（剩下的攻擊骰全部作廢；隱蔽改為交戰），對手此時就算它被擊殺。有狂暴標記時：視為重傷、不能隱蔽、不能撿標記與做獨特或任務動作、控制目標時 APL 視為 1。它在以下情況才真正殘廢：自己的啟動或反擊結束；近戰中被暴擊打中；近戰中第二次被普通成功打中；被射擊時受到暴擊傷害；被射擊時有 2 顆以上攻擊骰造成普通傷害；戰鬥結束。',
         en: 'A friendly without a Frenzy token that would be incapacitated isn\'t: it gains a Frenzy token (remaining attack dice are discarded; Conceal becomes Engage), and it counts as incapacitated for your opponent from then on. With the token it\'s injured, can\'t Conceal, can\'t Pick Up or perform unique or mission actions, and has APL 1 for control. It\'s incapacitated when its activation or counteraction ends; when struck by a critical success, or a second time by a normal success, in a fight; when Critical Dmg, or Normal Dmg from two or more dice, is inflicted on it by shooting; or when the battle ends.',
       },
     },
@@ -1192,7 +1209,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '冷酷效率・正義標記・鎮壓', en: 'Ruthless Efficiency · Marked for Justice · Repress' },
       desc: {
-        zh: '冷酷效率：射擊時，友方在敵人控制範圍內也不妨礙選它為目標。正義標記（策略階段）：選一名敵人，攻擊它時武器「懲罰」；它倒下時自動改標記另一名。鎮壓（盾牌武器）：每次格擋可擋兩顆成功；反擊時由自己先結算。',
+        zh: '冷酷效率：射擊時，友方在敵人控制範圍內也不妨礙選它為目標。正義標記（策略階段）：選一名敵人，攻擊它時武器「懲罰」；它殘廢時自動改標記另一名。鎮壓（盾牌武器）：每次格擋可擋兩顆成功；反擊時由自己先結算。',
         en: 'Ruthless Efficiency: friendlies in an enemy\'s control range don\'t stop you targeting it. Marked for Justice (Strategy phase): pick an enemy — Punishing against it; a new mark is picked when it falls. Repress (shield weapons): each block cancels two successes; when retaliating, it resolves first.',
       },
     },
@@ -1227,7 +1244,7 @@ export const TEAMS = [
     color: '#3aa35a',
     style: { zh: '射擊隊・死靈・復甦', en: 'Shooting · Necrons · Reanimation' },
     blurb: {
-      zh: '死靈技師帶著不朽者、死亡標記狙擊手與聖甲蟲構裝體：身軀會自我修復、倒下還能復甦，技師能借部下的眼睛開火。',
+      zh: '死靈技師帶著不朽者、死亡標記狙擊手與聖甲蟲構裝體：身軀會自我修復、殘廢還能復甦，技師能借部下的眼睛開火。',
       en: 'A Necron Cryptek with Immortals, Deathmark snipers and Canoptek constructs: living metal heals, the fallen reanimate, and the Cryptek fires through its thralls\' eyes.',
     },
     // Collector notes supplied by the player.
@@ -1244,7 +1261,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '復甦協議・活體金屬・放大', en: 'Reanimation Protocols · Living Metal · Magnify' },
       desc: {
-        zh: '復甦協議：每名特工第一次倒下時留下復甦標記；每回合準備步驟擲 D6，3+ 讓一名倒下的特工在標記 3" 內以 1 生命、準備好的狀態回到場上（對手的擊殺數會減少）。活體金屬：每回合準備步驟，每名友方回復 D3+1 生命。放大（技師／學徒的武器）：可借另一名交戰指令、未被敵人纏住且看得到的技師或學徒的位置判斷目標、掩護與遮蔽，並獲得「無休」。',
+        zh: '復甦協議：每名特工第一次殘廢時留下復甦標記；每回合準備步驟擲 D6，3+ 讓一名殘廢的特工在標記 3" 內以 1 生命、準備好的狀態回到場上（對手的擊殺數會減少）。活體金屬：每回合準備步驟，每名友方回復 D3+1 生命。放大（技師／學徒的武器）：可借另一名交戰指令、未被敵人纏住且看得到的技師或學徒的位置判斷目標、掩護與遮蔽，並獲得「無休」。',
         en: 'Reanimation Protocols: the first time each operative falls it leaves a Reanimation marker; in each Ready step roll a D6 — on a 3+ a fallen operative returns within 3" of its marker with 1 wound, ready (the opponent\'s kill count goes down). Living Metal: in each Ready step every friendly regains D3+1 wounds. Magnify (Cryptek / Apprentek weapons): pick targets, cover and obscured from another visible Engage-order Cryptek or Apprentek that isn\'t in an enemy\'s control range, and gain Ceaseless.',
       },
     },
@@ -1403,7 +1420,7 @@ export const TEAMS = [
       { id: 'bloodGod', cp: 1, name: { zh: '血祭血神', en: 'Blood for the Blood God' },
         desc: { zh: '本回合友方近戰時第一次打擊 +1 傷害（最多 7）；恐虐印記的友方近戰武器兩個傷害都 +1（最多 7）。', en: 'This TP, a friendly\'s first strike when fighting deals 1 more (max 7); Khorne operatives\' melee weapons have +1 to both Dmg (max 7) instead.' } },
       { id: 'implacable', cp: 1, name: { zh: '無可阻擋', en: 'Implacable' },
-        desc: { zh: '本回合射擊友方的「穿甲 1」改為「暴擊穿甲 1」；納垢印記的友方無視受傷減益。', en: 'This TP, Piercing 1 against friendlies becomes Piercing Crits 1; Nurgle operatives ignore injured penalties.' } },
+        desc: { zh: '本回合射擊友方的「穿甲 1」改為「暴擊穿甲 1」；納垢印記的友方無視重傷減益。', en: 'This TP, Piercing 1 against friendlies becomes Piercing Crits 1; Nurgle operatives ignore injured penalties.' } },
       { id: 'quicksilver', cp: 1, name: { zh: '水銀之速', en: 'Quicksilver Speed' },
         desc: { zh: '本回合移動過的友方近戰或反擊時，敵人近戰命中變差 1；移動過的色孽友方被 6" 外射擊時，敵人命中變差 1。', en: 'This TP, a friendly that moved this TP fighting or retaliating worsens the enemy\'s melee Hit by 1; a Slaanesh one that moved, shot from more than 6", worsens the shooter\'s Hit by 1.' } },
       { id: 'fickleFates', cp: 1, name: { zh: '無常命運', en: 'Fickle Fates' },
@@ -1514,6 +1531,54 @@ export const TEAMS = [
     ],
   },
   {
+    id: 'canoptekCircle',
+    name: { zh: '冥工之環', en: 'Canoptek Circle' },
+    color: '#2fb59a',
+    style: { zh: '射擊隊・機械・節點矩陣', en: 'Shooting · Constructs · Node Matrix' },
+    blurb: {
+      zh: '一名地占術士帶領一群冥工機械：兩台墓穴爬行者、加速者、復甦者與三隻巨細胞戰士。三個方尖碑節點連成矩陣，矩陣內的友方武器精準、行動更多。',
+      en: 'A Geomancer Cryptek with its Canoptek constructs: two Tomb Crawlers, an Accelerator, a Reanimator and three Macrocyte Warriors. Three obelisk nodes link into a matrix that sharpens and speeds up friendlies inside it.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '偵察', en: 'Recon' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能', en: 'Yes' },
+      size: { zh: '5 名特工＋3 隻機械蟲', en: '5 operatives + 3 constructs' },
+    },
+    obeliskNodes: true,
+    rule: {
+      name: { zh: '方尖碑節點矩陣', en: 'Obelisk Node Matrix' },
+      desc: {
+        zh: '第 1 回合策略階段在己方領土放置 3 個方尖碑節點（自動），之後每回合可各移動最多 3"（自動朝目標點移動）。相距 6" 內的兩個節點之間連成 20mm 寬的矩陣。矩陣內的友方：資料卡上的武器「精準 1」、APL +1（最多 3）。節點會控制 1" 內沒有敵人爭奪的標記。',
+        en: 'In the first Strategy phase three obelisk nodes are set up in your territory (automatic); later each can move up to 3" (automatically towards an objective). Nodes within 6" of each other link into a 20mm-wide matrix. Friendlies within it: datacard weapons have Accurate 1 and +1 APL (max 3). Nodes control markers within 1" that no enemy contests.',
+      },
+    },
+    ploys: [
+      { id: 'cryptogravitic', cp: 1, name: { zh: '低溫重力排斥', en: 'Cryptogravitic Repulsion' },
+        desc: { zh: '本回合敵人每次移動第一次進入我方矩陣時，距離多算 1"。', en: 'This TP, the first time an enemy moves into your matrix in an action, that distance counts 1" more.' } },
+      { id: 'souldrain', cp: 1, name: { zh: '靈魂汲取', en: 'Souldrain' },
+        desc: { zh: '本回合在我方矩陣內的敵人、或近戰矩陣內友方的敵人，近戰武器兩項傷害 -1（最低 2）。', en: 'This TP, an enemy within your matrix, or fighting a friendly within it, has -1 to both melee Dmg (min 2).' } },
+      { id: 'hypershielding', cp: 1, name: { zh: '超維護盾', en: 'Hypershielding' },
+        desc: { zh: '本回合友方被射擊時，若矩陣擋在中間或友方在矩陣內，可重擲同一種點數的防禦骰。', en: 'This TP, a friendly shot with your matrix in the way or while within it re-rolls any defence dice of one result.' } },
+      { id: 'transdynamic', cp: 1, name: { zh: '跨動態增幅', en: 'Transdynamic Amplification' },
+        desc: { zh: '本回合友方射擊時，若矩陣擋在中間或目標在矩陣內，武器「無休」。', en: 'This TP, a friendly shooting with your matrix in the way, or at a target within it, has Ceaseless.' } },
+    ],
+    // Tomb Crawlers and Warriors pick weapons separately (one transdimensional isolator at most).
+    replacements: { ccCrawler: ['ccCrawler', 'ccCrawlerIso'], ccWarrior: ['ccWarrior', 'ccWarriorTesla'] },
+    perCopyRoster: true,
+    ops: [
+      op('ccGeomancer', '地占術士', 'Geomancer', { apl: 3, move: 6, save: 3, wounds: 14, base: 50, ccLeader: true, geomantic: true, canoptekControl: true, molecularBreach: true }, [ccPartMatter, ccQuake, ccSweep]),
+      op('ccCrawler', '墓穴爬行者（高斯收割者）', 'Tomb Crawler (gauss reapers)', { apl: 2, move: 5, save: 3, wounds: 18, base: 50, canoptek: true, brute: true, control: 3, steadfast: true }, [ccReaperFocus, ccReaperSweep, ccCrawlerClaws], 2),
+      op('ccAccel', '巨細胞加速者', 'Macrocyte Accelerator', { apl: 2, move: 7, save: 4, wounds: 7, base: 28, canoptek: true, overcharge: true, cranialOverload: true }, [ccSpark, ccClawsSpark]),
+      op('ccReanim', '巨細胞復甦者', 'Macrocyte Reanimator', { apl: 2, move: 7, save: 4, wounds: 7, base: 28, canoptek: true, medic: true, medicRange: 6, matrixMedic: true, nanoscarab: true }, [ccAtomiser, ccClawsTailR]),
+      op('ccWarrior', '巨細胞戰士（高斯手術刀）', 'Macrocyte Warrior (gauss scalpel)', { apl: 2, move: 7, save: 4, wounds: 7, base: 28, canoptek: true, expendable: true, aggressiveDefence: true, ccWarrior: true }, [ccScalpel, ccClawsTail], 3),
+      op('ccCrawlerIso', '墓穴爬行者（隔離器）', 'Tomb Crawler (isolator)', { apl: 2, move: 5, save: 3, wounds: 18, base: 50, canoptek: true, brute: true, control: 3, steadfast: true }, [ccIsolator, ccCrawlerClaws], 0),
+      op('ccWarriorTesla', '巨細胞戰士（特斯拉）', 'Macrocyte Warrior (tesla caster)', { apl: 2, move: 7, save: 4, wounds: 7, base: 28, canoptek: true, expendable: true, aggressiveDefence: true, ccWarrior: true }, [ccTeslaFocus, ccTeslaLightning, ccClawsTail], 0),
+    ],
+  },
+  {
     id: 'broodBrothers',
     name: { zh: '族群裔兵', en: 'Brood Brothers' },
     color: '#7a5aa6',
@@ -1535,7 +1600,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '交叉火力', en: 'Crossfire' },
       desc: {
-        zh: '友方射擊或近戰敵人後，若敵人沒倒下就得到一個交叉火力標記。之後友方射擊、近戰或反擊有標記的敵人時，每移除一個標記就能重擲一顆攻擊骰（自動用在失敗的骰子上）。',
+        zh: '友方射擊或近戰敵人後，若敵人沒殘廢就得到一個交叉火力標記。之後友方射擊、近戰或反擊有標記的敵人時，每移除一個標記就能重擲一顆攻擊骰（自動用在失敗的骰子上）。',
         en: 'After a friendly shoots or fights an enemy, if it isn\'t incapacitated it gains a Crossfire token. Friendlies shooting, fighting or retaliating against it can remove its tokens to re-roll one attack die each (used on fails automatically).',
       },
     },
@@ -1543,7 +1608,7 @@ export const TEAMS = [
       { id: 'embedded', cp: 1, name: { zh: '嵌入陣地', en: 'Embedded' },
         desc: { zh: '本回合敵人射擊友方時，若因重型地形能保留掩護豁免，可多保留一顆。', en: 'This TP, when an enemy shoots a friendly that can retain cover saves from Heavy terrain, it retains one more.' } },
       { id: 'cultDevotion', cp: 1, name: { zh: '教派奉獻', en: 'Cult Devotion' },
-        desc: { zh: '本回合友方（族長除外）在近戰中倒下時，若還有未結算的成功，擲 D6：達到命中值可再用一顆普通成功打擊（擲出暴擊時任一顆成功）。', en: 'This TP, when a friendly (not the Patriarch) is incapacitated in a fight with unresolved successes, roll a D6: if it would hit, strike with an unresolved normal success (any success on a crit).' } },
+        desc: { zh: '本回合友方（族長除外）在近戰中殘廢時，若還有未結算的成功，擲 D6：達到命中值可再用一顆普通成功打擊（擲出暴擊時任一顆成功）。', en: 'This TP, when a friendly (not the Patriarch) is incapacitated in a fight with unresolved successes, roll a D6: if it would hit, strike with an unresolved normal success (any success on a crit).' } },
       { id: 'pervasive', cp: 1, name: { zh: '無所不在', en: 'Pervasive' },
         desc: { zh: '本回合友方攀爬時可忽略第一段 2" 垂直距離。（2D 版沒有攀爬，沒有效果）', en: 'This TP, friendlies ignore the first 2" of one climb. (No climbing in this 2D version: no effect.)' } },
       { id: 'uprising', cp: 1, name: { zh: '起義', en: 'Uprising' },
@@ -1685,7 +1750,7 @@ const FIREFIGHT = {
   ],
   blooded: [
     ff('momentRepute', '榮耀時刻', 'Moment of Repute', '受諸神注視的友方啟動中：本次 APL +1。', 'During the activation of the operative under the Gaze of the Gods: +1 APL.'),
-    ff('rewardEarned', '應得的獎賞', 'Reward Earned', '自動：持有血祭標記的友方在 2" 內擊倒敵人時，獲得 1 個血祭標記。', 'Auto: when a friendly with a Blooded token incapacitates an enemy within 2", gain a Blooded token.'),
+    ff('rewardEarned', '應得的獎賞', 'Reward Earned', '自動：持有血祭標記的友方在 2" 內使敵人殘廢時，獲得 1 個血祭標記。', 'Auto: when a friendly with a Blooded token incapacitates an enemy within 2", gain a Blooded token.'),
   ],
   deathKorps: [
     ff('combinedArms', '聯合火力', 'Combined Arms', '射擊本回合已被其他友方射擊過的敵人：可重擲任意攻擊骰（無情）。', 'Shooting an enemy another friendly shot this TP: re-roll any attack dice (Relentless).'),
@@ -1700,11 +1765,11 @@ const FIREFIGHT = {
   ],
   farstalkers: [
     ff('slipAway', '溜走', 'Slip Away', '啟動中：本次撤退少花 1AP。', 'During an activation: Fall Back costs 1 less AP.'),
-    ff('vengeanceKinband', '為戰團復仇', 'Vengeance for the Kinband', '自動：友方被敵人擊倒時，之後友方攻擊那個敵人都「無情」（它倒下前不能再用）。', 'Auto: when a friendly is incapacitated by an enemy, friendlies attacking that enemy have Relentless (not again until it falls).'),
+    ff('vengeanceKinband', '為戰團復仇', 'Vengeance for the Kinband', '自動：友方被敵人打成殘廢時，之後友方攻擊那個敵人都「無情」（它殘廢前不能再用）。', 'Auto: when a friendly is incapacitated by an enemy, friendlies attacking that enemy have Relentless (not again until it falls).'),
     ff('savageAmbush', '野蠻伏擊', 'Savage Ambush', '自動：控制範圍內有地形、尚未行動的友方被近戰時，由它先出手。', 'Auto: a ready friendly with terrain in its control range that\'s fought against resolves the first die.'),
   ],
   gellerpox: [
-    ff('putrescentDemise', '腐爛之死', 'Putrescent Demise', '自動：友方倒下時，2" 內看得到的每名敵人受 1 傷害（噩夢巨獸 D3）。', 'Auto: when a friendly falls, each enemy visible within 2" takes 1 damage (D3 for a Nightmare Hulk).'),
+    ff('putrescentDemise', '腐爛之死', 'Putrescent Demise', '自動：友方殘廢時，2" 內看得到的每名敵人受 1 傷害（噩夢巨獸 D3）。', 'Auto: when a friendly falls, each enemy visible within 2" takes 1 damage (D3 for a Nightmare Hulk).'),
     ff('frighteningOnslaught', '駭人猛攻', 'Frightening Onslaught', '噩夢巨獸近戰後：再免費近戰一次。', 'After a Nightmare Hulk fights: a free Fight.'),
     ff('revoltingTech', '腐壞科技', 'Revolting Technology', '自動：敵人射擊友方時，它的武器獲得「過熱」。', 'Auto: an enemy shooting a friendly has Hot on its weapon.'),
   ],
@@ -1716,7 +1781,7 @@ const FIREFIGHT = {
   hearthkyn: [
     ff('sturdy', '結實', 'Sturdy', '自動：被射擊時，攻擊方保留的暴擊全部變成普通成功。', 'Auto: when shot, the attacker\'s retained crits become normal successes.'),
     ff('engageToAcquire', '以戰奪寶', 'Engage to Acquire', '攻擊控制目標點的敵人：可重擲任意攻擊骰（無情）。', 'Attacking an enemy that controls an objective: re-roll any attack dice (Relentless).'),
-    ff('ancestorsWatching', '先祖注視', 'The Ancestors Are Watching', '啟動中：可免費射擊或近戰一次，且武器無視受傷減益。', 'During an activation: a free Shoot or Fight, ignoring injured weapon penalties.'),
+    ff('ancestorsWatching', '先祖注視', 'The Ancestors Are Watching', '啟動中：可免費射擊或近戰一次，且武器無視重傷減益。', 'During an activation: a free Shoot or Fight, ignoring injured weapon penalties.'),
   ],
   hierotek: [
     ff('livingLightning', '活體閃電', 'Living Lightning', '用特斯拉卡賓槍射擊時：改為「爆炸 2\"」（不再有 2" 毀滅）。', 'Shooting a tesla carbine: Blast 2" instead of its 2" Devastating.'),
@@ -1739,7 +1804,7 @@ const FIREFIGHT = {
   plagueMarines: [
     ff('sickeningResilience', '令人作嘔的堅韌', 'Sickening Resilience', '自動：受到重傷時，本次行動中「令人作嘔的韌性」不用擲骰，3 以上的傷害一律 -1（最低 2）。', 'Auto: when badly hit, for the rest of the activation Disgustingly Resilient takes 1 off every 3+ damage (min 2) without rolling.'),
     ff('virulentPoison', '劇毒瘟疫', 'Virulent Poison', '啟動中：3" 內或 7" 內看得到的一名敵人中毒。', 'During an activation: an enemy within 3", or visible within 7", is poisoned.'),
-    ff('poisonousDemise', '劇毒之死', 'Poisonous Demise', '自動：友方倒下時，3" 內看得到的敵人中毒（已中毒的受 1 傷害）。', 'Auto: when a friendly falls, enemies visible within 3" are poisoned (1 damage if they already were).'),
+    ff('poisonousDemise', '劇毒之死', 'Poisonous Demise', '自動：友方殘廢時，3" 內看得到的敵人中毒（已中毒的受 1 傷害）。', 'Auto: when a friendly falls, enemies visible within 3" are poisoned (1 damage if they already were).'),
   ],
   wyrmblade: [
     ff('slink', '遁入黑暗', 'Slink into Darkness', '啟動中：啟動結束時從交戰改回隱蔽（每名整場一次）。', 'During an activation: switch from Engage back to Conceal when it ends (once per operative per battle).'),
@@ -1752,6 +1817,10 @@ const FIREFIGHT = {
     ff('mutability', '變化無常', 'Mutability and Change', '奸奇印記的友方啟動時：本次 APL +1。', 'When a Tzeentch operative is activated: +1 APL this activation.'),
     ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
     ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
+  ],
+  canoptekCircle: [
+    ff('sacrificialThrall', '犧牲奴僕', 'Sacrificial Thrall', '自動：地占術士被選為射擊或近戰目標時，改由它 3" 內看得到的另一名冥工機械承受（爆炸、洪流無效）。', 'Auto: when the Geomancer is picked as a Shoot or Fight target, another Canoptek visible within 3" of it becomes the target instead (not vs Blast/Torrent).'),
+    ff('shieldFlare', '護盾閃焰', 'Shield Flare', '自動：攻擊骰對友方造成普通傷害時，若矩陣擋在中間或友方在矩陣內，無視這次傷害。', 'Auto: when an attack die inflicts Normal Dmg on a friendly with your matrix in the way or while it\'s within it, ignore that damage.'),
   ],
   broodBrothers: [
     ff('unquestioningLoyalty', '無條件忠誠', 'Unquestioning Loyalty', '自動：友方領袖被選為射擊或近戰目標時，改由它 3" 內看得到的另一名友方兵員（非領袖）承受（爆炸、洪流無效；老兵時 0CP）。', 'Auto: when a friendly Leader is picked as a Shoot or Fight target, another friendly Broodguard (not a Leader) visible within 3" of it becomes the target instead (not vs Blast/Torrent; 0CP for the Veteran).'),
@@ -1779,13 +1848,13 @@ TEAMS.find((t) => t.id === 'bladesOfKhaine').techniques = [
   tech('da', 'avVigilance', '復仇者的警覺', 'Vigilance of the Avenger', '射擊時選手裡劍彈射器（或雙聯）：這次動作武器「致命 5+」。', 'Shooting with a shuriken catapult (or twin): Lethal 5+ until the end of the action.'),
   tech('da', 'avThousand', '千刃之死', 'Death of a Thousand Blades', '射擊時選手裡劍彈射器（或雙聯）：這次動作武器「洪流 2\"」（最多一個次要目標）。', 'Shooting with a shuriken catapult (or twin): Torrent 2" (no more than one secondary target).'),
   tech('da', 'avUnstinting', '堅定不移', 'Unstinting, Immovable', '自動：被射擊且擲出兩顆以上失敗的防禦骰時，丟掉一顆，把另一顆當成普通成功。', 'Auto: when shot and two or more defence dice fail, discard one to retain another as a normal success.'),
-  tech('da', 'avRagingHeat', '垂死之焰的熾熱', 'Raging Heat of the Dying Flame', '啟動中：直到下次啟動，不受受傷造成的數值變化影響（武器也是）。', 'During its activation: until its next activation, ignore stat changes from being injured (weapons too).'),
+  tech('da', 'avRagingHeat', '垂死之焰的熾熱', 'Raging Heat of the Dying Flame', '啟動中：直到下次啟動，不受重傷造成的數值變化影響（武器也是）。', 'During its activation: until its next activation, ignore stat changes from being injured (weapons too).'),
   tech('hb', 'hbShriek', '殺戮尖嘯', 'Shriek-that-Kills', '射擊時可改用「殺戮尖嘯」：5 攻擊 3+ 1/2，射程 6"、飽和、搜尋（輕型）、昏迷、洪流 1"。', 'When shooting, it can use Shriek-that-kills: 5 Atk 3+ 1/2, Range 6", Saturate, Seek Light, Stun, Torrent 1".'),
-  tech('hb', 'hbWoe', '悲嘆', 'The Woe', '自動：衝鋒後近戰擊倒敵人、且已離開敵人控制範圍時，用剩下的衝鋒距離免費再衝鋒一次（這次啟動之前只能做過衝鋒與近戰）。', 'Auto: after a Charge, when it incapacitates the enemy in the Fight and is no longer in an enemy\'s control range, a free Charge with its remaining move (it did nothing but Charge and Fight before).'),
+  tech('hb', 'hbWoe', '悲嘆', 'The Woe', '自動：衝鋒後近戰使敵人殘廢、且已離開敵人控制範圍時，用剩下的衝鋒距離免費再衝鋒一次（這次啟動之前只能做過衝鋒與近戰）。', 'Auto: after a Charge, when it incapacitates the enemy in the Fight and is no longer in an enemy\'s control range, a free Charge with its remaining move (it did nothing but Charge and Fight before).'),
   tech('ss', 'ssEye', '天蠍之眼', 'Scorpion\'s Eye', '射擊時選手裡劍手槍：這次動作武器「搜尋（輕型）」。', 'Shooting with a shuriken pistol: Seek Light until the end of the action.'),
   tech('ss', 'ssMerciless', '無情打擊', 'Merciless Strikes', '近戰時：第一次以暴擊打擊後，這次序列近戰武器「震擊」。', 'Fighting: after its first critical strike, its melee weapon has Shock for the rest of the sequence.'),
   tech('ss', 'ssGloom', '與幽暗合一', 'One with the Gloom', '啟動中：直到下次啟動，隱蔽指令且在掩體中時不能被選為目標（2" 內除外）。', 'During its activation: until its next activation, while Concealed and in cover it can\'t be selected as a valid target (except within 2").'),
-  tech('ss', 'ssFade', '打擊後隱沒', 'Strike and Fade', '自動：啟動中近戰擊倒敵人、且 3" 內沒有敵人時，改為隱蔽指令並免費衝刺一次。', 'Auto: when it incapacitates an enemy while fighting during its activation and no enemy is within 3", it switches to Conceal and can Dash for free.'),
+  tech('ss', 'ssFade', '打擊後隱沒', 'Strike and Fade', '自動：啟動中近戰使敵人殘廢、且 3" 內沒有敵人時，改為隱蔽指令並免費衝刺一次。', 'Auto: when it incapacitates an enemy while fighting during its activation and no enemy is within 3", it switches to Conceal and can Dash for free.'),
 ];
 for (const t of TEAMS) t.techniques ||= [];
 

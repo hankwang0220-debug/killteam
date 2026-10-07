@@ -1,4 +1,4 @@
-import { BOARD, ER, radius, tpl } from './game.js';
+import { BOARD, ER, radius, tpl, hasPloy, inMatrix } from './game.js';
 import { dist, distPointRect, pathLength, segRect, truncatePath } from './geometry.js';
 
 const RES = 0.25;
@@ -37,9 +37,21 @@ export function moveCtx(g, op) {
   }
   // Razor wire (鐵絲網, Obstructing): crossing over it counts as 1" more.
   const wires = g.terrain.filter((t) => t.kind === 'wire');
+  // Cryptogravitic Repulsion (Canoptek Circle ploy): an enemy moving into that team's matrix counts 1" more (once).
+  const foeSide = 1 - op.side;
+  const repulse = op.side < 2 && !!g.teams && g.teams[foeSide] && hasPloy(g, foeSide, 'cryptogravitic') && !!g.markers?.some((m) => m.kind === 'obeliskNode' && m.owner === foeSide);
+  const inside = (p) => inMatrix(g, foeSide, { ...op, x: p.x, y: p.y });
+  function entersMatrix(pts) {
+    if (!repulse || inside(pts[0])) return false;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(dist(a, b) / 0.25));
+      for (let k = 1; k <= n; k++) if (inside({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n })) return true;
+    }
+    return false;
+  }
   function extra(pts) {
-    if (!wires.length || fly) return 0;
-    return wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
+    const wire = !wires.length || fly ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
+    return wire + (entersMatrix(pts) ? 1 : 0);
   }
   return { op, r, free, segFree, inEnemyER, extra };
 }

@@ -395,3 +395,52 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
   .scorebar { order: 3; width: 100%; flex-basis: 100%; }
   .brand span { display: none; }
 }
+#board .matrix { stroke-width: .79; stroke-opacity: .28; stroke-linecap: round; }
+.role-glyph { pointer-events: none; }
+.role-glyph .rg-fill { fill: #fff; stroke: rgba(0,0,0,.55); stroke-width: var(--rgw); paint-order: stroke; stroke-linejoin: round; }
+.role-glyph .rg-line { fill: none; stroke: #fff; stroke-width: var(--rgw); stroke-linecap: round; }
+.role-key .rk-bg { fill: #3a4048; }
+#board .opnum { font-size: .27px; font-weight: 800; text-anchor: middle; fill: #fff; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.75); stroke-width: .07px; }
+.role-legend { padding-top: 0; }
+.role-key { width: 18px; height: 18px; overflow: visible; }
+
+/* ---------- operative lists beside the board ---------- */
+.boardwrap { gap: 8px; }
+.boardcol { flex: 1; min-width: 0; }
+.oproster { flex: none; width: 168px; display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - 90px); overflow-y: auto; }
+.oproster h4 { margin: 0 0 2px; padding: 4px 6px; font-size: .8rem; border-left: 4px solid var(--tc); color: var(--text, #e8e8e8); }
+.oproster h4 small { color: var(--muted); font-weight: 400; }
+.opchip { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 6px; text-align: left; border-radius: 8px; background: #1b1f25; border: 1px solid #2c323a; color: inherit; font: inherit; cursor: pointer; }
+.opchip:hover { border-color: var(--tc); }
+.opchip.sel { border-color: var(--tc); box-shadow: 0 0 0 1px var(--tc) inset; }
+.opchip.active { border-color: #f0c040; box-shadow: 0 0 0 1px #f0c040 inset; }
+.opchip.spent { opacity: .62; }
+/* Incapacitated (殘廢): red, struck through. */
+.opchip.dead { background: #2b1416; border-color: #7a2a2f; }
+.opchip.dead .chip-name, .opchip.dead .chip-sub .st { color: #ff6b6b; text-decoration: line-through; text-decoration-thickness: 2px; }
+.opchip.dead .chip-icon { opacity: .55; }
+.chip-icon { width: 24px; height: 24px; flex: none; overflow: visible; }
+.chip-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.chip-name { font-size: .74rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.chip-bar i { display: block; height: 100%; background: var(--ok); }
+.chip-bar i.inj { background: var(--bad); }
+.chip-sub { font-size: .66rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.chip-sub .st { color: inherit; font-weight: 700; }
+.opchip.active .chip-sub .st { color: #f0c040; }
+.chip-sub .tag { padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.08); }
+.chip-sub .tag.engage { color: #ec8a30; }
+.chip-sub .tag.conceal { color: #6cc0e4; }
+.chip-sub .tag.inj { color: var(--bad); background: rgba(220,80,80,.15); }
+@media (max-width: 1250px) { .oproster { width: 140px; } }
+@media (max-width: 900px) {
+  .boardwrap { flex-wrap: wrap; }
+  .boardcol { flex-basis: 100%; order: -1; }
+  /* Phones: a compact grid (icon, number, wound bar; dimmed = expended, struck = down) — tap for the datacard. */
+  .oproster { width: 100%; max-height: none; flex-direction: row; flex-wrap: wrap; }
+  .oproster h4 { flex-basis: 100%; }
+  .opchip { width: calc(20% - 4px); flex-direction: column; gap: 2px; padding: 4px 2px; text-align: center; }
+  .opchip .nm, .opchip .chip-sub { display: none; }
+  .chip-main { width: 100%; }
+  .chip-name { font-size: .72rem; }
+}
