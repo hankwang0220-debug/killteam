@@ -6,7 +6,7 @@ import { dwEquipmentLimit, dwScrambleTargets, dwScramble } from './deathwatch.js
 import { CORSAIR_EQUIPMENT } from './corsair.js';
 import { isArchon, painOptions, usePain, PAIN_NAMES, painRerollValues, ARCHON_EQUIPMENT, setOmen } from './archon.js';
 import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation, bribeSkip, canBribe } from './game.js';
-import { TEAMS, TEAM_MAP, RULE_LABELS } from './data/teams.js';
+import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
   ACTIONS, activate, activeOp, canPlace, placeOp, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
@@ -431,6 +431,36 @@ function packagePick(t, side, cur) {
   return Object.entries(t.packages || {}).map(([pid, p]) => `<label>${esc(tx(p.name))}<select data-act="roster" data-side="${side}" data-id="${pid}">${Object.entries(p.options)
     .map(([id, o]) => `<option value="${id}" ${(cur[pid] || Object.keys(p.options)[0]) === id ? 'selected' : ''}>${esc(tx(o.name))}</option>`).join('')}</select></label>`).join('');
 }
+/**
+ * Inquisitorial Agents selection limits: requisitioned operatives from one force and within its limits; each
+ * operative once (except the force's repeatable ones); two Gun Servitors only without requisitioned operatives;
+ * one Piercing 2 weapon and three Piercing weapons at most.
+ */
+function inquisitionRosterWarning(t, cur) {
+  const T = (id) => t.ops.find((o) => o.id === id);
+  const ids = Object.keys(t.replacements).map((slot) => cur[slot] || slot);
+  const rq = ids.filter((id) => T(id).rqGroup);
+  const groups = [...new Set(rq.map((id) => T(id).rqGroup))];
+  const bad = [];
+  if (groups.length > 1) bad.push(L('徵用人員只能來自同一支部隊', 'Requisitioned operatives must all come from one force'));
+  for (const gid of groups) {
+    const gr = IA_GROUPS[gid], mine = rq.filter((id) => T(id).rqGroup === gid);
+    if (mine.length > gr.max) bad.push(L(`${tx(gr.name)}最多 ${gr.max} 名`, `${tx(gr.name)}: ${gr.max} at most`));
+    if (gr.gunners && mine.filter((id) => T(id).tsGunner).length > gr.gunners) bad.push(L(`槍手最多 ${gr.gunners} 名`, `${gr.gunners} Gunners at most`));
+    for (const x of gr.twice || []) if (mine.filter((id) => T(id).rqFrom === x).length > 2) bad.push(L(`${tx(T(`rq_${gid}_${x}`).name)}最多 2 名`, `${tx(T(`rq_${gid}_${x}`).name)}: two at most`));
+    if (gid === 'navy' && mine.some((id) => T(id).rqFrom === 'cat') && !mine.some((id) => T(id).rqFrom === 'surveyor')) bad.push(L('C.A.T. 需要勘測員', 'The C.A.T. Unit needs the Surveyor'));
+    if (gid === 'navy' && mine.some((id) => T(id).rqFrom === 'gheistskull') && !mine.some((id) => T(id).rqFrom === 'voidJammer')) bad.push(L('鬼骷髏需要虛空干擾員', 'The Gheistskull needs the Void-jammer'));
+  }
+  const repeatOk = (id) => { const o = T(id); return !!o.rqGroup && IA_GROUPS[o.rqGroup].repeat.includes(o.rqFrom || o.id); };
+  const dup = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i && !repeatOk(id)))];
+  if (dup.length) bad.push(L(`重複選了：${dup.map((id) => tx(T(id).name)).join('、')}`, `Picked more than once: ${dup.map((id) => tx(T(id).name)).join(', ')}`));
+  if (rq.length && ids.filter((id) => T(id).gunServitor).length > 1) bad.push(L('有徵用人員時槍械僕從只能 1 名', 'Only one Gun Servitor with requisitioned operatives'));
+  // Piercing: each weapon (all its profiles) once per operative.
+  const pierce = [...ids, 'iaInterrogator'].flatMap((id) => [...new Map(T(id).weapons.filter((w) => w.rules.piercing).map((w) => [w.group, w])).values()]);
+  if (pierce.filter((w) => w.rules.piercing >= 2).length > 1) bad.push(L('穿甲 2 的武器最多 1 把', 'One Piercing 2 weapon at most'));
+  if (pierce.length > 3) bad.push(L(`穿甲武器 ${pierce.length} 把，最多 3 把`, `${pierce.length} Piercing weapons — three at most`));
+  return bad.length ? `<p class="bad small">⚠ ${bad.map(esc).join('；')}</p>` : '';
+}
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
 function rosterWarning(t, cur, side) {
   if (t.id === 'murderwing') { const error = murderwingRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -443,6 +473,7 @@ function rosterWarning(t, cur, side) {
       ...(crem > 2 ? [L(`焚化修女 ${crem} 名，最多 2 名`, `${crem} Cremators — two at most`)] : [])];
     return bad.length ? `<p class="bad small">⚠ ${bad.map(esc).join('；')}</p>` : '';
   }
+  if (t.inquisition) return `${inquisitionRosterWarning(t, cur)}`;
   if (t.goreTanks || t.yaegirs) { // Goremongers / Hernkyn Yaegirs: each once, except Aspirants / Warriors
     const rep = t.goreTanks ? 'gmAspirant' : 'hyWarrior';
     const ids = Object.keys(t.replacements).flatMap((slot) => (Array.isArray(cur[slot]) ? cur[slot] : Array(t.ops.find((o) => o.id === slot).count).fill(cur[slot] || slot)));
@@ -1650,6 +1681,24 @@ const ABILITIES = {
   boost: () => ['加速', 'Boost', '1AP（整場一次，第 1 回合除外）：這次啟動的下一次衝鋒多移動 4"。', '1AP (once per battle, not TP1): its next Charge this activation moves +4".'],
   pulse: () => ['干擾脈衝', 'Interference Pulse', '1AP：鬼骷髏 8" 內可見的敵人擲 D6（是鬼骷髏的有效目標 +1），3+ 下次啟動 APL -1。', '1AP: an enemy visible within 8" of the Gheistskull rolls a D6 (+1 if a valid target for it): 3+ = -1 APL next activation.'],
   eyeOfAncestors: () => ['先祖之眼', 'Eye of the Ancestors', '策略階段給一名敵人宿怨標記（友方殘廢 3 人以上時 2 名）。', 'Strategy phase: an enemy gains a Grudge token (two enemies once three friendlies are down).'],
+  tome: (v) => (v === 'denunciation'
+    ? ['審判典籍：譴責', 'Inquisitorial Tome: Denunciation', '友方攻擊在它 2" 內的敵人時，武器 Atk +1。（審問官自動拿譴責、典籍骷髏拿聖化）', 'Friendlies attacking an enemy within 2" of it get +1 Atk. (The Interrogator takes Denunciation and the Tome-skull Sanctification automatically.)']
+    : ['審判典籍：聖化', 'Inquisitorial Tome: Sanctification', '敵人攻擊在它 2" 內的友方時，武器 Atk -1。', 'Enemies attacking a friendly within 2" of it get -1 Atk.']),
+  machine: () => ['機械', 'Machine', '只能衝鋒、衝刺、撤退與移動；不能反擊或協助；爭奪標記時 APL 算少 1；隱蔽指令在掩體中時不能被選為目標（2" 內除外）。', 'Only Charge, Dash, Fall Back and Reposition; can\'t retaliate or assist; counts 1 lower APL for marker control; Concealed in cover it can\'t be targeted (except within 2").'],
+  scrivener: () => ['記錄員', 'Scrivener', '對手每個計謀第二次（含）以後使用時，若它在場上 +1CP（每回合最多 2CP，指揮重擲除外）。', 'Each time your opponent uses a ploy again (not Command Re-roll) while it\'s in the killzone, +1CP (2CP per TP at most).'],
+  irrefutable: () => ['確鑿報告', 'Irrefutable Report', '它爭奪的目標點或任務標記一定由我方控制。', 'An objective or mission marker it contests is always controlled by you.'],
+  iaZealot: () => ['狂信者', 'Zealot', '受到 3 以上的傷害時擲 D6，5+ 減 1。', 'Damage of 3+ on it: roll a D6, on a 5+ it\'s 1 less.'],
+  weathered: () => ['飽經風霜', 'Weathered', '每回合一次，近戰或反擊時無視一顆普通成功的傷害。', 'Once per TP, fighting or retaliating, ignore the damage of one normal success.'],
+  noEscape: () => ['無處可逃', 'No Escape', '它控制範圍內的敵人撤退時擲 D6（敵人生命屬性較高 -1、受傷 +1），4+ 撤退失敗（AP 照扣）。', 'An enemy in its control range trying to Fall Back rolls a D6 (-1 if its Wounds stat is higher, +1 if wounded): on a 4+ it can\'t (AP still spent).'],
+  extractInfo: () => ['榨取情報', 'Extract Information', '敵人在它控制範圍內殘廢時 +1CP。', 'An enemy incapacitated within its control range: +1CP.'],
+  hexorcise: () => ['驅魔', 'Hexorcise', '它 6" 內看得到的敵人不能重擲攻擊骰或防禦骰。（「懲戒」動作未實作）', 'Enemies visible within 6" of it can\'t re-roll attack or defence dice. (The Chasten action isn\'t modelled.)'],
+  scry: () => ['預視', 'Scry', '1AP，靈能：6" 內一名友方得到「指引」（攻擊時一顆失敗改普通、或一顆普通改暴擊）或「守護」（被射擊時防禦骰同樣處理），直到它下次啟動。', '1AP, PSYCHIC: a friendly within 6" gains Guidance (attack dice: one fail → normal, or one normal → crit) or Protection (the same for defence dice when shot) until its next activation.'],
+  cruel: () => ['殘酷', 'Cruel', '攻擊受傷的敵人時武器「無情」。', 'Attacking a wounded enemy: Relentless.'],
+  iaBarrage: () => ['手槍彈幕', 'Pistol Barrage', '1AP（交戰指令、本次沒射擊過）：電漿手槍與消音手槍各免費射擊一次。命中值不受任何變化影響。', '1AP (Engage, hasn\'t shot this activation): a free Shoot with each of its pistols. Its ranged Hit can\'t be changed.'],
+  lobotomised: () => ['腦葉切除', 'Lobotomised', '啟動時若在另一名特工（非槍械僕從）3" 內且看得到，本次 APL +1。', 'When activated visible within 3" of another agent (not a Gun Servitor): +1 APL this activation.'],
+  psychicNull: () => ['靈能虛無', 'Psychic Null', '靈能遠程武器傷不了它；6" 內的任何特工（敵我皆同）不能做靈能動作或用靈能遠程武器。', 'PSYCHIC ranged weapons can\'t damage it; any operative within 6" (friend or foe) can\'t perform PSYCHIC actions or use PSYCHIC ranged weapons.'],
+  rqRuthless: () => ['冷酷效率（徵用）', 'Ruthless Efficiency (requisitioned)', '徵用的警察之間：敵人在徵用警察的控制範圍內也能被選為目標。', 'Between requisitioned Exaction Squad operatives: an enemy in one\'s control range can still be targeted.'],
+  rqVoidArmour: () => ['虛空護甲（徵用）', 'Void Armour (requisitioned)', '被爆炸或洪流武器射擊時可重擲一顆防禦骰。', 'Shot with Blast or Torrent: re-roll one defence die.'],
   veteranAdventurer: () => ['老練冒險家', 'Veteran Adventurer', '第 2 回合起的準備步驟，它在場上且不在交戰中：多 1 資源點。', 'In each Ready step after the first, if it\'s in the killzone and not engaged: +1 Resourceful point.'],
   outrightConviction: () => ['堅定信念', 'Outright Conviction', '整場第一次將殘廢時改為剩 1 生命，這個動作剩下的時間不會殘廢，剩下的攻擊骰全部作廢（近戰時雙方都是）。', 'The first time it would be incapacitated, it stays on 1 wound and can\'t be incapacitated for the rest of the action; all remaining attack dice are discarded (both sides in a fight).'],
   irrepressible: () => ['不屈的堅韌', 'Irrepressible Hardiness', '在近戰中殘廢時，可先用一顆未結算的成功骰打擊對方。', 'If incapacitated in a fight, it strikes with an unresolved success first.'],

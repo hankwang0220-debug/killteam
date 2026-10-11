@@ -629,6 +629,12 @@ export function aiStep(g) {
   }
   if (can.datacoronal && (op.ap >= 2 || !shootOptions(g, op).length) && g.objectives.filter((m) => living(g, op.side).some((o) => dist(o, m) <= 2)).length >= 2) { doSelfAction(g, op, 'datacoronal'); return null; }
   // Elucidian Starstriders: Calibrate Voltagheist — Charge when about to shoot, Field when enemies are close.
+  // Inquisitorial Agents: Pistol Barrage when there's a shot; Scry — Guidance on the friendly with the best attack.
+  if (can.iaBarrage && shootOptions(g, op).length) { doSelfAction(g, op, 'iaBarrage'); return null; }
+  if (can.scryGuide && op.ap >= 2) {
+    const t = TARGET_ACTIONS.scryGuide.targets(g, op).filter((o) => o === op || o.ready).sort((a, b) => atkScore(b) - atkScore(a))[0];
+    if (t && atkScore(t) > 0) { doTargetAction(g, op, 'scryGuide', t); return null; }
+  }
   if (can.calibCharge && shootOptions(g, op).some((s) => s.w.id === 'esVoltaic')) { doSelfAction(g, op, 'calibCharge'); return null; }
   if (can.calibField && foes(g, op).some((e) => edgeDist(op, e) <= 8)) { doSelfAction(g, op, 'calibField'); return null; }
   // Chaos Cult: Incite Slaughter an engaged cultist, Ruinous Icon (Deterioration near enemies, else Invigoration),
