@@ -462,3 +462,20 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 .terrain-key .light { stroke: var(--light-s); stroke-width: .04; }
 .terrain-key .wire { fill: none; stroke: #b9b2a0; stroke-width: .07; stroke-dasharray: .14 .08; }
 .terrain-legend { padding-bottom: 0; }
+#board .facing { fill: #fff; stroke: rgba(0,0,0,.6); stroke-width: .05; pointer-events: none; }
+#board .opspeed { font-size: .3px; font-weight: 800; fill: #ffe066; text-anchor: middle; paint-order: stroke; stroke: rgba(0,0,0,.8); stroke-width: .07px; pointer-events: none; }
+#board .sprintCone { fill: rgba(255, 224, 102, .1); stroke: #ffe066; stroke-width: .05; stroke-dasharray: .2 .12; pointer-events: none; }
+#board .angleArc { fill: rgba(120, 200, 255, .15); stroke: #78c8ff; stroke-width: .05; }
+#board .angleLine { stroke: #78c8ff; stroke-width: .06; fill: none; }
+#board .angleLine.facingSide { stroke: #ffe066; stroke-dasharray: .2 .1; }
+#board #measure .angleArc, #board #measure .angleLine, #board #measure .angleTxt { pointer-events: none; }
+#board .angleTxt { font-size: .5px; font-weight: 800; fill: #78c8ff; text-anchor: middle; paint-order: stroke; stroke: rgba(0,0,0,.8); stroke-width: .08px; }
+/* Goremongers: Gore Tank pips on the board and the panel */
+#board .gorePip { fill: rgba(0,0,0,.55); stroke: #ff6b5b; stroke-width: .03; pointer-events: none; }
+#board .gorePip.on { fill: #e0281c; }
+.gorepanel { margin: 8px 0; padding: 6px 8px; border-left: 3px solid #c0281c; background: rgba(192, 40, 28, .08); }
+.gorepanel h4 { margin: 0 0 4px; }
+.gorepanel .gore { color: #ff6b5b; font-weight: 700; }
+/* Hernkyn Yaegirs: Resourceful points panel, Minefield markers */
+.respanel { margin: 8px 0; padding: 6px 8px; border-left: 3px solid #b8742a; background: rgba(184, 116, 42, .08); }
+.respanel h4 { margin: 0 0 4px; }

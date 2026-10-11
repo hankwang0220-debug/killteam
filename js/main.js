@@ -1,6 +1,11 @@
+import { DEATHWATCH_EQUIPMENT, deathwatchRosterError } from './data/deathwatch.js';
+import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
+import { MURDERWING_EQUIPMENT, murderwingRosterError } from './data/murderwing.js';
+import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
+import { dwEquipmentLimit, dwScrambleTargets, dwScramble } from './deathwatch.js';
 import { CORSAIR_EQUIPMENT } from './corsair.js';
 import { isArchon, painOptions, usePain, PAIN_NAMES, painRerollValues, ARCHON_EQUIPMENT, setOmen } from './archon.js';
-import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation } from './game.js';
+import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation, bribeSkip, canBribe } from './game.js';
 import { TEAMS, TEAM_MAP, RULE_LABELS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
@@ -9,12 +14,15 @@ import {
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
-  ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
+  giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
   ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor,
   EQUIPMENT, EQUIP_IDS, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setInitiative, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, foes,
+  sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
+  goreOf, SANGUAVITAE, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
+  resourceLeft, resourceOptions, useResource,
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
 import { renderBoard, tokenLegend, roleGlyph, roleOf } from './board.js';
@@ -93,7 +101,7 @@ const nm = (op) => esc(opName(op, lang()));
 
 // ---------- render root ----------
 function render() {
-  if (ui.screen !== 'game' && ui.screen !== 'replay') { measure.pts = []; measure.cursor = null; measure.mode = false; }
+  if (ui.screen !== 'game' && ui.screen !== 'replay') { measure.pts = []; measure.cursor = null; measure.mode = false; angle.pts = []; angle.cursor = null; angle.mode = false; }
   if (ui.screen === 'game') noteTurn();
   if (ui.screen === 'home') app.innerHTML = homeView();
   else if (ui.screen === 'setup') app.innerHTML = setupView();
@@ -110,9 +118,76 @@ function render() {
 // On touch screens the 📏 button turns on measuring mode, where taps on the board add points.
 const measure = { pts: [], cursor: null, mode: false };
 
+// Angle tool (only in battles with Exodite Dragon Masters, whose riders Sprint within 45° of their
+// facing): the first tap is the corner — on a rider it also takes its facing as the first side —
+// then one or two more taps give the sides, and the angle between them is shown in degrees.
+const angle = { pts: [], cursor: null, mode: false };
+const angleOn = () => { const st = shownState(); return !!st?.teams?.some((t) => TEAM_MAP[t]?.dragonMasters); };
+
+function angleRays() {
+  const [v, ...rest] = angle.pts;
+  if (!v) return null;
+  const pts = angle.cursor && rest.length < (v.facing != null ? 1 : 2) ? [...rest, angle.cursor] : rest;
+  const dirs = [];
+  if (v.facing != null) dirs.push({ a: v.facing, len: 4, facing: true });
+  for (const p of pts) if (Math.hypot(p.x - v.x, p.y - v.y) > 0.05) dirs.push({ a: Math.atan2(p.y - v.y, p.x - v.x), len: Math.hypot(p.x - v.x, p.y - v.y), p });
+  if (dirs.length < 2) return { v, dirs, deg: null };
+  let d = Math.abs(dirs[1].a - dirs[0].a) % (2 * Math.PI);
+  if (d > Math.PI) d = 2 * Math.PI - d;
+  return { v, dirs: dirs.slice(0, 2), deg: d * 180 / Math.PI };
+}
+
+function angleBar() {
+  const r = angleRays();
+  const info = r?.deg != null
+    ? `${L('角度', 'Angle')} <b>${r.deg.toFixed(0)}°</b>${r.v.facing != null ? ` <small>${r.deg <= 45.5 ? L('（在正前方 45° 內，可直線疾馳）', '(within 45° of its facing: it can Sprint there)') : r.deg >= 134.5 ? L('（在正後方 45° 內，可向後疾馳）', '(within 45° behind: it can Sprint backwards there)') : L('（超出 45°）', '(beyond 45°)')}</small>` : ''}`
+    : !angle.pts.length ? L('點角的頂點（點坐騎時以牠的面向為第一邊）', 'Tap the corner (tap a rider to use its facing as the first side)')
+      : L('再點一個位置', 'Tap another point');
+  return `<div class="boardtools on">
+    <span>📐 ${info}</span>
+    <button data-act="aundo" ${angle.pts.length ? '' : 'disabled'}>↶ ${L('上一點', 'Undo')}</button>
+    <button data-act="aclear" ${angle.pts.length ? '' : 'disabled'}>${L('清除', 'Clear')}</button>
+    <button class="primary" data-act="aend">✕ ${L('結束', 'Done')}</button>
+  </div>`;
+}
+
+function anglePoint(evt) {
+  const opEl = evt.target.closest?.('[data-uid]');
+  const st = shownState();
+  const op = opEl && st ? getOp(st, opEl.dataset.uid) : null;
+  if (op && !op.dead) return { x: op.x, y: op.y, facing: !angle.pts.length && isMounted(op) ? (op.facing || 0) : null };
+  const p = svgPoint(evt);
+  return { x: p.x, y: p.y, facing: null };
+}
+
+function addAnglePoint(p) {
+  const v = angle.pts[0];
+  // A finished angle starts over with the next tap.
+  if (v && angle.pts.length >= (v.facing != null ? 2 : 3)) angle.pts = [];
+  angle.pts.push(p); angle.cursor = null;
+}
+
+function drawAngle() {
+  const r = angleRays();
+  if (!r) return '';
+  const f = (n) => +n.toFixed(3), s = [], { v } = r;
+  s.push(`<circle cx="${f(v.x)}" cy="${f(v.y)}" r="0.16" class="mpt"/>`);
+  for (const d of r.dirs) s.push(`<line x1="${f(v.x)}" y1="${f(v.y)}" x2="${f(v.x + Math.cos(d.a) * d.len)}" y2="${f(v.y + Math.sin(d.a) * d.len)}" class="angleLine ${d.facing ? 'facingSide' : ''}"/>`);
+  if (r.deg != null) {
+    const [a0, a1] = [r.dirs[0].a, r.dirs[1].a];
+    let delta = a1 - a0; while (delta > Math.PI) delta -= 2 * Math.PI; while (delta < -Math.PI) delta += 2 * Math.PI;
+    const R = 1.2, p0 = { x: v.x + Math.cos(a0) * R, y: v.y + Math.sin(a0) * R }, p1 = { x: v.x + Math.cos(a0 + delta) * R, y: v.y + Math.sin(a0 + delta) * R };
+    s.push(`<path d="M${f(v.x)} ${f(v.y)} L${f(p0.x)} ${f(p0.y)} A${R} ${R} 0 0 ${delta > 0 ? 1 : 0} ${f(p1.x)} ${f(p1.y)} Z" class="angleArc"/>`);
+    const mid = a0 + delta / 2;
+    s.push(`<text x="${f(v.x + Math.cos(mid) * (R + 0.7))}" y="${f(v.y + Math.sin(mid) * (R + 0.7) + 0.2)}" class="angleTxt">${r.deg.toFixed(0)}°</text>`);
+  }
+  return s.join('');
+}
+
 function measureBar() {
+  if (angle.mode) return angleBar();
   if (!measure.mode) {
-    return `<div class="boardtools"><button class="ghost" data-act="mstart">📏 ${L('測量距離', 'Measure')}</button></div>`;
+    return `<div class="boardtools"><button class="ghost" data-act="mstart">📏 ${L('測量距離', 'Measure')}</button>${angleOn() ? `<button class="ghost" data-act="astart">📐 ${L('測量角度', 'Angle')}</button>` : ''}</div>`;
   }
   // Board labels are tiny on a phone, so the toolbar repeats the numbers.
   const segs = measure.pts.slice(1).map((p, i) => segLen(measure.pts[i], p));
@@ -147,6 +222,7 @@ function drawMeasure() {
   if (!layer) return;
   const bar = document.querySelector('.boardtools');
   if (bar) bar.outerHTML = measureBar();
+  if (angle.mode) { layer.innerHTML = drawAngle(); return; }
   if (!measure.pts.length) { layer.innerHTML = ''; return; }
   const last = measure.pts[measure.pts.length - 1], c = measure.cursor;
   const pts = c && Math.hypot(c.x - last.x, c.y - last.y) > 0.05 ? [...measure.pts, c] : measure.pts;
@@ -176,12 +252,18 @@ app.addEventListener('contextmenu', (e) => {
   drawMeasure();
 });
 app.addEventListener('pointermove', (e) => {
+  if (angle.mode) {
+    if (!angle.pts.length || e.pointerType === 'touch' || !e.target.closest('#board')) return;
+    angle.cursor = anglePoint(e); angle.cursor.facing = null;
+    return drawMeasure();
+  }
   // Touch has no hover, so only a mouse draws the live segment to the cursor.
   if (!measure.pts.length || e.pointerType === 'touch' || !e.target.closest('#board')) return;
   measure.cursor = measurePoint(e);
   drawMeasure();
 });
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && angle.mode && angle.pts.length) { angle.pts.pop(); angle.cursor = null; return drawMeasure(); }
   if (e.key !== 'Escape' || !measure.pts.length) return;
   measure.pts.pop();
   if (!measure.pts.length) measure.cursor = null;
@@ -191,6 +273,13 @@ document.addEventListener('keydown', (e) => {
 // Otherwise a left-click anywhere clears the measurement; on the board that click is used up by the clear.
 document.addEventListener('click', (e) => {
   if (e.button !== 0) return;
+  if (angle.mode) {
+    if (!e.target.closest('#board')) return;
+    e.stopPropagation();
+    addAnglePoint(anglePoint(e));
+    drawMeasure();
+    return;
+  }
   if (measure.mode) {
     if (!e.target.closest('#board')) return;
     e.stopPropagation();
@@ -305,7 +394,7 @@ function setupView() {
     <div class="picklist">${TEAMS.map((t) => `<button class="teampick ${s.teams[side] === t.id ? 'on' : ''}" style="--tc:${t.color}" data-act="pick" data-side="${side}" data-team="${t.id}">
       <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
     ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>` : ''}
-    ${roster(TEAM_MAP[s.teams[side]])}
+    ${roster(TEAM_MAP[s.teams[side]], side)}
     ${rosterPick(side)}
     ${loadoutPick(side)}
     ${tacticsPick(side)}
@@ -335,7 +424,7 @@ function rosterPick(side) {
     // Blades of Khaine: every copy of a slot is picked on its own.
     if (t.perCopyRoster && n > 1) return Array.from({ length: n }, (_, k) => `<label>${esc(bi(t.ops.find((o) => o.id === slot).name))} #${k + 1}${sel(slot, ids, k, (Array.isArray(cur[slot]) ? cur[slot][k] : cur[slot]) || slot)}</label>`).join('');
     return `<label>${esc(bi(t.ops.find((o) => o.id === slot).name))}${sel(slot, ids, null, cur[slot] || slot)}</label>`;
-  }).join('') + packagePick(t, side, cur) + rosterWarning(t, cur);
+  }).join('') + packagePick(t, side, cur) + rosterWarning(t, cur, side);
 }
 /** Package picks (Brood Brothers' Broodcoven selections). */
 function packagePick(t, side, cur) {
@@ -343,7 +432,9 @@ function packagePick(t, side, cur) {
     .map(([id, o]) => `<option value="${id}" ${(cur[pid] || Object.keys(p.options)[0]) === id ? 'selected' : ''}>${esc(tx(o.name))}</option>`).join('')}</select></label>`).join('');
 }
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
-function rosterWarning(t, cur) {
+function rosterWarning(t, cur, side) {
+  if (t.id === 'murderwing') { const error = murderwingRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'deathwatch') { const error = deathwatchRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.insidiants) {
     const ids = Object.keys(t.replacements).map((slot) => cur[slot] || slot).map((id) => (id === 'ciCremator2' ? 'ciCremator' : id));
     const dup = ids.filter((id, i) => !['ciWarrior', 'ciCremator'].includes(id) && ids.indexOf(id) !== i);
@@ -351,6 +442,12 @@ function rosterWarning(t, cur) {
     const bad = [...(dup.length ? [L(`重複選了：${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join('、')}（只有修女戰士、焚化修女能重複）`, `Picked more than once: ${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join(', ')}`)] : []),
       ...(crem > 2 ? [L(`焚化修女 ${crem} 名，最多 2 名`, `${crem} Cremators — two at most`)] : [])];
     return bad.length ? `<p class="bad small">⚠ ${bad.map(esc).join('；')}</p>` : '';
+  }
+  if (t.goreTanks || t.yaegirs) { // Goremongers / Hernkyn Yaegirs: each once, except Aspirants / Warriors
+    const rep = t.goreTanks ? 'gmAspirant' : 'hyWarrior';
+    const ids = Object.keys(t.replacements).flatMap((slot) => (Array.isArray(cur[slot]) ? cur[slot] : Array(t.ops.find((o) => o.id === slot).count).fill(cur[slot] || slot)));
+    const dup = [...new Set(ids.filter((id, i) => id !== rep && ids.indexOf(id) !== i))];
+    return dup.length ? `<p class="bad small">⚠ ${esc(L(`重複選了：${dup.map((id) => tx(t.ops.find((o) => o.id === id).name)).join('、')}（只有${tx(t.ops.find((o) => o.id === rep).name)}能重複）`, `Picked more than once: ${dup.map((id) => tx(t.ops.find((o) => o.id === id).name)).join(', ')} (only ${tx(t.ops.find((o) => o.id === rep).name)} can repeat)`))}</p>` : '';
   }
   if (t.obeliskNodes) {
     const isos = (Array.isArray(cur.ccCrawler) ? cur.ccCrawler : []).filter((id) => id === 'ccCrawlerIso').length + (cur.ccCrawler === 'ccCrawlerIso' ? 2 : 0);
@@ -376,8 +473,9 @@ function loadoutPick(side) {
 function equipPick(side) {
   if (side === 1 && ui.setup.ai === 1) return '';
   const cur = ui.setup.equip?.[side] || [];
-  return `<div class="tactics"><h4>${L(`通用裝備（最多 4 項，已選 ${cur.length}）`, `Universal equipment (up to 4, ${cur.length} chosen)`)}</h4>
-    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : [])].map((id) => `<label class="small"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= 4 ? 'disabled' : ''}> ${esc(tx(EQUIPMENT[id].name))}<span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
+  const limit = dwEquipmentLimit(TEAM_MAP[ui.setup.teams[side]], ui.setup.roster?.[side]);
+  return `<div class="tactics"><h4>${L(`通用裝備（最多 ${limit} 項，已選 ${cur.length}）`, `Universal equipment (up to ${limit}, ${cur.length} chosen)`)}</h4>
+    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : [])].map((id) => `<label class="small"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> ${esc(tx(EQUIPMENT[id].name))}<span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
 }
 
@@ -431,13 +529,22 @@ function teamInfo(t) {
   </dl>`;
 }
 
-function roster(t) {
+function roster(t, side) {
+  let selected = t.id === 'deathwatch' ? Object.keys(t.replacements).map((slot) => t.ops.find((o) => o.id === (ui.setup.roster?.[side]?.[slot] || slot))) : t.ops.filter((o) => o.count);
+  if (t.id === 'mandrakes' || t.id === 'murderwing') {
+    const counts = new Map();
+    for (const slot of selected) {
+      const id = ui.setup.roster?.[side]?.[slot.id] || slot.id;
+      counts.set(id, (counts.get(id) || 0) + slot.count);
+    }
+    selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
+  }
   return `<div class="roster">
     ${teamInfo(t)}
     <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
     ${t.firefight?.length ? `<p class="rule small"><b>${L('交戰計謀', 'Firefight ploys')}</b>：${t.firefight.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
     ${t.techniques?.length ? `<p class="rule small"><b>${L('方陣技法', 'Aspect Techniques')}</b>：${t.techniques.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
-    ${t.ops.filter((o) => o.count).map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
+    ${selected.map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
       <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>`).join('')}
   </div>`;
 }
@@ -647,7 +754,14 @@ function scoreBar() {
 function boardUi() {
   const b = { sel: ui.sel, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy' };
   const op = activeOp(g);
-  if (op && ui.mode?.kind === 'move') b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
+  if (op && ui.mode?.kind === 'move' && ui.mode.action !== 'mdPass') b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
+  // Exodite riders: where a Sprint can go (or the turn arc).
+  if (op && ui.mode?.kind === 'sprint') {
+    const tpLeft = 12 - (op.movedTP || 0);
+    b.cone = op.acted.leap ? null : { x: op.x, y: op.y, facing: op.facing || 0, fwd: Math.min(9 - (op.acted.sprintFwd || 0), tpLeft, op.counter ? 2 : 9), back: Math.min(3 - (op.acted.sprintBack || 0), tpLeft, op.counter ? 2 : 3) };
+    if (op.acted.leap) b.ring = { x: op.x, y: op.y, r: 1 };
+  }
+  if (op && ui.mode?.kind === 'turn') b.cone = { x: op.x, y: op.y, facing: op.facing || 0, fwd: 4, back: 0 };
   if (op && ui.mode?.kind === 'shoot' && ui.mode.weapon) {
     b.highlight = new Map();
     const op = shooter(activeOp(g)); // (Interstitial Command: the commanded operative shoots)
@@ -921,6 +1035,10 @@ function gambitView(side) {
       ${vox ? `<label class="small"><input type="checkbox" data-act="grelay" data-side="${side}" ${pick?.relay ? 'checked' : ''}> ${L(`由 ${nm(vox)} 轉達全隊（需在命令範圍內且不在敵人控制範圍；之後 APL -1）`, `${nm(vox)} relays it to everyone (if it receives it and isn't engaged; then -1 APL)`)}</label>` : ''}
     </div>`;
   }
+  if (team(g, side).id === 'deathwatch' && dwScrambleTargets(g, side).length) {
+    const used = g.dwScramble?.[side]?.tp === g.tp;
+    html += `<div class="gambit"><h4>${L('進階全頻擾亂器', 'Advanced Omni-scrambler')}</h4><p class="hint small">${L('選一名敵人延後啟動；未選時自動選 APL 最高者。', 'Choose an enemy to delay; otherwise the highest APL is chosen automatically.')}</p><select data-act="dwscramble" data-side="${side}" ${used ? 'disabled' : ''}><option value="">${used ? L('已使用', 'Used') : L('（自動選擇）', '(automatic)')}</option>${dwScrambleTargets(g, side).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
+  }
   if (team(g, side).farstalker) {
     const used = g.orderSwaps?.[side] || 0;
     html += `<div class="gambit"><h4>${L(`遠獵者：變更指令（剩 ${3 - used} 次）`, `Farstalker: change orders (${3 - used} left)`)}</h4>
@@ -974,7 +1092,7 @@ function ffToggles(op, kind, weapon, target, aim) {
   if (!opts.length) return '';
   return `<div class="ffploys"><h4>${L(`交戰計謀 · CP ${g.cp[op.side]}（擲骰時才扣）`, `Firefight ploys · CP ${g.cp[op.side]} (paid when rolling)`)}</h4>${opts.map((o) => {
     const p = ffDef(g, op.side, o.id);
-    return `<label class="small ${o.ok ? '' : 'off'}"><input type="checkbox" data-act="fftoggle" data-id="${o.id}" data-uid="${op.uid}" ${o.on ? 'checked' : ''} ${o.ok || o.on ? '' : 'disabled'}> ${esc(tx(p.name))}（${o.cp}CP）<span class="hint">${esc(tx(p.desc))}${o.why ? ` — ${esc(tx(o.why))}` : ''}</span></label>`;
+    return `<label class="small ${o.ok ? '' : 'off'}"><input type="checkbox" data-act="fftoggle" data-id="${o.id}" data-uid="${op.uid}" data-target="${target?.uid || ''}" ${o.on ? 'checked' : ''} ${o.ok || o.on ? '' : 'disabled'}> ${esc(tx(p.name))}（${o.cp}CP）<span class="hint">${esc(tx(p.desc))}${o.why ? ` — ${esc(tx(o.why))}` : ''}</span></label>`;
   }).join('')}</div>`;
 }
 
@@ -1083,7 +1201,11 @@ function firefightPanel() {
   const undoBtn = ui.undo.length ? `<button class="wide" data-act="undo">↶ ${L('回復上一動作', 'Undo last action')}</button>` : '';
   if (!op && g.counter) {
     const cands = counterCandidates(g, g.turn);
-    html += g.netcounter?.kind === 'control' ? `<p><b>${L('冥工控制', 'Canoptek Control')}</b></p>
+    html += g.netcounter?.kind === 'control' && g.netcounter.onlyActions ? `<p><b>${L('煽動', 'Incite')}</b></p>
+      <p class="hint">${g.netcounter.onlyActions.includes('fight') ? L('選定的信徒免費近戰一次，之後煽動者繼續啟動；也可以略過。', 'The chosen cultist fights for free, then the Demagogue\'s activation continues; or pass.')
+        : L('選定的信徒免費衝鋒（最多 3"）或衝刺一次，之後煽動者繼續啟動；也可以略過。', 'The chosen cultist Charges (up to 3") or Dashes for free, then the Demagogue\'s activation continues; or pass.')}</p>
+      <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
+      : g.netcounter?.kind === 'control' ? `<p><b>${L('冥工控制', 'Canoptek Control')}</b></p>
       <p class="hint">${L('選定的冥工機械免費執行一個 1AP 動作（移動不超過 2"），之後地占術士繼續啟動；也可以略過。', 'The chosen Canoptek performs a free 1AP action (moving no more than 2"), then the Geomancer\'s activation continues; or pass.')}</p>
       <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
       : g.netcounter ? `<p><b>${L('網路反擊', 'Network Counteract')}</b></p>
@@ -1116,6 +1238,7 @@ function firefightPanel() {
         : L(`${nm(by)} 行動完畢，可以接著啟動它選定的一名友方（也可以略過）。`, `${nm(by)} is expended: you may activate one of the friendlies it selected next (or skip).`)}</p>`
       : `<p class="hint">${L('選擇一名「準備中」的操作員啟動（點擊棋子或下方名單）。', 'Choose a ready operative to activate (tap it on the board or below).')}</p>`;
     if (g.teams[g.turn] === 'handOfArchon') html += `<button data-act="painskip">${L('惡劣傲慢：跳過啟動機會（1CP）', 'Heinous Arrogance: skip activation opportunity (1CP)')}</button>`;
+    if (canBribe(g, g.turn)) html += `<button data-act="bribe">${L('貿易許可證「賄賂」：跳過這次啟動（整場一次）', 'Warrant of Trade — Bribe: skip this activation (once per battle)')}</button>`;
     html += `<div class="readylist">${ready.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`;
     const sel = ui.sel && getOp(g, ui.sel);
     if (sel && ready.includes(sel)) html += `<button class="primary wide" data-act="activate" data-uid="${sel.uid}">${L('啟動', 'Activate')} ${nm(sel)}</button>`;
@@ -1147,9 +1270,12 @@ function firefightPanel() {
     html += `<p class="hint">${L('指令', 'Order')}：${op.order === 'engage' ? L('⚔ 交戰', '⚔ Engage') : L('◐ 隱蔽', '◐ Conceal')}</p>`;
   }
 
+  if (op.reserve) html += `<p class="hint"><b>${L('還在預備區：點棋盤，沿你的場邊選擇進場位置（視同轉向，花 1AP）。', 'In reserve: tap the board to choose where along your killzone edge it enters (counts as a Turn, 1AP).')}</b></p>`;
   if (ui.pending) html += pendingView();
   else if (ui.mode) html += modeView(op);
   else {
+    if (goreOf(op) != null) html += gorePanel(op);
+    if (TEAM_MAP[op.team]?.yaegirs && op.side < 2) html += resourcePanel(op);
     if (isArchon(op)) {
       html += `<p>${L('痛苦代幣', 'Pain tokens')}: ${op.pain || 0} · ${op.drug}</p><div class="actions">${painOptions(g, op).map((id) => `<button data-act="painuse" data-id="${id}">${esc(tx(PAIN_NAMES[id]))} (1)</button>`).join('')}</div>`;
       if (op.darknessTargets?.length && !op.orderSet) html += `<label>${L('死亡來自黑暗：目標', 'From Darkness, Death: target')}<select data-act="darkness">${op.darknessTargets.map((uid) => `<option value="${uid}" ${op.acted.darknessTarget === uid ? 'selected' : ''}>${nm(getOp(g, uid))}</option>`).join('')}</select></label>`;
@@ -1170,21 +1296,52 @@ function firefightPanel() {
   return html + datacard(op);
 }
 
+/** Hernkyn Yaegirs: Resourceful points left this TP and the two uses for the active operative. */
+function resourcePanel(op) {
+  const n = resourceLeft(g, op.side), opts = resourceOptions(g, op).map((o) => o.id);
+  const used = op.acted.resUsed;
+  return `<div class="respanel"><h4>⛏ ${L('資源點', 'Resourceful points')}：${n}${used ? ` <small>${L('這次已用', 'used this activation')}</small>` : ''}</h4>${n && !used ? `<div class="actions">
+    <button data-act="resource" data-id="apl" ${opts.includes('apl') ? '' : 'disabled'} title="${esc(L('不在交戰中：本次啟動 APL +1', 'Not engaged: +1 APL this activation'))}">${L('APL +1', '+1 APL')}</button>
+    <button data-act="resource" data-id="heal" ${opts.includes('heal') ? '' : 'disabled'} title="${esc(L('啟動時、不在交戰中：回復 D3+1（戰士 4）', 'When activated, not engaged: regain D3+1 (Warriors 4)'))}">${L('回復生命', 'Heal')}</button></div>` : ''}</div>`;
+}
+/** Goremongers: the active operative's GORE TANK, its Sanguavitae, Bleeding tokens and Khorne's Favour. */
+const GORE_LABEL = [{ zh: '空', en: 'Empty' }, { zh: '半', en: 'Half' }, { zh: '滿', en: 'Full' }];
+function gorePanel(op) {
+  const gore = goreOf(op), armed = Object.keys(op.acted.sangArm || {}).filter((k) => op.acted.sangArm[k]);
+  const bleed = bleedTargets(g, op);
+  const btns = sangOptions(g, op).map((o) => `<button data-act="sang" data-id="${o.id}" ${o.ok ? '' : 'disabled'} title="${esc(tx(SANGUAVITAE[o.id].desc))}${o.why ? ` — ${esc(tx(o.why))}` : ''}">${esc(tx(SANGUAVITAE[o.id].name))}</button>`).join('');
+  return `<div class="gorepanel"><h4>🩸 ${L('血槽', 'Gore Tank')}：<span class="gore g${gore}">${'●'.repeat(gore)}${'○'.repeat(2 - gore)} ${esc(tx(GORE_LABEL[gore]))}</span>${armed.length ? ` <small>${L('已準備', 'Ready')}：${armed.map((k) => esc(tx(SANGUAVITAE[k].name))).join('、')}</small>` : ''}</h4>
+    <p class="hint small">${L('血之精華（消耗一格血槽；同一種每次一次、每次最多兩種）：', 'Sanguavitae (decrease the tank; each once per activation, two at most):')}</p>
+    <div class="actions">${btns}${canFavour(g, op) ? `<button data-act="favour">${L('恐虐的恩寵（血槽 +1）', 'Khorne\'s Favour (tank up)')}</button>` : ''}${bleed.length ? `<button data-act="bleed">${L(`取 ${nm(bleed[0])} 的流血標記（血槽 +1）`, `Take ${nm(bleed[0])}'s Bleeding token (tank up)`)}</button>` : ''}</div></div>`;
+}
+
 function modeView(op) {
   const m = ui.mode;
   const cancel = `<button class="ghost" data-act="cancel">${L('取消', 'Cancel')}</button>`;
+  // Exodite riders: Sprint (straight forwards / backwards, pivot ≤45° first) and Turn (pivot ≤45°).
+  if (m.kind === 'sprint') {
+    const p = ui.path, fwdLeft = Math.min(9 - (op.acted.sprintFwd || 0), 12 - (op.movedTP || 0)), backLeft = Math.min(3 - (op.acted.sprintBack || 0), 12 - (op.movedTP || 0));
+    const info = op.acted.leap ? L('躍起：點 1" 內的位置直接放過去。', 'Leap: tap a spot within 1" to set it up there.')
+      : L(`點黃色扇形內的位置：向前最多 ${fwdLeft}"、向後最多 ${backLeft}"（以整吋計）。前進 4" 以上速度 4+，7" 以上 7+。`, `Tap inside a yellow wedge: up to ${fwdLeft}" forwards or ${backLeft}" backwards (whole inches). 4"+ forwards = SPEED 4+, 7"+ = 7+.`);
+    const status = p ? (p.ok ? `<p class="ok">✔ ${p.len}"</p>` : `<p class="bad">✘ ${esc(p.why || '')}</p>`) : '';
+    return `<div class="mode"><h3>${esc(tx(ACTIONS.edSprint.name))}</h3><p class="hint">${info}</p>${status}<div class="row">${cancel}<button class="primary" data-act="confirmsprint" ${p?.ok ? '' : 'disabled'}>${L('確認疾馳', 'Sprint')}</button></div></div>`;
+  }
+  if (m.kind === 'turn') {
+    return `<div class="mode"><h3>${esc(tx(ACTIONS.edTurn.name))}</h3><p class="hint">${L('點棋盤指定要面向的方向（最多轉 45°）。', 'Tap the board towards where it should face (45° at most).')}</p><div class="row">${cancel}<button class="primary" data-act="confirmturn" ${m.dest ? '' : 'disabled'}>${L('確認轉向（1AP）', 'Turn (1AP)')}</button></div></div>`;
+  }
   if (m.kind === 'move') {
-    const max = moveAllowance(g, op, m.action);
+    const max = m.action === 'mdPass' ? 40 : moveAllowance(g, op, m.action);
     let info = L(`點擊棋盤選擇目的地（最多 ${max}"）。要轉彎：先點轉彎處，按「設為折點」，再點下一段。`, `Tap the board to choose a destination (max ${max}"). To turn: tap the corner, press "Set waypoint", then tap the next leg.`);
     if (m.action === 'charge') info += L('必須結束於敵人交戰範圍 1" 內。', ' Must end within 1" of an enemy.');
     if (m.action === 'fallBack') info += L('必須離開所有敵人的交戰範圍。', ' Must end outside all enemy engagement ranges.');
     if (m.action !== 'charge' && m.action !== 'fallBack') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
+    if (m.action === 'mdPass') info = L('點擊暗影落點：不限距離，不能成為敵人的有效目標。本回合不能射擊／近戰。', 'Tap a shadow destination at any distance, outside valid enemy targeting. No Shoot/Fight this TP.');
     const p = ui.path;
     const status = p ? (p.ok ? `<p class="ok">✔ ${p.len.toFixed(1)}" / ${max}"</p>` : `<p class="bad">✘ ${esc(p.why)}</p>`) : '';
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
     const canPin = !!(p && m.dest && !p.unreachable && !p.breach && p.len < max - 0.05);
-    const wpRow = `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
+    const wpRow = m.action === 'mdPass' ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
     return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
@@ -1214,6 +1371,10 @@ function modeView(op) {
       signal: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
       systemJam: L('點擊一個可見的敵人，它下次啟動 APL -1。', 'Tap a visible enemy: -1 APL for its next activation.'),
       medikit: L('點擊控制範圍內受傷的友方（無人機除外），回復 2D3 生命。', 'Tap a wounded friendly (not a drone) in control range to regain 2D3 wounds.'),
+      inciteSlaughter: L('點擊 9" 內看得到、正在交戰的友方：它立刻免費近戰一次。', 'Tap an engaged friendly visible within 9": it fights for free right away.'),
+      inciteUrgency: L('點擊 9" 內看得到的友方：它立刻免費衝鋒（最多 3"）或衝刺一次。', 'Tap a friendly visible within 9": it Charges (up to 3") or Dashes for free right away.'),
+      heinousDeluge: L('點擊一名可當目標的敵人：下次啟動 APL -1。', 'Tap an enemy that\'s a valid target: -1 APL next activation.'),
+      maleficVortex: L('點擊一名看得到的敵人：漩渦標記放在那裡，2" 內的敵人各受 1 傷害。', 'Tap a visible enemy: the vortex marker goes there; enemies within 2" take 1 damage each.'),
       spiritualMentor: L('點擊 6" 內看得到的友方：它變為激勵。', 'Tap a friendly visible within 6": it becomes inspiring.'),
       speakDeeds: L('點擊要獲得祝福的友方（6" 內一名激勵中的友方會不再激勵）。', 'Tap the friendly to gain a Benediction (an inspiring friendly within 6" stops being inspiring).'),
       geomantic: L('點擊一名靠近地形（2" 內）、離你 8" 內的敵人：在離它最近的地形點引爆，2" 內每名特工擲 2D6。', 'Tap an enemy within 2" of terrain and within 8": the terrain point nearest it erupts — every operative within 2" rolls 2D6.'),
@@ -1285,10 +1446,16 @@ function datacard(op, extra = '') {
   const t = tpl(op);
   const tm = team(g, op.side);
   const flags = [];
+  if (t.mwLord) flags.push(`<span class="flag mk">${L(`詛咒點數 ${op.damnation || 1}/6`, `Damnation ${op.damnation || 1}/6`)}</span>`);
+  if (op.mwBoostTP === g.tp) flags.push(`<span class="flag">${L('本回合已噴射', 'Boosted this TP')}</span>`);
+  if (op.mwAttackLockTP === g.tp) flags.push(`<span class="flag inj">${L('黑暗之翼：本回合不能攻擊', 'Wings of Darkness: attacks locked this TP')}</span>`);
+  if (g.mwChallenge?.includes(op.uid)) flags.push(`<span class="flag inj">${L('挑戰標記', 'Challenge token')}</span>`);
   if (injuredPenalty(g, op)) flags.push(`<span class="flag inj">${L('重傷：Move -2"、命中 -1', 'Injured: -2" Move, -1 to hit')}</span>`);
-  else if (isInjured(op)) flags.push(`<span class="flag inj">${L('重傷（無所畏懼：無減益）', 'Injured (Know No Fear: no penalty)')}</span>`);
+  else if (isInjured(op)) flags.push(`<span class="flag inj">${L('重傷（無視減益）', 'Injured (penalties ignored)')}</span>`);
   if (!injuredPenalty(g, op) && statPenalty(g, op)) flags.push(`<span class="flag inj">${L('傳染：Move -2"、命中 -1', 'Contagion: -2" Move, -1 to hit')}</span>`);
   if (op.poison) flags.push(`<span class="flag poison">${L('中毒', 'Poisoned')}</span>`);
+  // Chaos Cult: Accursed Gifts.
+  for (const k of giftsOf(g, op)) flags.push(`<span class="flag mk">${L('受詛恩賜：', 'Gift: ')}${esc(tx(CULT_GIFTS[k]))}</span>`);
   // Celestian Insidiants: inspiring, Benedictions, null range, Suspicion.
   if (op.inspiring) flags.push(`<span class="flag mk">${L('激勵：武器「嚴厲」', 'Inspiring: Severe')}</span>`);
   if (op.ardour) flags.push(`<span class="flag">${L('熱忱：APL +1', 'Ardour: +1 APL')}</span>`);
@@ -1327,6 +1494,9 @@ function datacard(op, extra = '') {
   if (op.energised === g.tp) flags.push(`<span class="flag">${L('充能', 'Energised')}</span>`);
   if (op.longSightOn) flags.push(`<span class="flag">${L('遠視', 'Long-sight')}</span>`);
   if (op.optics) flags.push(`<span class="flag mk">${L('光學瞄準', 'Optics')}</span>`);
+  if (op.dwGuard) flags.push(`<span class="flag mk">${L('警戒：自動攔截', 'On guard: automatic interruption')}</span>`);
+  if (op.acted?.dwAmmoPick) flags.push(`<span class="flag mk">${L('已選特殊彈藥', 'Special ammo selected')}：${esc(tx(ACTIONS[`dwAmmo_${op.acted.dwAmmoPick}`].name))}</span>`);
+  if (op.acted?.dwAuspex) flags.push(`<span class="flag mk">${L('進階鳥卜儀掃描', 'Advanced Auspex Scan')}</span>`);
   if (op.ml) flags.push(`<span class="flag mk">${L(`標記光 ×${op.ml}`, `Markerlight ×${op.ml}`)}</span>`);
   if (op.aplNext) flags.push(`<span class="flag ${op.aplNext < 0 ? 'inj' : ''}">${L(`下次啟動 APL ${op.aplNext > 0 ? '+' : ''}${op.aplNext}`, `Next activation APL ${op.aplNext > 0 ? '+' : ''}${op.aplNext}`)}</span>`);
   if (tpl(op).drone) flags.push(`<span class="flag">${L('無人機', 'Drone')}</span>`);
@@ -1480,6 +1650,31 @@ const ABILITIES = {
   boost: () => ['加速', 'Boost', '1AP（整場一次，第 1 回合除外）：這次啟動的下一次衝鋒多移動 4"。', '1AP (once per battle, not TP1): its next Charge this activation moves +4".'],
   pulse: () => ['干擾脈衝', 'Interference Pulse', '1AP：鬼骷髏 8" 內可見的敵人擲 D6（是鬼骷髏的有效目標 +1），3+ 下次啟動 APL -1。', '1AP: an enemy visible within 8" of the Gheistskull rolls a D6 (+1 if a valid target for it): 3+ = -1 APL next activation.'],
   eyeOfAncestors: () => ['先祖之眼', 'Eye of the Ancestors', '策略階段給一名敵人宿怨標記（友方殘廢 3 人以上時 2 名）。', 'Strategy phase: an enemy gains a Grudge token (two enemies once three friendlies are down).'],
+  veteranAdventurer: () => ['老練冒險家', 'Veteran Adventurer', '第 2 回合起的準備步驟，它在場上且不在交戰中：多 1 資源點。', 'In each Ready step after the first, if it\'s in the killzone and not engaged: +1 Resourceful point.'],
+  outrightConviction: () => ['堅定信念', 'Outright Conviction', '整場第一次將殘廢時改為剩 1 生命，這個動作剩下的時間不會殘廢，剩下的攻擊骰全部作廢（近戰時雙方都是）。', 'The first time it would be incapacitated, it stays on 1 wound and can\'t be incapacitated for the rest of the action; all remaining attack dice are discarded (both sides in a fight).'],
+  irrepressible: () => ['不屈的堅韌', 'Irrepressible Hardiness', '在近戰中殘廢時，可先用一顆未結算的成功骰打擊對方。', 'If incapacitated in a fight, it strikes with an unresolved success first.'],
+  negotiation: () => ['鍛鎖談判', 'Wroughtlock Negotiation', '策略計策（每回合，自動）：交戰指令時立刻免費射擊一次（電腦方可以先改成交戰）。', 'Strategic gambit (each TP, automatic): with an Engage order it makes a free Shoot at once (the computer may switch to Engage first).'],
+  brazenKiller: () => ['大膽殺手', 'Brazen Killer', '用鍛鎖左輪使敵人殘廢：那名敵人 2" 內看得到的其他敵人各擲 D6，大於它的 APL 時下次啟動 APL -1。', 'Incapacitating an enemy with its wroughtlock revolvers: each other enemy visible within 2" of it rolls a D6 — above its APL, -1 APL next activation.'],
+  minefield: () => ['地雷區', 'Minefield', '開戰前自動佈下 5 個蓋著的地雷區標記（3 個 HY-Pex 地雷、2 個空的）。敵人進入標記的控制範圍、且附近沒有友方時翻開：地雷造成 3 傷害，再擲 D6，小於它的豁免值再加上點數。它在準備步驟不在交戰中時，會重設控制範圍內一個翻開的標記。', 'Five face-down Minefield markers are set up before the battle (3 HY-Pex mines, 2 blanks). An enemy coming within a marker\'s control range with no friendly near flips it: a mine deals 3, then a D6 below its Save adds that much. When it\'s readied out of enemy control range it resets a flipped marker in its control range.'],
+  weavewerke: () => ['編織斗篷', 'Weavewërke Cloak', '被射擊時無視「飽和」；能保留掩體豁免時多保留一個，或把一個改為暴擊豁免。', 'When shot: ignores Saturate; with cover saves it retains one more, or one as a critical.'],
+  panVisor: () => ['全光譜目鏡', 'Pan Spectral Visor', '射擊 6" 內的敵人：武器「搜尋（輕型）」，目標不能被遮蔽。', 'Shooting an enemy within 6": Seek Light, and the target can\'t be obscured.'],
+  hyTracker: () => ['追蹤者', 'Tracker', '射擊或近戰 6" 內已行動過的敵人：武器「懲罰」。', 'Shooting or fighting an expended enemy within 6": Punishing.'],
+  intrepid: () => ['無畏', 'Intrepid', '用資源點時：APL +1 持續到下次啟動；回血改為回復 4。', 'Spending a Resourceful point: +1 APL lasts until its next activation; healing regains 4 instead.'],
+  khornesFavour: () => ['恐虐的恩寵', 'Khorne\'s Favour', '每次啟動一次，血槽空的時候可以 +1。', 'Once per activation, if its GORE TANK is empty, increase it.'],
+  apotheosis: () => ['即將成神', 'Impending Apotheosis', '整場一次，無視一顆攻擊骰的普通傷害（自動用在第一次）。', 'Once per battle, ignore one attack die\'s Normal Dmg (used automatically the first time).'],
+  obsessiveBloodlust: () => ['執迷的血慾', 'Obsessive Bloodlust', '每回合一次：近戰結束後若已不在敵人控制範圍內，可以免費衝鋒最多 2"。', 'Once per TP: after a Fight, if no longer within enemy control range, it can make a free Charge of up to 2".'],
+  transfusion: () => ['輸血儀式', 'Transfusion Ritual', '1AP（不在交戰中）：自己血槽 -1，8" 內另一名友方血槽 +1。儀式之刃：每次序列第一次造成傷害時血槽 +1。', '1AP (not engaged): its tank down, another friendly\'s within 8" up. Ritual blade: the first damage it inflicts in a sequence fills its tank.'],
+  goreFuel: () => ['血燃', 'Gore-fuel', '1AP（不在交戰中）：血槽 -1，直到用穿肉鉤為止武器「嚴厲」。拖拽：射擊命中時，每顆沒被擋下的成功骰把目標往自己拉 2"（自動拉到最近）。', '1AP (not engaged): tank down; its fleshskewer has Severe until used. Drag: each unblocked success pulls the target 2" towards it (automatically as close as possible).'],
+  inciteHunt: () => ['煽動狩獵', 'Incite the Hunt', '從 2" 外使敵人殘廢：那名敵人 8" 內一名友方血槽 +1。雙槍傷到敵人沒殺死：敵人得到流血標記；友方啟動時在 8" 內可以拿走它，血槽 +1。', 'Incapacitating an enemy from more than 2": a friendly within 8" of it fills its tank. Damaging without killing with its pistols: a Bleeding token, taken by a friendly within 8" during its activation to fill its tank.'],
+  dashSpray: () => ['衝刺掃射', 'Dash and Spray', '1AP（交戰指令、不在交戰中）：免費衝刺一次，再免費用雙自動手槍（集中）射擊一次，順序不限。', '1AP (Engage, not engaged): a free Dash and a free Shoot with the dual autopistols (focused), in any order.'],
+  brutish: () => ['蠻橫', 'Brutish', '受到暴擊傷害時改受普通傷害。', 'Critical Dmg inflicted on it becomes Normal Dmg.'],
+  claimSkull: () => ['奪取顱骨', 'Claim Skull', '每回合一次，用巨型鏈鋸斧使敵人殘廢：+1CP。', 'Once per TP, incapacitating an enemy with its great chainaxe: +1CP.'],
+  rooftopStalker: () => ['屋頂潛獵者', 'Rooftop Stalker', '（爬升與從高處落下的規則在 2D 版沒有效果）', '(Climbing and dropping from Vantage have no effect in 2D)'],
+  mounted: () => ['龍騎兵', 'Draconic Cavalry', '開場在預備區，第一次啟動時沿己方場邊進場（1AP）。不能重新定位／衝刺／衝鋒／撤退，改用「疾馳」（0AP，直線向前 ≤9" 或向後 ≤3"，起點可轉 45°，每回合合計 ≤12"）與「轉向」（1AP，轉 45°）。每回合可啟動兩次，APL 合計最多 4、每次最多 3。疾馳穿過裝備掩體會撞毀它；只被重型地形阻擋。', 'Starts in reserve and enters touching your killzone edge on its first activation (1AP). Can\'t Reposition/Dash/Charge/Fall Back: uses Sprint (0AP, straight forwards ≤9" or backwards ≤3" after pivoting up to 45°, 12" per TP) and Turn (1AP, pivot 45°). Activates twice per TP, 4 APL in total and 3 at most each time. Sprinting through equipment terrain removes it; only Heavy terrain blocks it.'],
+  scaleshield: () => ['鱗盾', 'Scaleshield', '沒有暴擊成功時，敵人武器的穿甲降低 1。', 'While the attacker has no critical successes, its weapon\'s Piercing is reduced by 1.'],
+  implacable: () => ['不屈獵手', 'Implacable', '使用龍牙時無視重傷的影響。', 'Ignores being injured with its dragon\'s fangs.'],
+  songRenewal: () => ['更新之歌', 'Song of Renewal', '靈能，每回合一次，1AP：一名可見的友方回復 2D3 生命，或所有友方各回復 D3（交戰中不能選全體）。', 'Psychic, once per TP, 1AP: a visible friendly regains 2D3 wounds, or every friendly regains D3 (not all while engaged).'],
+  drakolithe: () => ['小龍', 'Drakolithe', '只能移動、近戰與撿起；結束時離起點 2" 以上速度 4+，5" 以上 7+。', 'Only moves, fights and picks up; ending more than 2" from where it started = SPEED 4+, more than 5" = 7+.'],
   weavefield: () => ['編織力場紋章', 'Weavefield Crest', '整場一次，無視一顆攻擊骰的普通傷害（自動用在第一次）。', 'Once per battle, ignore one attack die\'s Normal Dmg (used automatically the first time).'],
   brawler: () => ['鬥毆者', 'Brawler', '近戰或反擊時：敵人不能有友軍協助；4 以上的普通傷害 -1；殘廢時可先用一顆未結算的成功骰打對方。', 'Fighting or retaliating: enemies can\'t be assisted; Normal Dmg of 4+ deals 1 less; if incapacitated, strikes with an unresolved success first.'],
   knux: () => ['指虎重擊', 'Knux Smash', '1AP：控制範圍內的敵人受 D3+1 傷害；D3 擲出 3 時對方下次啟動 APL -1。（推開 3" 與免費衝鋒未實作）', '1AP: an enemy in control range takes D3+1; on a 3, -1 APL next activation. (The 3" push and free Charge aren\'t modelled.)'],
@@ -1505,6 +1700,28 @@ const ABILITIES = {
   emperorProtects: () => ['帝皇庇佑', 'The Emperor Protects', '被射擊時可重擲任意防禦骰（自動重擲失敗的）。', 'When shot, re-roll any defence dice (failed ones are re-rolled automatically).'],
   uplifting: () => ['振奮祈禱書', 'Uplifting Primer', '3" 內的友方武器獲得「嚴厲」。', 'Friendlies within 3" have Severe.'],
   vitality: () => ['腐敗活力', 'Putrescent Vitality', '1AP（靈能，每回合一次）：3" 內可見的友方擲 2D6，7 回復 7，否則回復較高的骰。', '1AP (Psychic, once per TP): a friendly visible within 3" rolls 2D6 — 7 regains 7, otherwise the highest die.'],
+  // Elucidian Starstriders
+  esLeader: () => ['私掠支援', 'Privateer Support', '每個交戰階段一次，她或艦隊員射擊時可改用一種「新曙光號」艦砲（每種整場一次）。', 'Once per Firefight phase, she or a Navis operative can shoot with one of the New Dawn\'s batteries (each once per battle).'],
+  digitalLasers: () => ['數位雷射', 'Digital Lasers', '近戰動作擲攻擊骰前，對敵人造成 1 傷害（自動）。', 'Fight action, before the attack dice: 1 damage to the enemy (automatic).'],
+  merciless: () => ['無情', 'Merciless', '攻擊已受傷的敵人時武器「平衡」（已有平衡則改為「無休」）。', 'Against an already wounded enemy: Balanced (Ceaseless if it already has Balanced).'],
+  ignorePiercing: () => ['干擾力場／迅捷反射', 'Disruption Field / Rapid Reflexes', '被射擊時忽略穿甲。', 'Ignores Piercing when shot.'],
+  reputation: () => ['維護名聲', 'Reputation to Maintain', '整場第一次使敵人殘廢時 +1CP。', 'The first time she incapacitates an enemy: +1CP.'],
+  voltagheistArray: () => ['電能幽靈陣列', 'Voltagheist Array', '它 4" 內的友方被射擊時可重擲一顆防禦骰。', 'Friendlies within 4" of it re-roll one defence die when shot.'],
+  calibrate: () => ['校準電能幽靈', 'Calibrate Voltagheist', '0AP（不在交戰中）：直到下次啟動，充能（電弧手槍「致命 4+」）或力場（在它 4" 內看得到的地方結束移動的敵人受 D6 傷害）。', '0AP (not engaged): until its next activation, Charge (its voltaic pistol has Lethal 4+) or Field (an enemy ending a move visible within 4" takes D6).'],
+  esDisciplinarian: () => ['紀律官', 'Disciplinarian', '3" 內的其他艦隊員遠程武器「平衡」（已有平衡則改為「無休」，艦砲除外）。（毫不留情的射擊未實作）', 'Other Navis within 3": ranged Balanced (Ceaseless if they have it; not support assets). (Uncompromising Fire isn\'t modelled.)'],
+  navis: () => ['艦隊員', 'Navis', '可以使用私掠支援艦砲。', 'Can use the Privateer Support Assets.'],
+  // Chaos Cult
+  darkCommune: () => ['黑暗聖會', 'Dark Commune', '被選為目標時，可用「忠實追隨者」讓身邊的信徒代為承受。', 'When targeted, Faithful Follower can make a nearby cultist take the attack.'],
+  inciteSlaughter: () => ['煽動', 'Incite', '1AP（支援）：9" 內看得到的另一名友方立刻免費近戰一次（煽動屠殺），或免費衝鋒（最多 3"）／衝刺一次（煽動急進），之後繼續本次啟動。', '1AP (Support): another friendly visible within 9" fights for free (Incite Slaughter), or Charges (up to 3") / Dashes for free (Incite Urgency), then this activation continues.'],
+  cutThemDown: () => ['砍倒他們', 'Cut Them Down', '敵人從它的控制範圍撤退前受 D3+1 傷害（在兩名聖刃控制範圍內時 2D3+2）。', 'An enemy falling back from its control range takes D3+1 first (2D3+2 within two of them).'],
+  attuned: () => ['同心協力', 'Attuned in Purpose', '啟動後，6" 內另一名準備中的聖刃可以接著啟動。', 'After it activates, another ready Blessed Blade within 6" may activate next.'],
+  ruinousIcon: () => ['毀滅聖像', 'Ruinous Icon', '1AP（靈能）：直到它下次啟動，活化（4" 內的友方受到 4 以上的傷害 -1）或衰敗（4" 內的敵人受到的傷害 +1）。', '1AP (Psychic): until its next activation, Invigoration (friendlies within 4": Dmg of 4+ deals 1 less) or Deterioration (enemies within 4": +1 damage).'],
+  heinousDeluge: () => ['可憎洪流', 'Heinous Deluge', '1AP（靈能）：可當目標的敵人下次啟動 APL -1。', '1AP (Psychic): an enemy valid target gets -1 APL next activation.'],
+  maleficVortex: () => ['惡毒漩渦', 'Malefic Vortex', '1AP（靈能）：把漩渦標記放在看得到的敵人處，2" 內的敵人各受 1 傷害；之後每回合開始時再各受 1 傷害。', '1AP (Psychic): the vortex marker goes by a visible enemy — 1 damage to each enemy within 2", and again at the start of each turning point.'],
+  devotee: () => ['信徒', 'Devotee', '群體啟動；在控制範圍內使敵人殘廢時可以變異成突變者。', 'Group Activation; incapacitating an enemy in its control range lets it mutate into a Mutant.'],
+  mutant: () => ['突變者', 'Mutant', '有主要受詛恩賜；不能做獨特動作，撿標記與任務動作多 1AP。', 'Has the primary Accursed Gift; no unique actions, +1AP for Pick Up and mission actions.'],
+  torment: () => ['折磨者', 'Torment', '有主要與次要受詛恩賜；只能用資料卡上的武器，不能撿標記、做獨特或任務動作。', 'Has the primary and secondary Accursed Gifts; datacard weapons only, no Pick Up, unique or mission actions.'],
+  unnaturalRegen: () => ['非自然再生', 'Unnatural Regeneration', '攻擊骰造成 3 以上傷害時擲 D6，5+ 傷害 -1。', 'When an attack die inflicts 3+ damage on it, roll a D6: on a 5+, 1 less.'],
   // Celestian Insidiants
   ciLeader: () => ['神聖榜樣', 'Holy Example', '激勵時，每回合一次以它為對象的交戰計謀 0CP。（未實作）', 'While inspiring, once per TP a firefight ploy for it costs 0CP. (Not modelled.)'],
   spiritualMentor: () => ['靈性導師', 'Spiritual Mentor', '1AP（支援，每回合一次）：6" 內看得到的友方變為激勵。', '1AP (Support, once per TP): a friendly visible within 6" becomes inspiring.'],
@@ -1573,6 +1790,7 @@ function abilityList(t) {
     const [zh, en, dzh, den] = ABILITIES[k](t[k]);
     return `<li><b>${L(zh, en)}</b>：${L(dzh, den)}</li>`;
   });
+  if (t.ability) items.push(`<li>${esc(tx(t.ability))}</li>`);
   return items.length ? `<ul class="abilities">${items.join('')}</ul>` : '';
 }
 
@@ -1695,6 +1913,7 @@ function shotView(s, t, t0 = 0) {
   const STEP = 0.3, nA = s.attack.dice.length, chips = crit + norm, nD = s.defence.dice.length + chips;
   const tD = t0 + nA * STEP + 0.7, tO = tD + nD * STEP + 0.7, end = tO + 0.9;
   const notes = [];
+  if (s.rules.soulstrike) notes.push(L(`靈魂打擊：防禦骰 ≤ APL ${s.defence.success} 成功，1 為暴擊、6 失敗`, `Soulstrike: defence ≤ APL ${s.defence.success} succeeds; 1 critical, 6 fails`));
   if (s.obscured) notes.push(L('遮擋：暴擊全部變普通，並扣除 1 顆成功', 'Obscured: crits become normal and one success is discarded'));
   if (s.coverOrObscured) notes.push(L(`同一地形提供掩護與遮擋，擇一：使用${s.obscured ? '遮擋' : '掩護'}`, `Same terrain: ${s.obscured ? 'obscured' : 'cover'} chosen`));
   else if (s.inCover && s.obscured) notes.push(L('不同地形提供掩護與遮擋：兩者同時生效', 'Independent cover and obscuring: both apply'));
@@ -1820,9 +2039,21 @@ function onBoardClick(evt) {
   // While picking a friendly for Signal / Medikit, tapping your own operative doesn't switch activation.
   const detonating = ui.mode?.kind === 'shoot' && !!ui.mode.weapon?.rules.detonate;
   if (clicked && ui.mode?.kind !== 'target' && !detonating && trySelectOwn(clicked)) return;
+  // Exodite riders in reserve: a tap on the board picks where along your killzone edge they come in.
+  if (op && op.reserve && myTurn && (op.orderSet || op.orderPicked) && op.ap > 0) { undoable(() => enterFromReserve(g, op, p)); return afterChange(); }
   if (op && ui.mode && myTurn) {
     const m = ui.mode;
     if (m.kind === 'move') return previewMove(op, m.action, p);
+    if (m.kind === 'sprint') {
+      const c = sprintCheck(g, op, p);
+      ui.path = { pts: [{ x: op.x, y: op.y }, p], len: c.inches || Math.hypot(p.x - op.x, p.y - op.y), ok: c.ok, why: c.why ? tx(c.why) : null, r: radius(op) };
+      m.dest = p; return render();
+    }
+    if (m.kind === 'turn') {
+      const fa = turnFacing(op, p);
+      ui.path = { pts: [{ x: op.x, y: op.y }, { x: op.x + Math.cos(fa) * 3, y: op.y + Math.sin(fa) * 3 }], len: 0, ok: true, r: 0.05 };
+      m.dest = p; return render();
+    }
     if (clicked && (clicked.side !== op.side || detonating)) {
       // Declare the attack first; the dice are rolled when the player presses "Roll".
       if ((m.kind === 'shoot' && m.weapon && shootCheck(g, shooter(op), clicked, m.weapon).ok)
@@ -1886,7 +2117,13 @@ function routeThrough(ctx, op, p) {
 }
 
 function previewMove(op, action, p) {
-  const ctx = moveCtx(g, op);
+  if (action === 'mdPass') {
+    const c = shadowPassageCheck(g, op, p);
+    ui.mode.dest = p;
+    ui.path = { pts: [{ x: op.x, y: op.y }, p], len: 0, ok: c.ok, why: c.why ? tx(c.why) : null, r: radius(op) };
+    return render();
+  }
+  const ctx = moveCtx(g, op, action);
   const max = moveAllowance(g, op, action);
   const r = radius(op);
   // Molecular Breach (Canoptek Circle): removed and set up again within its Move (3" for a Dash) — no route needed.
@@ -1914,6 +2151,7 @@ function previewMove(op, action, p) {
   if (path.len > max + 0.01) why = L(`距離 ${path.len.toFixed(1)}" 超過 ${max}"`, `${path.len.toFixed(1)}" exceeds ${max}"`);
   else if (action === 'charge' && !ctx.inEnemyER(end)) why = L(`衝鋒必須結束於敵人 1" 內（需要 ${full.len.toFixed(1)}"）`, `Charge must end within 1" of an enemy (needs ${full.len.toFixed(1)}")`);
   else if (action === 'fallBack' && ctx.inEnemyER(end)) why = L('撤退必須離開交戰範圍', 'Fall Back must end outside engagement range');
+  else if (action === 'charge' && op.order === 'conceal' && isMandrake(op) && !withinShadow(g, op) && !withinShadow(g, { ...op, ...end })) why = L('隱蔽衝鋒起點或終點必須在暗影', 'Concealed Charge must start or end in shadow');
   else if (action !== 'charge' && ctx.inEnemyER(end)) why = L('移動結束時不能在敵人 1" 交戰範圍內', 'Cannot end a move within 1" of an enemy');
   ui.path = { ...path, ok: !why, why, r };
   render();
@@ -1963,6 +2201,11 @@ app.addEventListener('change', (e) => {
     return render();
   }
   if (e.target.dataset.act === 'omen') { setOmen(g, +e.target.dataset.side, e.target.value); return afterChange(); }
+  if (e.target.dataset.act === 'dwscramble' && g?.phase === 'strategy') {
+    const side = +e.target.dataset.side;
+    if (side === ployChooser(g) && !isAI(side)) dwScramble(g, side, e.target.value);
+    return afterChange();
+  }
   if (e.target.dataset.act === 'darkness') { const o = activeOp(g); if (o?.darknessTargets?.includes(e.target.value) && !o.orderSet) o.acted.darknessTarget = e.target.value; return afterChange(); }
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
   if (e.target.dataset.act === 'mission') { ui.setup.mission = e.target.value; render(); }
@@ -2057,6 +2300,8 @@ function handle(act, d) {
     case 'rplay': return toggleReplayPlay();
     case 'rexit': stopReplayPlay(); ui.screen = ui.replay.from; ui.replay = null; ui.sel = null; return render();
     case 'start':
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'murderwing' && murderwingRosterError(TEAM_MAP.murderwing, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
       g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)) });
@@ -2066,7 +2311,7 @@ function handle(act, d) {
     case 'equip': {
       const s = +d.side, cur = ((ui.setup.equip ||= [[], []])[s] ||= []);
       const i = cur.indexOf(d.id);
-      if (i >= 0) cur.splice(i, 1); else if (cur.length < 4) cur.push(d.id);
+      if (i >= 0) cur.splice(i, 1); else if (cur.length < dwEquipmentLimit(TEAM_MAP[ui.setup.teams[s]], ui.setup.roster?.[s])) cur.push(d.id);
       return render();
     }
     case 'depauto': autoDeployStep(g); return afterChange();
@@ -2088,6 +2333,10 @@ function handle(act, d) {
     case 'mundo': measure.pts.pop(); return drawMeasure();
     case 'mclear': measure.pts = []; return drawMeasure();
     case 'mend': measure.mode = false; measure.pts = []; measure.cursor = null; return drawMeasure();
+    case 'astart': angle.mode = true; angle.pts = []; angle.cursor = null; measure.pts = []; measure.cursor = null; return drawMeasure();
+    case 'aundo': angle.pts.pop(); angle.cursor = null; return drawMeasure();
+    case 'aclear': angle.pts = []; angle.cursor = null; return drawMeasure();
+    case 'aend': angle.mode = false; angle.pts = []; angle.cursor = null; return drawMeasure();
     case 'passcounter': passCounter(g); ui.sel = null; ui.pending = null; return afterChange();
     case 'order': undoable(() => setOrder(g, op, d.order)); return afterChange();
     case 'undo': return undo();
@@ -2100,7 +2349,12 @@ function handle(act, d) {
       return afterChange();
     case 'passchain': undoable(() => passChain(g)); ui.sel = null; return afterChange();
     case 'painuse': usePain(g, op, d.id); return afterChange();
+    case 'sang': undoable(() => useSang(g, op, d.id)); return afterChange(); // Goremongers
+    case 'bleed': undoable(() => useBleed(g, op, bleedTargets(g, op)[0])); return afterChange();
+    case 'favour': undoable(() => useFavour(g, op)); return afterChange();
+    case 'resource': undoable(() => useResource(g, op, d.id)); return afterChange(); // Hernkyn Yaegirs
     case 'painskip': skipArchonActivation(g, g.turn); return afterChange();
+    case 'bribe': if (!isAI(g.turn)) undoable(() => bribeSkip(g, g.turn)); return afterChange();
     case 'painreroll': { const s = ui.flow?.step; if (s) { const which = s.stage === 'attack' ? 'a' : 'd'; archonReroll(g, getOp(g, which === 'a' ? s.seq.op : s.seq.target), s.seq, which, +d.value); } return render(); }
     case 'painfight': archonFightReroll(g, d.k, +d.value); return render();
     case 'rerolldie': {
@@ -2131,10 +2385,12 @@ function handle(act, d) {
     }
     case 'unroll': ui.pending = null; ffClearPending(g); proxyMode(); return render();
     case 'ffuse': undoable(() => useFFButton(g, op, d.id)); return afterChange();
-    case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id); return render(); }
+    case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack
     case 'action': {
-      if (['reposition', 'dash', 'charge', 'fallBack'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
+      if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
+      else if (d.id === 'edSprint') ui.mode = { kind: 'sprint' }; // Exodite riders
+      else if (d.id === 'edTurn') ui.mode = { kind: 'turn' };
       else if (d.id === 'shoot' || d.id === 'fight') {
         const type = d.id === 'shoot' ? 'ranged' : 'melee';
         const ws = weaponsFor(g, op).filter((w) => w.type === type);
@@ -2143,7 +2399,8 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw')) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (mission(g).actions?.includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
       ui.path = null;
@@ -2155,23 +2412,33 @@ function handle(act, d) {
       ui.mode.weapon = w; return render();
     }
     case 'cancel': if (op) op.warpFirst = null; if (ui.mode?.by) endProxy(g); ffClearPending(g); ui.mode = null; ui.path = null; return render(); // (forfeits an Interstitial Command Shoot)
+    case 'confirmsprint': {
+      const p = ui.mode?.dest;
+      if (p && ui.path?.ok) undoable(() => doSprint(g, op, p));
+      ui.mode = null; ui.path = null; return afterChange();
+    }
+    case 'confirmturn': {
+      const p = ui.mode?.dest;
+      if (p) undoable(() => doTurn(g, op, p));
+      ui.mode = null; ui.path = null; return afterChange();
+    }
     case 'addwp': {
       // Pin the current destination as a corner of the route (it must be reachable within the move).
       const m = ui.mode;
       if (m?.kind !== 'move' || !m.dest || !ui.path || ui.path.unreachable || ui.path.len >= moveAllowance(g, op, m.action) - 0.05) return render();
       m.wps = [...(m.wps || []), ui.path.pts.at(-1)]; m.dest = null; // (where the route really gets to)
-      ui.path = { ...routeThrough(moveCtx(g, op), op, null), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') };
+      ui.path = { ...routeThrough(moveCtx(g, op, m.action), op, null), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') };
       return render();
     }
     case 'popwp': {
       const m = ui.mode;
       if (m?.kind !== 'move' || !m.wps?.length) return render();
       m.wps = m.wps.slice(0, -1); m.dest = null;
-      ui.path = m.wps.length ? { ...routeThrough(moveCtx(g, op), op, null), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') } : null;
+      ui.path = m.wps.length ? { ...routeThrough(moveCtx(g, op, m.action), op, null), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') } : null;
       return render();
     }
     case 'confirmmove':
-      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => doMove(g, op, action, path)); }
+      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => action === 'mdPass' ? doShadowPassage(g, op, path.pts.at(-1)) : doMove(g, op, action, path)); }
       ui.mode = null; ui.path = null;
       return afterChange();
     case 'endact':

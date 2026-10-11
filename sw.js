@@ -1,8 +1,10 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v4';
+const CACHE = 'killteam-v7';
 const ASSETS = [
+  'js/murderwing.js', 'js/data/murderwing.js',
+  'js/mandrakes.js', 'js/data/mandrakes.js',
   './', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'css/style.css',
-  'js/corsair.js', 'js/archon.js', 'js/data/eldar.js', 'js/main.js', 'js/game.js', 'js/board.js', 'js/path.js', 'js/ai.js', 'js/geometry.js', 'js/sight.js', 'js/i18n.js', 'js/help.js', 'js/replay.js', 'js/missions.js', 'js/data/teams.js',
+  'js/deathwatch.js', 'js/data/deathwatch.js', 'js/corsair.js', 'js/archon.js', 'js/data/eldar.js', 'js/main.js', 'js/game.js', 'js/board.js', 'js/path.js', 'js/ai.js', 'js/geometry.js', 'js/sight.js', 'js/i18n.js', 'js/help.js', 'js/replay.js', 'js/missions.js', 'js/data/teams.js',
 ];
 
 self.addEventListener('install', (e) => {

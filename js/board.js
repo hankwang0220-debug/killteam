@@ -14,7 +14,7 @@ function operativeTokens(o) {
   return `<g class="order-token ${conceal ? 'conceal' : 'engage'} ${ready ? 'ready' : 'expended'}" role="img" aria-label="${order} · ${state}">
     <title>${order} · ${state}</title><path class="token-face" d="M-.43-.37H.43L0 .42Z"/>
     ${icon}${ready ? '' : '<path class="token-used" d="M.19 .27 .25 .33 .36 .19"/>'}
-  </g>${o.counteracted ? counteractToken() : ''}${crossfireToken(o)}`;
+  </g>${o.counteracted ? counteractToken() : ''}${crossfireToken(o)}${o.dwGuard ? `<g class="counteract-token" transform="translate(0 ${o.counteracted ? 1.9 : .95})" role="img" aria-label="${getLang() === 'zh' ? '警戒' : 'On guard'}"><title>${getLang() === 'zh' ? '警戒' : 'On guard'}</title><circle class="token-face" r=".35"/><path class="token-symbol" d="M-.2-.1L0-.24 .2-.1V.15L0 .27-.2 .15Z"/></g>` : ''}`;
 }
 
 /** Crossfire tokens (Brood Brothers) on an enemy: a small badge with how many. */
@@ -111,7 +111,9 @@ export function renderBoard(g, ui) {
     const c = controller(g, m);
     const col = c == null ? 'var(--obj)' : team(g, c).color;
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
-    const sym = { infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭' }[m.kind] || '✦';
+    // (Hernkyn Yaegir Minefield markers: face down "?", flipped a HY-Pex mine "✸" or a blank "○"; the Fallen Kin marker "⚑".)
+    const sym = m.kind === 'hyMine' ? (!m.flipped ? '?' : m.live ? '✸' : '○')
+      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
     if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);
@@ -123,6 +125,16 @@ export function renderBoard(g, ui) {
 
   // Selected operative movement allowance ring.
   if (ui.ring) s.push(`<circle cx="${f(ui.ring.x)}" cy="${f(ui.ring.y)}" r="${f(ui.ring.r)}" class="ring" pointer-events="none"/>`);
+  // Exodite Sprint: the ±45° cones it can move into (forwards and backwards), out to how far it can still go.
+  if (ui.cone) {
+    const { x, y, facing, fwd, back } = ui.cone;
+    const wedge = (dir, len) => {
+      if (len <= 0) return '';
+      const a0 = dir - Math.PI / 4, a1 = dir + Math.PI / 4;
+      return `<path d="M${f(x)} ${f(y)}L${f(x + Math.cos(a0) * len)} ${f(y + Math.sin(a0) * len)}A${f(len)} ${f(len)} 0 0 1 ${f(x + Math.cos(a1) * len)} ${f(y + Math.sin(a1) * len)}Z" class="sprintCone"/>`;
+    };
+    s.push(wedge(facing, fwd), wedge(facing + Math.PI, back));
+  }
 
   if (ui.path) {
     const d = ui.path.pts.map((p, i) => `${i ? 'L' : 'M'}${f(p.x)} ${f(p.y)}`).join('');
@@ -213,10 +225,19 @@ export function renderBoard(g, ui) {
     if (g.active !== o.uid && (ui.recent || []).some((rec) => rec.uid === o.uid)) {
       s.push(`<circle r="${f(r + 0.3)}" class="lastRing" stroke="${col}"/>`);
     }
-    s.push(`<circle r="${f(r)}" fill="${col}" class="base ${o.order === 'conceal' ? 'conceal' : ''}"/>`);
+    const oval = tpl(o).oval;
+    if (oval) {
+      // Mounted Exodite Dragon Masters: a 75×42mm oval base turned to its facing, with an arrow at the front.
+      const deg = f(((o.facing || 0) * 180) / Math.PI), rx = oval[0] / 25.4 / 2, ry = oval[1] / 25.4 / 2;
+      s.push(`<g transform="rotate(${deg})"><ellipse rx="${f(rx)}" ry="${f(ry)}" fill="${col}" class="base ${o.order === 'conceal' ? 'conceal' : ''}"/>`
+        + `<path d="M${f(rx + 0.32)} 0L${f(rx - 0.05)} ${f(-0.26)}L${f(rx - 0.05)} ${f(0.26)}Z" class="facing"/></g>`);
+    } else s.push(`<circle r="${f(r)}" fill="${col}" class="base ${o.order === 'conceal' ? 'conceal' : ''}"/>`);
+    if (o.speed >= 4 || o.windGrace) { const sp = o.windGrace ? (o.speed >= 4 ? 7 : 4) : o.speed; s.push(`<text x="${f(-r * 0.62)}" y="${f(-r * 0.5)}" class="opspeed">${sp}+</text>`); } // SPEED (Exodite)
     // Celestian Insidiants: a gold halo while inspiring; the Censor's null range.
     if (o.inspiring) s.push(`<circle r="${f(r + 0.12)}" class="inspireRing"/>`);
     if (tpl(o).nullField) s.push(`<circle r="${f(r + (o.nullRange || 1))}" class="nullRing"/>`);
+    // Goremongers: two pips for the GORE TANK (empty / half / full) on the upper left of the base.
+    if (o.side < 2 && team(g, o.side).goreTanks) { const gv = o.gore ?? 1; for (let i = 0; i < 2; i++) s.push(`<circle cx="${f(-r * 0.62 + i * 0.2)}" cy="${f(-r * 0.62)}" r="0.085" class="gorePip ${i < gv ? 'on' : ''}"/>`); }
     // Role icon in the middle, its number small in the lower right.
     s.push(roleGlyph(roleOf(g, o), Math.min(0.26, r * 0.5)));
     s.push(`<text x="${f(r * 0.55)}" y="${f(r * 0.78)}" class="opnum">${o.num}</text>`);

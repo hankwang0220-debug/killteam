@@ -4,6 +4,22 @@ A browser-based (PWA) Kill Team–style skirmish game. Two players can play on o
 
 > This is an unofficial fan project. The rules are a simplified version of Kill Team. The teams, names, and ability wording are original archetypes.
 
+## Deathwatch
+
+Deathwatch is selectable as a playable five-operative team using the linked official online datacards. Choose any five of its eleven specialists, with no duplicates and at most one GRAVIS operative. A Watch Sergeant is optional and grants a fifth equipment choice. Collector notes and Seek & Destroy / Security Tac Ops are included.
+
+The implementation includes Veteran Astartes, selected Special Issue Ammunition, strategy and firefight ploys, all four faction equipment options and specialist abilities. Some optional rules follow the simulator's automatic handling: initial sword blocks, Digital Weapons, the Sergeant's first free ploys, failed-die anti-xenos re-rolls, pre-activation cuff cleansing and Guard interruptions. Guard automatically shoots the triggering enemy, or fights it when engaged. The Marksman's Close Quarters re-Guard applies only when a mission enables Close Quarters; current maps are flat, so the Headtaker's vertical movement rules have no effect. Current datacard text takes precedence over historical errata entries in the PDF.
+
+Run the Deathwatch checks with `node tests/deathwatch.mjs`; they cover selection, costs, counteractions, ammo, abilities, equipment and complete battles with several rosters.
+
+## Mandrakes
+
+曼德拉（Mandrakes）已加入選隊與對戰，依使用者提供的 January 2026 官方 PDF 匯入六種特工、武器數值、四項策略計謀、四項交戰計謀與四項陣營裝備。預設九人為一名 Nightfiend、四名各不重複的專家與四名 Warrior；每個專家名額可改為 Warrior。一盒成軍／目前可購買的資訊依使用者提供，次要任務為 Recon / Infiltration。
+
+Soulstrike uses the target's current APL for defence (results at most APL succeed, 1 critical, 6 fail), including re-rolls. Shadow Passage, portal travel, Umbral Entities, Balefire, Soul Harvest, Oubliex, Projection and the equipment are integrated with combat. Shadow is based on Heavy terrain and portal markers on the current flat maps; there is no Vantage/height simulation. Optional reactions use automatic recipients and destinations. Haunting Focus automatically marks the nearest enemy and interrupts only when the Dirgemaw can immediately attack it. Weave Darkness uses a visible operative's location as its smoke destination. These simulator choices are also described in the operative/ploy cards.
+
+Run `node tests/mandrakes.mjs` to check official stats, roster replacements, Soulstrike versus Hardy, shadow saves/Piercing, teleport restrictions/portals, Balefire, Projection, smoke, Soul Harvest, Oubliex, terrain phasing, activation interruption and complete AI battles.
+
 ## Running it
 
 You don't need to install Node.js. Start the static server with PowerShell:
@@ -47,6 +63,10 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 | `sw.js` / `manifest.webmanifest` | PWA offline support and installation |
 
 ## Adding a team
+
+Murderwing (屠戮之翼) is defined in `js/data/murderwing.js`, with its runtime in `js/murderwing.js`. It fields a Chaos Lord and five operatives, allows repeated Raptors, and validates the combined two-operative plasma-pistol/meltagun/plasma-gun limit. The linked official PDF includes the August 2026 boosted Charge cap of 6 inches. Purchase and box notes follow the user-provided information.
+
+This flat-board implementation treats a whole Reposition, Fall Back or Charge during an activation as a boost; Dash and counteraction moves remain ordinary movement. Paid boost actions automatically select a target when spare AP are available, prioritising operative abilities over Bladefins. Challenge selects the nearest enemy and grants Severe; Damnation automatically attempts the first eligible boon per action. Warp Fuel pursuit and Long Forgotten Honour select legal destinations automatically. There are no heights/Vantage floors or close-quarters rooms, so Murderous Descent and height-based ploy conditions are inactive; Warp Talons use ordinary deployment rather than optional warp reserve. Run `node tests/murderwing.mjs` for roster limits, loadouts, movement, boons, abilities, equipment, ploys and four seeded complete battles.
 
 Add an object to `TEAMS` in `js/data/teams.js` with `ops`, `ploys`, and `rule`. Weapons support the rule keys listed at the top of that file. Special team abilities are handled by the `effectiveRules()` function in `js/game.js` (or by a dedicated function).
 

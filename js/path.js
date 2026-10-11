@@ -8,7 +8,7 @@ const RES = 0.25;
  * END relative to enemies (outside engagement range, or inside it for a Charge) is checked by
  * the caller with inEnemyER.
  */
-export function moveCtx(g, op) {
+export function moveCtx(g, op, kind = 'reposition') {
   const r = radius(op);
   const others = g.ops.filter((o) => !o.dead && o.uid !== op.uid).map((o) => ({ x: o.x, y: o.y, r: radius(o), enemy: o.side !== op.side }));
   const heavy = g.terrain.filter((t) => t.kind === 'heavy');
@@ -25,13 +25,16 @@ export function moveCtx(g, op) {
     return others.some((o) => o.enemy && dist(p, o) - r - o.r <= ER + 0.01);
   }
   // Jump Pack (FLY): the operative is set up again within its move distance, so only where it lands matters.
-  const fly = !!tpl(op).jumpPack || !!(tpl(op).blinkPack && op.blinkOn);
+  const fly = (!!tpl(op).jumpPack && (op.team !== 'murderwing' || (g.active === op.uid && !op.counter && kind !== 'dash'))) || !!(tpl(op).blinkPack && op.blinkOn);
   function segFree(a, b) {
     if (fly) return true;
     const n = Math.max(1, Math.ceil(dist(a, b) / 0.1));
     for (let k = 1; k <= n; k++) {
       const f = k / n;
-      if (!free({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f })) return false;
+      const p = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+      if (op.acted?.mdNowhere) {
+        if (p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r || others.some((o) => dist(p, o) < r + o.r - 1e-6)) return false;
+      } else if (!free(p)) return false;
     }
     return true;
   }
@@ -50,7 +53,7 @@ export function moveCtx(g, op) {
     return false;
   }
   function extra(pts) {
-    const wire = !wires.length || fly ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
+    const wire = !wires.length || fly || op.acted?.mdNowhere ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
     return wire + (entersMatrix(pts) ? 1 : 0);
   }
   return { op, r, free, segFree, inEnemyER, extra };

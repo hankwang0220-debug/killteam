@@ -1,4 +1,7 @@
 import { ELDAR_TEAMS } from './eldar.js';
+import { DEATHWATCH_TEAM } from './deathwatch.js';
+import { MANDRAKES_TEAM } from './mandrakes.js';
+import { MURDERWING_TEAM } from './murderwing.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -436,6 +439,107 @@ const heavyArcRifle = W('heavyArcRifle', '重型電弧步槍', 'Heavy arc rifle'
 const hbFocusedBC = W('hbFocusedBC', '重爆彈槍（集中）', 'Heavy bolter (focused)', 'ranged', 5, 4, 4, 5, { heavy: 'dash', piercingCrits: 1 }, 'heavyBolterBC');
 const hbSweepingBC = W('hbSweepingBC', '重爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', piercingCrits: 1, torrent: 1 }, 'heavyBolterBC');
 const augmeticClaw = W('augmeticClaw', '機械爪', 'Augmetic claw', 'melee', 3, 4, 4, 5, { brutal: true });
+
+// ---- Exodite Dragon Masters ----
+const edRifleMob = W('edRifleMob', '長步槍（機動）', 'Long rifle (mobile)', 'ranged', 4, 3, 3, 3, { devastating: 1 }, 'edRifle');
+const edRifleStat = W('edRifleStat', '長步槍（定點）', 'Long rifle (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, aimed: true }, 'edRifle');
+const edFangs = W('edFangs', '龍駒尖牙利爪', 'Drakesteed fangs & talons', 'melee', 6, 3, 3, 5, { brutal: true });
+const edHuntBlade = W('edHuntBlade', '狩獵刀', 'Hunting blade', 'melee', 3, 3, 3, 5, { lethal: 5 });
+const edCarbine = W('edCarbine', '太陽卡賓槍', 'Solar carbine', 'ranged', 4, 3, 3, 3, { devastating: 1 });
+const edMoonblades = W('edMoonblades', '月刃', 'Moonblades', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const edVenom = W('edVenom', '毒冠噴吐', 'Venomcrest spit', 'ranged', 4, 3, 3, 4, { range: 8, severe: true, torrent: 2 });
+const edStave = W('edStave', '石之杖', 'Stone stave', 'melee', 4, 3, 3, 5, { psychic: true, lethal: 5, shock: true, stun: true });
+const edEarthen = W('edEarthen', '大地之怒', 'Earthen Wrath', 'ranged', 4, 3, 4, 3, { devastating: 2, saturate: true, earthenWrath: true });
+const edDrakeFangs = W('edDrakeFangs', '尖牙利爪', 'Fangs & talons', 'melee', 4, 3, 3, 4, { rending: true });
+/** Upgrades: each mounted Dragon Master picks two of its five, as a "loadout" whose id lists both. */
+export const ED_UPGRADES = {
+  clanblade: { speartip: { zh: '氏族槍尖', en: 'Speartip of the Clan' }, nimbus: { zh: '幽光環', en: 'Spectral Nimbus' }, bladed: { zh: '刃之架勢', en: 'Bladed Stance' }, reflection: { zh: '聚焦反射', en: 'Focused Reflection' }, moonsong: { zh: '月歌剔除', en: 'Moonsong Cull' } },
+  leystalker: { fated: { zh: '命定一擊', en: 'Fated Shot' }, gloaming: { zh: '暮光斗篷', en: 'Gloaming Mantle' }, nexus: { zh: '節點哨兵', en: 'Nexus Sentinel' }, nomad: { zh: '游牧處刑者', en: 'Nomad Executioner' }, phantasm: { zh: '難以捉摸的幻影', en: 'Elusive Phantasm' } },
+  stonesinger: { winds: { zh: '風之恩典', en: 'Wind\'s Grace' }, earthen: { zh: '大地之怒', en: 'Earthen Wrath' }, wails: { zh: '世界哀嚎', en: 'Wails of the World' }, cleansing: { zh: '淡月淨化', en: 'Cleansing of the Pale Moon' }, sow: { zh: '播種', en: 'Sow the Seeds' } },
+};
+const edPairs = (kind, weapons, extra = {}) => {
+  const ids = Object.keys(ED_UPGRADES[kind]), out = {}, labels = {};
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const id = `${ids[i]}+${ids[j]}`;
+    out[id] = [...weapons, ...(extra[ids[i]] || []), ...(extra[ids[j]] || [])];
+    labels[id] = { zh: `強化：${ED_UPGRADES[kind][ids[i]].zh}＋${ED_UPGRADES[kind][ids[j]].zh}`, en: `Upgrades: ${ED_UPGRADES[kind][ids[i]].en} + ${ED_UPGRADES[kind][ids[j]].en}` };
+  }
+  return { loadouts: out, loadoutExtra: labels };
+};
+
+// ---- Goremongers ----
+// (drag: Impaler's fleshskewer pulls the target in; ritual: the Bloodtaker's blade fills its Gore Tank; bleed: Inciter's pistols.)
+const gmAutopistol = W('gmAutopistol', '自動手槍', 'Autopistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const gmChainglaive = W('gmChainglaive', '鏈鋸長刃', 'Chainglaive', 'melee', 4, 3, 4, 5, { rending: true });
+const gmSkewerR = W('gmSkewerR', '穿肉鉤（射擊）', 'Fleshskewer (ranged)', 'ranged', 4, 3, 4, 5, { range: 8, piercingCrits: 1, stun: true, drag: true }, 'gmSkewer');
+const gmSkewerS = W('gmSkewerS', '穿肉鉤（刺擊）', 'Fleshskewer (stab)', 'melee', 4, 3, 3, 4, {}, 'gmSkewer');
+const gmIcon = W('gmIcon', '恐虐聖像', 'Icon of Khorne', 'ranged', 4, 2, 4, 4, { range: 8, saturate: true });
+const gmChainblade = W('gmChainblade', '鏈鋸刃', 'Chainblade', 'melee', 4, 3, 4, 5, { rending: true });
+const gmRitual = W('gmRitual', '儀式之刃', 'Ritual blade', 'melee', 4, 3, 3, 5, { ritual: true });
+const gmDualF = W('gmDualF', '雙自動手槍（集中）', 'Dual autopistols (focused)', 'ranged', 4, 3, 2, 2, { range: 8, ceaseless: true, devastating: 1, rending: true, bleed: true }, 'gmDualF');
+const gmDualP = W('gmDualP', '雙自動手槍（近距）', 'Dual autopistols (point-blank)', 'melee', 4, 3, 3, 4, { ceaseless: true, rending: true, bleed: true });
+const gmChainaxe = W('gmChainaxe', '巨型鏈鋸斧', 'Great chainaxe', 'melee', 4, 3, 5, 6, { brutal: true });
+const gmPickrippers = W('gmPickrippers', '撕裂鎬', 'Pickrippers', 'melee', 4, 3, 4, 5, { rending: true });
+
+// ---- Hernkyn Yaegirs ----
+const hyThrowKnife = W('hyThrowKnife', '投擲電漿刀', 'Throwing plasma knife', 'ranged', 4, 3, 3, 5, { range: 6, lethal: 5, limited: 1, silent: true });
+const hyDualKnives = W('hyDualKnives', '雙電漿刀', 'Dual plasma knives', 'melee', 4, 3, 3, 5, { ceaseless: true, lethal: 5 });
+const hyApmAP = W('hyApmAP', 'APM 發射器（穿甲）', 'APM launcher (armour piercing)', 'ranged', 5, 4, 4, 5, { heavy: 'reposition', piercing: 1 }, 'hyApm');
+const hyApmBreach = W('hyApmBreach', 'APM 發射器（破障）', 'APM launcher (breaching)', 'ranged', 5, 4, 3, 5, { blast: 2, heavy: 'reposition' }, 'hyApm');
+const hyApmHE = W('hyApmHE', 'APM 發射器（高爆）', 'APM launcher (high explosive)', 'ranged', 5, 4, 2, 4, { blast: 3, heavy: 'reposition' }, 'hyApm');
+const hyFists = W('hyFists', '拳頭', 'Fists', 'melee', 3, 4, 2, 3);
+const hyRevolverT = W('hyRevolverT', '爆彈左輪', 'Bolt revolver', 'ranged', 4, 3, 3, 5, { range: 8 });
+const hyShotgunST = W('hyShotgunST', '爆彈霰彈槍（近距）', 'Bolt shotgun (short range)', 'ranged', 4, 3, 4, 4, { range: 6 }, 'hyShotgun');
+const hyShotgunLT = W('hyShotgunLT', '爆彈霰彈槍（遠距）', 'Bolt shotgun (long range)', 'ranged', 4, 5, 2, 3, {}, 'hyShotgun');
+const hyKnifeT = W('hyKnifeT', '電漿刀', 'Plasma knife', 'melee', 4, 3, 3, 5, { lethal: 5 });
+const hyWroughtlock = W('hyWroughtlock', '鍛鎖左輪', 'Wroughtlock revolvers', 'ranged', 4, 3, 3, 5, { range: 9, ceaseless: true, lethal: 5 });
+const hyCoilConc = W('hyCoilConc', '磁線圈步槍（隱蔽）', 'Magna-coil rifle (concealed)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true, piercing: 1, silent: true, firstShotOnly: true }, 'hyCoil');
+const hyCoilMob = W('hyCoilMob', '磁線圈步槍（機動）', 'Magna-coil rifle (mobile)', 'ranged', 4, 3, 3, 4, { heavy: 'reposition', piercing: 1 }, 'hyCoil');
+const hyCoilStat = W('hyCoilStat', '磁線圈步槍（定點）', 'Magna-coil rifle (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true, piercing: 1 }, 'hyCoil');
+const hyRevolver = W('hyRevolver', '爆彈左輪', 'Bolt revolver', 'ranged', 4, 4, 3, 5, { range: 8 });
+const hyKnife = W('hyKnife', '電漿刀', 'Plasma knife', 'melee', 4, 4, 3, 5, { lethal: 5 });
+const hyEntrencher = W('hyEntrencher', '工兵鏟', 'Entrencher', 'melee', 3, 4, 3, 4);
+const hyHandbow = W('hyHandbow', 'SiNR 手弩', 'SiNR handbow', 'ranged', 4, 4, 3, 5, { silent: true });
+const hyThrowHatchet = W('hyThrowHatchet', '投擲手斧', 'Throwing hatchet', 'ranged', 4, 3, 3, 5, { range: 6, limited: 1, rending: true, silent: true });
+const hyHatchet = W('hyHatchet', '手斧', 'Hatchet', 'melee', 4, 3, 4, 5);
+
+// ---- Elucidian Starstriders ----
+const esRelicPistol = W('esRelicPistol', '傳家聖遺物手槍', 'Heirloom relic pistol', 'ranged', 4, 3, 4, 5, { range: 8, piercingCrits: 1, seekLight: true });
+const esRapier = W('esRapier', '單分子杖劍', 'Monomolecular cane-rapier', 'melee', 4, 3, 3, 6, { lethal: 5 });
+const esBite = W('esBite', '兇猛撕咬', 'Vicious bite', 'melee', 4, 3, 3, 4, { rending: true });
+const esDartmask = W('esDartmask', '吹箭面罩', 'Dartmask', 'ranged', 4, 3, 1, 1, { range: 6, lethal: 5, silent: true, stun: true });
+const esPowerW = W('esPowerW', '動力武器', 'Power weapon', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const esVoltaic = W('esVoltaic', '電弧手槍', 'Voltaic pistol', 'ranged', 4, 3, 4, 4, { range: 8, devastating: 1, devSplash: 1, rending: true });
+const esGunButt = W('esGunButt', '槍托', 'Gun butt', 'melee', 3, 4, 2, 3);
+const esLaspistol = W('esLaspistol', '雷射手槍', 'Laspistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const esScalpel = W('esScalpel', '手術刀爪', 'Scalpel claw', 'melee', 3, 4, 3, 4, { rending: true });
+const esShotgunClose = W('esShotgunClose', '工匠霰彈槍（近距）', 'Artificer shotgun (close range)', 'ranged', 4, 3, 4, 4, { range: 6 }, 'esShotgun');
+const esShotgunLong = W('esShotgunLong', '工匠霰彈槍（遠距）', 'Artificer shotgun (long range)', 'ranged', 4, 5, 2, 2, {}, 'esShotgun');
+const esRelicLas = W('esRelicLas', '聖遺物雷射手槍', 'Relic laspistol', 'ranged', 4, 3, 2, 4, { range: 8, lethal: 5 });
+const esLasgun = W('esLasgun', '雷射槍', 'Lasgun', 'ranged', 4, 4, 2, 3);
+const esRotorFocus = W('esRotorFocus', '旋轉加農砲（集中）', 'Rotor cannon (focused)', 'ranged', 5, 4, 4, 5, { heavy: 'dash', rending: true }, 'esRotor');
+const esRotorSweep = W('esRotorSweep', '旋轉加農砲（掃射）', 'Rotor cannon (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', rending: true, torrent: 1 }, 'esRotor');
+/** Privateer Support Assets: the New Dawn's batteries (each once per battle). */
+export const ES_ASSETS = [
+  W('esArcheotech', '古代科技光束', 'Archeotech beam', 'ranged', 4, 3, 6, 7, { heavy: 'reposition', piercing: 2, silent: true }),
+  W('esPlasmaBattery', '電漿砲台', 'Plasma battery', 'ranged', 5, 4, 5, 6, { heavy: 'reposition', lethal: 5, piercing: 1, silent: true }),
+  W('esMacrocannon', '巨砲', 'Macrocannon', 'ranged', 5, 4, 4, 5, { heavy: 'reposition', piercingCrits: 1, saturate: true, silent: true, torrent: 2 }),
+  W('esGuidedShell', '導引砲彈', 'Guided shell', 'ranged', 5, 4, 3, 4, { blast: 2, heavy: 'reposition', silent: true }),
+  W('esClusterBomb', '集束炸彈', 'Cluster bomb', 'ranged', 5, 4, 2, 3, { blast: 3, heavy: 'reposition', silent: true }),
+].map((w) => ({ ...w, rules: { ...w.rules, ignoreCover: true, supportAsset: true } })); // (cover only under Vantage terrain — none in 2D)
+
+// ---- Chaos Cult ----
+const ctStaveR = W('ctStaveR', '邪惡法杖（遠程）', 'Diabolical stave (ranged)', 'ranged', 4, 4, 3, 6, { range: 2, stun: true });
+const ctPistol = W('ctPistol', '手槍', 'Pistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const ctStaveM = W('ctStaveM', '邪惡法杖（近戰）', 'Diabolical stave (melee)', 'melee', 4, 4, 3, 6, { shock: true, stun: true });
+const ctCommuneBlade = W('ctCommuneBlade', '聖會之刃', 'Commune blade', 'melee', 4, 4, 4, 6, { lethal: 5 });
+const ctCenser = W('ctCenser', '燃燒香爐', 'Burning censer', 'ranged', 4, 2, 4, 4, { range: 5, saturate: true, torrent: 2 });
+const ctCrude3 = W('ctCrude3', '粗製近戰武器', 'Crude melee weapon', 'melee', 3, 4, 2, 3);
+const ctCrude4 = W('ctCrude4', '粗製近戰武器', 'Crude melee weapon', 'melee', 4, 4, 2, 3);
+const ctMutations = W('ctMutations', '可怖突變', 'Hideous mutations', 'melee', 5, 4, 4, 5, { ceaseless: true, rending: true });
+const ctGaze = W('ctGaze', '地獄凝視', 'Infernal gaze', 'ranged', 5, 3, 0, 0, { psychic: true, range: 6, devastating: 2, lethal: 3 });
+const ctFists = W('ctFists', '拳頭', 'Fists', 'melee', 3, 5, 1, 2);
+const ctAppendages = W('ctAppendages', '褻瀆附肢', 'Blasphemous appendages', 'melee', 4, 4, 3, 4, { ceaseless: true, rending: true });
 
 // ---- Celestian Insidiants ----
 const ciInferno = W('ciInferno', '地獄火手槍', 'Inferno pistol', 'ranged', 4, 3, 4, 2, { range: 3, devastating: 3, piercing: 2 });
@@ -1548,6 +1652,245 @@ export const TEAMS = [
     ],
   },
   {
+    id: 'exoditeDragonMasters',
+    name: { zh: '流亡馭龍師', en: 'Exodite Dragon Masters' },
+    color: '#4f9a3c',
+    style: { zh: '混合隊・騎乘・速度', en: 'Mixed · Mounted · Speed' },
+    blurb: {
+      zh: '三名騎著龍駒的流亡靈族（氏族之刃、地脈潛行者、詠石者）帶著兩隻小龍。騎乘者有朝向，只能直線衝刺、轉向；每回合啟動兩次，跑越快越難被打中。',
+      en: 'Three Exodites riding drakesteeds (Clanblade, Leystalker, Stonesinger) with two Drakolithes. Riders have a facing and move only by Sprinting straight or Turning; they activate twice a turning point, and the faster they go the harder they are to hit.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能', en: 'Yes' },
+      size: { zh: '5 名特工', en: '5 operatives' },
+    },
+    dragonMasters: true,
+    rule: {
+      name: { zh: '騎龍戰術與水銀般的速度', en: 'Draconic Cavalry & Mercurial Speed' },
+      desc: {
+        zh: '只有小龍先部署，騎乘者在第 1 回合啟動時從己方場邊進場（算一次轉向）。騎乘者不能轉移、衝刺、衝鋒、撤退，改用「疾馳」（0AP：直線向前最多 9"、向後最多 3"，可在起點轉 45°，每回合最多 12"，以整吋計；可穿過特工與矮地形，經過的裝備掩體會被移除）與「轉向」（1AP：轉 45°）。每回合啟動兩次（每次最多 3AP，合計不超過 APL）；不能從輕型地形得到掩護。速度：疾馳向前 4" 以上為 4+、7" 以上為 7+，否則 3-；被射擊時 4+ 自動保留一顆普通豁免，7+ 則保留一顆暴擊豁免。',
+        en: 'Only the Drakolithes deploy; the riders enter from your killzone edge when activated in TP1 (as a Turn). Riders can\'t Reposition, Dash, Charge or Fall Back; they Sprint (0AP: straight forwards up to 9" or backwards up to 3", pivoting up to 45° at the start; 12" per TP; whole inches; through operatives and low terrain, removing equipment terrain it crosses) and Turn (1AP: pivot 45°). They activate twice a TP (3AP each, the APL in total) and get no cover from Light terrain. SPEED: a Sprint forwards of 4"+ gives SPEED 4+, 7"+ SPEED 7+, else 3-; when shot, 4+ retains one defence die as a normal save, 7+ as a critical.',
+      },
+    },
+    ploys: [
+      { id: 'draconicFury', cp: 1, name: { zh: '龍之怒', en: 'Draconic Fury' },
+        desc: { zh: '本回合友方近戰：速度 4+ 時近戰武器「平衡」，7+ 時「無休」。', en: 'This TP, a friendly fighting has Balanced melee weapons with SPEED 4+, Ceaseless with SPEED 7+.' } },
+      { id: 'sinuousFlux', cp: 1, name: { zh: '蜿蜒流動', en: 'Sinuous Flux' },
+        desc: { zh: '本回合敵人在 6" 外射擊速度 4+ 以上的友方時，不能重擲攻擊骰。', en: 'This TP, an enemy shooting a friendly with SPEED 4+ from more than 6" away can\'t re-roll its attack dice.' } },
+      { id: 'windSwift', cp: 1, name: { zh: '風馳精準', en: 'Wind-Swift Precision' },
+        desc: { zh: '本回合速度 4+ 以上的友方射擊時，遠程武器「平衡」。', en: 'This TP, a friendly with SPEED 4+ has Balanced ranged weapons.' } },
+      { id: 'rideThemDown', cp: 1, name: { zh: '輾壓他們', en: 'Ride Them Down' },
+        desc: { zh: '本回合騎乘者每次啟動一次，疾馳結束時：移動 4" 以上可對控制範圍內一名敵人造成 1 傷害；7" 以上或氏族之刃改為 D3。', en: 'This TP, once per rider activation, ending a Sprint: 4"+ moved — 1 damage to an enemy in its control range; 7"+ or a Clanblade — D3.' } },
+    ],
+    ops: [
+      op('edClanblade', '氏族之刃', 'Dragon Master Clanblade', { apl: 4, move: 12, save: 3, wounds: 24, base: 58, oval: [75, 42], mounted: true, upgrades: 'clanblade', scaleshield: true, edLeader: true,
+        ...edPairs('clanblade', [edCarbine, edFangs, edMoonblades]) }, [edCarbine, edFangs, edMoonblades]),
+      op('edLeystalker', '地脈潛行者', 'Dragon Master Leystalker', { apl: 4, move: 12, save: 3, wounds: 24, base: 58, oval: [75, 42], mounted: true, upgrades: 'leystalker', implacable: true,
+        ...edPairs('leystalker', [edRifleMob, edRifleStat, edFangs, edHuntBlade]) }, [edRifleMob, edRifleStat, edFangs, edHuntBlade]),
+      op('edStonesinger', '詠石者', 'Dragon Master Stonesinger', { apl: 4, move: 12, save: 3, wounds: 24, base: 58, oval: [75, 42], mounted: true, upgrades: 'stonesinger', psyker: true, songRenewal: true,
+        ...edPairs('stonesinger', [edCarbine, edVenom, edFangs, edStave], { earthen: [edEarthen] }) }, [edCarbine, edVenom, edFangs, edStave]),
+      op('edDrakolithe', '小龍', 'Drakolithe', { apl: 2, move: 8, save: 5, wounds: 7, base: 32, drakolithe: true,
+        actionsOnly: ['reposition', 'dash', 'charge', 'fallBack', 'fight', 'pickUp'] }, [edDrakeFangs], 2),
+    ],
+  },
+  {
+    id: 'goremongers',
+    name: { zh: '灑血狂', en: 'Goremongers' },
+    color: '#a3201b',
+    style: { zh: '近戰隊・精英・血槽', en: 'Melee · Elite · Gore Tanks' },
+    blurb: {
+      zh: '崇拜恐虐的人類狂信徒：一名血之先驅帶領七名專家。背上的血槽靠殺戮補充，消耗血槽就能發動「血之精華」——多一個行動、連續近戰、回血、衝鋒輾傷敵人。',
+      en: 'Human devotees of Khorne: a Blood Herald leading seven specialists. The gore tanks on their backs are refilled by killing, and spent to use SANGUAVITAE — an extra action, a second Fight, healing, or raking an enemy on the Charge.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '偵察', en: 'Recon' }],
+      kind: { zh: '近戰隊', en: 'Melee' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能', en: 'Yes' },
+      size: { zh: '8 名特工', en: '8 operatives' },
+    },
+    goreTanks: true,
+    perCopyRoster: true,
+    rule: {
+      name: { zh: '血槽、血之精華與恐虐符文', en: 'Gore Tanks, Sanguavitae & Runes of Khorne' },
+      desc: {
+        zh: '每名友方都有血槽，分為空、半、滿三格，開場是半。使控制範圍內、或 2" 內看得到的敵人殘廢時血槽 +1。消耗一格血槽可以發動一種「血之精華」（同一種每次啟動一次、每次啟動最多兩種，狂躁與狂怒不能同時用）：狂躁（APL +1 到下次啟動）、狂怒（本次可以近戰兩次，第二次免費）、再生（回復 D3+1）、狂暴（下一次近戰的近戰武器 Atk +1）、撕扯（下一次衝鋒移動完後對控制範圍內一名敵人造成 D3）、湧動（下一次衝鋒或移動 Move +1"）。恐虐符文：每次射擊動作，友方最多失去 8 生命。',
+        en: 'Each friendly has a GORE TANK — empty, half or full; it starts at half. Incapacitating an enemy within its control range, or visible within 2", increases it. Decrease it to use a SANGUAVITAE (each once per activation, two at most per activation, not Mania and Fury together): Mania (+1 APL until its next activation), Fury (two Fights this activation, the second free), Rejuvenate (regain D3+1), Rage (its next Fight: +1 Atk on melee weapons), Rake (its next Charge: D3 to an enemy in control range when it finishes moving), Surge (its next Charge or Reposition: +1" Move). Runes of Khorne: a friendly can\'t lose more than 8 wounds per Shoot action.',
+      },
+    },
+    ploys: [
+      { id: 'goryTenacity', cp: 1, name: { zh: '血腥韌性', en: 'Gory Tenacity' },
+        desc: { zh: '本回合友方近戰或反擊時，對手第一次打擊它的傷害減半（無條件進位，最低 2）。', en: 'This TP, a friendly fighting or retaliating halves the damage of the opponent\'s first strike on it (rounding up, minimum 2).' } },
+      { id: 'huntForBlood', cp: 1, name: { zh: '血之狩獵', en: 'Hunt for Blood' },
+        desc: { zh: '選一名友方（自動：能衝到敵人身邊、離敵人最近的一名）：隱蔽改成交戰，立刻免費衝鋒最多 3"。', en: 'Pick a friendly (automatic: the one nearest an enemy it can reach): if Concealed it becomes Engaged, then it immediately makes a free Charge of up to 3".' } },
+      { id: 'enhancedViolence', cp: 1, name: { zh: '強化暴力', en: 'Enhanced Violence' },
+        desc: { zh: '本回合友方血槽半格時近戰武器「平衡」，滿格時「無情」。', en: 'This TP, a friendly\'s melee weapons have Balanced with a half GORE TANK, Relentless with a full one.' } },
+      { id: 'augmentedEndurance', cp: 1, name: { zh: '強化耐力', en: 'Augmented Endurance' },
+        desc: { zh: '本回合友方被射擊時，血槽半格可重擲一顆防禦骰，滿格可重擲任意防禦骰。', en: 'This TP, a friendly being shot re-rolls one defence die with a half GORE TANK, any with a full one.' } },
+    ],
+    // Seven from the list: each once, except Aspirants.
+    replacements: Object.fromEntries(['gmAspirant', 'gmBloodtaker', 'gmImpaler', 'gmInciter', 'gmSkullclaimer', 'gmStalker']
+      .map((id, _, all) => [id, [id, ...all.filter((x) => x !== id)]])),
+    ops: [
+      op('gmHerald', '血之先驅', 'Goremonger Blood Herald', { apl: 2, move: 7, save: 5, wounds: 11, base: 32, gmLeader: true, khornesFavour: true, apotheosis: true }, [gmIcon, gmChainblade]),
+      op('gmAspirant', '血之求道者', 'Goremonger Aspirant', { apl: 2, move: 7, save: 5, wounds: 10, base: 32, obsessiveBloodlust: true }, [gmAutopistol, gmChainglaive], 2),
+      op('gmBloodtaker', '取血者', 'Goremonger Bloodtaker', { apl: 2, move: 7, save: 5, wounds: 10, base: 32, transfusion: true }, [gmAutopistol, gmRitual]),
+      op('gmImpaler', '穿刺者', 'Goremonger Impaler', { apl: 2, move: 7, save: 5, wounds: 10, base: 32, goreFuel: true }, [gmAutopistol, gmSkewerR, gmSkewerS]),
+      op('gmInciter', '煽動者', 'Goremonger Inciter', { apl: 2, move: 7, save: 5, wounds: 10, base: 32, inciteHunt: true, dashSpray: true }, [gmDualF, gmDualP]),
+      op('gmSkullclaimer', '奪顱者', 'Goremonger Skullclaimer', { apl: 2, move: 7, save: 5, wounds: 10, base: 32, brutish: true, claimSkull: true }, [gmAutopistol, gmChainaxe]),
+      op('gmStalker', '潛獵者', 'Goremonger Stalker', { apl: 2, move: 7, save: 5, wounds: 10, base: 32, rooftopStalker: true }, [gmAutopistol, gmPickrippers]),
+    ],
+  },
+  {
+    id: 'hernkynYaegirs',
+    name: { zh: '遠行者獵手', en: 'Hernkyn Yaegirs' },
+    color: '#b8742a',
+    style: { zh: '混合隊・資源點・地雷區', en: 'Mixed · Resourceful · Minefield' },
+    blurb: {
+      zh: '沃坦聯盟的拓荒偵察兵：一名領主帶領九名獵手。每回合依還沒被纏住的人數獲得資源點，可以拿來多一個行動或回血；工兵事先在戰場埋下真假混雜的地雷。',
+      en: 'Frontier scouts of the Leagues of Votann: a Theyn leading nine Yaegirs. Each turning point they gain Resourceful points by how many are free of the enemy, spent for an extra action or to heal; their Ironbraek sows a minefield of live and dummy mines.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '滲透', en: 'Infiltration' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '能，但建議磁化', en: 'Yes, but magnetising is recommended' },
+      buyable: { zh: '能', en: 'Yes' },
+      size: { zh: '10 名特工', en: '10 operatives' },
+    },
+    yaegirs: true,
+    perCopyRoster: true,
+    rule: {
+      name: { zh: '資源點與無畏探險者', en: 'Resourceful & Dauntless Explorers' },
+      desc: {
+        zh: '第 2 回合起的準備步驟，依沒在敵人控制範圍內的友方人數獲得資源點：5 名以上 2 點、3–4 名 1 點（回合結束時清空）。每名友方每次啟動可以用 1 點：不在交戰中時本次啟動 APL +1，或在啟動時（不在交戰中）回復 D3+1。無畏探險者：第 1 回合策略階段，完全在部署區內的友方各自免費移動一次（自動朝最近的目標點），結束時要完全在部署區 4" 內。',
+        en: 'In the Ready step of each Strategy phase after the first, gain Resourceful points by friendlies not within enemy control range: 5+ = 2, 3–4 = 1 (discarded at the end of the TP). Each friendly can spend 1 per activation: +1 APL for the activation (not engaged), or regain D3+1 when activated (not engaged). Dauntless Explorers: in the first Strategy phase each friendly wholly within your drop zone makes a free Reposition (automatically towards the nearest objective), ending wholly within 4" of the drop zone.',
+      },
+    },
+    ploys: [
+      { id: 'masterfulBladework', cp: 1, name: { zh: '精湛刀術', en: 'Masterful Bladework' },
+        desc: { zh: '本回合友方近戰（或隱蔽指令時反擊）：近戰武器 Atk +1（最多 4）並「平衡」；已有平衡改為「無休」。', en: 'This TP, a friendly fighting (or retaliating with a Conceal order): +1 Atk on melee weapons (max 4) and Balanced; Ceaseless instead if it already has Balanced.' } },
+      { id: 'toughSurvivalists', cp: 1, name: { zh: '堅韌的求生者', en: 'Tough Survivalists' },
+        desc: { zh: '本回合每名友方第一次被攻擊骰造成傷害時，傷害減半（無條件進位，最低 2）。', en: 'This TP, the first time an attack die inflicts damage on each friendly, halve it (rounding up, minimum 2).' } },
+      { id: 'hiddenEngagement', cp: 1, name: { zh: '暗中交戰', en: 'Hidden Engagement' },
+        desc: { zh: '本回合友方射擊時，若從目標的角度它在掩體中，武器「平衡」。', en: 'This TP, a friendly shooting from cover (from the target\'s point of view) has Balanced.' } },
+      { id: 'inPosition', cp: 1, name: { zh: '就定位', en: 'In Position' },
+        desc: { zh: '本回合隱蔽指令且在掩體中的友方不能被選為目標，搜尋等規則也無效（2" 內除外）。', en: 'This TP, a Concealed friendly in cover can\'t be selected as a valid target, whatever else applies (Seek etc.), except within 2".' } },
+    ],
+    // Nine from the list: each once, except Warriors.
+    replacements: Object.fromEntries(['hyBladekyn', 'hyBombast', 'hyGunner', 'hyIronbraek', 'hyRiflekyn', 'hyTracker', 'hyWarrior']
+      .map((id, _, all) => [id, [id, ...all.filter((x) => x !== id)]])),
+    ops: [
+      op('hyTheyn', '獵手領主', 'Yaegir Theyn', { apl: 2, move: 5, save: 4, wounds: 9, base: 28, hyLeader: true, veteranAdventurer: true, outrightConviction: true,
+        loadouts: { revolver: [hyRevolverT, hyKnifeT], shotgun: [hyShotgunST, hyShotgunLT, hyKnifeT] } }, [hyRevolverT, hyKnifeT]),
+      op('hyBladekyn', '刃族', 'Yaegir Bladekyn', { apl: 2, move: 5, save: 4, wounds: 8, base: 28, concealCharge: true, irrepressible: true }, [hyThrowKnife, hyDualKnives]),
+      op('hyBombast', '轟炸手', 'Yaegir Bombast', { apl: 2, move: 5, save: 4, wounds: 8, base: 28, negotiation: true, brazenKiller: true }, [hyWroughtlock, hyFists]),
+      op('hyGunner', '槍手', 'Yaegir Gunner', { apl: 2, move: 5, save: 4, wounds: 8, base: 28, bipod: true }, [hyApmAP, hyApmBreach, hyApmHE, hyFists]),
+      op('hyIronbraek', '鐵壁工兵', 'Yaegir Ironbraek', { apl: 2, move: 5, save: 4, wounds: 8, base: 28, minefield: true }, [hyRevolver, hyEntrencher]),
+      op('hyRiflekyn', '步槍族', 'Yaegir Riflekyn', { apl: 2, move: 5, save: 4, wounds: 8, base: 28, weavewerke: true }, [hyCoilConc, hyCoilMob, hyCoilStat, hyFists]),
+      op('hyTracker', '追蹤者', 'Yaegir Tracker', { apl: 2, move: 5, save: 4, wounds: 8, base: 28, panVisor: true, hyTracker: true }, [hyHandbow, hyThrowHatchet, hyHatchet]),
+      op('hyWarrior', '獵手戰士', 'Yaegir Warrior', { apl: 2, move: 5, save: 4, wounds: 8, base: 28, intrepid: true,
+        loadouts: { revolver: [hyRevolver, hyKnife], shotgun: [hyShotgunST, hyShotgunLT, hyFists] } }, [hyRevolver, hyKnife], 3),
+    ],
+  },
+  {
+    id: 'elucidianStarstriders',
+    name: { zh: '行商浪人', en: 'Elucidian Starstriders' },
+    color: '#3f7fbf',
+    style: { zh: '射擊隊・固定名單・艦砲支援', en: 'Shooting · Fixed roster · Orbital support' },
+    blurb: {
+      zh: '行商浪人艾露西亞・范恩與她的船員：獵犬、死亡教派刺客、電能大師、回春醫師、艦隊長與四名水手。頭頂上的「新曙光號」能提供艦砲火力支援。',
+      en: 'Rogue Trader Elucia Vhane and her crew: a Canid, a Death Cult Executioner, a Lectro-Maester, a Rejuvenat Adept, a Voidmaster and four Voidsmen. Her ship, the New Dawn, rains fire from orbit.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '偵察', en: 'Recon' }, { zh: '安全保護', en: 'Security' }],
+      kind: { zh: '射擊隊', en: 'Shooting' },
+      oneBox: { zh: '能', en: 'Yes' },
+      buyable: { zh: '能，但是官方限定品', en: 'Yes, but it\'s a limited release' },
+      size: { zh: '10 名特工', en: '10 operatives' },
+    },
+    starstriders: true,
+    rule: {
+      name: { zh: '貿易許可證與私掠支援', en: 'Warrant of Trade & Privateer Support' },
+      desc: {
+        zh: '貿易許可證（整場最多 4 次，每種一次）：協調（開局 +1CP，自動）、賄賂（輪到你啟動時可以跳過）。私掠支援：每個交戰階段一次，艦隊員或范恩射擊時可改用一種艦砲武器（每種整場一次）；2D 版沒有制高點，所以艦砲的目標沒有掩護豁免。（其他許可證效果未實作）',
+        en: 'Warrant of Trade (up to 4 per battle, each once): Coordinate (+1CP at the start, automatic) and Bribe (skip one of your activations). Privateer Support: once per Firefight phase, a Navis operative or Vhane can shoot with one of the New Dawn\'s batteries (each once per battle); there is no Vantage terrain in 2D, so their targets get no cover saves. (The other Warrants aren\'t modelled.)',
+      },
+    },
+    ploys: [
+      { id: 'lethalProximity', cp: 1, name: { zh: '致命近距', en: 'Lethal Proximity' },
+        desc: { zh: '本回合友方射擊 6" 內的目標時，遠程武器「平衡」（艦砲除外）。', en: 'This TP, friendlies shooting a target within 6" have Balanced (not support assets).' } },
+      { id: 'stakeClaimES', cp: 1, name: { zh: '宣示所有權', en: 'Stake Claim' },
+        desc: { zh: '本回合在離我方最近的敵人處放所有權標記（自動）：友方攻擊它 3" 內的敵人時，一顆失敗當普通成功，或一顆普通成功當暴擊。', en: 'This TP, the Claim marker goes by the enemy nearest your team (automatic): attacking an enemy within 3" of it, retain one fail as a normal success, or a normal as a critical.' } },
+      { id: 'undauntedExplorers', cp: 1, name: { zh: '無畏探險家', en: 'Undaunted Explorers' },
+        desc: { zh: '本回合每名友方第一次被攻擊骰造成傷害時，傷害減半（進位，最少 2）。', en: 'This TP, the first time an attack die inflicts damage on each friendly, halve it (rounding up, minimum 2).' } },
+      { id: 'quickMarch', cp: 1, name: { zh: '急行軍', en: 'Quick March' },
+        desc: { zh: '本回合友方轉移時 Move +1"。（必須更接近敵方降落區的限制未實作）', en: 'This TP, friendlies Reposition with +1" Move. (The "must end closer to the enemy drop zone" limit isn\'t modelled.)' } },
+    ],
+    ops: [
+      op('esVhane', '艾露西亞・范恩', 'Elucia Vhane', { apl: 3, move: 6, save: 4, wounds: 8, base: 25, esLeader: true, digitalLasers: true, merciless: true, ignorePiercing: true, reputation: true }, [esRelicPistol, esRapier]),
+      op('esCanid', '獵犬', 'Canid', { apl: 2, move: 8, save: 5, wounds: 7, base: 25, badTempered: true, actionsOnly: ['reposition', 'dash', 'charge', 'fallBack', 'fight', 'pickUp'] }, [esBite]),
+      op('esExecutioner', '死亡教派處刑者', 'Death Cult Executioner', { apl: 3, move: 6, save: 5, wounds: 8, base: 25, ignorePiercing: true, bladedStance: true, wretched: true, intoShadow: true }, [esDartmask, esPowerW]),
+      op('esLectro', '電能大師', 'Lectro-Maester', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, acuteFocus: true, voltagheistArray: true, calibrate: true }, [esVoltaic, esGunButt]),
+      op('esAdept', '回春醫師', 'Rejuvenat Adept', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, medic: true, medicWounds: 3, medicNoApl: true, disciplinarian: true, medikit: true, medikitBig: true }, [esLaspistol, esScalpel]),
+      op('esVoidmaster', '艦隊長', 'Voidmaster', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, navis: true, esDisciplinarian: true, weavefield: true }, [esShotgunClose, esShotgunLong, esRelicLas, esGunButt]),
+      op('esVoidsman', '水手', 'Voidsman', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, navis: true }, [esLasgun, esGunButt], 3),
+      op('esRotor', '水手（旋轉加農砲）', 'Voidsman (rotor cannon)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, navis: true }, [esRotorFocus, esRotorSweep, esGunButt]),
+    ],
+  },
+  {
+    id: 'chaosCult',
+    name: { zh: '混沌邪教', en: 'Chaos Cult' },
+    color: '#9b2c2c',
+    style: { zh: '混合隊・人海・變異', en: 'Mixed · Horde · Mutation' },
+    blurb: {
+      zh: '黑暗聖會帶領一群信徒：煽動者、兩名聖刃、聖像持者、心靈巫婆與九名信徒。信徒會在戰鬥中變異成突變者，再變成被惡魔附身的折磨者。',
+      en: 'A Dark Commune leading a throng of devotees: a Demagogue, two Blessed Blades, an Iconarch, a Mindwitch and nine Devotees. Devotees mutate into Mutants during the battle, and Mutants into daemon-bound Torments.',
+    },
+    // Collector notes supplied by the player.
+    info: {
+      archetypes: [{ zh: '搜索與摧毀', en: 'Seek & Destroy' }, { zh: '滲透', en: 'Infiltration' }],
+      kind: { zh: '混合隊', en: 'Mixed' },
+      oneBox: { zh: '否，需要三盒才能湊齊', en: 'No — you need three boxes' },
+      buyable: { zh: '能，均屬大桌單位，另需購入 Accursed Cultists', en: 'Yes — all are main-game kits, plus a box of Accursed Cultists' },
+      size: { zh: '14 名特工', en: '14 operatives' },
+    },
+    chaosCult: true,
+    rule: {
+      name: { zh: '變異與受詛恩賜', en: 'Mutation & Accursed Gifts' },
+      desc: {
+        zh: '策略階段可變異友方（第 1、2 回合各 2 名，第 3 回合 3 名，之後 4 名；自動挑選）；信徒在控制範圍內使敵人殘廢時也能變異。變異：信徒→突變者（最多 5 名）、突變者→折磨者（最多 3 名，每回合 2 次），或回復 D3+1。換型態時保留已失去的生命。第一次出現突變者時選主要恩賜，第一次出現折磨者時選次要恩賜（自動）：突變者有主要恩賜，折磨者兩個都有。',
+        en: 'In the Strategy phase friendlies MUTATE (2 in TP1-2, 3 in TP3, 4 after; picked automatically); a Devotee that incapacitates an enemy in its control range can mutate too. Mutate: Devotee → Mutant (max 5), Mutant → Torment (max 3, twice per TP), or regain D3+1. Lost wounds carry over. The first Mutant picks the primary Accursed Gift, the first Torment the secondary (automatic): Mutants have the primary, Torments both.',
+      },
+    },
+    ploys: [
+      { id: 'exaltationPain', cp: 1, name: { zh: '狂喜於痛苦', en: 'Exaltation in Pain' },
+        desc: { zh: '本回合友方武器的命中值不受重傷影響；受過傷的友方被射擊時可重擲一顆防禦骰。', en: 'This TP, friendlies ignore injured changes to their weapons\' Hit, and a wounded friendly that\'s shot re-rolls one defence die.' } },
+      { id: 'ferventOnslaught', cp: 1, name: { zh: '狂熱猛攻', en: 'Fervent Onslaught' },
+        desc: { zh: '本回合友方近戰武器「精準 1」，突變者與折磨者「精準 2」。', en: 'This TP, friendly melee weapons have Accurate 1 (Accurate 2 for Mutants and Torments).' } },
+      { id: 'creaturesNightmare', cp: 1, name: { zh: '夢魘造物', en: 'Creatures of Nightmare' },
+        desc: { zh: '本回合爭奪標記的敵人中有人在突變者或折磨者 2" 內時，敵方 APL 總和 -1。', en: 'This TP, enemies contesting a marker count 1 lower total APL if one is within 2" of a Mutant or Torment.' } },
+      { id: 'sickeningAura', cp: 1, name: { zh: '令人作嘔的氣場', en: 'Sickening Aura' },
+        desc: { zh: '本回合在突變者或折磨者 2" 內的敵人命中值變差 1（不與重傷疊加）。', en: 'This TP, enemies within 2" of a Mutant or Torment have worse Hit (not on top of injured).' } },
+    ],
+    ops: [
+      op('ctDemagogue', '邪教煽動者', 'Cult Demagogue', { apl: 2, move: 6, save: 5, wounds: 8, base: 32, darkCommune: true, inciteSlaughter: true, inciteUrgency: true }, [ctStaveR, ctPistol, ctStaveM]),
+      op('ctBlade', '聖刃', 'Blessed Blade', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, darkCommune: true, cutThemDown: true, attuned: true }, [ctCommuneBlade], 2),
+      op('ctIconarch', '聖像持者', 'Iconarch', { apl: 2, move: 6, save: 5, wounds: 8, base: 32, darkCommune: true, psyker: true, controlPlus: true, ruinousIcon: true }, [ctCenser, ctPistol, ctCrude3]),
+      op('ctMindwitch', '心靈巫婆', 'Mindwitch', { apl: 2, move: 6, save: 5, wounds: 8, base: 32, darkCommune: true, psyker: true, heinousDeluge: true, maleficVortex: true }, [ctGaze, ctFists]),
+      op('ctDevotee', '混沌信徒', 'Chaos Devotee', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, devotee: true, groupAct: 'ctDevotee' }, [ctPistol, ctCrude4], 9),
+      op('ctMutant', '混沌突變者', 'Chaos Mutant', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, mutant: true, slowWitted: true, unnaturalRegen: true }, [ctAppendages], 0),
+      op('ctTorment', '混沌折磨者', 'Chaos Torment', { apl: 2, move: 6, save: 5, wounds: 13, base: 40, torment: true, brute: true, unnaturalRegen: true,
+        actionsOnly: ['reposition', 'dash', 'charge', 'fallBack', 'fight'] }, [ctMutations], 0),
+    ],
+  },
+  {
     id: 'celestianInsidiants',
     name: { zh: '潔天使隱伏者', en: 'Celestian Insidiants' },
     color: '#c9a227',
@@ -1781,6 +2124,151 @@ export const TEAMS = [
 ];
 
 TEAMS.push(...ELDAR_TEAMS);
+TEAMS.push(DEATHWATCH_TEAM);
+TEAMS.push(MANDRAKES_TEAM);
+TEAMS.push(MURDERWING_TEAM);
+
+// ---- Inquisitorial Agents ----
+// (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the
+// INQUISITORIAL AGENT faction, and only the faction rules the requisition card allows.)
+const iaRelicPistol = W('iaRelicPistol', '加長槍托聖遺物自動手槍', 'Extended stock relic autopistol', 'ranged', 4, 3, 2, 4, { range: 12, lethal: 5 });
+const iaFists = W('iaFists', '拳頭', 'Fists', 'melee', 3, 4, 2, 3);
+const iaAppendages = W('iaAppendages', '機械附肢', 'Mechanical appendages', 'melee', 3, 5, 1, 2);
+const iaAutopistol = W('iaAutopistol', '自動手槍', 'Autopistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const iaEviscerator = W('iaEviscerator', '開膛鋸', 'Eviscerator', 'melee', 4, 4, 5, 6, { brutal: true });
+const iaKnife = W('iaKnife', '刀', 'Knife', 'melee', 1, 2, 5, 7, { lethal: 5 });
+const iaPolearm = W('iaPolearm', '長柄武器', 'Polearm', 'melee', 4, 3, 4, 5);
+const iaPairedBlades = W('iaPairedBlades', '雙刃', 'Paired blades', 'melee', 4, 3, 3, 5, { balanced: true, rending: true });
+const iaShotgun = W('iaShotgun', '霰彈槍', 'Shotgun', 'ranged', 4, 3, 3, 3, { range: 6 });
+const iaSeekPistol = W('iaSeekPistol', '自動手槍', 'Autopistol', 'ranged', 4, 2, 2, 3, { range: 8, seek: true });
+const iaMysticFists = W('iaMysticFists', '拳頭', 'Fists', 'melee', 3, 5, 2, 3);
+const iaHandFlamer = W('iaHandFlamer', '手持噴火器', 'Hand flamer', 'ranged', 4, 2, 3, 3, { range: 6, saturate: true, torrent: 1 });
+const iaChainsword = W('iaChainsword', '鏈鋸劍', 'Chainsword', 'melee', 4, 4, 4, 5);
+const iaPlasmaStd = W('iaPlasmaStd', '瞄準鏡電漿手槍（標準）', 'Scoped plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 12, piercing: 1, fixedHit: true }, 'iaPlasma');
+const iaPlasmaSup = W('iaPlasmaSup', '瞄準鏡電漿手槍（超載）', 'Scoped plasma pistol (supercharge)', 'ranged', 4, 3, 4, 5, { range: 12, hot: true, lethal: 5, piercing: 1, fixedHit: true }, 'iaPlasma');
+const iaSuppressed = W('iaSuppressed', '消音自動手槍', 'Suppressed autopistol', 'ranged', 4, 3, 2, 3, { range: 8, silent: true, fixedHit: true }, 'iaSuppressed');
+const iaHBFocus = W('iaHBFocus', '重型爆彈槍（集中）', 'Heavy bolter (focused)', 'ranged', 5, 4, 4, 5, { heavy: 'dash', piercingCrits: 1 }, 'iaHB');
+const iaHBSweep = W('iaHBSweep', '重型爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', piercingCrits: 1, torrent: 1 }, 'iaHB');
+const iaMultiMelta = W('iaMultiMelta', '多管熱熔', 'Multi-melta', 'ranged', 4, 4, 6, 3, { devastating: 4, heavy: 'dash', piercing: 2 });
+const iaPCStd = W('iaPCStd', '電漿砲（標準）', 'Plasma cannon (standard)', 'ranged', 4, 4, 4, 6, { blast: 2, heavy: 'dash', piercing: 1 }, 'iaPC');
+const iaPCSup = W('iaPCSup', '電漿砲（超載）', 'Plasma cannon (supercharge)', 'ranged', 4, 4, 5, 6, { blast: 2, heavy: 'dash', hot: true, lethal: 5, piercing: 1 }, 'iaPC');
+const iaServoClaw = W('iaServoClaw', '伺服爪', 'Servo claw', 'melee', 3, 4, 4, 5);
+// Sisters of Silence and Tempestus Scions (requisitioned only).
+const ssBoltgun = W('ssBoltgun', '爆彈槍', 'Boltgun', 'ranged', 4, 3, 3, 4);
+const ssGunButt = W('ssGunButt', '槍托', 'Gun butt', 'melee', 4, 4, 2, 3);
+const ssFlamer = W('ssFlamer', '噴火器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const ssGreatblade = W('ssGreatblade', '處刑巨刃', 'Executioner greatblade', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const tsHotshot = W('tsHotshot', '熱射雷射槍', 'Hot-shot lasgun', 'ranged', 4, 3, 3, 4);
+const tsGunButt = W('tsGunButt', '槍托', 'Gun butt', 'melee', 3, 4, 2, 3);
+const tsFlamer = W('tsFlamer', '噴火器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const tsGLFrag = W('tsGLFrag', '榴彈發射器（破片）', 'Grenade launcher (frag)', 'ranged', 4, 3, 2, 4, { blast: 2 }, 'tsGL');
+const tsGLKrak = W('tsGLKrak', '榴彈發射器（穿甲）', 'Grenade launcher (krak)', 'ranged', 4, 3, 4, 5, { piercing: 1 }, 'tsGL');
+const tsVolleyF = W('tsVolleyF', '熱射齊射槍（集中）', 'Hot-shot volley gun (focused)', 'ranged', 5, 3, 3, 4, { piercingCrits: 1 }, 'tsVolley');
+const tsVolleyS = W('tsVolleyS', '熱射齊射槍（掃射）', 'Hot-shot volley gun (sweeping)', 'ranged', 4, 3, 3, 4, { piercingCrits: 1, torrent: 1 }, 'tsVolley');
+const tsMelta = W('tsMelta', '熱熔槍', 'Meltagun', 'ranged', 4, 3, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const tsPlasmaStd = W('tsPlasmaStd', '電漿槍（標準）', 'Plasma gun (standard)', 'ranged', 4, 3, 4, 6, { piercing: 1 }, 'tsPlasma');
+const tsPlasmaSup = W('tsPlasmaSup', '電漿槍（超載）', 'Plasma gun (supercharge)', 'ranged', 4, 3, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'tsPlasma');
+
+/** Requisition groups: which kill team (or new datacards) they come from and how many can be taken. */
+export const IA_GROUPS = {
+  deathKorps: { name: { zh: '死亡軍團（克里格）', en: 'Death Korps' }, from: 'deathKorps', ids: ['bruiser', 'confidant', 'gunnerMelta', 'gunnerPlasma', 'medic', 'sniper', 'trooper', 'vox', 'zealot'], max: 3, repeat: ['trooper'] },
+  exaction: { name: { zh: '強徵小隊（警察）', en: 'Exaction Squad' }, from: 'exaction', ids: ['castigator', 'chirurgant', 'leashmaster', 'malocator', 'marksman', 'revelatum', 'mastiff', 'subductor', 'vigilant', 'vox'], max: 5, repeat: ['subductor', 'vigilant'], twice: ['subductor'], extra: { rqRuthless: true } },
+  kasrkin: { name: { zh: '卡舍津', en: 'Kasrkin' }, from: 'kasrkin', ids: ['ksMedic', 'ksDemo', 'ksFlamer', 'ksMelta', 'ksPlasma', 'ksRecon', 'ksSharpshooter', 'ksTrooper', 'ksVox'], max: 2, repeat: ['ksTrooper'] },
+  navy: { name: { zh: '帝國海軍破襲隊', en: 'Imperial Navy Breachers' }, from: 'navyBreachers', ids: ['armsman', 'axejack', 'cat', 'endurant', 'gheistskull', 'grenadier', 'hatchcutter', 'surveyor', 'voidJammer', 'gunnerVolley', 'gunnerMelta'], max: 5, repeat: ['armsman'], extra: { rqVoidArmour: true } },
+  sisters: { name: { zh: '寂靜修女', en: 'Sisters of Silence' }, ids: ['ssProsecutor', 'ssWitchseeker', 'ssVigilator'], max: 5, repeat: ['ssProsecutor', 'ssWitchseeker', 'ssVigilator'] },
+  scions: { name: { zh: '風暴兵', en: 'Tempestus Scions' }, ids: ['tsMedic', 'tsTrooper', 'tsVox', 'tsGunFlamer', 'tsGunGL', 'tsGunVolley', 'tsGunMelta', 'tsGunPlasma'], max: 5, repeat: ['tsTrooper'], gunners: 2 },
+};
+const iaFF = (id, zh, en, dzh, den) => ({ id, cp: 1, name: { zh, en }, desc: { zh: dzh, en: den } }); // (ff() isn't defined yet here)
+const ssNull = { psychicNull: true, nullRodAura: true };
+const IA_NEW = [
+  op('ssProsecutor', '寂靜修女：檢察官', 'Sister of Silence Prosecutor', { apl: 2, move: 6, save: 3, wounds: 8, base: 32, ...ssNull, rqGroup: 'sisters' }, [ssBoltgun, ssGunButt], 0),
+  op('ssWitchseeker', '寂靜修女：獵巫者', 'Sister of Silence Witchseeker', { apl: 2, move: 6, save: 3, wounds: 8, base: 32, ...ssNull, rqGroup: 'sisters' }, [ssFlamer, ssGunButt], 0),
+  op('ssVigilator', '寂靜修女：守夜者', 'Sister of Silence Vigilator', { apl: 2, move: 6, save: 3, wounds: 8, base: 32, ...ssNull, rqGroup: 'sisters' }, [ssGreatblade], 0),
+  op('tsMedic', '風暴兵：醫護兵', 'Tempestus Scion Medic', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, medic: true, medikit: true, rqGroup: 'scions' }, [tsHotshot, tsGunButt]),
+  op('tsTrooper', '風暴兵：士兵', 'Tempestus Scion Trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, adaptive: true, rqGroup: 'scions' }, [tsHotshot, tsGunButt]),
+  op('tsVox', '風暴兵：通訊兵', 'Tempestus Scion Vox-operator', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, signalAny: true, rqGroup: 'scions' }, [tsHotshot, tsGunButt]),
+  op('tsGunPlasma', '風暴兵：槍手（電漿槍）', 'Tempestus Scion Gunner (plasma gun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, rqGroup: 'scions', tsGunner: true }, [tsPlasmaStd, tsPlasmaSup, tsGunButt]),
+  op('tsGunMelta', '風暴兵：槍手（熱熔槍）', 'Tempestus Scion Gunner (meltagun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, rqGroup: 'scions', tsGunner: true }, [tsMelta, tsGunButt]),
+  op('tsGunFlamer', '風暴兵：槍手（噴火器）', 'Tempestus Scion Gunner (flamer)', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, rqGroup: 'scions', tsGunner: true }, [tsFlamer, tsGunButt], 0),
+  op('tsGunGL', '風暴兵：槍手（榴彈發射器）', 'Tempestus Scion Gunner (grenade launcher)', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, rqGroup: 'scions', tsGunner: true }, [tsGLFrag, tsGLKrak, tsGunButt], 0),
+  op('tsGunVolley', '風暴兵：槍手（熱射齊射槍）', 'Tempestus Scion Gunner (hot-shot volley gun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, rqGroup: 'scions', tsGunner: true }, [tsVolleyF, tsVolleyS, tsGunButt], 0),
+];
+const iaCopies = Object.entries(IA_GROUPS).filter(([, gr]) => gr.from).flatMap(([gid, gr]) => {
+  const src = TEAMS.find((t) => t.id === gr.from);
+  return gr.ids.map((id) => {
+    const t = src.ops.find((o) => o.id === id);
+    const zh = `${gr.name.zh.replace(/（.*）/, '')}：${t.name.zh}`;
+    return { ...t, id: `rq_${gid}_${id}`, name: { zh, en: `${gr.name.en} ${t.name.en}` }, count: 0, rqGroup: gid, rqFrom: id, ...(gr.extra || {}) };
+  });
+});
+export const IA_AGENT_IDS = ['iaAutosavant', 'iaQuestkeeper', 'iaDWVeteran', 'iaEnlightener', 'iaHexorcist', 'iaMystic', 'iaPenal', 'iaPistolier', 'iaServitorHB', 'iaServitorMM', 'iaServitorPC'];
+const IA_FLEX = [...IA_AGENT_IDS, ...IA_NEW.map((o) => o.id), ...iaCopies.map((o) => o.id)];
+const servitor = (id, zh, en, ws) => op(id, `徵用槍械僕從（${zh}）`, `Requisitioned Gun Servitor (${en})`, { apl: 1, move: 5, save: 4, wounds: 11, base: 32, lobotomised: true, gunServitor: true }, [...ws, iaServoClaw], 0);
+TEAMS.push({
+  id: 'inquisitorialAgents',
+  name: { zh: '異端審判庭特務', en: 'Inquisitorial Agents' },
+  color: '#8c1c2c',
+  style: { zh: '混合隊・徵用・審判', en: 'Mixed · Requisition · Inquisition' },
+  blurb: {
+    zh: '審判官的爪牙：審問官、典籍骷髏與五名特務，再從帝國的一支部隊徵用最多五名人手（克里格、警察、卡舍津、寂靜修女、風暴兵或海軍破襲隊）。',
+    en: 'An Inquisitor\'s agents: an Interrogator, a Tome-skull and five agents, with up to five more requisitioned from one Imperial force (Death Korps, Exaction Squad, Kasrkin, Sisters of Silence, Tempestus Scions or Navy Breachers).',
+  },
+  // Collector notes supplied by the player.
+  info: {
+    archetypes: [{ zh: '四種皆可', en: 'Any' }],
+    kind: { zh: '混合隊', en: 'Mixed' },
+    oneBox: { zh: '不能，需要多買一盒，或和其他單位（卡舍津、警察）一起成軍', en: 'No — buy another box, or field them with other units (Kasrkin, Exaction Squad)' },
+    buyable: { zh: '能', en: 'Yes' },
+    size: { zh: '7 名特工＋最多 5 名徵用人員', en: '7 operatives + up to 5 requisitioned' },
+  },
+  inquisition: true,
+  perCopyRoster: true,
+  rule: {
+    name: { zh: '審判庭徵用與審判典籍', en: 'Inquisitorial Requisition & Tomes' },
+    desc: {
+      zh: '後五個名額可以改從一支部隊徵用（死亡軍團最多 3 名、卡舍津最多 2 名、其他最多 5 名；不能混用不同部隊）。徵用人員保留資料卡能力，但失去原本的陣營規則（警察保留冷酷效率、海軍保留虛空護甲）。審判典籍（自動）：審問官有「譴責」——友方攻擊在它 2" 內的敵人時 Atk +1；典籍骷髏有「聖化」——敵人攻擊在它 2" 內的友方時 Atk -1。',
+      en: 'The last five slots can instead be requisitioned from one force (Death Korps at most 3, Kasrkin at most 2, others 5; never mixing forces). Requisitioned operatives keep their datacard abilities but lose their own faction rules (Exaction Squad keeps Ruthless Efficiency, Navy Breachers Void Armour). Inquisitorial Tomes (automatic): the Interrogator has Denunciation — friendlies attacking an enemy within 2" of it get +1 Atk; the Tome-skull has Sanctification — enemies attacking a friendly within 2" of it get -1 Atk.',
+    },
+  },
+  ploys: [
+    { id: 'denounce', cp: 1, name: { zh: '揭發', en: 'Denounce' },
+      desc: { zh: '選一名敵人（自動：APL 與生命最高的）並擲 D3：本回合它要等到最後才能啟動，或對手已啟動 D3 名特工後。每多用一次多花 1CP。', en: 'Pick an enemy (automatic: the highest APL and wounds) and roll a D3: this TP it can\'t activate until it\'s the last one, or until your opponent has activated that many operatives. Costs 1CP more each time it was used before.' } },
+    { id: 'intenseScrutiny', cp: 1, name: { zh: '嚴密審查', en: 'Intense Scrutiny' },
+      desc: { zh: '本回合友方選目標時，4" 內（而非 2"）的敵人不能算在掩體中（掩體豁免照常）。', en: 'This TP, when a friendly selects a valid target, enemies within 4" (instead of 2") can\'t be in cover (cover saves still apply).' } },
+    { id: 'quarry', cp: 1, name: { zh: '獵物', en: 'Quarry' },
+      desc: { zh: '選一名敵人當獵物（自動：最強的）：友方攻擊它時武器「無休」；它殘廢時換一名新的獵物。', en: 'Pick an enemy as your quarry (automatic: the strongest): friendlies attacking it have Ceaseless; when it\'s incapacitated, pick a new one.' } },
+    { id: 'irrefutableJurisdiction', cp: 1, name: { zh: '不容置疑的管轄', en: 'Irrefutable Jurisdiction' },
+      desc: { zh: '本回合 3" 內有目標點的友方被射擊時可重擲一顆防禦骰；爭奪該目標點時改為重擲同一種點數的骰子。', en: 'This TP, a friendly within 3" of an objective being shot re-rolls one defence die; contesting it, any defence dice of one result instead.' } },
+  ],
+  // Five agents, then five agents or requisitioned operatives from one group.
+  replacements: Object.fromEntries([
+    ...['iaQuestkeeper', 'iaDWVeteran', 'iaEnlightener', 'iaHexorcist', 'iaMystic'].map((id) => [id, [id, ...IA_AGENT_IDS.filter((x) => x !== id)]]),
+    ...['tsMedic', 'tsTrooper', 'tsVox', 'tsGunPlasma', 'tsGunMelta'].map((id) => [id, [id, ...IA_FLEX.filter((x) => x !== id)]]),
+  ]),
+  ops: [
+    op('iaInterrogator', '審問官', 'Interrogator Agent', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, iaLeader: true, tome: 'denunciation', groupAct: 'iaTome' }, [iaRelicPistol, iaFists]),
+    op('iaTomeSkull', '典籍骷髏', 'Tome-skull', { apl: 2, move: 6, save: 5, wounds: 5, base: 25, tome: 'sanctification', machine: true, expendable: true, small: true, noRetaliate: true, groupAct: 'iaTome', actionsOnly: ['charge', 'dash', 'fallBack', 'reposition'] }, [noWeapon]),
+    op('iaAutosavant', '自動學者', 'Autosavant Agent', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, scrivener: true, irrefutable: true }, [iaAppendages], 0),
+    op('iaQuestkeeper', '尋道騎士', 'Questkeeper Agent', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, irrepressible: true, iaZealot: true }, [iaAutopistol, iaEviscerator]),
+    op('iaDWVeteran', '死亡世界老兵', 'Death World Veteran Agent', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, concealCharge: true, weathered: true }, [iaAutopistol, iaKnife, iaPolearm]),
+    op('iaEnlightener', '啟蒙者', 'Enlightener Agent', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, noEscape: true, extractInfo: true }, [iaAutopistol, iaPairedBlades]),
+    op('iaHexorcist', '驅魔者', 'Hexorcist Agent', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, hexorcise: true }, [iaShotgun, iaFists]),
+    op('iaMystic', '神秘者', 'Mystic Agent', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, psyker: true, controlPlus: true, scry: true }, [iaSeekPistol, iaMysticFists]),
+    op('iaPenal', '罪罰軍團兵', 'Penal Legionnaire Agent', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, chemEnhanced: true, cruel: true }, [iaHandFlamer, iaChainsword], 0),
+    op('iaPistolier', '神槍手', 'Pistolier Agent', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, iaBarrage: true }, [iaPlasmaStd, iaPlasmaSup, iaSuppressed, iaFists], 0),
+    servitor('iaServitorHB', '重型爆彈槍', 'heavy bolter', [iaHBFocus, iaHBSweep]),
+    servitor('iaServitorMM', '多管熱熔', 'multi-melta', [iaMultiMelta]),
+    servitor('iaServitorPC', '電漿砲', 'plasma cannon', [iaPCStd, iaPCSup]),
+    ...IA_NEW,
+    ...iaCopies,
+  ],
+  firefight: [
+    iaFF('absoluteAuthority', '絕對權威', 'Absolute Authority', '自動：對手使用策略計謀（花 CP 的）時，取消它並退回 CP，對手本回合不能再用；同一個計謀整場只能擋一次。（交戰計謀不攔截）', 'Auto: when your opponent uses a strategy ploy that costs CP, it isn\'t used, the CP is refunded and they can\'t use it again this TP; the same ploy can only be stopped once per battle. (Firefight ploys aren\'t intercepted.)'),
+    iaFF('relentlessPursuit', '窮追不捨', 'Relentless in Pursuit', '自動：準備中友方 2" 內的敵人移動後，那名友方免費衝鋒到它控制範圍內，衝不到就免費移動到它 2" 內。', 'Auto: when an enemy within 2" of a ready friendly moves, that friendly makes a free Charge into its control range, or failing that a free Reposition to within 2" of it.'),
+    iaFF('emperorsWill', '帝皇的意志', 'The Emperor\'s Will', '友方啟動時：本次啟動無視它的屬性變化（APL 與命中）。', 'When a friendly is activated: ignore changes to its stats (APL and Hit) this activation.'),
+    iaFF('intimidatingPresence', '威嚇', 'Intimidating Presence', '自動：友方 3" 內（神秘者 6" 內）看得到的敵人撿標記或做任務動作時，要多花 1AP。', 'Auto: an enemy visible within 3" of a friendly (6" of the Mystic) picking up a marker or performing a mission action spends 1 more AP.'),
+  ],
+});
 
 // ---- NPOs (non-player operatives) used by mission packs; not selectable as a kill team ----
 const enormousClaws = W('enormousClaws', '巨爪', 'Enormous claws', 'melee', 5, 3, 4, 5, { brutal: true, ceaseless: true, rending: true });
@@ -1887,6 +2375,34 @@ const FIREFIGHT = {
     ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
     ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
   ],
+  exoditeDragonMasters: [
+    ff('leap', '躍起', 'Leap', '騎乘者疾馳時改為直接放到 1" 內的位置（算移動 3"，速度變 3-）。', 'A rider Sprinting is set up within 1" instead (counts as 3" moved; SPEED 3-).'),
+    ff('feralHunger', '野性飢渴', 'Feral Hunger', '用（龍駒）尖牙利爪近戰已受傷的敵人：可重擲任意攻擊骰。', 'Fighting a wounded enemy with (drakesteed) fangs & talons: re-roll any attack dice.'),
+    ff('survivalistSpirit', '生存者之魂', 'Survivalist Spirit', '騎乘者啟動或反擊中：直到它下次啟動，武器不受重傷影響。', 'During a rider\'s activation or counteraction: until its next activation, its weapons ignore being injured.'),
+  ],
+  goremongers: [
+    ff('destructiveDemise', '毀滅性死亡', 'Destructive Demise', '自動：友方殘廢時，對它控制範圍內一名敵人造成傷害：血槽空 D3、半 D3+1、滿 D3+2。', 'Auto: when a friendly is incapacitated, damage to an enemy in its control range: D3 with an empty GORE TANK, D3+1 half, D3+2 full.'),
+    ff('lacerateFlesh', '割裂血肉', 'Lacerate Flesh', '血槽空的友方啟動或反擊時：血槽 +1；這次結束時再 -1（不能拿來發動血之精華），扣不了就受到 D3 傷害。', 'When a friendly with an empty GORE TANK activates or counteracts: increase it; at the end, decrease it (not to use a SANGUAVITAE) — if you can\'t, it takes D3 damage.'),
+    ff('unbridledAggression', '無拘侵略', 'Unbridled Aggression', '本次啟動衝鋒過的友方近戰：這次序列近戰武器「嚴厲」。', 'A friendly fighting in an activation it Charged: Severe on its melee weapons this sequence.'),
+    ff('gorethirst', '血渴', 'Gorethirst', '反擊時可以選一名隱蔽指令的友方：先改成交戰，這次反擊只能衝鋒、射擊或近戰。（選它反擊時自動使用）', 'When you counteract, you can pick a Concealed friendly: it changes to Engage first and can only Charge, Shoot or Fight during that counteraction. (Used automatically when you pick it.)'),
+  ],
+  hernkynYaegirs: [
+    ff('bondsThatBind', '同袍之誼', 'Bonds That Bind', '友方啟動時：它 3" 內看得到的另一名準備中友方，可以在它結束後接著啟動。', 'When a friendly is activated: another ready friendly visible within 3" of it can activate right after it.'),
+    ff('noKinLeft', '不留下任何同族', 'No Kin Left Behind', '自動：友方殘廢時在它的位置放下陣亡同族標記（只保留最新一個）。標記 3" 內的友方射擊、近戰或反擊時，一顆失敗骰改為普通成功（沒有失敗時一顆普通改為暴擊）。', 'Auto: when a friendly is incapacitated, the Fallen Kin marker is placed where it was (only the latest). Friendlies within 3" of it shooting, fighting or retaliating retain one fail as a normal success (or, with no fails, one normal as a critical).'),
+    ff('sturdy', '結實', 'Sturdy', '自動：友方被射擊時，攻擊方保留的暴擊改為普通成功。', 'Auto: when a friendly is shot, the attacker\'s retained crits become normal successes.'),
+    ff('stalwartDefence', '堅毅防守', 'Stalwart Defence', '自動：敵人衝鋒結束在友方控制範圍內時，那名友方 6" 內看得到、沒被纏住的另一名友方可以免費射擊那名敵人（不能用爆炸或範圍毀滅武器）。', 'Auto: when an enemy ends a Charge within a friendly\'s control range, another friendly visible within 6" of it and not engaged makes a free Shoot at that enemy (no Blast or x" Devastating weapons).'),
+  ],
+  elucidianStarstriders: [
+    ff('combinedArms', '聯合火力', 'Combined Arms', '射擊本回合已被其他友方射擊過的敵人：可重擲任意攻擊骰（艦砲除外）。', 'Shooting an enemy another friendly shot this TP: re-roll any attack dice (not support assets).'),
+    ff('survivalist', '生存專家', 'Survivalist', '友方啟動時（不在交戰中，每名整場一次）：回復 D3+2，本次啟動 APL 不受影響。', 'When a friendly is activated (not engaged, once per operative per battle): it regains D3+2 and ignores APL changes this activation.'),
+    ff('greatEndurance', '強大耐力', 'Great Endurance', '艦隊員啟動中：本次啟動 APL +1。', 'During a Navis operative\'s activation: +1 APL this activation.'),
+    ff('wellDrilled', '訓練有素', 'Well-Drilled', '艦隊員啟動時：3" 內看得到的另一名準備中艦隊員可以接著啟動。', 'When a Navis operative is activated: another ready Navis operative visible within 3" may activate right after it.'),
+  ],
+  chaosCult: [
+    ff('faithfulFollower', '忠實追隨者', 'Faithful Follower', '自動：黑暗聖會成員被選為射擊或近戰目標時，改由它 3" 內看得到的另一名友方（非聖會）承受（爆炸、洪流無效）。', 'Auto: when a Dark Commune operative is picked as a Shoot or Fight target, another friendly (not Dark Commune) visible within 3" becomes the target instead (not vs Blast/Torrent).'),
+    ff('frenziedDemise', '狂亂之死', 'Frenzied Demise', '自動：突變者或折磨者殘廢時，對 2" 內看得到的一名敵人造成 D3 傷害（折磨者 D6）。', 'Auto: when a Mutant or Torment is incapacitated, D3 damage (D6 for a Torment) to an enemy visible within 2".'),
+    ff('unleashDaemonCC', '釋放惡魔', 'Unleash the Daemon', '突變者或折磨者啟動中：本次可以近戰兩次，其中一次免費。', 'During a Mutant\'s or Torment\'s activation: it can perform two Fight actions, one of them free.'),
+  ],
   celestianInsidiants: [
     ff('unshakeablePursuit', '不屈追擊', 'Unshakeable Pursuit', '友方啟動中：本次啟動無視 Move 的變化；激勵中再 +1"。', 'During a friendly\'s activation: ignore changes to its Move this activation; +1" if it\'s inspiring.'),
     ff('ferventHate', '狂熱仇恨', 'Fervent Hate', '攻擊非帝國的敵人：這次序列武器「無休」；敵人是混沌或靈能者時改為「無情」。', 'Attacking a non-Imperium enemy: Ceaseless this sequence; Relentless instead against Chaos or a psyker.'),
@@ -1915,7 +2431,7 @@ const FIREFIGHT = {
     ff('capricious', '多變的計畫', 'Capricious Plan', '巫師啟動中：免費衝刺一次（之前做過什麼都可以）。', 'During a Sorcerer\'s activation: a free Dash, whatever it did before.'),
   ],
 };
-for (const t of TEAMS) t.firefight = FIREFIGHT[t.id] || [];
+for (const t of TEAMS) t.firefight = FIREFIGHT[t.id] || t.firefight || [];
 
 // Blades of Khaine Aspect Techniques: 0CP, used like firefight ploys but only by an operative of the matching Aspect.
 const tech = (aspect, id, zh, en, dzh, den) => ({ ...ff(id, zh, en, dzh, den), cp: 0, aspect, technique: true });
@@ -1936,6 +2452,7 @@ for (const t of TEAMS) t.techniques ||= [];
 export const TEAM_MAP = Object.fromEntries([...TEAMS, NPO_TEAM].map((t) => [t.id, t]));
 
 export const RULE_LABELS = {
+  soulstrike: { zh: '靈魂打擊（防禦骰 ≤ APL；1 暴擊）', en: 'Soulstrike (defence ≤ APL; 1 critical)' },
   range: { zh: '射程', en: 'Range' },
   piercing: { zh: '穿甲', en: 'Piercing' },
   piercingCrits: { zh: '暴擊穿甲', en: 'Piercing Crits' },

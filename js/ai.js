@@ -3,8 +3,13 @@ import {
   netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
+  isMounted, sprintCheck, doSprint, doTurn, enterFromReserve,
+  goreOf, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
+  resourceOptions, useResource,
 } from './game.js';
+import { isMandrake, doShadowPassage, shadowPassageCheck } from './mandrakes.js';
 import { isArchon, painOptions, usePain } from './archon.js';
+import { isDeathwatch, dwAmmoAvailable, dwAmmoWeapon } from './deathwatch.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx } from './path.js';
@@ -93,7 +98,7 @@ function pickGoal(g, op) {
 }
 
 function pathToward(g, op, kind, goal) {
-  const ctx = moveCtx(g, op);
+  const ctx = moveCtx(g, op, kind);
   const max = moveAllowance(g, op, kind);
   // Try the goal itself, then points around it.
   const tries = [goal];
@@ -133,7 +138,7 @@ const isEngagedNear = (g, e) => engagedEnemies(g, e).length > 0;
  * closer to the goal against how much enemy fire it would draw, with a bonus for ending within charge reach.
  */
 function safeMove(g, op, kind, goal, order) {
-  const ctx = moveCtx(g, op);
+  const ctx = moveCtx(g, op, kind);
   const max = moveAllowance(g, op, kind);
   const endOk = (q) => !ctx.inEnemyER(q);
   const reach = moveAllowance(g, op, 'charge') + 0.5; // next activation's Charge
@@ -164,8 +169,41 @@ function safeMove(g, op, kind, goal, order) {
   return best.path && best.path.len >= 0.3 ? best.path : null;
 }
 
+/**
+ * Exodite riders: where to Sprint (straight forwards up to 9" or back up to 3", after pivoting 45° at most).
+ * Each candidate is scored by progress towards the goal, the best shot or fight it would have there, the SPEED
+ * it would end with and the fire it would draw; staying put must be clearly worse.
+ */
+function sprintSpot(g, op) {
+  const goal = pickGoal(g, op);
+  const melee = prefersMelee(op);
+  const at = (p, fn) => { const k = { x: op.x, y: op.y }; op.x = p.x; op.y = p.y; try { return fn(); } finally { op.x = k.x; op.y = k.y; } };
+  const score = (p, inches, back) => at(p, () => {
+    const prog = goal ? dist(op, goal) - dist(p, goal) : 0;
+    const eng = engagedEnemies(g, op).length;
+    const shot = op.ap >= 1 ? shootOptions(g, op)[0]?.score || 0 : 0;
+    const speed = back ? 0 : inches >= 7 ? 2 : inches >= 4 ? 1 : 0;
+    return prog * 0.3 + (melee && eng ? 6 : 0) + (melee ? 0 : shot) + speed - Math.min(4, exposure(g, op, p, op.order) * (melee && eng ? 0.3 : 1));
+  });
+  const fa = op.facing || 0;
+  let best = { p: null, s: score(op, 0, false) + 0.5 };
+  for (const back of [false, true]) {
+    for (let k = -3; k <= 3; k++) {
+      const a = fa + (back ? Math.PI : 0) + k * Math.PI / 12;
+      for (let d = 1; d <= (back ? 3 : 9); d++) {
+        const p = { x: op.x + Math.cos(a) * d, y: op.y + Math.sin(a) * d };
+        const c = sprintCheck(g, op, p);
+        if (!c.ok) continue;
+        const s = score(p, c.inches, back);
+        if (s > best.s) best = { p, s };
+      }
+    }
+  }
+  return best.p;
+}
+
 function chargePath(g, op, among = foes(g, op)) {
-  const ctx = moveCtx(g, op);
+  const ctx = moveCtx(g, op, 'charge');
   const max = moveAllowance(g, op, 'charge');
   const r = radius(op);
   let best = null;
@@ -266,6 +304,7 @@ function aiButtonPloys(g, op) {
     }
     if (ok.capricious && !shootOptions(g, op).length) return use('capricious');
     if (ok.wrathVengeance && (engagedEnemies(g, op).length || shootOptions(g, op).length)) return use('wrathVengeance');
+    if (ok.bondsThatBind) return use('bondsThatBind'); // (Hernkyn Yaegirs)
   }
   if (ok.virulentPoison) return use('virulentPoison');
   if (ok.frighteningOnslaught) return use('frighteningOnslaught');
@@ -279,11 +318,15 @@ function aiButtonPloys(g, op) {
 const count1 = (op, k) => op.acted?.[k] || 0;
 /** Tick the attack ploys that apply to this Shoot / Fight (they're paid when it's resolved). */
 function aiPloysFor(g, op, decl) {
+  if (isDeathwatch(op) && decl.kind === 'shoot' && dwAmmoWeapon(decl.weapon) && !op.acted.dwAmmoPick) {
+    const id = ['piercingCrits', 'devastating', 'severe', 'lethal', 'saturate'].find((id) => dwAmmoAvailable(g, op, id) && !decl.weapon.rules[id]);
+    if (id) doSelfAction(g, op, `dwAmmo_${id}`);
+  }
   // Free ones first (Blades of Khaine Aspect Techniques): one per activation, so take the first that fits.
   const free = ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target).find((o) => o.ok && o.cp === 0);
-  if (free && !free.on && !g.ffPending?.ids.some((id) => ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target).find((x) => x.id === id && x.cp === 0))) ffToggle(g, op, free.id);
+  if (free && !free.on && !g.ffPending?.ids.some((id) => ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target).find((x) => x.id === id && x.cp === 0))) ffToggle(g, op, free.id, decl.target);
   if (g.cp[op.side] >= 2) {
-    for (const o of ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target)) if (o.ok && !o.on && g.cp[op.side] - (g.ffPending?.ids.length || 0) >= 2) ffToggle(g, op, o.id);
+    for (const o of ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target)) if (o.ok && !o.on && g.cp[op.side] - (g.ffPending?.ids.length || 0) >= 2) ffToggle(g, op, o.id, decl.target);
   }
   return decl;
 }
@@ -314,6 +357,7 @@ export function aiStep(g) {
     const score = (o) => (engagedEnemies(g, o).length ? 10 : 0) + (shootOptions(g, o)[0]?.score || 0) + urgent(o) + Math.random();
     op = ready.sort((a, b) => score(b) - score(a))[0];
     activate(g, op);
+    if (g.active !== op.uid) return null; // Mandrake activation interruption
     // Melee operatives stay Concealed while closing in, and only go Engage when they can Charge or fight now.
     const melee = prefersMelee(op) && !op.frenzy;
     op.order = melee && !engagedEnemies(g, op).length && !chargePath(g, op) && g.tp < 4 ? 'conceal' : 'engage';
@@ -322,9 +366,106 @@ export function aiStep(g) {
   if (op.dead) { endActivation(g); return null; }
   if (isArchon(op)) { const opts = painOptions(g, op); const id = opts.includes('painHeal') && op.maxW - op.wounds >= 3 ? 'painHeal' : opts.includes('darkAnimus') ? 'darkAnimus' : null; if (id) { usePain(g, op, id); return null; } }
   if (aiButtonPloys(g, op)) return null;
+  // Exodite riders in reserve come in along the killzone edge nearest to where they want to go.
+  if (op.reserve) {
+    const goal = pickGoal(g, op) || foes(g, op)[0] || { x: 15, y: 11 };
+    const along = g.axis === 'y' ? 'x' : 'y';
+    const tries = [0, 2, -2, 4, -4, 6, -6, 9, -9].map((d) => ({ x: goal.x, y: goal.y, [along]: goal[along] + d }));
+    if (!(op.ap > 0 && tries.some((p) => enterFromReserve(g, op, p)))) endActivation(g);
+    return null;
+  }
   const can = Object.fromEntries(availableActions(g, op).map((a) => [a.id, a.ok]));
+  if (op.team === 'murderwing') {
+    if (can.mwCarving && foes(g, op).filter((t) => edgeDist(op, t) <= 2 && visibility(g, op, t).visible).length >= 2 && !living(g, op.side).some((t) => t !== op && edgeDist(op, t) <= 2)) { doSelfAction(g, op, 'mwCarving'); return null; }
+    if (can.mwShriek && op.ap >= 2) { const t = TARGET_ACTIONS.mwShriek.targets(g, op).sort((a,b) => a.wounds-b.wounds)[0]; if(t) { doTargetAction(g, op, 'mwShriek', t); return null; } }
+    if (can.mwVox && foes(g, op).filter((t) => edgeDist(op, t) <= 2).length >= 2) { doSelfAction(g, op, 'mwVox'); return null; }
+  }
+  if (isMandrake(op)) {
+    const soul = can.mdSoulHeal && op.maxW - op.wounds >= 4 ? 'mdSoulHeal' : can.mdSoulApl ? 'mdSoulApl' : null;
+    if (soul) { doSelfAction(g, op, soul); return null; }
+    if (can.mdWreathe && op.ap >= 2) {
+      const t = TARGET_ACTIONS.mdWreathe.targets(g, op).filter((x) => x.side !== op.side).sort((a, b) => edgeDist(op, a) - edgeDist(op, b))[0];
+      if (t) { doTargetAction(g, op, 'mdWreathe', t); return null; }
+    }
+    if (can.mdProject && op.ap >= 2) {
+      const t = TARGET_ACTIONS.mdProject.targets(g, op).sort((a, b) => edgeDist(op, a) - edgeDist(op, b))[0];
+      if (t) { doTargetAction(g, op, 'mdProject', t); return null; }
+    }
+    if (can.mdPass && !shootOptions(g, op).length && !engagedEnemies(g, op).length) {
+      const goal = pickGoal(g, op);
+      if (goal) {
+        const choices = [];
+        for (const m of g.terrain.filter((t) => t.kind === 'heavy')) for (const p of [{ x: m.x - 1, y: m.y + m.h / 2 }, { x: m.x + m.w + 1, y: m.y + m.h / 2 }, { x: m.x + m.w / 2, y: m.y - 1 }, { x: m.x + m.w / 2, y: m.y + m.h + 1 }]) {
+          if (dist(p, goal) + 3 < dist(op, goal) && shadowPassageCheck(g, op, p).ok) choices.push(p);
+        }
+        choices.sort((a, b) => dist(a, goal) - dist(b, goal));
+        if (choices.length && doShadowPassage(g, op, choices[0])) return null;
+      }
+    }
+  }
+
+  if (can.songOne) {
+    const t = TARGET_ACTIONS.songOne.targets(g, op).filter((o) => o.maxW - o.wounds >= 5).sort((a, b) => (b.maxW - b.wounds) - (a.maxW - a.wounds))[0];
+    const hurt = living(g, op.side).filter((o) => !o.reserve && o.maxW - o.wounds >= 2).length;
+    if (can.songAll && hurt >= 3 && !(t && t.maxW - t.wounds >= 8)) { doSelfAction(g, op, 'songAll'); return null; }
+    if (t) { doTargetAction(g, op, 'songOne', t); return null; }
+  }
+  if (can.cleansing) { const t = TARGET_ACTIONS.cleansing.targets(g, op)[0]; if (t) { doTargetAction(g, op, 'cleansing', t); return null; } }
+  if (can.wails && op.ap >= 2) {
+    const crowd = (t) => foes(g, op).filter((e) => !tpl(e).mounted && edgeDist(e, t) <= 2).length;
+    const t = TARGET_ACTIONS.wails.targets(g, op).filter((e) => !tpl(e).mounted).sort((a, b) => crowd(b) - crowd(a))[0];
+    if (t) { doTargetAction(g, op, 'wails', t); return null; }
+  }
+  if (can.windsGrace && op.ap >= 2) {
+    const t = TARGET_ACTIONS.windsGrace.targets(g, op).filter((o) => isMounted(o) && (o === op || o.ready)).sort((a, b) => (a === op) - (b === op))[0];
+    if (t) { doTargetAction(g, op, 'windsGrace', t); return null; }
+  }
+  // Goremongers: Bleeding tokens and Khorne's Favour fill the tank; Sanguavitae before fighting / charging;
+  // Transfusion to an empty melee friendly; Gore-fuel and Dash and Spray before shooting.
+  if (goreOf(op) != null) {
+    const sang = Object.fromEntries(sangOptions(g, op).map((o) => [o.id, o.ok]));
+    const bl = bleedTargets(g, op);
+    if (bl.length) { useBleed(g, op, bl[0]); return null; }
+    if (canFavour(g, op)) { useFavour(g, op); return null; }
+    if (sang.rejuvenate && op.wounds <= op.maxW / 2 && op.maxW - op.wounds >= 4) { useSang(g, op, 'rejuvenate'); return null; }
+    const engagedNow = engagedEnemies(g, op).length > 0;
+    if (engagedNow && can.fight && !count1(op, 'fight')) {
+      if (sang.fury && op.ap >= 1) { useSang(g, op, 'fury'); return null; }
+      if (sang.rage) { useSang(g, op, 'rage'); return null; }
+    }
+    if (!engagedNow && can.charge && prefersMelee(op) && sang.rake && goreOf(op) === 2 && chargePath(g, op)) { useSang(g, op, 'rake'); return null; }
+    if (sang.mania && goreOf(op) === 2 && !prefersMelee(op) && !(op.acted.sang || []).length) { useSang(g, op, 'mania'); return null; }
+    if (can.transfusion) {
+      const t = TARGET_ACTIONS.transfusion.targets(g, op).filter((o) => goreOf(o) === 0 && prefersMelee(o)).sort((a, b) => dist(op, a) - dist(op, b))[0];
+      if (t) { doTargetAction(g, op, 'transfusion', t); return null; }
+    }
+    if (can.goreFuel && goreOf(op) === 2 && op.ap >= 2 && shootOptions(g, op).some((s) => s.w.group === 'gmSkewer')) { doSelfAction(g, op, 'goreFuel'); return null; }
+    if (can.dashSpray && shootOptions(g, op).some((s) => s.w.id === 'gmDualF')) { doSelfAction(g, op, 'dashSpray'); return null; }
+  }
+  // Hernkyn Yaegirs: Resourceful points — heal a hurt operative when it activates, else +1 APL when it has something to do.
+  {
+    const ro = resourceOptions(g, op).map((o) => o.id);
+    if (ro.includes('heal') && op.maxW - op.wounds >= 3) { useResource(g, op, 'heal'); return null; }
+    if (ro.includes('apl') && op.ap >= 1 && (shootOptions(g, op).length || pickGoal(g, op))) { useResource(g, op, 'apl'); return null; }
+  }
+  // Sprint (free) to a better spot first: towards the goal, into a fight or a shot, as fast as it can.
+  if (can.edSprint) {
+    const p = sprintSpot(g, op);
+    if (p && doSprint(g, op, p)) return null;
+  }
+  // Turn (1AP) when the goal lies outside its forward 45° and there's nothing to attack.
+  if (can.edTurn && isMounted(op) && op.ap >= 2 && !engagedEnemies(g, op).length && !shootOptions(g, op).length) {
+    const goal = pickGoal(g, op);
+    if (goal) {
+      let rel = Math.atan2(goal.y - op.y, goal.x - op.x) - (op.facing || 0);
+      while (rel > Math.PI) rel -= 2 * Math.PI; while (rel < -Math.PI) rel += 2 * Math.PI;
+      if (Math.abs(rel) > Math.PI / 4 + 0.05) { doTurn(g, op, goal); return null; }
+    }
+  }
 
   if (can.pistolBarrage && shootOptions(g, op).length) { doSelfAction(g, op, 'pistolBarrage'); return null; }
+  if (can.dwCuffsHeal && op.maxW - op.wounds >= 2) { doSelfAction(g, op, 'dwCuffsHeal'); return null; }
+  if (can.dwThrallUse && engagedEnemies(g, op).length && missionActionsFor(g, op.side).some((id) => !can[id])) { doSelfAction(g, op, 'dwThrallUse'); return null; }
   for (const id of ['soulHeal', 'soulChannel', 'wardingShield', 'tormentGrenade', 'drugHeal']) if (can[id]) { const t = TARGET_ACTIONS[id].targets(g, op)[0]; if (t) { doTargetAction(g, op, id, t); return null; } }
   // Mission actions and markers first: they score.
   for (const id of missionActionsFor(g, op.side)) if (can[id]) { doMissionAction(g, op, id); return null; }
@@ -487,6 +628,29 @@ export function aiStep(g) {
     if (t) { doTargetAction(g, op, 'omniscanner', t); return null; }
   }
   if (can.datacoronal && (op.ap >= 2 || !shootOptions(g, op).length) && g.objectives.filter((m) => living(g, op.side).some((o) => dist(o, m) <= 2)).length >= 2) { doSelfAction(g, op, 'datacoronal'); return null; }
+  // Elucidian Starstriders: Calibrate Voltagheist — Charge when about to shoot, Field when enemies are close.
+  if (can.calibCharge && shootOptions(g, op).some((s) => s.w.id === 'esVoltaic')) { doSelfAction(g, op, 'calibCharge'); return null; }
+  if (can.calibField && foes(g, op).some((e) => edgeDist(op, e) <= 8)) { doSelfAction(g, op, 'calibField'); return null; }
+  // Chaos Cult: Incite Slaughter an engaged cultist, Ruinous Icon (Deterioration near enemies, else Invigoration),
+  // Heinous Deluge the strongest ready enemy, Malefic Vortex where the most enemies stand together.
+  if (can.inciteSlaughter) {
+    const t = TARGET_ACTIONS.inciteSlaughter.targets(g, op).sort((a, b) => avgDmg(bestMelee(b)) - avgDmg(bestMelee(a)))[0];
+    if (t) { doTargetAction(g, op, 'inciteSlaughter', t); return null; }
+  }
+  if ((can.ruinousDeter || can.ruinousInvig) && op.ap >= 1) {
+    const enemiesNear = foes(g, op).filter((e) => edgeDist(op, e) <= 4).length, friendsNear = living(g, op.side).filter((f) => f !== op && edgeDist(op, f) <= 4 && foes(g, f).some((e) => edgeDist(f, e) <= 8)).length;
+    if (enemiesNear && can.ruinousDeter) { doSelfAction(g, op, 'ruinousDeter'); return null; }
+    if (friendsNear >= 2 && can.ruinousInvig) { doSelfAction(g, op, 'ruinousInvig'); return null; }
+  }
+  if (can.heinousDeluge && (op.ap >= 2 || !shootOptions(g, op).length)) {
+    const t = TARGET_ACTIONS.heinousDeluge.targets(g, op).filter((e) => e.ready).sort((a, b) => tpl(b).apl - tpl(a).apl || b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'heinousDeluge', t); return null; }
+  }
+  if (can.maleficVortex) {
+    const crowd = (t) => foes(g, op).filter((e) => dist(e, t) - radius(e) <= 2).length;
+    const t = TARGET_ACTIONS.maleficVortex.targets(g, op).sort((a, b) => crowd(b) - crowd(a))[0];
+    if (t && (crowd(t) >= 2 || !shootOptions(g, op).length)) { doTargetAction(g, op, 'maleficVortex', t); return null; }
+  }
   // Celestian Insidiants: Spiritual Mentor the best fighter near the enemy, Nullifying Ritual when enemies are close,
   // Speak of Her Deeds onto a hurt sister.
   if (can.spiritualMentor) {
