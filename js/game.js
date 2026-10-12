@@ -9,10 +9,10 @@ import { isCorsair, setupCorsair, corsairActivate, corsairCost, corsairSpend, co
 import { isArchon, setupArchon, archonWeapons, archonReady, archonActivate, archonRules, archonDefence, archonBeforeAttack, archonAfterAction, painSnapshot, archonDeath, stingerBurst, chainSnare, painRerollValues, painReroll, aiPain, gainPain } from './archon.js';
 
 import { TEAM_MAP, isBoltWeapon, BK_SHRIEK, ES_ASSETS } from './data/teams.js';
-import { MISSIONS, MISSION_ACTIONS, TAC_OPS, npoTargetFor, tacOnKill, tacOnTPEnd, tacOnBattleEnd, tacOnStrategyEnd } from './missions.js';
+import { MISSIONS, MISSION_ACTIONS, TAC_OPS, npoTargetFor, tacOnKill, tacOnTPEnd, tacOnBattleEnd, tacOnStrategyEnd, scoutTargets } from './missions.js';
 import { dist, distPointRect, segRect } from './geometry.js';
 import { flatSight } from './sight.js';
-import { moveCtx, findPath } from './path.js'; // (Exodite Sprint, Goremonger Hunt for Blood; path.js imports this module too — only used at run time)
+import { moveCtx, findPath, wholeInchPath } from './path.js'; // (Exodite Sprint, Goremonger Hunt for Blood; path.js imports this module too — only used at run time)
 
 export const BOARD = { w: 30, h: 22 };
 export const ER = 1;          // engagement range (inches, base edge to base edge)
@@ -223,6 +223,10 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   g.dep = { turn: first, batch: [], size: [0, 1].map((s) => Math.ceil(g.ops.filter((o) => o.side === s).length / 3)), done: false };
   g.dep.need = depNeed(g, first);
   log(g, { zh: `部署擲骰 ${r0} : ${r1} → ${teamZh(g, first)} 先部署；雙方輪流每次部署隊伍的 1/3（無條件進位）`, en: `Deployment roll ${r0} : ${r1} → ${team(g, first).name.en} sets up first; players alternate setting up a third of their team (rounded up)` }, 'tp');
+  // Initiative cards (house rules): the loser of this roll-off gets the Re-roll card.
+  g.initCards = [[], []];
+  g.initCards[1 - first].push('reroll');
+  log(g, { zh: `${teamZh(g, 1 - first)} 擲輸，獲得「重擲」先攻卡（之後的先攻階段可用一次）`, en: `${team(g, 1 - first).name.en} lost the roll-off and gains the Re-roll initiative card (usable once in a later Initiative phase)` }, `side${1 - first}`);
   for (const side of [0, 1]) {
     if (!g.tactics[side]) continue;
     const names = g.tactics[side].map((id) => team(g, side).tactics.find((t) => t.id === id).name);
@@ -330,13 +334,16 @@ const inMarkerRange = (op, m) => dist(op, m) - radius(op) - OBJ_R <= CONTROL + 0
 export const carriables = (g) => [...(g.markers || []), ...(mission(g).carryObjectives ? g.objectives : [])];
 /** Can op pick this marker up (whatever the distance)? */
 export function canPickUpMarker(g, op, m) {
-  if (m.kind === 'retrieval') return m.owner === op.side; // Retrieval tac op
+  if (m.kind === 'retrieval' || m.kind === 'intel') return m.owner === op.side; // Retrieval / Steal Intelligence tac ops
+  if (m.kind === 'banner') return true; // Plant Banner tac op: either side
   if (g.objectives.includes(m)) return !!mission(g).carryObjectives && !!mission(g).canPickUpObjective?.(g, op, m);
   return !!mission(g).canPickUp?.(g, op, m);
 }
 export function pickUpTargets(g, op) {
   const m = mission(g);
-  const carried = carriables(g).filter((x) => x.carriedBy === op.uid).length;
+  // (Steal Intelligence: the first Intelligence marker the operative carries is ignored for this.)
+  const held = carriables(g).filter((x) => x.carriedBy === op.uid);
+  const carried = held.length - (held.some((x) => x.kind === 'intel') ? 1 : 0);
   if (carried >= (m.carryCap?.(g, op) ?? 1)) return [];
   return carriables(g).filter((x) => !x.carriedBy && canPickUpMarker(g, op, x) && inMarkerRange(op, x) && controller(g, x) === op.side);
 }
@@ -359,7 +366,9 @@ export function addVP(g, side, n, kind, msg) {
   log(g, { zh: `${teamZh(g, side)} ${msg.zh}（+${n} VP）`, en: `${team(g, side).name.en} ${msg.en} (+${n}VP)` }, 'tp');
 }
 export function doPickUp(g, op) {
-  const mk = pickUpTargets(g, op).sort((a, b) => dist(op, a) - dist(op, b))[0];
+  // (Its own planted Banner last: it only scores on the killzone floor.)
+  const ownBanner = (m) => (m.kind === 'banner' && m.owner === op.side ? 1 : 0);
+  const mk = pickUpTargets(g, op).sort((a, b) => ownBanner(a) - ownBanner(b) || dist(op, a) - dist(op, b))[0];
   if (!mk) return;
   spend(g, op, 'pickUp');
   mk.carriedBy = op.uid; mk.x = op.x; mk.y = op.y;
@@ -373,7 +382,8 @@ function dropMarkers(g, op) {
 export function doMissionAction(g, op, id) {
   spend(g, op, id);
   if (tpl(op).gotIt) op.acted.gotItUsed = true;
-  MISSION_ACTIONS[id].apply(g, op);
+  const msg = MISSION_ACTIONS[id].apply(g, op);
+  if (msg) log(g, { zh: `${opName(op, 'zh')} ${msg.zh}`, en: `${opName(op, 'en')} ${msg.en}` }, `side${op.side}`); // (Scout)
   dwMissionDone(g, op, id);
   dwAfterAction(g, op);
 }
@@ -426,19 +436,18 @@ export function autoDeployStep(g) {
   const d = g.dep;
   if (!d || d.done) return;
   const ops = unplaced(g, d.turn).slice(0, d.need - d.batch.length);
-  placeAuto(g, d.turn, ops);
-  for (const o of ops) { o.placed = true; d.batch.push(o.uid); }
+  for (const o of placeAuto(g, d.turn, ops)) { o.placed = true; d.batch.push(o.uid); }
 }
 
 /** Place every operative of a side automatically (rearranging them). */
 export function autoDeploy(g, side) {
   const ops = g.ops.filter((o) => o.side === side && !o.reserve); // (Exodite riders in reserve aren't set up)
-  for (const o of ops) { o.x = -99; o.y = -99; }
-  placeAuto(g, side, ops);
-  for (const o of ops) o.placed = true;
+  for (const o of ops) { o.x = -99; o.y = -99; o.placed = false; }
+  for (const o of placeAuto(g, side, ops)) o.placed = true;
 }
 
 function placeAuto(g, side, ops) {
+  const result = [];
   const z = deployZones(g)[side];
   const cands = [];
   for (let x = z.x0 + 0.8; x <= z.x1 - 0.8; x += 1.6)
@@ -468,9 +477,11 @@ function placeAuto(g, side, ops) {
     // Large bases (e.g. a 50mm Technomancer) may not fit the coarse grid: try a finer one.
     for (let x = z.x0 + radius(o); !spot && x <= z.x1 - radius(o); x += 0.4)
       for (let y = z.y0 + radius(o); !spot && y <= z.y1 - radius(o); y += 0.4) if (deployOk(g, o, { x, y })) spot = { x, y };
-    if (!spot) spot = { x: (z.x0 + z.x1) / 2, y: (z.y0 + z.y1) / 2 }; // (should never happen)
+    if (!spot) continue; // No legal space: leave the operative unset rather than overlapping a base or cover.
     o.x = spot.x; o.y = spot.y; placed.push(spot);
+    result.push(o);
   }
+  return result;
 }
 
 // ---------- log ----------
@@ -485,8 +496,9 @@ export function startBattle(g) {
   // Anyone not set up yet (e.g. automatic games) is placed automatically.
   for (const side of [0, 1]) {
     const rest = unplaced(g, side);
-    if (rest.length) { placeAuto(g, side, rest); for (const o of rest) o.placed = true; }
+    if (rest.length) for (const o of placeAuto(g, side, rest)) o.placed = true;
   }
+  if (unplaced(g, 0).length || unplaced(g, 1).length) return false;
   if (g.dep) g.dep.done = true;
   startTP(g);
 }
@@ -494,16 +506,15 @@ export function startBattle(g) {
 function startTP(g) {
   g.tp++;
   g.phase = 'initiative'; // the Initiative phase comes first; startStrategy moves on
-  // Roll-off: the winner decides who has initiative. On a tie, the player who didn't have initiative
-  // last turning point wins (in the first turning point, roll again).
+  // Roll-off (house rules): the higher roll decides who has initiative, after any initiative cards are used.
   let a, b;
-  do { a = d6(); b = d6(); } while (a === b && g.tp === 1);
-  const prev = g.initiative;
-  g.initDecider = a > b ? 0 : a < b ? 1 : 1 - prev;
+  do { a = d6(); b = d6(); } while (a === b && g.tp === 1); // (TP1 ties are rolled again; later ones: see initWinner)
   g.initRoll = [a, b];
+  g.initRolled = [a, b];
   g.initiative = null;
-  // The computer decides at once (it takes initiative); a human player chooses in the Initiative phase.
-  if (g.ai === g.initDecider) setInitiative(g, g.initDecider);
+  g.initDecider = null;
+  g.initLocked = false;
+  g.initCards ||= [[], []];
   // Well Supplied (Hearthkyn Lugger): +1CP in the first turning point.
   if (g.tp === 1) for (const s of [0, 1]) if (living(g, s).some((o) => tpl(o).wellSupplied)) g.cp[s] += 1;
   g.counter = false;
@@ -531,7 +542,83 @@ function startTP(g) {
   // Smoke grenades from the last turning point stay for D3 more activations (rolled in this Ready step).
   g.smoke = (g.smoke || []).filter((s) => s.persistent || s.tp === g.tp - 1).map((s) => s.persistent ? s : ({ ...s, left: d3() }));
   log(g, { zh: `── 第 ${g.tp} 回合 ── 主動權擲骰 ${a} : ${b}`, en: `── Turning Point ${g.tp} ── Initiative roll ${a} : ${b}` }, 'tp');
+  // The computer plays its initiative cards at once; with no card a human player can use, the result stands.
+  aiInitCards(g);
+  if (![0, 1].some((s) => s !== g.ai && g.initCards[s].length)) lockInitRoll(g);
   mission(g).onReady?.(g); // the Ready step
+}
+
+// ---------- initiative cards (house rules) ----------
+// The loser of the roll-off when setting up the battle gets a Re-roll card, of TP1 a ±1 card, of TP2 ±2, of TP3 ±3.
+// Each is used once, in a later Initiative phase: Re-roll re-rolls your own die, ±N adds or subtracts N from either die.
+// Ties: re-rolled in TP1; after that the first one is decided by the loser of the TP1 roll-off, later ones by the player who didn't decide last time.
+export const INIT_CARDS = {
+  reroll: { n: 0, name: { zh: '重擲', en: 'Re-roll' } },
+  pm1: { n: 1, name: { zh: '±1', en: '±1' } },
+  pm2: { n: 2, name: { zh: '±2', en: '±2' } },
+  pm3: { n: 3, name: { zh: '±3', en: '±3' } },
+};
+const INIT_AWARD = [null, 'pm1', 'pm2', 'pm3']; // by turning point (the Re-roll card comes from the setup roll-off)
+/** Who would decide initiative with the dice as they stand now. */
+export function initWinner(g, roll = g.initRoll) {
+  const [a, b] = roll;
+  if (a !== b) return a > b ? 0 : 1;
+  return g.initTies ? 1 - g.lastDecider : g.initFirstLoser;
+}
+/** Use an initiative card: 'reroll' (own die), or ±N with die (0/1) and sign (+1/-1). */
+export function useInitCard(g, side, id, die = side, sign = 1) {
+  const i = g.initCards?.[side]?.indexOf(id) ?? -1;
+  if (g.phase !== 'initiative' || g.initLocked || i < 0) return false;
+  g.initCards[side].splice(i, 1);
+  const before = [...g.initRoll];
+  if (id === 'reroll') g.initRoll[side] = d6();
+  else g.initRoll[die] += sign * INIT_CARDS[id].n;
+  const who = (s) => (s === side ? '自己' : '對手'), whoEn = (s) => (s === side ? 'its own' : 'the opponent\'s');
+  log(g, id === 'reroll'
+    ? { zh: `${teamZh(g, side)} 使用重擲卡：骰子 ${before[side]} → ${g.initRoll[side]}（${g.initRoll[0]} : ${g.initRoll[1]}）`, en: `${team(g, side).name.en} uses its Re-roll card: ${before[side]} → ${g.initRoll[side]} (${g.initRoll[0]} : ${g.initRoll[1]})` }
+    : { zh: `${teamZh(g, side)} 使用 ±${INIT_CARDS[id].n} 卡：${who(die)}的骰子 ${sign > 0 ? '+' : '-'}${INIT_CARDS[id].n}（${g.initRoll[0]} : ${g.initRoll[1]}）`, en: `${team(g, side).name.en} uses its ±${INIT_CARDS[id].n} card: ${sign > 0 ? '+' : '-'}${INIT_CARDS[id].n} to ${whoEn(die)} die (${g.initRoll[0]} : ${g.initRoll[1]})` }, `side${side}`);
+  return true;
+}
+/** The dice are final: the roll-off result decides who chooses initiative; the loser gets this turning point's card. */
+export function lockInitRoll(g) {
+  if (g.initLocked) return;
+  g.initLocked = true;
+  // TP1: a tie (even after cards) is rolled again; the loser decides the first tie in a later turning point.
+  if (g.tp === 1 && g.initRoll[0] === g.initRoll[1]) {
+    const was = g.initRoll.join(' : ');
+    do { g.initRoll = [d6(), d6()]; } while (g.initRoll[0] === g.initRoll[1]);
+    log(g, { zh: `第 1 回合主動權平手（${was}），重擲 → ${g.initRoll.join(' : ')}`, en: `Turning point 1 initiative tie (${was}), rolled again → ${g.initRoll.join(' : ')}` }, 'tp');
+  }
+  const [a, b] = g.initRoll, tie = a === b;
+  const d = initWinner(g);
+  if (g.tp === 1) g.initFirstLoser = 1 - d;
+  if (tie) g.initTies = (g.initTies || 0) + 1;
+  g.lastDecider = d;
+  g.initDecider = d;
+  if (tie) log(g, { zh: `主動權平手（${a} : ${b}）→ ${teamZh(g, d)} 決定先後攻`, en: `Initiative tie (${a} : ${b}) → ${team(g, d).name.en} decides` }, 'tp');
+  // The player who didn't get to decide gets this turning point's card (not in the last one: it couldn't be used).
+  const card = g.tp < MAX_TP ? INIT_AWARD[g.tp] : null;
+  if (card) {
+    g.initCards[1 - d].push(card);
+    log(g, { zh: `${teamZh(g, 1 - d)} 擲輸，獲得「${INIT_CARDS[card].name.zh}」卡（之後的先攻階段可用一次）`, en: `${team(g, 1 - d).name.en} lost the roll-off and gains the ${INIT_CARDS[card].name.en} card (usable once in a later Initiative phase)` }, `side${1 - d}`);
+  }
+  // The computer decides at once (it takes initiative); a human player chooses in the Initiative phase.
+  if (g.ai === d) setInitiative(g, d);
+}
+/** The computer's initiative cards: when it would lose, the smallest card that wins it the roll-off (else a Re-roll if its die is low). */
+export function aiInitCards(g) {
+  const s = g.ai;
+  if (s == null || s > 1 || g.initLocked) return;
+  const cards = g.initCards[s];
+  if (!cards.length || initWinner(g) === s) return;
+  for (const id of ['pm1', 'pm2', 'pm3'].filter((c) => cards.includes(c))) {
+    const n = INIT_CARDS[id].n;
+    for (const [die, sign] of [[s, 1], [1 - s, -1]]) {
+      const r = [...g.initRoll]; r[die] += sign * n;
+      if (initWinner(g, r) === s) { useInitCard(g, s, id, die, sign); return; }
+    }
+  }
+  if (cards.includes('reroll') && g.initRoll[s] <= 3) useInitCard(g, s, 'reroll');
 }
 
 /** The roll-off winner's choice: who has initiative this turning point. Then each player gains CP. */
@@ -550,6 +637,7 @@ export function startStrategy(g) {
   mdStrategy(g);
   mwStrategy(g);
   if (g.phase !== 'initiative') return;
+  lockInitRoll(g); // (cards not used: the dice stand)
   if (g.initiative == null) setInitiative(g, g.initDecider); // (not chosen: the winner takes it)
   g.phase = 'strategy';
   log(g, { zh: '進入策略階段', en: 'Strategy phase begins' }, 'tp');
@@ -1159,7 +1247,8 @@ export const ACTIONS = {
   transferPower: { ap: 1, name: { zh: '轉移能量', en: 'Transfer Power' } },
   omniscanner: { ap: 1, name: { zh: '全知掃描儀', en: 'Omniscanner' } },
   datacoronal: { ap: 1, name: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' } },
-  networkOverride: { ap: 1, name: { zh: '網路覆寫', en: 'Network Override' } },
+  networkOverride: { ap: 1, name: { zh: '網路覆寫：反擊', en: 'Network Override: counteract' } },
+  overrideDash: { ap: 1, name: { zh: '網路覆寫：衝刺', en: 'Network Override: Dash' } },
   explosives: { ap: 1, name: { zh: '爆破', en: 'Explosives' } },
   bbJam: { ap: 1, name: { zh: '干擾', en: 'Jam' } },
   telepathicOverload: { ap: 1, name: { zh: '心靈過載', en: 'Telepathic Overload' } },
@@ -1724,6 +1813,16 @@ export const TARGET_ACTIONS = {
       return { zh: `網路覆寫：${opName(t, 'zh')} 立刻網路反擊（之後繼續本次啟動）`, en: `Network Override: ${opName(t, 'en')} network counteracts now (then this activation continues)` };
     },
   },
+  // Network Override, the other option: that servitor makes a free Dash instead (then the Underseer's activation continues).
+  overrideDash: {
+    targets: (g, op) => TARGET_ACTIONS.networkOverride.targets(g, op).filter((o) => !isEngaged(g, o)),
+    apply(g, op, t) {
+      (op.acted.overrode ||= []).push(t.uid);
+      g.netcounter = { side: op.side, only: [t.uid], resume: op.uid, resumeCounter: !!g.counter, kind: 'control', onlyActions: ['dash'], ctlMove: 3 };
+      g.active = null; g.counter = true; g.turn = op.side;
+      return { zh: `網路覆寫：${opName(t, 'zh')} 免費衝刺一次（之後繼續本次啟動）`, en: `Network Override: ${opName(t, 'en')} makes a free Dash (then this activation continues)` };
+    },
+  },
   medikit: {
     targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && !isDrone(t) && t.wounds < t.maxW
       && t !== op && t.medicTP !== g.tp && edgeDist(op, t) <= CONTROL + 0.01 && visibility(g, op, t).visible),
@@ -1840,6 +1939,8 @@ export function doTargetAction(g, op, id, target) {
   dwAfterAction(g, op);
   log(g, { zh: `${opName(op, 'zh')} ${msg.zh}`, en: `${opName(op, 'en')} ${msg.en}` }, `side${op.side}`);
 }
+// Scout (Scout Enemy Movement tac op): a mission action whose enemy the player clicks (the computer's is picked for it).
+TARGET_ACTIONS.scout = { targets: (g, o) => scoutTargets(g, o), apply: (g, o, t) => MISSION_ACTIONS.scout.apply(g, o, t) };
 for (const [id, drug] of Object.entries({ drugHeal: null, drugPainbringer: 'painbringer', drugAdrenalight: 'adrenalight', drugHypex: 'hypex' })) {
   TARGET_ACTIONS[id] = {
     targets: (g, o) => living(g, o.side).filter((t) => isArchon(t) && edgeDist(o, t) <= 3 && (t === o || visibility(g, o, t).visible) && (drug ? t.drug !== drug : t.wounds < t.maxW)),
@@ -2034,7 +2135,11 @@ export function availableActions(g, op) {
     if (isServitor(op) && !op.counter) add('transferPower', !count(op, 'transferPower') && aplNow(g, op) >= 2 && netCands(g, op.side).some((o) => o !== op), count(op, 'transferPower') ? DONE : aplNow(g, op) < 2 ? { zh: 'APL 低於 2', en: 'APL below 2' } : { zh: '沒有其他可網路反擊的僕從', en: 'No other servitor can network counteract' });
     if (tpl(op).omniscanner) unique('omniscanner');
     if (tpl(op).datacoronal) add('datacoronal', !engaged && !count(op, 'datacoronal'), engaged ? ENG : DONE);
-    if (tpl(op).networkOverride) add('networkOverride', !engaged && count(op, 'networkOverride') < 2 && TARGET_ACTIONS.networkOverride.targets(g, op).length > 0, engaged ? ENG : count(op, 'networkOverride') >= 2 ? DONE : NONE);
+    if (tpl(op).networkOverride) { // (network counteract or a free Dash: twice per activation between them, a different servitor each time)
+      const used = count(op, 'networkOverride') + count(op, 'overrideDash');
+      add('networkOverride', !engaged && used < 2 && TARGET_ACTIONS.networkOverride.targets(g, op).length > 0, engaged ? ENG : used >= 2 ? DONE : NONE);
+      add('overrideDash', !engaged && used < 2 && TARGET_ACTIONS.overrideDash.targets(g, op).length > 0, engaged ? ENG : used >= 2 ? DONE : NONE);
+    }
   }
   // Universal equipment: grenades (not beasts or machines) and the Ammo Cache.
   if (!tpl(op).actionsOnly && op.side < 2) {
@@ -2250,6 +2355,9 @@ export function spend(g, op, id, ap = actionCost(g, op, id)) {
 /** Apply a validated movement path. */
 export function doMove(g, op, kind, path) {
   if (isMurderwing(op) && (!path?.pts?.length || path.len > moveAllowance(g, op, kind) + 0.01)) return false;
+  const ctx = moveCtx(g, op, kind);
+  path = wholeInchPath(op.breachMove ? { ...ctx, segFree: () => true, extra: () => 0 } : ctx, path, moveAllowance(g, op, kind), kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));
+  if (!path) return false;
   if (kind === 'fallBack' && !mwFallBack(g, op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
   const dest = path?.pts?.at(-1);
@@ -2304,7 +2412,7 @@ export function doMove(g, op, kind, path) {
   if (rec?.uid === op.uid) rec.trails.push(pts);
   // Every move this turning point stays on the board for the players to review (older ones fade).
   const log_ = (g.trailLog ||= []);
-  log_.push({ uid: op.uid, side: op.side, tp: g.tp, kind, len: Math.round(path.len * 10) / 10, pts });
+  log_.push({ uid: op.uid, side: op.side, tp: g.tp, kind, len: path.len, pts });
   if (log_.length > 60) log_.shift();
   op.acted.movedDist = (op.acted.movedDist || 0) + path.len; // Lumbering Death
   if (['charge', 'fallBack', 'reposition'].includes(kind)) op.bigMoveTP = g.tp; // Brace for Counterattack
@@ -2332,7 +2440,7 @@ export function doMove(g, op, kind, path) {
   if (op.breachMove) op.breachMove = false; // Molecular Breach used up (it was set up rather than moved)
   if (['charge', 'dash', 'fallBack', 'reposition'].includes(kind)) voltagheistField(g, op); // Calibrate Voltagheist: Field
   drakolitheSpeed(g, op, kind, movedFrom); // Preternatural Evasion (Exodite Drakolithe)
-  log(g, { zh: `${opName(op, 'zh')} ${ACTIONS[kind].name.zh} ${path.len.toFixed(1)}"`, en: `${opName(op, 'en')} ${ACTIONS[kind].name.en} ${path.len.toFixed(1)}"` }, `side${op.side}`);
+  log(g, { zh: `${opName(op, 'zh')} ${ACTIONS[kind].name.zh} ${path.len}"`, en: `${opName(op, 'en')} ${ACTIONS[kind].name.en} ${path.len}"` }, `side${op.side}`);
   // Markerlights: once per activation, a marked operative that moves loses one token.
   if (op.ml > 0 && !op.acted.mlDrop) {
     op.ml--; op.acted.mlDrop = true;
@@ -3194,9 +3302,9 @@ function relentlessPursuit(g, enemy, from) {
   for (let a = 0; a < 16; a++) for (const gap of charge ? [0.5, 0.9] : [1.5, 1.9]) {
     const r = radius(enemy) + radius(ag) + gap, p = { x: enemy.x + Math.cos(a * Math.PI / 8) * r, y: enemy.y + Math.sin(a * Math.PI / 8) * r };
     if (!ctx.free(p)) continue;
-    const path = findPath(ctx, p);
     const max = charge ? moveStat(g, ag) + 2 : moveStat(g, ag);
-    if (path && path.len <= max + 0.01 && (!best || path.len < best.path.len)) best = { path, p };
+    const raw = findPath(ctx, p), path = raw && wholeInchPath(ctx, raw, max, charge ? ctx.inEnemyER : (q) => !ctx.inEnemyER(q));
+    if (path && (!best || path.len < best.path.len)) best = { path, p: path.pts.at(-1) };
   }
   if (!best || !autoFF(g, side, 'relentlessPursuit')) return;
   ag.x = best.p.x; ag.y = best.p.y;
@@ -3303,10 +3411,10 @@ function dauntlessExplorers(g, side) {
     for (let a = 0; a < 16; a++) for (const f of [1, 0.66, 0.33]) {
       const q = { x: op.x + Math.cos(a * Math.PI / 8) * max * f, y: op.y + Math.sin(a * Math.PI / 8) * max * f };
       if (zd(q, r) > 4 || !ctx.free(q) || ctx.inEnemyER(q)) continue;
-      const path = findPath(ctx, q);
+      const raw = findPath(ctx, q), path = raw && wholeInchPath(ctx, raw, max, (p) => !ctx.inEnemyER(p) && zd(p, r) <= 4);
       if (!path || path.len > max + 0.01) continue;
-      const s = dist(op, goal) - dist(q, goal);
-      if (s > 0.5 && (!best || s > best.s)) best = { q, path, s };
+      const end = path.pts.at(-1), s = dist(op, goal) - dist(end, goal);
+      if (s > 0.5 && (!best || s > best.s)) best = { q: end, path, s };
     }
     if (!best) continue;
     op.x = best.q.x; op.y = best.q.y; n++;
@@ -3458,7 +3566,7 @@ function goremongerStrategyEnd(g, side) {
     for (const e of foes(g, op).filter((x) => x.side < 2 && edgeDist(op, x) <= 3 + CONTROL)) {
       for (let a = 0; a < 16; a++) {
         const r = radius(e) + radius(op) + 0.5, p = { x: e.x + Math.cos(a * Math.PI / 8) * r, y: e.y + Math.sin(a * Math.PI / 8) * r };
-        const path = ctx.free(p) && findPath(ctx, p);
+        const raw = ctx.free(p) && findPath(ctx, p), path = raw && wholeInchPath(ctx, raw, 3, ctx.inEnemyER);
         if (path && path.len <= 3 + 0.01 && (!best || path.len < best.path.len)) best = { op, e, path };
       }
     }
@@ -3468,7 +3576,7 @@ function goremongerStrategyEnd(g, side) {
   op.order = 'engage'; op.x = end.x; op.y = end.y; op.chargedTP = g.tp;
   (g.trailLog ||= []).push({ uid: op.uid, side, tp: g.tp, kind: 'charge', len: Math.round(path.len * 10) / 10, pts: path.pts.map((p) => ({ x: p.x, y: p.y })) });
   for (const m of carriables(g)) if (m.carriedBy === op.uid) { m.x = op.x; m.y = op.y; }
-  log(g, { zh: `血之狩獵：${opName(op, 'zh')} 改為交戰，免費衝鋒 ${path.len.toFixed(1)}" 到 ${opName(e, 'zh')} 身邊`, en: `Hunt for Blood: ${opName(op, 'en')} goes Engage and Charges ${path.len.toFixed(1)}" to ${opName(e, 'en')}` }, `side${side}`);
+  log(g, { zh: `血之狩獵：${opName(op, 'zh')} 改為交戰，免費衝鋒 ${path.len}" 到 ${opName(e, 'zh')} 身邊`, en: `Hunt for Blood: ${opName(op, 'en')} goes Engage and Charges ${path.len}" to ${opName(e, 'en')}` }, `side${side}`);
   checkMines(g, op);
 }
 
@@ -3541,6 +3649,7 @@ function mutate(g, op, why) {
   const into = tpl(op).devotee && mine.filter((o) => tpl(o).mutant).length < 5 ? 'ctMutant'
     : tpl(op).mutant && mine.filter((o) => tpl(o).torment).length < 3 && tormentsTP < 2 ? 'ctTorment' : null;
   if (!into && op.wounds >= op.maxW) return false;
+  if (into && !moveCtx(g, { ...op, tplId: into }).free(op)) return false;
   op.mutateTP = g.tp;
   if (!into) {
     const b = op.wounds; op.wounds = Math.min(op.maxW, op.wounds + d3() + 1);
@@ -3739,7 +3848,7 @@ function ceaselessScuttling(g, side) {
   const op = { uid: `${side}-${num}`, side, team: g.teams[side], tplId: t.id, num, x: -99, y: -99, wounds: t.wounds, maxW: t.wounds, order: 'conceal', ready: true, ap: 0, acted: {},
     ml: 0, aplNext: 0, used: {}, poison: false, damagedTP: false, dead: false, counteracted: false, actTP: 0, movedTP: 0, placed: false };
   g.ops.push(op);
-  placeAuto(g, side, [op]);
+  if (!placeAuto(g, side, [op]).length) { g.ops.splice(g.ops.indexOf(op), 1); return; }
   op.placed = true;
   log(g, { zh: `${teamZh(g, side)} 無盡爬行：新的巨細胞戰士在降落區就位`, en: `${team(g, side).name.en} A Ceaseless Scuttling: a new Macrocyte Warrior is set up in the drop zone` }, `side${side}`);
 }

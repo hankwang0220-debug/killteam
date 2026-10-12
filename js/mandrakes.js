@@ -1,6 +1,6 @@
 import { ACTIONS, TARGET_ACTIONS, tpl, living, foes, radius, edgeDist, isEngaged, visibility, shootCheck, weaponsFor, availableActions, spend, log, applyDamage, aplNow, hasPloy, getOp, readyOps, activate, d3 as roll3 } from './game.js';
 import { dist, distPointRect } from './geometry.js';
-import { moveCtx, findPath } from './path.js';
+import { moveCtx, findPath, wholeInchPath } from './path.js';
 import { MD_DART, MD_GEM } from './data/mandrakes.js';
 
 export const isMandrake = (o) => o?.team === 'mandrakes';
@@ -170,7 +170,8 @@ export function mdEnd(g, o, useFF) {
         for (let dx = -3; dx <= 3; dx += 1) for (let dy = -3; dy <= 3; dy += 1) {
           const p = { x: x.x + dx, y: x.y + dy };
           if (dist(x, p) < 0.1 || !ctx.free(p) || ctx.inEnemyER(p) || !withinShadow(g, { ...x, ...p })) continue;
-          const path = findPath(ctx, p); if (path && path.len <= 3.01) candidates.push({ p, path });
+          const raw = findPath(ctx, p), path = raw && wholeInchPath(ctx, raw, 3, (q) => !ctx.inEnemyER(q) && withinShadow(g, { ...x, ...q }));
+          if (path) candidates.push({ p: path.pts.at(-1), path });
         }
         const score = (p) => Math.min(...g.objectives.map((m) => dist(p, m)));
         candidates.sort((a, b) => score(a.p) - score(b.p));

@@ -46,9 +46,10 @@ const foe = (g, i = 0) => g.ops.filter((o) => o.side === 1)[i];
 {
   const g = arena(), e = foe(g);
   g.markers.push({ id: 99, kind: 'hyMine', owner: 0, x: 15, y: 15, carriedBy: null, live: true, flipped: false });
+  e.x = 18.9; e.y = 15; // A legal 3-inch move into the mine's control range.
   const w0 = e.wounds;
   G.activate(g, e); g.turn = 1;
-  G.doMove(g, e, 'reposition', { pts: [{ x: e.x, y: e.y }, { x: 15.9, y: 15 }], len: Math.hypot(15.9 - e.x, 15 - e.y) });
+  assert.notEqual(G.doMove(g, e, 'reposition', { pts: [{ x: e.x, y: e.y }, { x: 15.9, y: 15 }], len: 3 }), false);
   const m = g.markers.find((x) => x.id === 99);
   assert(m.flipped, 'flipped');
   assert(e.wounds <= w0 - 3, 'HY-Pex: at least 3 damage');

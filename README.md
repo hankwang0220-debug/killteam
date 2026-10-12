@@ -35,7 +35,7 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 - A 30"×22" killzone with heavy terrain (blocks movement and line of sight) and light terrain (provides cover)
 - 4 Turning Points, an initiative roll, CP, and strategy ploys
 - Alternating activations, Engage/Conceal orders, and APL-based actions
-- Movement uses automatic pathfinding around obstacles. A move may pass through engagement range but cannot end inside it (except a Charge). Clicking too far stops the move at the maximum distance
+- Movement uses automatic pathfinding around obstacles and retains freely chosen legal endpoints while rounding up the total movement cost (moving 0.3 inches costs 1 inch; moving 1.3 inches costs 2). A move may pass through engagement range but cannot end inside it (except a Charge). Clicking too far stops at a legal endpoint within the allowance. An invalid landing shows the base outline, blocking terrain/operatives, and the clearance reason
 - Shooting: visibility to any part of the target, cover (terrain within 1" of the target), heavy terrain obscuring, defence dice equal to the DEF stat, and save allocation that is optimised automatically
 - Fighting: both sides roll, then players alternate choosing Strike or Parry for each die (the computer chooses for its own side)
 - Weapon rules: Piercing, Piercing Crits, Lethal, Balanced, Ceaseless, Rending, Brutal, Heavy, Range
@@ -43,6 +43,10 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 - Simple AI opponent, autosave, and a quick rules reference
 - Replays: every step is recorded and can be reviewed step by step (log, dice, movement trails); the last 10 finished games are kept
 - Measuring tool (right-click / Esc / left-click, or the 📏 button on touch screens)
+
+Run `node tests/movement.mjs` to check base clearance, rounded movement costs, preview/confirmation consistency, wire costs, movement limits and complete AI battles. Distance-free placement abilities such as Shadow Passage retain their own destination rules; the measuring tool still measures fractional distances.
+
+Every landing base must clear both Heavy and Light cover and all living operative bases, including friendly and enemy units. Ordinary movement checks the entire swept base footprint; flying and terrain-phasing abilities retain their traversal exceptions but require a clear landing. Deployment and NPO spawning never force an overlapping placement when space is unavailable, and mutations cannot enlarge a base into cover or another unit.
 
 ## File structure
 

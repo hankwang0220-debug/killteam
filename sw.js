@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v7';
+const CACHE = 'killteam-v11';
 const ASSETS = [
   'js/murderwing.js', 'js/data/murderwing.js',
   'js/mandrakes.js', 'js/data/mandrakes.js',

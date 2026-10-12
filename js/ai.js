@@ -1,7 +1,7 @@
 import {
   activate, activeOp, actionCost, availableActions, missionActionsFor, deployZones, weaponsFor, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, setSkills, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
-  foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid,
+  foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid, canPickUpMarker, pickUpTargets,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
   isMounted, sprintCheck, doSprint, doTurn, enterFromReserve,
   goreOf, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
@@ -12,7 +12,7 @@ import { isArchon, painOptions, usePain } from './archon.js';
 import { isDeathwatch, dwAmmoAvailable, dwAmmoWeapon } from './deathwatch.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
-import { clampPath, findPath, moveCtx } from './path.js';
+import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
 
 export function aiStrategy(g, side) {
   for (const p of team(g, side).ploys) {
@@ -87,7 +87,9 @@ function pickGoal(g, op) {
   const nearestEnemy = enemies.sort((a, b) => dist(op, a) - dist(op, b))[0];
   if ((prefersMelee(op) || tpl(op).gheistskull) && nearestEnemy) return nearestEnemy; // the Gheistskull closes in to be detonated
   // Objective markers, and mission markers the operative could pick up.
-  const pickable = (g.markers || []).filter((m) => !m.carriedBy && mission(g).canPickUp?.(g, op, m));
+  // (Tac Op markers: its own Retrieval / Intelligence markers, and the enemy's Banner to take it off the floor.)
+  const tacMarker = (m) => (m.kind === 'banner' ? m.owner !== op.side : ['retrieval', 'intel'].includes(m.kind)) && canPickUpMarker(g, op, m);
+  const pickable = (g.markers || []).filter((m) => !m.carriedBy && (m.owner == null ? mission(g).canPickUp?.(g, op, m) : tacMarker(m)));
   const carrying = (g.markers || []).some((m) => m.carriedBy === op.uid);
   const objs = [...g.objectives, ...(carrying ? [] : pickable)]
     .map((o) => ({ o, c: controller(g, o), d: dist(op, o) }))
@@ -109,7 +111,7 @@ function pathToward(g, op, kind, goal) {
     const path = findPath(ctx, p);
     if (!path) continue;
     const res = clampPath(ctx, path, max, endOk);
-    return res && res.len >= 0.3 ? res : null;
+    if (res) return res;
   }
   return null;
 }
@@ -161,7 +163,9 @@ function safeMove(g, op, kind, goal, order) {
       if (path && path.len <= max + 0.01) cands.push(path);
     }
   }
-  for (const path of cands) {
+  for (const raw of cands) {
+    const path = wholeInchPath(ctx, raw, max, endOk);
+    if (!path) continue;
     const p = path.pts[path.pts.length - 1];
     const s = score(p, path.len);
     if (s > best.s) best = { p, path, s };
@@ -213,7 +217,8 @@ function chargePath(g, op, among = foes(g, op)) {
     for (let a = 0; a < 16; a++) {
       const p = { x: t.x + Math.cos(a * Math.PI / 8) * d, y: t.y + Math.sin(a * Math.PI / 8) * d };
       if (!ctx.free(p)) continue;
-      const path = findPath(ctx, p);
+      const raw = findPath(ctx, p);
+      const path = raw && wholeInchPath(ctx, raw, max, ctx.inEnemyER);
       if (path && path.len <= max && (!best || path.len < best.len)) best = path;
     }
     if (best) return best;
@@ -469,7 +474,7 @@ export function aiStep(g) {
   for (const id of ['soulHeal', 'soulChannel', 'wardingShield', 'tormentGrenade', 'drugHeal']) if (can[id]) { const t = TARGET_ACTIONS[id].targets(g, op)[0]; if (t) { doTargetAction(g, op, id, t); return null; } }
   // Mission actions and markers first: they score.
   for (const id of missionActionsFor(g, op.side)) if (can[id]) { doMissionAction(g, op, id); return null; }
-  if (can.pickUp) { doPickUp(g, op); return null; }
+  if (can.pickUp && pickUpTargets(g, op).some((m) => !(m.kind === 'banner' && m.owner === op.side))) { doPickUp(g, op); return null; } // (never its own planted Banner)
   if (can.dakkaDash && shootOptions(g, op).length) { doDakkaDash(g, op); return null; }
   if (can.spot) {
     // Spot the enemy that friendlies within 3" of the Spotter could shoot best.
@@ -621,6 +626,11 @@ export function aiStep(g) {
   if (can.networkOverride) {
     const t = TARGET_ACTIONS.networkOverride.targets(g, op).filter((o) => atkScore(o) > 0).sort((a, b) => atkScore(b) - atkScore(a))[0];
     if (t) { doTargetAction(g, op, 'networkOverride', t); return null; }
+  }
+  // Network Override (Dash): a servitor with nothing to shoot runs 3" closer to its goal.
+  if (can.overrideDash && op.ap >= 2) {
+    const t = TARGET_ACTIONS.overrideDash.targets(g, op).find((o) => !atkScore(o) && pickGoal(g, o) && dist(o, pickGoal(g, o)) > 3);
+    if (t) { doTargetAction(g, op, 'overrideDash', t); return null; }
   }
   if (can.transferPower && !atkScore(op) && netCands(g, op.side).some((o) => o !== op && atkScore(o) > 0)) { doSelfAction(g, op, 'transferPower'); return null; }
   if (can.omniscanner && op.ap >= 2) {

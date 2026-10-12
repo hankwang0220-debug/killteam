@@ -1,6 +1,6 @@
 import { ACTIONS, TARGET_ACTIONS, tpl, living, foes, radius, edgeDist, isEngaged, visibility, spend, applyDamage, changeApl, d6, d3, hasPloy, availableActions, readyOps, log, ffReady, ffArmed } from './game.js';
 import { dist } from './geometry.js';
-import { moveCtx, findPath } from './path.js';
+import { moveCtx, findPath, wholeInchPath } from './path.js';
 import { MURDERWING_TEAM, murderwingRosterError } from './data/murderwing.js';
 import { mdFallBack } from './mandrakes.js';
 export const isMurderwing = (o) => o?.team === 'murderwing';
@@ -60,13 +60,14 @@ export function mwFallBack(g, o) {
   }
   return true;
 }
-function landing(g, o, target, max, engage) {
+function landing(g, o, target, max, engage, moving = false) {
   const ctx = moveCtx(g, o, 'reposition'), candidates = [];
   for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
     const r = radius(o) + radius(target) + (engage ? 0.05 : 1.1);
     const p = { x: target.x + Math.cos(angle) * r, y: target.y + Math.sin(angle) * r };
     if (!ctx.free(p) || (!engage && ctx.inEnemyER(p))) continue;
-    const path = findPath(ctx, p); if (path && path.len <= max + 0.01) candidates.push({ p, path });
+    const raw = findPath(ctx, p), path = moving && raw ? wholeInchPath(ctx, raw, max, engage ? ctx.inEnemyER : (q) => !ctx.inEnemyER(q)) : raw;
+    if (path && path.len <= max + 0.01) candidates.push({ p: path.pts.at(-1), path });
   }
   return candidates.sort((a, b) => a.path.len - b.path.len)[0];
 }
@@ -95,7 +96,7 @@ export function mwMoved(g, o, kind, path, start, pursuers) {
   }
   if (kind === 'fallBack' && !o.counter && g.active === o.uid) {
     for (const e of pursuers || []) if (equip(g, e, 'mwFuel') && g.mwFuelTP?.[e.side] !== g.tp) {
-      const p = landing(g, e, o, 3, e.order === 'engage');
+      const p = landing(g, e, o, 3, e.order === 'engage', true);
       if (p) { Object.assign(e, p.p); (g.mwFuelTP ||= [0, 0])[e.side] = g.tp; note(g, e, '次元燃料：免費追擊', 'Warp Fuel: free pursuit'); break; }
     }
   }
@@ -116,7 +117,7 @@ export function mwSelf(g, o, id) {
 }
 export function mwHonour(g, o, enemy, crit, useFF) {
   if (!crit || !isMurderwing(o) || o.dead || enemy.dead || o.wounds > 7 || !ffReady(g, o.side, 'mwHonour') || !ffArmed(g, o.side, 'mwHonour')) return false;
-  const p = landing(g, o, enemy, 3, false);
+  const p = landing(g, o, enemy, 3, false, true);
   if (!p || !useFF(g, o.side, 'mwHonour')) return false;
   g.fight.A.c = g.fight.A.n = g.fight.D.c = g.fight.D.n = 0;
   if (mwFallBack(g, o) && mdFallBack(g, o, d6, d3) && !o.dead) Object.assign(o, p.p);

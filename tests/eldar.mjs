@@ -38,8 +38,9 @@ assert.throws(() => arena('handOfArchon', 'angels', { loadouts: [{ haLeader: 'bl
 }
 {
   const g = arena('corsairVoidscarred'); assert.equal(G.living(g, 0).length, 9);
-  const o = get(g, 'cvFate'); G.activate(g, o); assert.equal(G.actionCost(g, o, 'dash'), 0);
-  G.doMove(g, o, 'dash', { pts: [{ x: o.x, y: o.y }, { x: o.x + 2, y: o.y }], len: 2 }); assert.equal(o.ap, 2); assert.equal(G.actionCost(g, o, 'dash'), 1);
+  const o = get(g, 'cvFate'); o.x = 5; // Start clear of the adjacent friendly bases.
+  G.activate(g, o); assert.equal(G.actionCost(g, o, 'dash'), 0);
+  assert.notEqual(G.doMove(g, o, 'dash', { pts: [{ x: o.x, y: o.y }, { x: o.x + 2, y: o.y }], len: 2 }), false); assert.equal(o.ap, 2); assert.equal(G.actionCost(g, o, 'dash'), 1);
   const f = get(g, 'cvFelarch'); G.activate(g, f); assert.equal(G.shootWeapon(g, f, G.weaponsFor(g, f)[0]).ap, 0);
   G.spend(g, f, 'shoot', 0); assert.equal(G.actionCost(g, f, 'dash'), 1);
 }

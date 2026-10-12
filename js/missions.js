@@ -2,10 +2,11 @@
 // Maps are rebuilt in 2D from the official mission-pack maps (1 grid square = 1"): walls of
 // strongholds and ruins are Heavy terrain, rubble is Heavy or Light, upper floors are left out.
 import {
-  BOARD, CONTROL, NPO, addVP, aplNow, applyDamage, contests, controller, d6, edgeDist, getOp, isEngaged, missionEngaged, living, log, opName, radius,
+  BOARD, CONTROL, NPO, OBJ_R, addVP, aplNow, applyDamage, contests, controller, d6, deployZones, edgeDist, getOp, isEngaged, missionEngaged, living, log, opName, radius,
   spawnNpo, team, territoryOf, tpl, visibility,
 } from './game.js';
-import { dist } from './geometry.js';
+import { dist, distPointRect } from './geometry.js';
+import { moveCtx } from './path.js';
 
 const wall = (x, y, w, h) => ({ kind: 'heavy', x, y, w, h });
 const block = (x, y, w, h) => ({ kind: 'heavy', x, y, w, h });
@@ -18,19 +19,19 @@ const npos = (g) => living(g, NPO);
 const players = (g) => g.ops.filter((o) => !o.dead && o.side !== NPO);
 const sideName = (g, s, lang) => (lang === 'zh' ? `${team(g, s).name.zh}` : team(g, s).name.en);
 
-/** The nearest spot to p where op can be placed (clear of Heavy terrain and other operatives). */
+/** The nearest sampled spot clear of all cover and other operative bases. */
 function nearestFree(g, op, p) {
-  const r = radius(op);
+  const r = radius(op), ctx = moveCtx(g, op);
   for (let ring = 0; ring <= 6; ring += 0.5) {
     for (let a = 0; a < 16; a++) {
       const q = { x: p.x + Math.cos(a * Math.PI / 8) * ring, y: p.y + Math.sin(a * Math.PI / 8) * ring };
       if (q.x < r || q.y < r || q.x > BOARD.w - r || q.y > BOARD.h - r) continue;
-      if (g.terrain.some((t) => t.kind === 'heavy' && q.x + r > t.x && q.x - r < t.x + t.w && q.y + r > t.y && q.y - r < t.y + t.h)) continue;
+      if (!ctx.free(q)) continue;
       if (g.ops.some((o) => o !== op && !o.dead && dist(o, q) < radius(o) + r + 0.05)) continue;
       return q;
     }
   }
-  return p;
+  return null;
 }
 
 // ---------- Decaying Generatorium (Ambull mission pack, mission 2) ----------
@@ -88,6 +89,7 @@ function drawIntruder(g, by) {
   }
   const op = spawnNpo(g, kind);
   const p = nearestFree(g, op, at);
+  if (!p) { g.ops.splice(g.ops.indexOf(op), 1); s.reserve.push(kind); return; }
   op.x = p.x; op.y = p.y;
   log(g, { zh: `入侵者牌 ${card}：${opName(op, 'zh')} 從地底竄出！`, en: `Intruder card ${card}: ${opName(op, 'en')} bursts out of the ground!` }, 'npo');
 }
@@ -233,6 +235,7 @@ const negotiation = {
       const op = spawnNpo(g, 'archivist');
       const left = Math.random() < 0.5, r = radius(op);
       const p = nearestFree(g, op, { x: left ? r : BOARD.w - r, y: BOARD.h / 2 });
+      if (!p) { g.ops.splice(g.ops.indexOf(op), 1); g.npoState.reserve = ['archivist']; return; }
       op.x = p.x; op.y = p.y;
       log(g, { zh: `${opName(op, 'zh')} 從${left ? '左' : '右'}側邊緣出現`, en: `${opName(op, 'en')} arrives at the ${left ? 'left' : 'right'} edge` }, 'npo');
     }
@@ -284,6 +287,134 @@ const negotiation = {
 // ---------- mission actions ----------
 // cond(g, op) -> null if allowed, else a reason; apply(g, op) performs it.
 export const MISSION_ACTIONS = {
+  // ----- Crit Ops (Approved Ops 2025) -----
+  secure: {
+    ap: 1, name: { zh: '確保', en: 'Secure' },
+    cond: (g, op) => critCond(g, op, 2, ctrlObj(g, op, (o) => o.secured !== op.side), NO_OBJ),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => x.secured !== op.side);
+      o.secured = op.side;
+      log(g, { zh: `${opName(op, 'zh')} 確保了${objName(o, 'zh')}`, en: `${opName(op, 'en')} secures ${objName(o, 'en')}` }, `side${op.side}`);
+    },
+  },
+  loot: {
+    ap: 1, name: { zh: '掠奪', en: 'Loot' },
+    cond: (g, op) => critCond(g, op, 2, ctrlObj(g, op, (o) => o.lootTP !== g.tp), { zh: '沒有可掠奪的目標點（要控制且本回合還沒被掠奪）', en: 'No objective to loot (controlled, not looted this TP)' }),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => x.lootTP !== g.tp);
+      o.lootTP = g.tp;
+      const n = perTP(g, 'loot');
+      log(g, { zh: `${opName(op, 'zh')} 掠奪了${objName(o, 'zh')}`, en: `${opName(op, 'en')} loots ${objName(o, 'en')}` }, `side${op.side}`);
+      if (n[op.side] < 2) { n[op.side]++; addVP(g, op.side, 1, 'crit', { zh: '掠奪', en: 'Loot' }); }
+      else log(g, { zh: '（本回合掠奪 VP 已達上限 2）', en: '(Loot VP limit of 2 reached this TP)' }, `side${op.side}`);
+    },
+  },
+  transmit: {
+    ap: 1, name: { zh: '開始傳輸', en: 'Initiate Transmission' },
+    cond: (g, op) => critCond(g, op, 2, ctrlObj(g, op, (o) => o.transmitTP !== g.tp), { zh: '沒有可傳輸的目標點（要控制且還沒在傳輸）', en: 'No objective to transmit from (controlled, not transmitting yet)' }),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => x.transmitTP !== g.tp);
+      o.transmitTP = g.tp;
+      log(g, { zh: `${opName(op, 'zh')} 讓${objName(o, 'zh')}開始傳輸`, en: `${opName(op, 'en')} starts a transmission at ${objName(o, 'en')}` }, `side${op.side}`);
+    },
+  },
+  ...Object.fromEntries([
+    ['orbToTheirs', '移動寶珠到敵方目標點', 'Move Orb to the enemy objective', (g, s) => g.objectives.find((o) => isOwnObj(g, o, 1 - s))],
+    ['orbToMine', '移動寶珠到我方目標點', 'Move Orb to your objective', (g, s) => g.objectives.find((o) => isOwnObj(g, o, s))],
+    ['orbToCentre', '移動寶珠回中央', 'Move Orb to the centre', (g) => g.objectives.find((o) => o.centre)],
+  ].map(([id, zh, en, dest]) => [id, {
+    ap: 1, name: { zh, en },
+    cond(g, op) {
+      const at = g.objectives[g.orb];
+      if (!at || (id === 'orbToCentre') === !!at.centre) return { zh: id === 'orbToCentre' ? '寶珠已在中央' : '寶珠不在中央', en: id === 'orbToCentre' ? 'The Orb is already in the centre' : 'The Orb isn\'t in the centre' };
+      return critCond(g, op, 2, ctrlObj(g, op, (o) => o === at), { zh: '沒有控制有寶珠的目標點', en: 'Not controlling the objective with the Orb' });
+    },
+    apply(g, op) {
+      const to = dest(g, op.side);
+      g.orb = to.id;
+      log(g, { zh: `${opName(op, 'zh')} 把寶珠移到${objName(to, 'zh')}`, en: `${opName(op, 'en')} moves the Orb to ${objName(to, 'en')}` }, `side${op.side}`);
+    },
+  }])),
+  download: {
+    ap: 1, name: { zh: '下載', en: 'Download' },
+    cond: (g, op) => critCond(g, op, 3, ctrlObj(g, op, (o) => !o.downloaded && !isOwnObj(g, o, op.side)), { zh: '沒有可下載的目標點（中央或對手的、要控制且還沒下載過）', en: 'No objective to download (centre or the opponent\'s, controlled, not downloaded yet)' }),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => !x.downloaded && !isOwnObj(g, x, op.side));
+      o.downloaded = true;
+      log(g, { zh: `${opName(op, 'zh')} 下載了${objName(o, 'zh')}`, en: `${opName(op, 'en')} downloads ${objName(o, 'en')}` }, `side${op.side}`);
+      addVP(g, op.side, g.tp >= 4 ? 2 : 1, 'crit', { zh: `第 ${g.tp} 回合下載`, en: `Download in TP${g.tp}` });
+    },
+  },
+  compileData: {
+    ap: 1, name: { zh: '彙整資料', en: 'Compile Data' },
+    cond: (g, op) => critCond(g, op, 2, ctrlObj(g, op, (o) => o.dataTP !== g.tp), { zh: '沒有可彙整的目標點（要控制且本回合還沒獲得資料點）', en: 'No objective to compile at (controlled, no Data point gained this TP)' }),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => x.dataTP !== g.tp);
+      o.dataTP = g.tp; o.data = (o.data || 0) + 1;
+      perTP(g, 'compile')[op.side]++;
+      log(g, { zh: `${opName(op, 'zh')} 在${objName(o, 'zh')}彙整資料（${o.data} 點）`, en: `${opName(op, 'en')} compiles data at ${objName(o, 'en')} (${o.data} point(s))` }, `side${op.side}`);
+    },
+  },
+  sendData: {
+    ap: 1, name: { zh: '傳送資料', en: 'Send Data' },
+    cond: (g, op) => critCond(g, op, 4, ctrlObj(g, op, (o) => o.data > 0), { zh: '沒有有資料點的目標點可傳送', en: 'No objective with Data points to send' }),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => x.data > 0), n = o.data;
+      o.data = 0;
+      addVP(g, op.side, n, 'crit', { zh: `從${objName(o, 'zh')}傳送 ${n} 點資料`, en: `sends ${n} Data point(s) from ${objName(o, 'en')}` });
+    },
+  },
+  reboot: {
+    ap: 2, name: { zh: '重啟', en: 'Reboot' },
+    cond: (g, op) => critCond(g, op, 2, ctrlObj(g, op, (o) => o.inertTP === g.tp), { zh: '沒有失效的目標點可重啟（要控制它）', en: 'No inert objective you control to reboot' }),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => x.inertTP === g.tp);
+      o.inertTP = 0;
+      log(g, { zh: `${opName(op, 'zh')} 重啟了${objName(o, 'zh')}`, en: `${opName(op, 'en')} reboots ${objName(o, 'en')}` }, `side${op.side}`);
+    },
+  },
+  // ----- Tac Ops -----
+  // Scout Enemy Movement: a ready enemy visible and more than 6" away is monitored until the next Ready step.
+  scout: {
+    ap: 1, name: { zh: '偵察', en: 'Scout' },
+    cond(g, op) {
+      if (op.order === 'engage') return { zh: '交戰指令不能執行', en: 'Not with an Engage order' };
+      return critCond(g, op, 2, scoutTargets(g, op).length, { zh: '沒有 6" 外、可見且未啟動的敵人', en: 'No ready enemy visible and more than 6" away' });
+    },
+    /** t: the chosen enemy (the computer, or a click); otherwise the one most friendlies can see. */
+    apply(g, op, t) {
+      const seen = (e) => living(g, op.side).filter((f) => visibility(g, f, e).visible).length;
+      const e = t || scoutTargets(g, op).sort((a, b) => seen(b) - seen(a))[0];
+      (e.monitored ||= [0, 0])[op.side] = g.tp;
+      reveal(g, op.side);
+      return { zh: `偵察並監視 ${opName(e, 'zh')}`, en: `scouts and monitors ${opName(e, 'en')}` };
+    },
+  },
+  // Plant Banner: once per battle, wholly within the opponent's territory and more than 5" from a neutral edge.
+  plantBanner: {
+    ap: 1, name: { zh: '插旗', en: 'Plant Banner' },
+    cond(g, op) {
+      if (tacOf(g, op.side)?.bannerDone) return { zh: '整場只能插一次旗', en: 'Once per battle' };
+      return critCond(g, op, 2, bannerOk(g, op.side, op), { zh: '要完全在對手領土內、且距離中立邊緣超過 5"', en: 'Must be wholly in your opponent\'s territory, more than 5" from a neutral edge' });
+    },
+    apply(g, op) {
+      tacOf(g, op.side).bannerDone = true;
+      g.markers.push({ id: g.markers.length, kind: 'banner', owner: op.side, x: op.x, y: op.y, carriedBy: null });
+      reveal(g, op.side);
+      log(g, { zh: `${opName(op, 'zh')} 插下旗幟`, en: `${opName(op, 'en')} plants the banner` }, `side${op.side}`);
+    },
+  },
+  // Plant Devices: an objective marker you control gains your Device token.
+  plantDevice: {
+    ap: 1, name: { zh: '安置裝置', en: 'Plant Device' },
+    cond: (g, op) => critCond(g, op, 2, ctrlObj(g, op, (o) => !o.devices?.[op.side]), { zh: '沒有可安置裝置的目標點（要控制且還沒有我方裝置）', en: 'No objective for a device (controlled, no device of yours yet)' }),
+    apply(g, op) {
+      const o = ctrlObj(g, op, (x) => !x.devices?.[op.side]);
+      (o.devices ||= [false, false])[op.side] = true;
+      reveal(g, op.side);
+      log(g, { zh: `${opName(op, 'zh')} 在${objName(o, 'zh')}安置裝置`, en: `${opName(op, 'en')} plants a device at ${objName(o, 'en')}` }, `side${op.side}`);
+    },
+  },
   // Sweep & Clear (Tac Op): clear an objective marker you control for the turning point.
   clear: {
     ap: 1, name: { zh: '清除', en: 'Clear' },
@@ -424,20 +555,177 @@ const energyCells = {
   },
 };
 
+// ---------- Approved Ops 2025: Crit Ops 1–4 and 7–9 (KT2025 mission pack) ----------
+/** A player's objective marker: the one in their territory (not the centre one). */
+const isOwnObj = (g, o, side) => !o.centre && territoryOf(g, o) === side;
+/** The objective marker the active operative controls (within its control range) that passes the test. */
+const ctrlObj = (g, op, test = () => true) => g.objectives.find((o) => nearObj(op, o) && controller(g, o) === op.side && test(o));
+/** Per-turning-point counter for a side (Loot VP, Compile Data actions…), reset each turning point. */
+function perTP(g, key, side) {
+  const c = ((g.critTP ||= {})[key] ||= { tp: g.tp, n: [0, 0] });
+  if (c.tp !== g.tp) { c.tp = g.tp; c.n = [0, 0]; }
+  return c.n;
+}
+/** The usual mission-action conditions: not in TP1 (or earlier), not within control range of an enemy. */
+function critCond(g, op, fromTP, target, why) {
+  if (g.tp < fromTP) return fromTP === 2 ? { zh: '第 1 回合不能執行', en: 'Not in the first turning point' } : { zh: `第 ${fromTP} 回合起才能執行`, en: `Not before turning point ${fromTP}` };
+  if (missionEngaged(g, op)) return { zh: '處於交戰中', en: 'Engaged' };
+  return target ? null : why;
+}
+const NO_OBJ = { zh: '控制範圍內沒有可用的目標點（要由我方控制）', en: 'No suitable objective marker you control in range' };
+
+const approvedCrit = (id, n, zh, en, descZh, descEn, extra) => ({
+  id, name: { zh: `核心任務 ${n}：${zh}（${en}）`, en: `Crit Op ${n}: ${en}` },
+  desc: { zh: `Approved Ops 2025。三個目標點。${descZh}另有擊殺任務與雙方各自的戰術行動（Tac Op）。`, en: `Approved Ops 2025. Three objective markers. ${descEn} Plus the kill op and each player's Tac Op.` },
+  source: 'Approved Ops 2025', approved: true, objectives: APPROVED_OBJ, ...extra,
+});
+
+const secure = approvedCrit('secure', 1, '確保', 'Secure',
+  '確保（1AP，第 2 回合起）：自己控制的目標點由我方確保，直到對手確保它為止。每回合結束（第 2 回合起）：有任何我方確保的目標點 +1 VP；我方確保的比對手多 +1 VP。',
+  'Secure (1AP, TP2+): an objective you control is secured by you until your opponent secures it. Each TP end from TP2: +1VP if any objective is secured by you, +1VP if more are secured by you than by your opponent.',
+  {
+    actions: ['secure'],
+    onTPEnd(g) {
+      if (g.tp < 2) return;
+      const n = (s) => g.objectives.filter((o) => o.secured === s).length;
+      for (const s of [0, 1]) {
+        if (n(s)) addVP(g, s, 1, 'crit', { zh: `確保了 ${n(s)} 個目標點`, en: `has ${n(s)} objective(s) secured` });
+        if (n(s) > n(1 - s)) addVP(g, s, 1, 'crit', { zh: '確保的目標點比對手多', en: 'has more objectives secured' });
+      }
+    },
+  });
+
+const loot = approvedCrit('loot', 2, '掠奪', 'Loot',
+  '掠奪（1AP，第 2 回合起）：掠奪自己控制、本回合還沒被掠奪過的目標點。每次掠奪 +1 VP（每回合最多 2 VP）。',
+  'Loot (1AP, TP2+): loot an objective you control that hasn\'t been looted this TP. +1VP per Loot (max 2VP per TP).',
+  { actions: ['loot'] });
+
+const transmission = approvedCrit('transmission', 3, '傳輸', 'Transmission',
+  '開始傳輸（1AP，第 2 回合起）：自己控制的目標點開始傳輸，直到下個回合開始。每回合結束（第 2 回合起）：控制任何傳輸中的目標點 +1 VP；控制的傳輸中目標點比敵方多 +1 VP。',
+  'Initiate Transmission (1AP, TP2+): an objective you control is transmitting until the start of the next TP. Each TP end from TP2: +1VP for controlling any transmitting objective, +1VP for controlling more transmitting objectives than the enemy.',
+  {
+    actions: ['transmit'],
+    onTPEnd(g) {
+      if (g.tp < 2) return;
+      const n = (s) => g.objectives.filter((o) => o.transmitTP === g.tp && controller(g, o) === s).length;
+      for (const s of [0, 1]) {
+        if (n(s)) addVP(g, s, 1, 'crit', { zh: `控制 ${n(s)} 個傳輸中的目標點`, en: `controls ${n(s)} transmitting objective(s)` });
+        if (n(s) > n(1 - s)) addVP(g, s, 1, 'crit', { zh: '控制的傳輸中目標點比敵方多', en: 'controls more transmitting objectives' });
+      }
+    },
+  });
+
+const orb = approvedCrit('orb', 4, '寶珠', 'Orb',
+  '戰鬥開始時寶珠在中央目標點。移動寶珠（1AP，第 2 回合起，要控制有寶珠的目標點）：在中央時移到任一方玩家的目標點（自選）；在玩家目標點時移回中央。每回合結束（第 2 回合起）：每控制一個沒有寶珠的目標點 +1 VP。',
+  'The Orb starts on the centre objective. Move Orb (1AP, TP2+, controlling the objective with the Orb): from the centre to either player\'s objective (your choice); from a player\'s objective back to the centre. Each TP end from TP2: +1VP per objective you control without the Orb.',
+  {
+    actions: ['orbToTheirs', 'orbToMine', 'orbToCentre'],
+    setup(g) { g.orb = g.objectives.findIndex((o) => o.centre); },
+    onTPEnd(g) {
+      if (g.tp < 2) return;
+      for (const s of [0, 1]) {
+        const n = g.objectives.filter((o) => o.id !== g.orb && controller(g, o) === s).length;
+        addVP(g, s, n, 'crit', { zh: `控制 ${n} 個沒有寶珠的目標點`, en: `controls ${n} objective(s) without the Orb` });
+      }
+    },
+  });
+
+const download = approvedCrit('download', 7, '下載', 'Download',
+  '下載（1AP，第 3 回合起）：下載自己控制的中央或對手目標點（每個整場一次）。每回合結束（第 2 回合起）：控制較多目標點 +1 VP（不算已下載的）。第 3 回合每次下載 +1 VP，第 4 回合每次 +2 VP。',
+  'Download (1AP, TP3+): download the centre or your opponent\'s objective that you control (each once per battle). Each TP end from TP2: +1VP for controlling more objectives (ignoring downloaded ones). Each Download in TP3 +1VP, in TP4 +2VP.',
+  {
+    actions: ['download'],
+    onTPEnd(g) {
+      if (g.tp < 2) return;
+      const n = (s) => g.objectives.filter((o) => !o.downloaded && controller(g, o) === s).length;
+      if (n(0) !== n(1)) addVP(g, n(0) > n(1) ? 0 : 1, 1, 'crit', { zh: '控制較多（未下載的）目標點', en: 'controls more (not downloaded) objective markers' });
+    },
+  });
+
+const data = approvedCrit('data', 8, '資料', 'Data',
+  '彙整資料（1AP，第 2 回合起）：自己控制、本回合還沒獲得資料點的目標點 +1 資料點。傳送資料（1AP，第 4 回合）：移除自己控制的目標點上所有資料點，每點 +1 VP。第 2、3 回合結束時，本回合執行彙整資料次數比敵方多 +1 VP。',
+  'Compile Data (1AP, TP2+): an objective you control that hasn\'t gained a Data point this TP gains 1. Send Data (1AP, TP4): remove all Data points from an objective you control, +1VP per point. At the end of TP2 and TP3, +1VP for performing more Compile Data actions this TP than the enemy.',
+  {
+    actions: ['compileData', 'sendData'],
+    onTPEnd(g) {
+      if (g.tp !== 2 && g.tp !== 3) return;
+      const n = perTP(g, 'compile');
+      if (n[0] !== n[1]) addVP(g, n[0] > n[1] ? 0 : 1, 1, 'crit', { zh: `本回合彙整資料較多（${n[0]}:${n[1]}）`, en: `more Compile Data actions this TP (${n[0]}:${n[1]})` });
+    },
+  });
+
+const reboot = approvedCrit('reboot', 9, '重啟', 'Reboot',
+  '目標點編號 1–3。每回合策略階段雙方暗中各選一個目標點後同時公開：選到同一個，它本回合失效；選不同，兩人都沒選的那個失效。重啟（2AP，第 2 回合起）：自己控制的失效目標點恢復。每回合結束（第 2 回合起）：每控制一個未失效的目標點 +1 VP。',
+  'Objectives are numbered 1–3. In each Strategy phase both players secretly pick one and reveal together: the same one → it is inert this TP; different ones → the one neither picked is inert. Reboot (2AP, TP2+): an inert objective you control is no longer inert. Each TP end from TP2: +1VP per objective you control that isn\'t inert.',
+  {
+    actions: ['reboot'],
+    onTPEnd(g) {
+      if (g.tp < 2) return;
+      for (const s of [0, 1]) {
+        const n = g.objectives.filter((o) => o.inertTP !== g.tp && controller(g, o) === s).length;
+        addVP(g, s, n, 'crit', { zh: `控制 ${n} 個未失效的目標點`, en: `controls ${n} objective(s) that aren't inert` });
+      }
+    },
+  });
+/** Reboot gambit: this side's secret pick (an objective index) for this turning point. */
+export function setReboot(g, side, obj) {
+  if (g.mission !== 'reboot' || !g.objectives[obj]) return false;
+  (g.rebootPick ||= [null, null])[side] = { tp: g.tp, obj };
+  return true;
+}
+/** Both picks are in: reveal them and make one objective marker inert for this turning point. */
+function resolveReboot(g) {
+  const p = g.rebootPick || [];
+  if (p[0]?.tp !== g.tp || p[1]?.tp !== g.tp) return;
+  const inert = p[0].obj === p[1].obj ? p[0].obj : g.objectives.map((o) => o.id).find((i) => i !== p[0].obj && i !== p[1].obj);
+  g.objectives[inert].inertTP = g.tp;
+  log(g, { zh: `重啟：雙方選 ${p[0].obj + 1} 號與 ${p[1].obj + 1} 號 → ${inert + 1} 號目標點本回合失效`, en: `Reboot: the players picked ${p[0].obj + 1} and ${p[1].obj + 1} → objective ${inert + 1} is inert this TP` }, 'tp');
+}
+
+/** Short state labels drawn under an objective marker (secured, transmitting, Orb, Data, inert…); side: drawn in that team's colour. */
+export function objBadges(g, o, lang) {
+  const zh = lang === 'zh', b = [];
+  if (o.secured != null) b.push({ text: zh ? '已確保' : 'secured', side: o.secured });
+  if (o.transmitTP === g.tp) b.push(zh ? '傳輸中' : 'transmitting');
+  if (g.mission === 'orb' && g.orb === o.id) b.push(zh ? '寶珠' : 'Orb');
+  if (o.downloaded) b.push(zh ? '已下載' : 'downloaded');
+  if (o.data) b.push(zh ? `資料 ${o.data}` : `Data ${o.data}`);
+  if (o.inertTP === g.tp) b.push(zh ? '失效' : 'inert');
+  if (o.lootTP === g.tp) b.push(zh ? '已掠奪' : 'looted');
+  for (const s of [0, 1]) if (o.devices?.[s]) b.push({ text: zh ? '裝置' : 'device', side: s }); // (Plant Devices tac op)
+  return b;
+}
+
 // ---------- Tac Ops (Approved Ops update log): two per archetype ----------
 export const TAC_OPS = {
+  // Seek & Destroy
   dominate: { arch: 'Seek & Destroy', name: { zh: '支配（Dominate）', en: 'Dominate' },
-    desc: { zh: '揭露：第一次使敵人殘廢時。友方每使一名敵人殘廢獲得 1 個支配標記（敵人 Wounds 12 以上得 2 個）。第 3、4 回合結束時，可移除場上友方身上的標記，每個 1 VP（每回合最多 3 VP）。', en: 'Reveal: the first time a friendly incapacitates an enemy. Each friendly that incapacitates an enemy gains a Dominate token (two if its Wounds stat is 12+). At the end of TP3 and TP4, remove tokens from friendlies in the killzone for 1VP each (max 3VP per TP).' } },
+    desc: { zh: '揭露：第一次有友方使敵人殘廢時。友方每使一名敵人殘廢，那名友方獲得 1 個支配標記。第 3、4 回合結束時，可移除沒殘廢的友方身上的標記，每個 +1 VP（每回合最多 3 VP）。', en: 'Reveal: the first time a friendly incapacitates an enemy. Each time a friendly incapacitates an enemy, that friendly gains a Dominate token. At the end of TP3 and TP4, remove tokens from friendlies that aren\'t incapacitated for 1VP each (max 3VP per TP).' } },
   sweepClear: { arch: 'Seek & Destroy', actions: ['clear'], name: { zh: '掃蕩清除（Sweep & Clear）', en: 'Sweep & Clear' },
-    desc: { zh: '揭露：第一次有敵人在爭奪目標點時殘廢，或第一次執行「清除」。敵人在爭奪某目標點時殘廢，該目標點本回合「已掃蕩」。清除（1AP，第 2 回合起）：本回合清除自己控制的目標點。每回合結束（第 2 回合起）：中央或對手的目標點已清除、且敵人沒在爭奪 +1 VP（也已掃蕩則 +2）；控制已掃蕩的目標點 +1 VP（每回合最多 2 VP）。', en: 'Reveal: the first time an enemy contesting an objective falls, or the first Clear. When an enemy contesting an objective is incapacitated, that objective is swept this TP. Clear (1AP, TP2+): an objective you control is cleared this TP. Each TP end from TP2: the centre or the opponent\'s objective cleared and not contested by enemies +1VP (+2 if also swept); controlling a swept objective +1VP (max 2VP per TP).' } },
+    desc: { zh: '揭露：第一次有敵人在爭奪目標點時殘廢，或第一次執行「清除」（先發生者）。爭奪目標點的敵人殘廢時，該目標點獲得我方掃蕩標記到下個準備步驟。清除（1AP，第 2 回合起）：自己控制的目標點本回合已清除。每回合結束（第 2 回合起）：控制任何有我方掃蕩標記的目標點 +1 VP；其中也有已清除的 +2 VP（每回合最多 2 VP）。', en: 'Reveal: the first time an enemy contesting an objective is incapacitated, or the first Clear (whichever comes first). When an enemy contesting an objective is incapacitated, it gains your Swept token until the next Ready step. Clear (1AP, TP2+): an objective you control is cleared this TP. Each TP end from TP2: +1VP if you control any objective with your Swept token; +2VP instead if any of those is also cleared (max 2VP per TP).' } },
+  rout: { arch: 'Seek & Destroy', name: { zh: '擊潰（Rout）', en: 'Rout' },
+    desc: { zh: '揭露：第一次從這張得分時。友方使敵人殘廢時，若那名友方在對手部署區 6" 內 +1 VP；那名敵人 Wounds 12 以上則 +2 VP（每回合最多 2 VP）。', en: 'Reveal: the first time you score from it. Whenever a friendly incapacitates an enemy while within 6" of your opponent\'s drop zone, +1VP; +2VP instead if that enemy had a Wounds stat of 12+ (max 2VP per TP).' } },
+  // Recon
   flank: { arch: 'Recon', name: { zh: '側翼（Flank）', en: 'Flank' },
-    desc: { zh: '揭露：第 2 回合策略階段。戰場沿雙方邊緣中點分成左右兩翼；完全在某翼、且完全在對手領土內的特工爭奪該翼，APL 總和高者控制。每回合結束（第 2 回合起）：每控制一翼 +1 VP；第 4 回合若第 3 回合也控制同一翼則 +2（每回合最多 2 VP）。', en: 'Reveal: TP2 Strategy phase. The killzone is split into two flanks through the middle of each player\'s edge; an operative wholly within a flank and wholly in the opponent\'s territory contests it, higher total APL controls it. Each TP end from TP2: +1VP per flank controlled; in TP4, +2 for a flank also controlled at the end of TP3 (max 2VP per TP).' } },
+    desc: { zh: '揭露：策略計謀（本版在第 2 回合策略階段自動揭露）。戰場沿雙方邊緣中點分成左右兩翼；完全在某翼、且在對手領土內的特工爭奪該翼，APL 總和高者控制。揭露後每回合結束（第 2 回合起）：每控制一翼 +1 VP；上一回合（不算第 1 回合）結束時也控制同一翼則 +2 VP（每回合最多 2 VP）。', en: 'Reveal: as a strategic gambit (here: automatically in the TP2 Strategy phase). The killzone is split into two flanks through the middle of each player\'s edge; an operative wholly within a flank and in the opponent\'s territory contests it, higher total APL controls it. After the reveal, each TP end from TP2: +1VP per flank controlled; +2VP instead if you also controlled it at the end of the previous TP (not the first) (max 2VP per TP).' } },
   retrieval: { arch: 'Recon', actions: ['retrieve'], name: { zh: '回收（Retrieval）', en: 'Retrieval' },
-    desc: { zh: '揭露：第一次從這張得分時。回收（1AP，第 2 回合起，沒帶標記）：在自己控制、尚未搜索過的目標點取得一個回收標記帶著（掉了友方可再撿）。每個目標點第一次被搜索 +1 VP；戰鬥結束時每帶著一個回收標記 +1 VP。', en: 'Reveal: the first time you score from it. Retrieve (1AP, TP2+, not carrying): at an objective you control that you haven\'t searched, take a Retrieval marker (friendlies can pick it up again if dropped). +1VP the first time each objective is searched; +1VP per Retrieval marker carried at the end of the battle.' } },
+    desc: { zh: '揭露：第一次從這張得分時。回收（1AP，第 2 回合起）：在自己控制、我方尚未搜索過的目標點取得一個回收標記帶著（掉了友方可再撿）。每個目標點第一次被我方搜索 +1 VP；戰鬥結束時每帶著一個回收標記 +1 VP。', en: 'Reveal: the first time you score from it. Retrieve (1AP, TP2+): at an objective you control that you haven\'t searched, take a Retrieval marker (friendlies can pick it up again if dropped). +1VP the first time each objective is searched by you; +1VP per Retrieval marker carried at the end of the battle.' } },
+  scout: { arch: 'Recon', actions: ['scout'], name: { zh: '偵察敵軍動向（Scout Enemy Movement）', en: 'Scout Enemy Movement' },
+    desc: { zh: '揭露：第一次執行「偵察」時。偵察（1AP，第 2 回合起，不能是交戰指令）：選一名可見、在 6" 外且還沒啟動的敵人，它被監視到下個準備步驟。每回合結束（第 2 回合起）：每名被監視、且有友方看得到的敵人 +1 VP（不必是執行偵察的那名；每回合最多 2 VP）。', en: 'Reveal: the first Scout. Scout (1AP, TP2+, not with an Engage order): select a ready enemy visible and more than 6" away; it is monitored until the next Ready step. Each TP end from TP2: +1VP per monitored enemy visible to friendlies (not necessarily the scout; max 2VP per TP).' } },
+  // Security
+  plantBanner: { arch: 'Security', actions: ['plantBanner'], name: { zh: '插旗（Plant Banner）', en: 'Plant Banner' },
+    desc: { zh: '揭露：執行「插旗」時。插旗（1AP，第 2 回合起，整場一次）：在控制範圍內放下旗幟標記，要完全在對手領土內、距離中立邊緣超過 5"；雙方都能撿起旗幟。每回合結束（第 2 回合起）：旗幟在場上、完全在對手領土內且由我方控制 +1 VP；同時沒有敵人爭奪則 +2 VP。', en: 'Reveal: when you Plant Banner. Plant Banner (1AP, TP2+, once per battle): place your Banner marker in control range, wholly in your opponent\'s territory and more than 5" from a neutral edge; either side can pick it up. Each TP end from TP2: +1VP if your Banner is on the killzone floor, wholly in your opponent\'s territory and controlled by you; +2VP instead if no enemy contests it.' } },
   martyrs: { arch: 'Security', name: { zh: '殉道者（Martyrs）', en: 'Martyrs' },
-    desc: { zh: '揭露：第一次有友方在爭奪目標點時殘廢。友方在爭奪目標點時殘廢（每名只算第一次），該目標點獲得 1 個殉道者標記。每回合結束（第 2 回合起）：友方在爭奪有標記的目標點時可移除標記，每個 +1 VP（同時控制則 +2；每回合最多 2 VP）。', en: 'Reveal: the first time a friendly falls while contesting an objective. When a friendly falls while contesting an objective (first time only), the objective gains a Martyr token. Each TP end from TP2: if friendlies contest an objective with tokens, remove them for +1VP each (+2 if you also control it; max 2VP per TP).' } },
+    desc: { zh: '揭露：第一次有友方在爭奪目標點時殘廢。友方在爭奪目標點時殘廢，該目標點獲得 1 個殉道者標記。每回合結束（第 2 回合起）：友方在爭奪有標記的目標點時可移除標記，每個 +1 VP（同時控制則 +2；每回合最多 2 VP）。', en: 'Reveal: the first time a friendly falls while contesting an objective. When a friendly falls while contesting an objective, the objective gains a Martyr token. Each TP end from TP2: if friendlies contest an objective with tokens, remove them for +1VP each (+2 if you also control it; max 2VP per TP).' } },
   envoy: { arch: 'Security', name: { zh: '使節（Envoy）', en: 'Envoy' },
     desc: { zh: '揭露：第一次選使節時。第 2 回合起每回合策略階段選一名之前沒選過的友方當使節。回合結束時使節完全在敵方領土、且不在敵人控制範圍內 +1 VP；本回合也沒失去生命則 +2 VP。', en: 'Reveal: the first time you pick an envoy. From TP2, each Strategy phase pick a friendly not picked before as the envoy. At the TP end, if the envoy is wholly in enemy territory and not in an enemy\'s control range +1VP; +2VP if it also lost no wounds this TP.' } },
+  // Infiltration
+  trackEnemy: { arch: 'Infiltration', name: { zh: '追蹤敵人（Track Enemy）', en: 'Track Enemy' },
+    desc: { zh: '揭露：第一次從這張得分時。敵人被追蹤：6" 內有隱蔽指令的友方能把它當成有效目標，而那名友方不是它的有效目標、也不在敵人控制範圍內。每回合結束（第 2 回合起）：追蹤 1 名敵人 +1 VP（第 4 回合 +2）；追蹤 2 名以上 +2 VP（每回合最多 2 VP）。', en: 'Reveal: the first time you score from it. An enemy is tracked if it\'s a valid target for a friendly within 6" that has a Conceal order, isn\'t a valid target for that enemy and isn\'t in an enemy\'s control range. Each TP end from TP2: one enemy tracked +1VP (+2 in TP4); two or more +2VP (max 2VP per TP).' } },
+  plantDevices: { arch: 'Infiltration', actions: ['plantDevice'], name: { zh: '安置裝置（Plant Devices）', en: 'Plant Devices' },
+    desc: { zh: '揭露：第一次執行「安置裝置」時。安置裝置（1AP，第 2 回合起）：自己控制、還沒有我方裝置的目標點獲得 1 個裝置標記。每回合結束（第 2 回合起）：對手的目標點有我方裝置 +1 VP；其他有我方裝置、且有敵人在爭奪的目標點每個 +1 VP（每回合最多 2 VP）。', en: 'Reveal: the first Plant Device. Plant Device (1AP, TP2+): an objective you control without your Device token gains one. Each TP end from TP2: +1VP if your opponent\'s objective has your device; +1VP for each other objective with your device that enemies contest (max 2VP per TP).' } },
+  stealIntel: { arch: 'Infiltration', name: { zh: '竊取情報（Steal Intelligence）', en: 'Steal Intelligence' },
+    desc: { zh: '揭露：第一次有敵人殘廢時。每有敵人殘廢，在它的位置放下我方情報標記；友方可以撿起，每名友方最多帶 2 個情報標記（或 1 個情報加 1 個其他標記）。每回合結束（第 2 回合起）：有友方帶著情報標記 +1 VP；戰鬥結束時每帶著一個情報標記 +1 VP。', en: 'Reveal: the first time an enemy is incapacitated. Whenever an enemy is incapacitated, place your Intelligence marker where it was; friendlies can pick them up, carrying up to two (or one and one other marker). Each TP end from TP2: +1VP if any friendly carries one; +1VP per Intelligence marker carried at the end of the battle.' } },
 };
 const tacOf = (g, side) => (g.tacOps?.[side] ? g.tacOps[side] : null);
 function reveal(g, side) {
@@ -450,13 +738,24 @@ const tacVP = (g, side, n, msg) => { if (n > 0) { reveal(g, side); addVP(g, side
 const contesting = (g, op) => g.objectives.filter((o) => !o.carriedBy && dist(op, o) - radius(op) - 0.4 <= 1.01);
 const wholly = (g, op, side) => { const along = g.axis === 'y' ? 'y' : 'x', r = radius(op); return [-r, r].every((d) => territoryOf(g, { ...op, [along]: op[along] + d }) === side); };
 
+const zoneRect = (z) => ({ x: z.x0, y: z.y0, w: z.x1 - z.x0, h: z.y1 - z.y0 });
+
 /** An operative was incapacitated (counted for the kill op). */
 export function tacOnKill(g, src, target) {
   for (const s of [0, 1]) {
     const t = tacOf(g, s);
     if (!t) continue;
     if (t.id === 'dominate' && src && src.side === s && target.side === 1 - s) {
-      src.dominate = (src.dominate || 0) + (tpl(target).wounds >= 12 ? 2 : 1);
+      src.dominate = (src.dominate || 0) + 1;
+      reveal(g, s);
+    }
+    if (t.id === 'rout' && src && src.side === s && target.side === 1 - s && distPointRect(src, zoneRect(deployZones(g)[1 - s])) - radius(src) <= 6 + 0.01) {
+      const n = perTP(g, 'rout'), vp = Math.min(2 - n[s], tpl(target).wounds >= 12 ? 2 : 1);
+      n[s] += Math.max(0, vp);
+      tacVP(g, s, vp, { zh: `擊潰：在敵方部署區 6" 內擊倒 ${opName(target, 'zh')}`, en: `Rout: ${opName(target, 'en')} incapacitated within 6" of the enemy drop zone` });
+    }
+    if (t.id === 'stealIntel' && target.side === 1 - s) {
+      g.markers.push({ id: g.markers.length, kind: 'intel', owner: s, x: target.x, y: target.y, carriedBy: null });
       reveal(g, s);
     }
     if (t.id === 'sweepClear' && target.side === 1 - s) {
@@ -484,19 +783,15 @@ export function tacOnTPEnd(g) {
       tacVP(g, s, n, { zh: `支配：移除 ${n} 個標記`, en: `Dominate: ${n} token(s) removed` });
     }
     if (t.id === 'sweepClear' && g.tp >= 2) {
-      let vp = 0;
-      for (const o of g.objectives) {
-        const target = o.centre || territoryOf(g, o) === 1 - s;
-        if (target && o.cleared?.[s] === g.tp && !contests(g, 1 - s, o)) vp += o.swept?.[s] === g.tp ? 2 : 1;
-        else if (o.swept?.[s] === g.tp && controller(g, o) === s) vp += 1;
-      }
-      tacVP(g, s, Math.min(2, vp), { zh: '掃蕩清除', en: 'Sweep & Clear' });
+      const swept = g.objectives.filter((o) => o.swept?.[s] === g.tp && controller(g, o) === s);
+      const vp = !swept.length ? 0 : swept.some((o) => o.cleared?.[s] === g.tp) ? 2 : 1;
+      tacVP(g, s, vp, { zh: vp === 2 ? '掃蕩清除：控制已掃蕩且已清除的目標點' : '掃蕩清除：控制已掃蕩的目標點', en: vp === 2 ? 'Sweep & Clear: controls a swept and cleared objective' : 'Sweep & Clear: controls a swept objective' });
     }
     if (t.id === 'flank' && g.tp >= 2) {
       const held = flanksHeld(g, s);
       const prev = (t.held ||= {})[g.tp - 1] || [false, false];
       t.held[g.tp] = held;
-      const vp = held.reduce((v, h, i) => v + (h ? (g.tp === 4 && prev[i] ? 2 : 1) : 0), 0);
+      const vp = held.reduce((v, h, i) => v + (h ? (prev[i] ? 2 : 1) : 0), 0);
       tacVP(g, s, Math.min(2, vp), { zh: `側翼：控制 ${held.filter(Boolean).length} 翼`, en: `Flank: ${held.filter(Boolean).length} flank(s) controlled` });
     }
     if (t.id === 'martyrs' && g.tp >= 2) {
@@ -513,8 +808,45 @@ export function tacOnTPEnd(g) {
         tacVP(g, s, e.damagedTP ? 1 : 2, { zh: `使節 ${opName(e, 'zh')} 深入敵境`, en: `envoy ${opName(e, 'en')} is deep in enemy territory` });
       }
     }
+    if (t.id === 'scout' && g.tp >= 2) {
+      const n = living(g, 1 - s).filter((e) => e.monitored?.[s] === g.tp && living(g, s).some((f) => visibility(g, f, e).visible)).length;
+      tacVP(g, s, Math.min(2, n), { zh: `偵察敵軍動向：看得到 ${n} 名被監視的敵人`, en: `Scout Enemy Movement: ${n} monitored enemy(ies) in sight` });
+    }
+    if (t.id === 'plantBanner' && g.tp >= 2) {
+      const b = (g.markers || []).find((m) => m.kind === 'banner' && m.owner === s && !m.carriedBy);
+      if (b && markerWholly(g, b, 1 - s) && controller(g, b) === s) {
+        const vp = contests(g, 1 - s, b) ? 1 : 2;
+        tacVP(g, s, vp, { zh: vp === 2 ? '插旗：控制旗幟且沒有敵人爭奪' : '插旗：控制旗幟', en: vp === 2 ? 'Plant Banner: banner controlled and uncontested' : 'Plant Banner: banner controlled' });
+      }
+    }
+    if (t.id === 'trackEnemy' && g.tp >= 2) {
+      const n = living(g, 1 - s).filter((e) => tracked(g, s, e)).length;
+      const vp = n >= 2 ? 2 : n === 1 ? (g.tp === 4 ? 2 : 1) : 0;
+      tacVP(g, s, vp, { zh: `追蹤敵人：追蹤 ${n} 名`, en: `Track Enemy: ${n} enemy(ies) tracked` });
+    }
+    if (t.id === 'plantDevices' && g.tp >= 2) {
+      const dev = g.objectives.filter((o) => o.devices?.[s]);
+      const vp = dev.filter((o) => isOwnObj(g, o, 1 - s)).length + dev.filter((o) => !isOwnObj(g, o, 1 - s) && contests(g, 1 - s, o)).length;
+      tacVP(g, s, Math.min(2, vp), { zh: '安置裝置', en: 'Plant Devices' });
+    }
+    if (t.id === 'stealIntel' && g.tp >= 2 && intelCarried(g, s)) tacVP(g, s, 1, { zh: '竊取情報：有友方帶著情報', en: 'Steal Intelligence: a friendly carries intelligence' });
   }
 }
+/** Scout targets: ready enemies visible to op and more than 6" away, not monitored by this side yet this TP. */
+export const scoutTargets = (g, op) => living(g, 1 - op.side).filter((e) => e.ready && e.monitored?.[op.side] !== g.tp && edgeDist(op, e) > 6 && visibility(g, op, e).visible);
+/** A marker (as a disc) wholly within this side's territory. */
+const markerWholly = (g, m, side) => { const along = g.axis === 'y' ? 'y' : 'x'; return [-OBJ_R, OBJ_R].every((d) => territoryOf(g, { ...m, [along]: m[along] + d }) === side); };
+/** Plant Banner: a marker at op's spot would be wholly in the opponent's territory and more than 5" from both neutral edges. */
+function bannerOk(g, side, op) {
+  const across = g.axis === 'y' ? 'x' : 'y', size = across === 'y' ? BOARD.h : BOARD.w;
+  return markerWholly(g, op, 1 - side) && op[across] - OBJ_R > 5 && size - op[across] - OBJ_R > 5;
+}
+/** "Valid target" for tracking: visible, and not a Concealed operative in cover. */
+const validFor = (g, a, b) => { const v = visibility(g, a, b); return v.visible && !(b.order === 'conceal' && v.cover); };
+/** Track Enemy: a Concealed friendly within 6" that can target the enemy, isn't a valid target for it and isn't within an enemy's control range. */
+const tracked = (g, s, e) => living(g, s).some((f) => f.order === 'conceal' && edgeDist(f, e) <= 6 && validFor(g, f, e) && !validFor(g, e, f)
+  && !living(g, 1 - s).some((x) => edgeDist(x, f) <= CONTROL + 0.01));
+const intelCarried = (g, s) => (g.markers || []).filter((m) => m.kind === 'intel' && m.owner === s && m.carriedBy && getOp(g, m.carriedBy)?.side === s && !getOp(g, m.carriedBy).dead).length;
 /** Flank: [left, right] — controlled by this side? An operative contests a flank while wholly within it and wholly in the opponent's territory. */
 export function flanksHeld(g, s) {
   const across = g.axis === 'y' ? 'x' : 'y', mid = across === 'y' ? BOARD.h / 2 : BOARD.w / 2;
@@ -526,6 +858,7 @@ export function flanksHeld(g, s) {
 }
 export function tacOnBattleEnd(g) {
   for (const s of [0, 1]) {
+    if (tacOf(g, s)?.id === 'stealIntel') { const n = intelCarried(g, s); tacVP(g, s, n, { zh: `帶著 ${n} 個情報標記`, en: `carries ${n} Intelligence marker(s)` }); }
     if (tacOf(g, s)?.id !== 'retrieval') continue;
     const n = (g.markers || []).filter((m) => m.kind === 'retrieval' && m.owner === s && m.carriedBy && getOp(g, m.carriedBy)?.side === s && !getOp(g, m.carriedBy).dead).length;
     tacVP(g, s, n, { zh: `帶著 ${n} 個回收標記`, en: `carries ${n} Retrieval marker(s)` });
@@ -559,10 +892,15 @@ export function tacOnStrategyEnd(g, side) {
     const opts = claimChoices(g, side).sort((a, b) => (own(g.objectives[b]) ? 1 : 0) - (own(g.objectives[a]) ? 1 : 0));
     if (opts.length) setClaim(g, side, opts[0], own(g.objectives[opts[0]]) ? 'control' : 'deny');
   }
+  // Reboot: a pick not made yet is made at random; once both are in, they're revealed together.
+  if (g.mission === 'reboot') {
+    if (g.rebootPick?.[side]?.tp !== g.tp) setReboot(g, side, Math.floor(Math.random() * g.objectives.length));
+    resolveReboot(g);
+  }
 }
 
-export const MISSIONS = { standard, generatorium, negotiation, stakeClaim, energyCells };
-export const MISSION_LIST = [standard, stakeClaim, energyCells, generatorium, negotiation];
+export const MISSIONS = { standard, generatorium, negotiation, secure, loot, transmission, orb, stakeClaim, energyCells, download, data, reboot };
+export const MISSION_LIST = [standard, secure, loot, transmission, orb, stakeClaim, energyCells, download, data, reboot, generatorium, negotiation];
 
 /** Used by the NPO behaviour (ai.js): the activation's target under the mission's threat principle. */
 export function npoTargetFor(g, op) {

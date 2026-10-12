@@ -5,7 +5,7 @@ export const HELP = {
   <ol>
     <li><b>部署</b>：擲骰決定誰先部署，雙方<b>輪流</b>每次在部署區放置隊伍人數的 <b>1/3</b>（無條件進位）。所有特工以<b>隱蔽</b>指令開始。每名玩家起始 <b>2 CP</b>。</li>
     <li>共 <b>4 個回合 (Turning Point)</b>。</li>
-    <li><b>先攻階段</b>：擲 D6，擲贏的一方<b>決定誰先攻</b>（平手時由上回合沒有先攻的一方決定；第 1 回合平手重擲）。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>，所有特工回到準備狀態。</li><li><b>策略階段</b>：由先攻方先選擇策略計謀（花費 CP），完成後換另一方選擇。</li>
+    <li><b>先攻階段</b>：擲 D6，擲贏的一方<b>決定誰先攻</b>（第 1 回合平手重擲）。<b>先攻卡</b>：開局決定部署順序時擲輸的一方得「重擲」卡，第 1 回合擲輸得「±1」卡、第 2 回合擲輸得「±2」卡、第 3 回合擲輸得「±3」卡；之後的先攻階段在確定結果前可各用一次（重擲自己的骰子，或把自己或對手的骰子加減 N）。<b>平手</b>：第 2 回合起第一次平手由第 1 回合擲輸的一方決定，之後平手由上次沒有選擇先後攻的一方決定；勝負在用完卡之後才判定。雙方各得 1 CP；第 2 回合起，沒有先攻的一方改得 <b>2 CP</b>，所有特工回到準備狀態。</li><li><b>策略階段</b>：由先攻方先選擇策略計謀（花費 CP），完成後換另一方選擇。</li>
     <li><b>交火階段</b>：從先攻方開始，雙方<b>輪流啟動</b>一名特工，直到所有特工都行動完畢。</li>
   </ol>
   <h3>啟動與指令</h3>
@@ -50,7 +50,8 @@ export const HELP = {
   <p><b>手機／觸控</b>：按棋盤下方的「📏 測量距離」進入測量模式，點棋盤新增測量點（不會移動或選取特工），可用「上一點」「清除」，按「結束」離開。總長與各段距離會顯示在工具列。</p>
   <h3>任務</h3>
   <p>開新遊戲時可選任務。「標準對戰」用擊殺任務計分；其他任務有自己的地圖、部署區、標記、任務動作與計分，取代擊殺任務。</p>
-  <p><b>Approved Ops（核心任務 5、6）</b>：三個目標點（雙方領土各一、中央一個）。計分＝核心任務（Crit Op）＋戰術行動（Tac Op）＋擊殺任務。開局每位玩家依隊伍原型暗中選一張戰術行動（支配、掃蕩清除、側翼、回收、殉道者、使節），達成揭露條件時才公開；電腦的戰術行動在揭露前看不到。宣示主權與使節在第 2 回合起的策略階段選擇，沒選會自動幫你選。</p>
+  <p><b>Approved Ops（核心任務 1–9）</b>：三個目標點（雙方領土各一、中央一個）。計分＝核心任務（Crit Op：確保、掠奪、傳輸、寶珠、宣示主權、能源電池、下載、資料、重啟）＋戰術行動（Tac Op）＋擊殺任務。開局每位玩家依隊伍原型暗中選一張戰術行動（殲滅：支配、掃蕩清除、擊潰；偵察：側翼、回收、偵察敵軍動向；保全：插旗、殉道者、使節；滲透：追蹤敵人、安置裝置、竊取情報），達成揭露條件時才公開；電腦的戰術行動在揭露前看不到。宣示主權、重啟與使節在策略階段選擇，沒選會自動幫你選。目標點下方的小字是它目前的狀態（確保、傳輸中、寶珠、資料、失效…）。</p>
+  <p><b>擊殺任務（Kill Op）</b>：依敵方開場特工數（5–14）查表，敵人殘廢累積到門檻就升一個擊殺等級（最高 5），每升一級 +1 VP；戰鬥結束時擊殺等級比對手高再 +1 VP。</p>
   <p><b>NPO（非玩家特工）</b>：任務中的第三方，對雙方玩家都有敵意，由電腦依行為卡行動。雙方各啟動一次後（輪回先手方之前），NPO 會抽一張啟動牌行動。被 NPO 打成殘廢的特工不算擊殺。</p>
   <p><b>撿起標記</b>（1AP）：拿起你控制的任務標記並帶著走；帶著標記的特工控制它，殘廢時標記留在原地。</p>
   <h3>指揮重擲（Command Re-roll）</h3>
@@ -109,7 +110,7 @@ export const HELP = {
   <ol>
     <li><b>Deploy</b>: a roll-off decides who sets up first; players <b>alternate</b> setting up <b>a third</b> of their team (rounded up) in their drop zone. All start with a <b>Conceal</b> order. Each player starts with <b>2CP</b>.</li>
     <li>The battle lasts <b>4 Turning Points</b>.</li>
-    <li><b>Initiative phase</b>: roll off; the winner <b>decides who has initiative</b> (on a tie, the player without initiative last turning point decides; re-roll ties in the first turning point). Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead, and all operatives are readied.</li><li><b>Strategy phase</b>: the initiative player chooses strategic ploys (spending CP), followed by the other player.</li>
+    <li><b>Initiative phase</b>: roll off; the winner <b>decides who has initiative</b> (ties in the first turning point are rolled again). <b>Initiative cards</b>: the loser of the roll-off when setting up the battle gets a Re-roll card, the loser of TP1 a ±1 card, of TP2 ±2, of TP3 ±3; each is used once in a later Initiative phase before the result stands (re-roll your own die, or add or subtract N from either die). <b>Ties</b> (from TP2): the first one is decided by the loser of the TP1 roll-off, later ones by the player who didn't decide last time; the winner is worked out after cards are used. Each player gains 1CP; after the first TP, the player without initiative gains <b>2CP</b> instead, and all operatives are readied.</li><li><b>Strategy phase</b>: the initiative player chooses strategic ploys (spending CP), followed by the other player.</li>
     <li><b>Firefight phase</b>: starting with the initiative player, players <b>alternate activating</b> one operative until all are expended.</li>
   </ol>
   <h3>Activations & orders</h3>
@@ -154,7 +155,8 @@ export const HELP = {
   <p><b>Phone / touch</b>: tap "📏 Measure" below the board to enter measuring mode. Taps on the board add points (without moving or selecting operatives); use Undo and Clear, and Done to leave. The total and each segment are shown in the toolbar.</p>
   <h3>Missions</h3>
   <p>Pick a mission when starting a game. "Standard" scores the Kill Op; other missions bring their own map, drop zones, markers, mission actions and scoring instead of the Kill Op.</p>
-  <p><b>Approved Ops (Crit Ops 5 and 6)</b>: three objective markers (one in each territory, one in the centre). Score = Crit Op + Tac Op + Kill Op. At setup each player secretly picks a Tac Op from its team's archetypes (Dominate, Sweep & Clear, Flank, Retrieval, Martyrs, Envoy); it's revealed when its condition is met, and the computer's stays hidden until then. Stake Claim and Envoy picks are made in the Strategy phase from TP2 (one is made for you if you don't).</p>
+  <p><b>Approved Ops (Crit Ops 1–9)</b>: three objective markers (one in each territory, one in the centre). Score = Crit Op (Secure, Loot, Transmission, Orb, Stake Claim, Energy Cells, Download, Data, Reboot) + Tac Op + Kill Op. At setup each player secretly picks a Tac Op from its team's archetypes (Seek & Destroy: Dominate, Sweep & Clear, Rout; Recon: Flank, Retrieval, Scout Enemy Movement; Security: Plant Banner, Martyrs, Envoy; Infiltration: Track Enemy, Plant Devices, Steal Intelligence); it's revealed when its condition is met, and the computer's stays hidden until then. Stake Claim, Reboot and Envoy picks are made in the Strategy phase (one is made for you if you don't). The small labels under an objective show its state (secured, transmitting, Orb, Data, inert…).</p>
+  <p><b>Kill Op</b>: look up the enemy's starting operative count (5–14); each time enough enemies have been incapacitated you reach the next kill grade (up to 5) for 1VP. At the end of the battle, +1VP if your kill grade is higher than your opponent's.</p>
   <p><b>NPOs (non-player operatives)</b>: third-party operatives hostile to both players, played by the computer from their behaviour. After both players have activated (before the initiative player goes again), the NPOs draw an activation card. Operatives incapacitated by NPOs don't count as kills.</p>
   <p><b>Pick Up Marker</b> (1AP): take a mission marker you control and carry it; a carrier controls its marker and drops it where it falls.</p>
   <h3>Command Re-roll</h3>

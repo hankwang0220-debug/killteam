@@ -6,6 +6,21 @@ export function distPointRect(p, r) {
   return Math.hypot(dx, dy);
 }
 
+/** Minimum distance from a point to a movement segment. */
+export function distPointSegment(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy;
+  const t = length2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0;
+  return dist(p, { x: a.x + t * dx, y: a.y + t * dy });
+}
+
+/** Minimum distance between a movement segment and a rectangular cover footprint. */
+export function distSegmentRect(a, b, r) {
+  if (segRect(a, b, r)) return 0;
+  return Math.min(distPointRect(a, r), distPointRect(b, r),
+    ...[{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y },
+      { x: r.x, y: r.y + r.h }, { x: r.x + r.w, y: r.y + r.h }].map((p) => distPointSegment(p, a, b)));
+}
+
 /** Liang–Barsky: does segment a→b touch rect r? */
 export function segRect(a, b, r) {
   let t0 = 0, t1 = 1;

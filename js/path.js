@@ -1,7 +1,31 @@
 import { BOARD, ER, radius, tpl, hasPloy, inMatrix } from './game.js';
-import { dist, distPointRect, pathLength, segRect, truncatePath } from './geometry.js';
+import { dist, distPointRect, distPointSegment, distSegmentRect, pathLength, segRect, truncatePath } from './geometry.js';
 
 const RES = 0.25;
+const EPS = 1e-6;
+
+/** Keep the chosen endpoint; round up the total movement cost, including penalties. */
+export function wholeInchPath(ctx, path, maxLen = Infinity, endOk = () => true) {
+  if (!path?.pts || path.pts.length < 2) return null;
+  const distance = pathLength(path.pts), max = Math.floor(maxLen + EPS);
+  if (distance <= EPS || max < 1) return null;
+  const validate = (pts) => {
+    const exactLen = pathLength(pts) + (ctx.extra?.(pts) || 0), len = Math.ceil(exactLen - EPS);
+    if (len > max || !ctx.free(pts.at(-1)) || !endOk(pts.at(-1))) return null;
+    if (!pts.slice(1).every((p, i) => ctx.segFree(pts[i], p))) return null;
+    return { pts, len, exactLen };
+  };
+  const cost = Math.ceil(distance + (ctx.extra?.(path.pts) || 0) - EPS);
+  if (cost <= max) return validate(path.pts);
+  // Only an over-budget route is shortened. Legal fractional destinations stay exactly where clicked.
+  const reach = Math.min(distance, max);
+  for (let step = 0; reach - step * 0.1 > EPS; step++) {
+    const travel = reach - step * 0.1;
+    const result = validate(truncatePath(path.pts, travel));
+    if (result) return result;
+  }
+  return null;
+}
 
 /**
  * Movement context for an operative. Paths avoid terrain and other bases; where the move may
@@ -10,11 +34,11 @@ const RES = 0.25;
  */
 export function moveCtx(g, op, kind = 'reposition') {
   const r = radius(op);
-  const others = g.ops.filter((o) => !o.dead && o.uid !== op.uid).map((o) => ({ x: o.x, y: o.y, r: radius(o), enemy: o.side !== op.side }));
-  const heavy = g.terrain.filter((t) => t.kind === 'heavy');
+  const others = g.ops.filter((o) => !o.dead && o.uid !== op.uid).map((o) => ({ uid: o.uid, x: o.x, y: o.y, r: radius(o), enemy: o.side !== op.side }));
+  const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
   function free(p) {
     if (p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r) return false;
-    for (const t of heavy) if (distPointRect(p, t) < r - 1e-6) return false;
+    for (const t of cover) if (distPointRect(p, t) < r - 1e-6) return false;
     for (const o of others) {
       const d = dist(p, o);
       if (d < r + o.r - 1e-6) return false;
@@ -24,18 +48,20 @@ export function moveCtx(g, op, kind = 'reposition') {
   function inEnemyER(p) {
     return others.some((o) => o.enemy && dist(p, o) - r - o.r <= ER + 0.01);
   }
+  // Explain endpoint clearance separately from whether a route can reach it.
+  function placement(p) {
+    const outside = p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r;
+    const terrain = cover.filter((t) => distPointRect(p, t) < r - 1e-6);
+    const operatives = others.filter((o) => dist(p, o) < r + o.r - 1e-6);
+    return { ok: !outside && !terrain.length && !operatives.length, outside, terrain, operatives };
+  }
   // Jump Pack (FLY): the operative is set up again within its move distance, so only where it lands matters.
   const fly = (!!tpl(op).jumpPack && (op.team !== 'murderwing' || (g.active === op.uid && !op.counter && kind !== 'dash'))) || !!(tpl(op).blinkPack && op.blinkOn);
   function segFree(a, b) {
     if (fly) return true;
-    const n = Math.max(1, Math.ceil(dist(a, b) / 0.1));
-    for (let k = 1; k <= n; k++) {
-      const f = k / n;
-      const p = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
-      if (op.acted?.mdNowhere) {
-        if (p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r || others.some((o) => dist(p, o) < r + o.r - 1e-6)) return false;
-      } else if (!free(p)) return false;
-    }
+    if ([a, b].some((p) => p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r)) return false;
+    if (others.some((o) => distPointSegment(o, a, b) < r + o.r - EPS)) return false;
+    if (!op.acted?.mdNowhere && cover.some((t) => distSegmentRect(a, b, t) < r - EPS)) return false;
     return true;
   }
   // Razor wire (鐵絲網, Obstructing): crossing over it counts as 1" more.
@@ -56,19 +82,12 @@ export function moveCtx(g, op, kind = 'reposition') {
     const wire = !wires.length || fly || op.acted?.mdNowhere ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
     return wire + (entersMatrix(pts) ? 1 : 0);
   }
-  return { op, r, free, segFree, inEnemyER, extra };
+  return { op, r, free, placement, segFree, inEnemyER, extra };
 }
 
 /** Shorten a path to maxLen, backing off until the end point is a legal place to stand. */
 export function clampPath(ctx, path, maxLen, endOk = () => true) {
-  let l = Math.min(path.len, maxLen);
-  for (let k = 0; k < 60 && l > 0.05; k++, l -= 0.2) {
-    const pts = truncatePath(path.pts, l);
-    const end = pts[pts.length - 1];
-    const len = pathLength(pts) + (ctx.extra?.(pts) || 0);
-    if (ctx.free(end) && endOk(end) && len <= maxLen + 0.01) return { pts, len };
-  }
-  return null;
+  return wholeInchPath(ctx, path, maxLen, endOk);
 }
 
 class Heap {

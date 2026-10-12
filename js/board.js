@@ -1,5 +1,6 @@
 import { BOARD, DEPLOY, OBJ_R, CONTROL, controller, isInjured, opName, radius, team, tpl } from './game.js';
 import { getLang, tx } from './i18n.js';
+import { objBadges } from './missions.js';
 
 const f = (n) => +n.toFixed(3);
 
@@ -95,6 +96,11 @@ export function renderBoard(g, ui) {
     s.push(`<circle cx="${o.x}" cy="${o.y}" r="${OBJ_R + CONTROL}" fill="none" stroke="${col}" stroke-width="0.04" stroke-dasharray="0.2 0.15" opacity="0.6" pointer-events="none"/>`);
     s.push(`<circle cx="${o.x}" cy="${o.y}" r="${OBJ_R}" fill="${col}" stroke="var(--obj-s)" stroke-width="0.06" pointer-events="none"/>`);
     s.push(`<text x="${o.x}" y="${o.y + 0.16}" class="objtxt" pointer-events="none">${o.id + 1}</text>`);
+    // Approved Ops state (secured, transmitting, Orb, Data, inert…) and Tac Op tokens on the marker.
+    objBadges(g, o, zh ? 'zh' : 'en').forEach((b, i) => {
+      const fill = b.side != null ? ` style="fill:${team(g, b.side).color}"` : '';
+      s.push(`<text x="${o.x}" y="${f(o.y + OBJ_R + CONTROL + 0.35 + i * 0.42)}" class="objbadge"${fill} pointer-events="none">${b.text ?? b}</text>`);
+    });
   }
 
   // Obelisk Node Matrix (Canoptek Circle): 20mm-wide lines between a side's nodes within 6" of each other.
@@ -113,7 +119,7 @@ export function renderBoard(g, ui) {
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
     // (Hernkyn Yaegir Minefield markers: face down "?", flipped a HY-Pex mine "✸" or a blank "○"; the Fallen Kin marker "⚑".)
     const sym = m.kind === 'hyMine' ? (!m.flipped ? '?' : m.live ? '✸' : '○')
-      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑' }[m.kind] || '✦';
+      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
     if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);
@@ -141,7 +147,14 @@ export function renderBoard(g, ui) {
     const end = ui.path.pts[ui.path.pts.length - 1];
     s.push(`<path d="${d}" class="path ${ui.path.ok ? 'ok' : 'bad'}" pointer-events="none"/>`);
     s.push(`<circle cx="${f(end.x)}" cy="${f(end.y)}" r="${f(ui.path.r)}" class="ghost ${ui.path.ok ? 'ok' : 'bad'}" pointer-events="none"/>`);
-    s.push(`<text x="${f(end.x)}" y="${f(end.y - ui.path.r - 0.25)}" class="pathlen" pointer-events="none">${ui.path.len.toFixed(1)}"</text>`);
+    if (ui.path.placement) {
+      const { terrain, operatives, outside } = ui.path.placement;
+      for (const t of terrain) s.push(`<rect x="${f(t.x)}" y="${f(t.y)}" width="${f(t.w)}" height="${f(t.h)}" rx=".05" class="placement-block" pointer-events="none"/>`);
+      for (const o of operatives) s.push(`<circle cx="${f(o.x)}" cy="${f(o.y)}" r="${f(o.r + .08)}" class="placement-block" pointer-events="none"/>`);
+      if (outside) s.push(`<rect x="0" y="0" width="${BOARD.w}" height="${BOARD.h}" class="placement-edge" pointer-events="none"/>`);
+      s.push(`<circle cx="${f(end.x)}" cy="${f(end.y)}" r="${f(ui.path.r)}" class="placement-base" pointer-events="none"/><path d="M${f(end.x - .2)} ${f(end.y - .2)}L${f(end.x + .2)} ${f(end.y + .2)}M${f(end.x + .2)} ${f(end.y - .2)}L${f(end.x - .2)} ${f(end.y + .2)}" class="placement-cross" pointer-events="none"/>`);
+    }
+    s.push(`<text x="${f(end.x)}" y="${f(end.y - ui.path.r - 0.25)}" class="pathlen ${ui.path.placement ? 'placement-label' : ''}" pointer-events="none">${ui.path.placement ? (getLang() === 'zh' ? '底盤放不下' : 'Base does not fit') : `${Math.ceil(ui.path.len - 1e-6)}"`}</text>`);
   }
 
   // Hearthkyn markers: Pan Spectral Scan and the Tactician's Attack / Defence marker (3" areas).
@@ -221,6 +234,11 @@ export function renderBoard(g, ui) {
     if (g.active === o.uid && g.phase === 'firefight') s.push(`<circle r="${f(r + 0.22)}" class="activeRing pulse"/>`);
     else if (g.active === o.uid) s.push(`<circle r="${f(r + 0.22)}" class="activeRing"/>`);
     else if (ui.sel === o.uid) s.push(`<circle r="${f(r + 0.2)}" class="selRing"/>`);
+    // Picked from the operative lists beside the board: a locator ring with crosshair ticks.
+    if (ui.peek === o.uid) {
+      const a = r + 0.45, b = r + 0.95;
+      s.push(`<g class="peekMark"><circle r="${f(a)}"/><path d="M0 ${f(-b)}V${f(-a)}M0 ${f(a)}V${f(b)}M${f(-b)} 0H${f(-a)}M${f(a)} 0H${f(b)}"/></g>`);
+    }
     // The other side's latest activated operative this turning point.
     if (g.active !== o.uid && (ui.recent || []).some((rec) => rec.uid === o.uid)) {
       s.push(`<circle r="${f(r + 0.3)}" class="lastRing" stroke="${col}"/>`);
@@ -276,6 +294,8 @@ export function renderBoard(g, ui) {
     if (A) tags.push([A, `${ui.attack.kind === 'fight' ? '⚔' : '⌖'} ${getLang() === 'zh' ? '攻擊者' : 'Attacker'}`, 'atk']);
     if (Tg) tags.push([Tg, `🎯 ${getLang() === 'zh' ? '目標' : 'Target'}`, 'tgtt']);
   } else if (act && g.phase === 'firefight') tags.push([act, `▶ ${getLang() === 'zh' ? '啟動中' : 'Activating'}`, 'actt']);
+  const peek = g.ops.find((o) => o.uid === ui.peek && !o.dead && o.x > -50 && o !== act);
+  if (peek) tags.push([peek, `📍 ${getLang() === 'zh' ? '在這裡' : 'Here'}`, 'peekt']);
   for (const [o, label, cls] of tags) {
     const r = radius(o), text = `${label}：${shortName(o)}`;
     const w = [...text].reduce((n, c) => n + (c.charCodeAt(0) > 255 ? 0.5 : 0.27), 0.5);
