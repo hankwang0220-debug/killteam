@@ -7,8 +7,9 @@ for(const t of TEAMS.filter(t=>t.id !== 'npo')) {
   const options=equipmentOptionsFor(t.id), faction=options.filter(id=>!EQUIP_IDS.includes(id));
   const picks=[...faction.slice(0,2),...EQUIP_IDS.slice(0,5)];
   const g=newGame({teams:[t.id,'angels'],ai:null,equip:[picks,[]]});
-  assert.equal(g.equip[0].length,t.id==='ratlings'?5:4,`${t.id}: combined cap is four (five for the Ratlings' Munitorum Contacts)`);
-  assert.deepEqual(g.equip[0],picks.slice(0,t.id==='ratlings'?5:4));
+  const cap=t.id==='ratlings'||t.id==='spectres'?5:4;
+  assert.equal(g.equip[0].length,cap,`${t.id}: combined cap is four (five for the Ratlings' Munitorum Contacts and the Spectres' Prepared Killzone)`);
+  if(t.id!=='spectres') assert.deepEqual(g.equip[0],picks.slice(0,cap));
   if(faction.length) assert(g.equip[0].includes(faction[0]),`${t.id}: faction options share the universal pool`);
   const ai=newGame({teams:['angels',t.id],ai:1,equip:[[]]});
   assert.equal(ai.equip[1].length,4,`${t.id}: AI respects the same cap`);
