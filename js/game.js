@@ -4323,6 +4323,19 @@ export const EQUIPMENT = {
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
 Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT);
+export const EQUIPMENT_LIMIT = 4;
+const FACTION_EQUIPMENT = {
+  handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
+  deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
+  murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT,
+};
+export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
+export function cleanEquipment(teamId, ids = []) {
+  const allowed = new Set(equipmentOptionsFor(teamId));
+  return [...new Set((Array.isArray(ids) ? ids : []).filter(id => allowed.has(id)))].slice(0, EQUIPMENT_LIMIT);
+}
+
 registerMurderwingActions();
 registerWreckaActions();
 registerNightlordsActions();
@@ -4421,7 +4434,7 @@ export function autoPlaceEquipment(g) {
 
 /** Prepare the chosen equipment for a side (called from newGame). */
 function setupEquipment(g, side, ids) {
-  (g.equip ||= [[], []])[side] = ids.filter((id) => EQUIPMENT[id] && (!ARCHON_EQUIPMENT[id] || g.teams[side] === 'handOfArchon') && (!CORSAIR_EQUIPMENT[id] || g.teams[side] === 'corsairVoidscarred') && (!DEATHWATCH_EQUIPMENT[id] || g.teams[side] === 'deathwatch') && (!MANDRAKES_EQUIPMENT[id] || g.teams[side] === 'mandrakes') && (!MURDERWING_EQUIPMENT[id] || g.teams[side] === 'murderwing') && (!WRECKA_EQUIPMENT[id] || g.teams[side] === 'wreckaKrew') && (!NIGHTLORDS_EQUIPMENT[id] || g.teams[side] === 'nemesisClaw') && (!SCOUTS_EQUIPMENT[id] || g.teams[side] === 'scoutSquad') && (!RATLINGS_EQUIPMENT[id] || g.teams[side] === 'ratlings')).slice(0, living(g, side).some((o) => tpl(o).dwCommand || tpl(o).munitorum) ? 5 : 4); // (Munitorum Contacts: the Ratling Fixer)
+  (g.equip ||= [[], []])[side] = cleanEquipment(g.teams[side], ids);
   (g.eqUses ||= [{}, {}])[side] = { frag: 0, krak: 0, stun: 0, smoke: 0 };
   const along = g.axis === 'y' ? 'y' : 'x';
   // Where each kind may go: light cover and razor wire wholly within your territory (half); heavy cover wholly

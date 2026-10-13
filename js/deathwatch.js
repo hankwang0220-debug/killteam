@@ -1,6 +1,6 @@
 import { DW_AMMO, deathwatchRosterError } from './data/deathwatch.js';
 import { TEAM_MAP } from './data/teams.js';
-import { tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission } from './game.js';
+import { tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, EQUIPMENT_LIMIT } from './game.js';
 import { MISSION_ACTIONS } from './missions.js';
 export { DW_AMMO };
 export const isDeathwatch = (o) => o?.team === 'deathwatch';
@@ -12,10 +12,8 @@ export function dwSetup(g, roster) {
     if (error) throw new Error(error.en);
   }
 }
-export function dwEquipmentLimit(t, roster = {}) {
-  if (t.id === 'ratlings') return 5; // Munitorum Contacts (the Ratling Fixer is always in the kill team)
-  return t.id === 'deathwatch' && Object.keys(t.replacements).some((slot) => (roster[slot] || slot) === 'dwSergeant') ? 5 : 4;
-}
+// All teams share the user's combined four-option equipment cap.
+export function dwEquipmentLimit() { return EQUIPMENT_LIMIT; }
 export const dwCommandFree = (g, side, kind) => g.teams[side] === 'deathwatch' && !g.dwCommand?.[side]?.[kind] && living(g, side).some((o) => tpl(o).dwCommand && o.placed !== false);
 export function dwConsumeCommand(g, side, kind) {
   ((g.dwCommand ||= [{}, {}])[side])[kind] = true;

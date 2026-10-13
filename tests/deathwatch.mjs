@@ -22,7 +22,7 @@ const w = (o, id) => G.weaponsFor({}, o).find((x) => x.id === id);
 const can = (g, o, id) => G.availableActions(g, o).find((x) => x.id === id)?.ok;
 assert.equal(T.ops.length, 11);
 assert.equal(G.living(arena(), 0).length, 5);
-assert.equal(D.dwEquipmentLimit(T), 5);
+assert.equal(D.dwEquipmentLimit(T), 4);
 assert.equal(D.dwEquipmentLimit(T, rosterFor(['dwMarksman', ...defaults.slice(1)])), 4);
 assert.throws(() => arena(['dwAegis', 'dwAegis', ...defaults.slice(2)]), /only once/);
 assert.throws(() => arena(['dwBombard', 'dwBreacher', ...defaults.slice(2)]), /GRAVIS/);
@@ -105,7 +105,7 @@ assert(G.tacOpsFor('deathwatch').every((id) => ['Seek & Destroy', 'Security'].in
 }
 {
   const g = arena(defaults, ['dwThrall']), o = get(g, 'dwGunner'); G.activate(g, o);
-  const id = Object.keys(MISSION_ACTIONS)[0]; const normal = G.actionCost(g, o, id);
+  const id = 'secure'; const normal = G.actionCost(g, o, id);
   G.doSelfAction(g, o, 'dwThrallUse'); assert.equal(G.actionCost(g, o, id), Math.max(0, normal - 1));
   const e = target(g); e.x = o.x + 1.5; e.y = o.y; assert(!G.missionEngaged(g, o), 'thrall permits engaged mission action');
   D.dwMissionDone(g, o, id); assert.equal(g.dwThrallTP[0], g.tp); assert(!o.acted.dwThrall); assert(!can(g, o, 'dwThrallUse'));

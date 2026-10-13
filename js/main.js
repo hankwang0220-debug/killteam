@@ -1,20 +1,18 @@
 import { TOMB_WORLD_MAPS, tombWorldMapSvg } from './tombworld-maps.js';
 import { tombWorldView } from './tombworld.js';
-import { DEATHWATCH_EQUIPMENT, deathwatchRosterError } from './data/deathwatch.js';
-import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
-import { MURDERWING_EQUIPMENT, murderwingRosterError } from './data/murderwing.js';
-import { WRECKA_EQUIPMENT, wreckaRosterError } from './data/wrecka.js';
-import { NIGHTLORDS_EQUIPMENT, nightlordsRosterError } from './data/nightlords.js';
+import { deathwatchRosterError } from './data/deathwatch.js';
+import { murderwingRosterError } from './data/murderwing.js';
+import { wreckaRosterError } from './data/wrecka.js';
+import { nightlordsRosterError } from './data/nightlords.js';
 import { prescienceOf, canForeboding, ncForeboding } from './nightlords.js';
-import { SCOUTS_EQUIPMENT, scoutsRosterError, FORWARD_SCOUTING, cleanScouting, DEFAULT_SCOUTING } from './data/scouts.js';
+import { scoutsRosterError, FORWARD_SCOUTING, cleanScouting, DEFAULT_SCOUTING } from './data/scouts.js';
 import { scGambitsLeft, scDiversionTargets, scTactical, scDiversion } from './scouts.js';
-import { RATLINGS_EQUIPMENT, ratlingsRosterError, ratFreeCount, cleanRatFree, DEFAULT_RAT_FREE, RATLING_PLOYS } from './data/ratlings.js';
+import { ratlingsRosterError, ratFreeCount, cleanRatFree, DEFAULT_RAT_FREE, RATLING_PLOYS } from './data/ratlings.js';
 import { rtGambitLeft, rtDesignate, slingshotCheck, doSlingshot } from './ratlings.js';
 import { wreckaOf } from './wrecka.js';
 import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
-import { dwEquipmentLimit, dwScrambleTargets, dwScramble } from './deathwatch.js';
-import { CORSAIR_EQUIPMENT } from './corsair.js';
-import { isArchon, painOptions, usePain, PAIN_NAMES, painRerollValues, ARCHON_EQUIPMENT, setOmen } from './archon.js';
+import { dwScrambleTargets, dwScramble } from './deathwatch.js';
+import { isArchon, painOptions, usePain, PAIN_NAMES, painRerollValues, setOmen } from './archon.js';
 import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation, bribeSkip, canBribe } from './game.js';
 import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
@@ -27,7 +25,7 @@ import {
   giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
   ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor,
-  EQUIPMENT, EQUIP_IDS, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
+  EQUIPMENT, EQUIPMENT_LIMIT, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, missionActionsFor, foes,
   sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
@@ -578,13 +576,14 @@ function ratFreePick(side) {
     <p class="hint small">${L('所選計謀整場 0CP；每帶一名歐格林／重盾歐格林少一個。', 'Chosen ploys cost 0CP all battle; one fewer for each Ogryn or Bullgryn.')}</p></div>`;
 }
 
-/** Universal equipment: up to 4 options (the computer takes its usual kit). */
+/** Faction and universal equipment: four options combined (the computer takes its usual kit). */
 function equipPick(side) {
   if (side === 1 && ui.setup.ai === 1) return '';
-  const cur = ui.setup.equip?.[side] || [];
-  const limit = dwEquipmentLimit(TEAM_MAP[ui.setup.teams[side]], ui.setup.roster?.[side]);
-  return `<div class="tactics"><h4>${L(`通用裝備（最多 ${limit} 項，已選 ${cur.length}）`, `Universal equipment (up to ${limit}, ${cur.length} chosen)`)}</h4>
-    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'wreckaKrew' ? Object.keys(WRECKA_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'nemesisClaw' ? Object.keys(NIGHTLORDS_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'scoutSquad' ? Object.keys(SCOUTS_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'ratlings' ? Object.keys(RATLINGS_EQUIPMENT) : [])].map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
+  const cur = cleanEquipment(ui.setup.teams[side], ui.setup.equip?.[side]);
+  ((ui.setup.equip ||= [[], []])[side]) = cur;
+  const limit = EQUIPMENT_LIMIT;
+  return `<div class="tactics"><h4>${L(`裝備（陣營＋通用合計最多 ${limit} 項，已選 ${cur.length}）`, `Equipment (faction + universal: ${limit} total, ${cur.length} chosen)`)}</h4>
+    ${equipmentOptionsFor(ui.setup.teams[side]).map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
 }
 
@@ -1838,7 +1837,7 @@ const ABILITIES = {
   // ---- Scout Squad ----
   scSergeant: () => ['引導與經驗', 'Guidance and Experience', '每次啟動一次（自動）：另一名友方偵察小隊特工到它下次啟動結束 APL +1。有阿斯塔特規則：射擊兩次（至少一次用霰彈槍、爆彈手槍或爆彈槍）或近戰兩次，任何指令都能反擊。', 'Once per activation (automatic): another friendly Scout Squad operative gets +1 APL until the end of its next activation. Astartes: two Shoots (an Astartes shotgun, bolt pistol or boltgun for at least one) or two Fights, and it can counteract under either order.'],
   scGrapnel: () => ['鉤爪發射器・鉤爪突襲', 'Grapnel Launcher · Grapnel Assault', '向上攀爬時垂直距離視為 2"。衝鋒中若攀爬、落下、跳躍或底盤移到高處地形下，本次啟動近戰武器「致命 3+」。', 'Climbing up counts as 2". A Charge that climbs, drops, jumps or goes under Vantage terrain gives its melee weapons Lethal 3+ for the activation.'],
-  rtFixer: () => ['固定者・指定目標＋軍需門路', 'Fixer · Target Designation, Munitorum Contacts', '策略階段可指定一名敵人：本回合友方萊特林步槍射擊它「致命 5+」。裝備上限 5 項。', 'In the Strategy phase designate an enemy: friendly RATLING rifles shooting it have Lethal 5+ this TP. Up to 5 equipment options.'],
+  rtFixer: () => ['固定者・指定目標＋軍需門路', 'Fixer · Target Designation, Munitorum Contacts', '策略階段可指定一名敵人：本回合友方萊特林步槍射擊它「致命 5+」。陣營與通用裝備合計最多 4 項。', 'In the Strategy phase designate an enemy: friendly RATLING rifles shooting it have Lethal 5+ this TP. Faction and universal equipment share a four-option cap.'],
   rtMutt: () => ['戰犬・預警＋野獸', 'Battlemutt · Early Warning, Beast', '只能做移動、撤退、衝刺、拾取、任務行動；敵人在其視線內行動後，可自動免費衝刺 2"。', 'Only Reposition, Fall Back, Dash, Pick Up, mission actions; after an enemy acts in its sight it may take a free 2" Dash (automatic).'],
   rtBomber: () => ['炸彈手・絆線＋地雷', 'Bomber · Tripwire, Mine', '佈署時放置絆線標記（敵人經過 APL -1）；地雷：敵人觸發受 2D3+3 傷害，友方不受影響。', 'Places Tripwire markers (enemy crossing: APL -1); Mines deal 2D3+3 to enemies, friendlies are exempt.'],
   rtHunter: () => ['獵手・潛伏待機', 'Hunter · Lie in Wait', '可衝鋒；被敵人衝鋒時先攻。', 'May charge; strikes first when charged.'],
@@ -2772,7 +2771,7 @@ function handle(act, d) {
     case 'closehelp': ui.help = false; return render();
     case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); return render();
     case 'setup': ui.screen = 'setup'; return render();
-    case 'pick': (ui.setup.roster ||= [{}, {}])[+d.side] = {}; (ui.setup.loadouts ||= [{}, {}])[+d.side] = {}; ui.setup.teams[+d.side] = d.team; ui.setup.tactics[+d.side] = null; return render();
+    case 'pick': (ui.setup.roster ||= [{}, {}])[+d.side] = {}; (ui.setup.loadouts ||= [{}, {}])[+d.side] = {}; ui.setup.teams[+d.side] = d.team; (ui.setup.equip ||= [[], []])[+d.side] = cleanEquipment(d.team, ui.setup.equip[+d.side]); ui.setup.tactics[+d.side] = null; return render();
     case 'resume': g = loadSave(); resetRecorder(); ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.turnKey = null; ui.turnBanner = null; return render();
     case 'replay': return openReplay(g.replay, 'game', teamsTitle(g.teams));
     case 'replayhist': {
@@ -2812,7 +2811,7 @@ function handle(act, d) {
     case 'equip': {
       const s = +d.side, cur = ((ui.setup.equip ||= [[], []])[s] ||= []);
       const i = cur.indexOf(d.id);
-      if (i >= 0) cur.splice(i, 1); else if (cur.length < dwEquipmentLimit(TEAM_MAP[ui.setup.teams[s]], ui.setup.roster?.[s])) cur.push(d.id);
+      if (i >= 0) cur.splice(i, 1); else if (cur.length < EQUIPMENT_LIMIT && equipmentOptionsFor(ui.setup.teams[s]).includes(d.id)) cur.push(d.id);
       return render();
     }
     case 'depauto': autoDeployStep(g); return afterChange();

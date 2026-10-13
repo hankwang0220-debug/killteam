@@ -6,7 +6,7 @@ A browser-based (PWA) Kill Team–style skirmish game. Two players can play on o
 
 ## Deathwatch
 
-Deathwatch is selectable as a playable five-operative team using the linked official online datacards. Choose any five of its eleven specialists, with no duplicates and at most one GRAVIS operative. A Watch Sergeant is optional and grants a fifth equipment choice. Collector notes and Seek & Destroy / Security Tac Ops are included.
+Deathwatch is selectable as a playable five-operative team using the linked official online datacards. Choose any five of its eleven specialists, with no duplicates and at most one GRAVIS operative. A Watch Sergeant is optional; faction and universal equipment share a four-option cap in this simulator. Collector notes and Seek & Destroy / Security Tac Ops are included.
 
 The implementation includes Veteran Astartes, selected Special Issue Ammunition, strategy and firefight ploys, all four faction equipment options and specialist abilities. Some optional rules follow the simulator's automatic handling: initial sword blocks, Digital Weapons, the Sergeant's first free ploys, failed-die anti-xenos re-rolls, pre-activation cuff cleansing and Guard interruptions. Guard automatically shoots the triggering enemy, or fights it when engaged. The Marksman's Close Quarters re-Guard applies only when a mission enables Close Quarters; current maps are flat, so the Headtaker's vertical movement rules have no effect. Current datacard text takes precedence over historical errata entries in the PDF.
 
@@ -82,7 +82,7 @@ Scout Squad (偵察小隊) is defined in `js/data/scouts.js`, with its runtime i
 
 ## Ratlings
 
-Ratlings (萊特林) are defined in `js/data/ratlings.js`, with the runtime in `js/ratlings.js` (April '26 errata). The Fixer plus ten picks (each once, except Snipers, Ogryns and Bullgryns; at most three Ogryns and Bullgryns together) — every weapon choice is its own operative template, so each slot's dropdown picks the operative and its weapons; the Fixer's two rifles are loadouts. Three ploys cost 0CP for the whole battle (one fewer for each Ogryn or Bullgryn), chosen in setup. Implemented: Scarper, Target Designation (strategic gambit), Munitorum Contacts (5 equipment), Early Warning, Evade, Tripwires and Mines, Slingshot (tap the destination), Grappling Hook, Hunter / Lie in Wait, Spotter (Spot), Vox-thief (Intercept), Light-fingered, Well Stocked, Bayonet Charge, brute shields, Survival Instincts, all other strategy and firefight ploys and the four equipment options. 2D simplifications: Scarper, Early Warning and Evade are taken automatically (the best free Dash for the Ratling), no heights or Accessible terrain. Run `node tests/ratlings.mjs`.
+Ratlings (萊特林) are defined in `js/data/ratlings.js`, with the runtime in `js/ratlings.js` (April '26 errata). The Fixer plus ten picks (each once, except Snipers, Ogryns and Bullgryns; at most three Ogryns and Bullgryns together) — every weapon choice is its own operative template, so each slot's dropdown picks the operative and its weapons; the Fixer's two rifles are loadouts. Three ploys cost 0CP for the whole battle (one fewer for each Ogryn or Bullgryn), chosen in setup. Implemented: Scarper, Target Designation (strategic gambit), Munitorum Contacts (the simulator uses a combined four-option equipment cap), Early Warning, Evade, Tripwires and Mines, Slingshot (tap the destination), Grappling Hook, Hunter / Lie in Wait, Spotter (Spot), Vox-thief (Intercept), Light-fingered, Well Stocked, Bayonet Charge, brute shields, Survival Instincts, all other strategy and firefight ploys and the four equipment options. 2D simplifications: Scarper, Early Warning and Evade are taken automatically (the best free Dash for the Ratling), no heights or Accessible terrain. Run `node tests/ratlings.mjs`.
 
 ## Adding a team
 
@@ -113,3 +113,5 @@ This remains a flat-board approximation: model centres/silhouettes stand in for 
 墓穴世界地圖現在標示門／洞口與 +1″ 過門成本（使用者設定）；路徑分段不重複收費，往返會再次收費。未交戰且底座接觸開啟門口時，可執行 1AP「門間近戰」，攻擊另一側距門口 2″ 內的敵人；計入 Fight 次數並只在動作期間視為交戰。實牆阻斷控制範圍且不能攀越。驗證：`node tests/tombworld-doors.mjs`。
 
 開門與關門各固定花費 1AP，新對戰門預設關閉；門號、狀態、阻擋地形與回放同步更新。驗證：`node tests/tombworld-hatches.mjs`。
+
+所有隊伍的陣營裝備與通用裝備合計最多四項；選隊介面、開局資料與 AI 使用同一上限。死亡守望及萊特林亦依此設定為四項。切換隊伍時保留適用的通用裝備，移除原隊伍限定裝備；重複項目不重複計數。驗證：`node tests/equipment.mjs`。

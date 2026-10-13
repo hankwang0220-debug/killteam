@@ -10,7 +10,7 @@ const ops = [
     W('dwPlasma', '電漿手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 8, piercing: 1 }, 'dwPlasma'),
     W('dwPlasmaHot', '電漿手槍（超充）', 'Plasma pistol (supercharge)', 'ranged', 4, 3, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'dwPlasma'),
     W('dwPower', '動力武器', 'Power weapon', 'melee', 5, 3, 4, 6, { lethal: 5 }),
-  ], { dwCommand: true, ability: B('適應性軍械庫：多選一項裝備。戰略指揮：在場時整場各一次免費使用策略／交戰計謀（自動）。', 'Adaptable Armoury: one extra equipment option. Strategic Command: while in the killzone, one free strategy and one free firefight ploy per battle (automatic).') }),
+  ], { dwCommand: true, ability: B('適應性軍械庫：本模擬器設定陣營與通用裝備合計最多四項。戰略指揮：在場時整場各一次免費使用策略／交戰計謀（自動）。', 'Adaptable Armoury: this simulator caps faction and universal equipment at four total. Strategic Command: while in the killzone, one free strategy and one free firefight ploy per battle (automatic).') }),
   O('dwAegis', '神盾老兵', 'Aegis Veteran', [pistol, W('dwMaul', '動力鎚與風暴盾', 'Power maul and storm shield', 'melee', 5, 3, 4, 6, { shock: true, shield: true })], { save: 2, dwStormShield: true, ability: B('風暴盾：遭射擊時穿甲減 1；近戰每次格擋可抵消兩顆成功骰。', 'Storm Shield: reduce incoming Piercing by 1; each melee block cancels two successes.') }),
   O('dwBlademaster', '劍術大師老兵', 'Blademaster Veteran', [specialPistol,
     W('dwDuel', '異相刃（決鬥）', 'Xenophase blade (duel)', 'melee', 5, 3, 4, 6, { brutal: true, lethal: 5, fixedHit: true }, 'dwBlade'),
