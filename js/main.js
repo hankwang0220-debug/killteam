@@ -431,13 +431,13 @@ function setupView() {
     <h3>${side === 0 ? L('玩家 1（A）', 'Player 1 (A)') : L('玩家 2（B）', 'Player 2 (B)')}</h3>
     <div class="picklist">${TEAMS.map((t) => `<button class="teampick ${s.teams[side] === t.id ? 'on' : ''}" style="--tc:${t.color}" data-act="pick" data-side="${side}" data-team="${t.id}">
       <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
-    ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>` : ''}
-    ${side === 1 && s.ai === 1 ? '' : unitPick(side)}
+    ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>${s.ai === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="aicustom" ${s.aiCustom ? 'checked' : ''}> ${L('自訂電腦隊伍（自己選它的特工與武器）', 'Customise the computer team (pick its operatives and weapons)')}</label>` : ''}` : ''}
+    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : unitPick(side)}
     ${roster(TEAM_MAP[s.teams[side]], side)}
-    ${side === 1 && s.ai === 1 ? '' : tacticsPick(side)}
+    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : tacticsPick(side)}
     ${tacOpPick(side)}
     ${equipPick(side)}
-    ${side === 1 && s.ai === 1 ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side)}
+    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side)}
   </div>`;
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
   return `${topBar()}
@@ -2837,6 +2837,7 @@ app.addEventListener('change', (e) => {
   }
   if (e.target.dataset.act === 'darkness') { const o = activeOp(g); if (o?.darknessTargets?.includes(e.target.value) && !o.orderSet) o.acted.darknessTarget = e.target.value; return afterChange(); }
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
+  if (e.target.dataset.act === 'aicustom') { ui.setup.aiCustom = e.target.checked; render(); }
   if (e.target.dataset.act === 'mission') { ui.setup.mission = e.target.value; render(); }
   if (e.target.dataset.act === 'tacop') { (ui.setup.tacOps ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if ((e.target.dataset.act === 'claimobj' || e.target.dataset.act === 'claimkind') && g?.phase === 'strategy') {
