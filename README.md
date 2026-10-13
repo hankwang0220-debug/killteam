@@ -110,6 +110,6 @@ This remains a flat-board approximation: model centres/silhouettes stand in for 
 
 驗證：`node tests/tombworld.mjs`、`node tests/tombworld-maps.mjs`。
 
-墓穴世界地圖現在標示門／洞口與 +2″ 過門成本（使用者設定）；路徑分段不重複收費，往返會再次收費。未交戰且底座接觸開啟門口時，可執行 1AP「門間近戰」，攻擊另一側距門口 2″ 內的敵人；計入 Fight 次數並只在動作期間視為交戰。實牆阻斷控制範圍且不能攀越。驗證：`node tests/tombworld-doors.mjs`。
+墓穴世界地圖現在標示門／洞口與 +1″ 過門成本（使用者設定）；路徑分段不重複收費，往返會再次收費。未交戰且底座接觸開啟門口時，可執行 1AP「門間近戰」，攻擊另一側距門口 2″ 內的敵人；計入 Fight 次數並只在動作期間視為交戰。實牆阻斷控制範圍且不能攀越。驗證：`node tests/tombworld-doors.mjs`。
 
 開門與關門各固定花費 1AP，新對戰門預設關閉；門號、狀態、阻擋地形與回放同步更新。驗證：`node tests/tombworld-hatches.mjs`。

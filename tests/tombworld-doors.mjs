@@ -9,12 +9,12 @@ import { aiStep, aiStrategy } from '../js/ai.js';
 const make = () => G.newGame({teams:['angels','kommandos'],ai:null,equip:[[],[]],mission:'secure',map:'tombworld-1'});
 const g=make(), a=g.ops[0], b=g.ops.find(o=>o.side === 1);
 const door=accessPointsOf(g).find(d=>d.component === 'A3' && d.x === 12);
-assert(door);assert.equal(door.moveCost,2);setHatchState(g,door.id,'open');
+assert(door);assert.equal(door.moveCost,1);setHatchState(g,door.id,'open');
 const line=(xs)=>xs.map(x=>({x,y:8}));
-assert.equal(accessCrossingCost(line([10,14]),[door]),2);
-assert.equal(accessCrossingCost(line([14,10]),[door]),2);
-assert.equal(accessCrossingCost(line([10,12,14]),[door]),2,'waypoint at the access plane does not double charge');
-assert.equal(accessCrossingCost(line([10,14,10]),[door]),4,'out and back crosses twice');
+assert.equal(accessCrossingCost(line([10,14]),[door]),1);
+assert.equal(accessCrossingCost(line([14,10]),[door]),1);
+assert.equal(accessCrossingCost(line([10,12,14]),[door]),1,'waypoint at the access plane does not double charge');
+assert.equal(accessCrossingCost(line([10,14,10]),[door]),2,'out and back crosses twice');
 assert.equal(accessCrossingCost(line([14,12,14]),[door]),0,'touch and return is not a crossing');
 assert.equal(accessCrossingCost([{x:12,y:7.8},{x:12,y:8.2}],[door]),0,'parallel movement is not a crossing');
 assert.equal(accessCrossingCost([{x:10,y:6},{x:14,y:6}],[door]),0,'solid wall is not a door');
@@ -24,10 +24,10 @@ for(const kind of ['reposition','dash','charge','fallBack']) {
   const ctx=moveCtx(g,a,kind), pts=line([10,14]);
   assert(ctx.segFree(pts[0],pts[1]),'32mm base can pass 1.25-inch Accessible aperture');
   assert.equal(ctx.climbs(pts),0,'passing the door is not climbing its walls');
-  assert.equal(ctx.extra(pts),2);
-  const path=findPath(ctx,{x:14,y:8});assert(path);assert.equal(path.len,6);
-  assert.equal(wholeInchPath(ctx,path,6).len,6);
-  const limited=wholeInchPath(ctx,path,5);assert(limited && limited.len<=5 && limited.pts.at(-1).x<14);
+  assert.equal(ctx.extra(pts),1);
+  const path=findPath(ctx,{x:14,y:8});assert(path);assert.equal(path.len,5);
+  assert.equal(wholeInchPath(ctx,path,5).len,5);
+  const limited=wholeInchPath(ctx,path,4);assert(limited && limited.len<=4 && limited.pts.at(-1).x<14);
   assert(!ctx.segFree({x:10,y:6},{x:14,y:6}),'solid wall cannot be crossed');
 }
 // Use an actual Murderwing operative to check Wall takes precedence over FLY.
@@ -58,7 +58,7 @@ assert(!G.fightTargets(g,a).includes(b));assert(!moveCtx(g,a).inEnemyER(a));
 const apBefore=a.ap;
 assert.equal(G.resolveFight(g,a,G.tpl(a).weapons.find(w=>w.type==='melee'),b),null);
 assert.equal(a.ap,apBefore,'an invalid wall-separated fight cannot spend AP');
-assert(renderBoard(g,{}).includes('開 +2″'));assert(tombWorldMapSvg(TOMB_WORLD_MAPS[0]).includes('關'));
+assert(renderBoard(g,{}).includes('開 +1″'));assert(tombWorldMapSvg(TOMB_WORLD_MAPS[0]).includes('關'));
 console.log('Tomb World access: crossing costs, split/repeated paths, all move types, Accessible base transit, FLY restrictions, Hatchway Fight conditions/AP/control range and map labels passed.');
 
 let seed=81297;

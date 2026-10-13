@@ -40,7 +40,7 @@ assert.equal(viewAt(g.replay,0).hatches[d.id],'closed');
 assert.equal(viewAt(g.replay,1).hatches[d.id],'open');
 assert.equal(viewAt(g.replay,2).hatches[d.id],'closed');
 assert(renderBoard(viewAt(g.replay,0),{}).includes('tw-access-closed'));
-assert(renderBoard(viewAt(g.replay,1),{}).includes('開 +2″'));
+assert(renderBoard(viewAt(g.replay,1),{}).includes('開 +1″'));
 const restored=JSON.parse(JSON.stringify(g));assert.equal(restored.hatches[d.id],'closed');
 assert(!moveCtx(restored,restored.ops[0]).segFree({x:10,y:8},{x:14,y:8}));
 a.acted={};a.ap=0;assert.equal(G.doMissionAction(g,a,open),false);assert.equal(a.ap,0);

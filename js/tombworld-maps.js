@@ -57,7 +57,7 @@ export function tombWorldAccessPoints(map) {
   return map.runs.flatMap((r,i) => {
     const opening = PARTS[r.id].opening;
     return opening ? [{id:`access-${i}`,component:r.id,kind:opening.type === 'door' ? 'hatchway':'breach',
-      x:(r.x+r.x1)/2,y:(r.y+r.y1)/2,axis:r.y === r.y1 ? 'y':'x',width:opening.width,moveCost:2}] : [];
+      x:(r.x+r.x1)/2,y:(r.y+r.y1)/2,axis:r.y === r.y1 ? 'y':'x',width:opening.width,moveCost:1}] : [];
   });
 }
 
@@ -65,7 +65,7 @@ export function tombWorldAccessSvg(access, zh = true) {
   return access.map(d => {
     const horizontal = d.axis === 'y';
     const closed = d.kind === 'hatchway' && d.state !== 'open';
-    const label = d.kind === 'hatchway' ? `${zh ? '門':'Door'}${Number(d.id.split('-')[1])+1} ${closed ? zh ? '關':'closed' : zh ? '開 +2″':'open +2″'}` : `${zh ? '洞':'Breach'} +2″`;
+    const label = d.kind === 'hatchway' ? `${zh ? '門':'Door'}${Number(d.id.split('-')[1])+1} ${closed ? zh ? '關':'closed' : zh ? '開 +1″':'open +1″'}` : `${zh ? '洞':'Breach'} +1″`;
     return `<g class="tw-access ${closed ? 'tw-access-closed':'tw-access-open'}" pointer-events="none"><title>${d.component} · ${label}${d.kind === 'hatchway' ? ' · 1AP' : ''}</title><rect x="${d.x-(horizontal ? d.width/2:.16)}" y="${d.y-(horizontal ? .16:d.width/2)}" width="${horizontal ? d.width:.32}" height="${horizontal ? .32:d.width}"/><text x="${d.x+(horizontal ? 0:.45)}" y="${d.y+(horizontal ? -.4:.18)}" text-anchor="${horizontal ? 'middle':'start'}">${label}</text></g>`;
   }).join('');
 }
