@@ -7,6 +7,8 @@ import { WRECKA_EQUIPMENT } from './data/wrecka.js';
 import { NIGHTLORDS_EQUIPMENT } from './data/nightlords.js';
 import { SCOUTS_EQUIPMENT } from './data/scouts.js';
 import { RATLINGS_EQUIPMENT } from './data/ratlings.js';
+import { SANCTIFIERS_EQUIPMENT } from './data/sanctifiers.js';
+import { isSF, sfSetup, sfSermon, sfOrator, sfNearOrator, sfReady, sfActivate, sfEnd, sfRules, sfConversion, sfNullApl, sfShootBlaze, sfFightBlaze, sfRoll, sfSymbols, sfSwap, sfPloyBought, sfMiracleMoves, sfDeath, sfDeclaim, sfActions, sfSelf, registerSanctifierActions } from './sanctifiers.js';
 import { rtShootHideWhy, isRat, isSmall, isRifle, rtSetup, rtFree, rtTripwires, rtStolen, rtMine, rtSilent, rtRules, rtShifty, rtEquipRoll, rtArmour, rtBlockSI, rtScarper, rtAfterEnemyAction, rtMoved, rtLieInWait, rtShot, rtActions, registerRatlingActions } from './ratlings.js';
 import { isSC, scSetup, scResolve, scReady, scActivate, scNoteAttack, scEmbOk, scRules, scGuerrilla, scCamoExtra, scWeapons, scOculars, scVoxFree, scPloyBought, scActions, scTrapPath, scTrapShorten, scTrapFire, scTrapCheck, registerScoutActions } from './scouts.js';
 import { isNC, ncSetup, ncReady, ncTPEnd, ncPortent, ncTerror, ncFightToken, ncActivate, ncPoisonCheck, ncObscure, ncScreeched, ncRules, ncWeapons, ncJammed, ncDeath, ncMoved, ncReturn, ncScream, ncKill, ncSnare, ncActions, ncSelf, registerNightlordsActions } from './nightlords.js';
@@ -113,9 +115,9 @@ export function moveStat(g, op) {
 // The APL stat can't be changed by more than 1 in total.
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
-export const aplNow = (g, op) => matrixApl(g, op, tpl(op).nemesis && op.cardApl ? op.cardApl
+export const aplNow = (g, op) => sfNullApl(g, op, matrixApl(g, op, tpl(op).nemesis && op.cardApl ? op.cardApl
   : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
-    : Math.max(-1, Math.min((op.aplNext || 0) > 0 && (cursed(g, op, 'voxStatic') || ncJammed(g, op)) ? 0 : 1, op.aplNext || 0)))));
+    : Math.max(-1, Math.min((op.aplNext || 0) > 0 && (cursed(g, op, 'voxStatic') || ncJammed(g, op)) ? 0 : 1, op.aplNext || 0))))));
 /** Obelisk Node Matrix (Canoptek Circle): +1 APL within it, to a maximum of 3. */
 // (Ardour, a Celestian Insidiant Benediction: +1 APL for the rest of the battle.)
 // (Mania, a Goremonger Sanguavitae: +1 APL until its next activation.)
@@ -135,7 +137,7 @@ export function moveAllowance(g, op, kind) {
   if (kind === 'reposition' && skillOn(g, op, 'strikeFast')) d += 1; // Strike Fast (Kasrkin)
   if (kind === 'reposition' && isES(op) && hasPloy(g, op.side, 'quickMarch') && !op.counter) d += 1; // Quick March (Elucidian Starstriders)
   // Stealth Attack's free Charge can't exceed the Move stat.
-  if (kind === 'charge') d = moveStat(g, op) + (op.acted?.free?.charge === 'stealth' ? 0 : op.acted?.boost ? 4 : 2); // Boost: +4"
+  if (kind === 'charge') d = moveStat(g, op) + (op.acted?.free?.charge === 'stealth' || tpl(op).sfCherub ? 0 : op.acted?.boost ? 4 : 2); // Boost: +4" (the Cherub's Fly gains nothing extra)
   if (kind === 'charge' && op.acted?.free?.charge === 'rampage') d = 3; // Ruthless Rampage: a free Charge of up to 3"
   if (kind === 'charge' && op.acted?.free?.charge === 'woe') d = op.acted.woeLeft || 0; // The Woe: what's left of the first Charge
   if (kind === 'charge' && op.acted?.free?.charge === 'bloodlust') d = 2; // Obsessive Bloodlust (Goremonger Aspirant): up to 2"
@@ -228,6 +230,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   ncSetup(g, roster);
   scSetup(g, roster, scouting);
   rtSetup(g, roster, ratFree);
+  sfSetup(g, roster); // Sanctifiers: roster check, the Orator and Declamation state
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -590,6 +593,7 @@ function startTP(g) {
   wkReady(g); // Wrecka Krew: Pulsa markers lose a point, Demolition markers go
   ncReady(g); // Nemesis Claw: D3 Prescience points
   scReady(g); // Scout Squad: Trip Alarm markers go in the third turning point
+  sfReady(g); // Sanctifiers: a new Orator when needed, Ecclesiarchy Texts
   mission(g).onReady?.(g); // the Ready step
 }
 
@@ -784,6 +788,7 @@ export function buyPloy(g, side, ploy) {
   if (ploy.id === 'plunderers') corsairPlunder(g, side);
   wkPloyBought(g, side, ploy, cost); // Wrecka Krew: Glyphs used, Amped Up heals
   scPloyBought(g, side, ploy); // Scout Squad: Adaptable Training, Stealth Relocation
+  sfPloyBought(g, side, ploy); // Sanctifiers: Rally the Flock
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
   if (ploy.id === 'gloryKill') setGloryKill(g, side, living(g, 1 - side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]);
@@ -943,6 +948,7 @@ export function activate(g, op) {
   archonActivate(g, op);
   corsairActivate(g, op);
   dwActivate(g, op);
+  sfActivate(g, op); // Sanctifiers: the Sermon for this activation, Blaze token damage
 }
 
   // Archon effects are committed only when an action begins.
@@ -990,7 +996,7 @@ export function endActivation(g) {
   if (g.smoke?.length) { for (const s of g.smoke) if (s.left != null) s.left--; g.smoke = g.smoke.filter((s) => s.left == null || s.left > 0); }
   if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `${opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `${opName(op, 'en')} Slink into Darkness: now Concealed` }, `side${op.side}`); }
   if (op) {
-    op.ready = false; op.ap = 0; op.rtLarcenous = false; // (Larcenous: Ratlings, until the end of the activation)
+    op.ready = false; op.ap = 0; op.rtLarcenous = false; sfEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
     if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; op.ctlOnly = null; op.ctlMove = null; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
     // Lacerate Flesh (Goremonger firefight ploy): the tank goes down again at the end, or it takes D3.
@@ -1149,7 +1155,7 @@ export function controller(g, obj) {
     // Ravage Destiny (Warpcoven): the target counts 1 lower. Frenzy (Fellgor): APL 1, whatever else applies.
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
     // (the Deathknell, an Icon Bearer, keeps its APL even with a Frenzy token)
-    const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine ? 1 : 0) + (tpl(o).iconBearer || tpl(o).controlPlus || tpl(o).ncIconBearer ? 1 : 0) - ravaged); // (controlPlus: Censor, Virge of Admonition Icon Bearer)
+    const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - (isDrone(o) || tpl(o).machine || tpl(o).sfCherub ? 1 : 0) + (tpl(o).iconBearer || tpl(o).controlPlus || tpl(o).ncIconBearer ? 1 : 0) - ravaged); // (controlPlus: Censor, Virge of Admonition Icon Bearer)
     if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; present[o.side] = true; if (simulacrumNear(g, o) || nightmareNear(g, o, 'creaturesNightmare')) simu[o.side] = true; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o) || grislyNear(g, o)) nuncio[o.side] = true; }
   }
   // Nuncio-aquila (Exaction Squad): likewise 1 lower if one is within 3" of the Proctor-exactant (cumulative).
@@ -2041,6 +2047,7 @@ export function shootWeapon(g, op, w) {
   if ((w.id === 'mdDart' && g.mdDartTP?.[op.side] === g.tp) || (w.id === 'mdGemBlast' && g.mdGemTP?.[op.side] === g.tp)) return { ok: false, ap: 1, why: { zh: '本回合已使用', en: 'Already used this TP' } };
   const no = (zh, en) => ({ ok: false, ap: 1, why: { zh, en } });
   if (w.type !== 'ranged') return no('不是遠程武器', 'Not a ranged weapon');
+  if (w.rules.wreathed) return no('用「烈焰纏身」行動施放', 'Use the Wreathe in Fire action');
   if (op.acted?.rtSlingshot) return no('用過彈弓的啟動不能射擊', 'No Shoot in an activation with a Slingshot'); // (Ratling Raider)
   if (op.order === 'conceal' && !w.rules.silent && !rtSilent(g, op, w)) return no('隱蔽指令無法射擊', 'Cannot Shoot while Concealed');
   if (w.rules.psychic && witchHunted(g, op)) return no('3" 內有隱伏者，不能用靈能武器', 'An Insidiant within 3": no Psychic weapons');
@@ -2309,6 +2316,7 @@ export function availableActions(g, op) {
   ncActions(g, op, add); // Nemesis Claw: Premonition, Poison Objective, Disconcerting Mimicry
   scActions(g, op, add); // Scout Squad: Track Enemy
   rtActions(g, op, add); // Ratlings: Slingshot
+  sfActions(g, op, add); // Sanctifiers: Sanctification Orb, Wreathe in Fire, Trained Assassin
   // Exodite Dragon Masters: a rider in reserve only enters (see enterFromReserve); riders move by Sprint and Turn only.
   if (op.reserve) return [];
   if (isMounted(op)) {
@@ -2349,6 +2357,7 @@ export function doSelfAction(g, op, id) {
   if (mwSelf(g, op, id)) return;
   if (wkSelf(g, op, id)) return;
   if (ncSelf(g, op, id)) return;
+  if (sfSelf(g, op, id)) return; // Sanctifiers: Trained Assassin, Wreathe in Fire
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
@@ -2463,6 +2472,7 @@ export function doMove(g, op, kind, path) {
   const ctx = moveCtx(g, op, kind);
   path = wholeInchPath(op.breachMove && !g.map?.startsWith('tombworld-') ? { ...ctx, segFree: () => true, extra: () => 0 } : ctx, path, moveAllowance(g, op, kind), kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));
   if (!path) return false;
+  if (kind === 'charge' && sfDeclaim(g, op, 'charge')) { spend(g, op, 'charge'); return true; } // Commanding Declamation (Sanctifier Confessor)
   if (kind === 'fallBack' && !mwFallBack(g, op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
   const dest = path?.pts?.at(-1);
@@ -2695,6 +2705,8 @@ export function effectiveRules(g, op, weapon, target) {
   ncRules(g, op, weapon, target, r); // Nemesis Claw: Black Hunt, Cruel Tormenter, Appetite, Flayed Skin, Grisly Trophy
   scRules(g, op, weapon, target, r); // Scout Squad: Trip Alarm, Track Enemy, Designate Target, Ambush, Grapnel Assault
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
+  sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
+  if (target && ffOn(g, op, 'sfArdent')) r.relentless = true; // Ardent Eradication
   if (target && isSC(op) && ffOn(g, op, 'scEmboldened') && scEmbOk(g, op, target)) r.promote = 1; // Emboldened Aspirant: a normal success is retained as a critical one
   if (target && ffOn(g, op, 'wkKaboom') && g.shotTargets?.[0] === target.uid) r.severe = true; // Kaboom!: Severe against the primary target
   if (weapon.type === 'melee') {
@@ -4322,13 +4334,13 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = []) {
@@ -4341,6 +4353,7 @@ registerWreckaActions();
 registerNightlordsActions();
 registerScoutActions();
 registerRatlingActions();
+registerSanctifierActions();
 registerMandrakeActions();
 registerDwActions();
 registerCorsairActions();
@@ -4548,14 +4561,14 @@ export function ffToggleArm(g, side, id) {
   if (i >= 0) off.splice(i, 1); else off.push(id);
 }
 /** Use an auto ploy now if it's armed, affordable and unused. */
-function autoFF(g, side, id, op = null) {
+export function autoFF(g, side, id, op = null) {
   if (side > 1 || !ffDef(g, side, id) || !ffArmed(g, side, id) || !ffReady(g, side, id)) return false;
   if (ffDef(g, side, id).technique && (!op || techWhy(g, op, id))) return false;
   spendFF(g, side, id);
   return true;
 }
 /** Is this attack ploy chosen for the operative's current Shoot / Fight (pending or committed)? */
-const ffOn = (g, op, id) => [g.ffPending, g.ffAtk].some((x) => x && x.uid === op.uid && x.ids.includes(id));
+export const ffOn = (g, op, id) => [g.ffPending, g.ffAtk].some((x) => x && x.uid === op.uid && x.ids.includes(id));
 const startOfActivation = (op) => !Object.keys(op.acted || {}).some((k) => !['unseen', 'accelerant', 'free', 'raiderFree', 'darknessTarget', 'dwUnseen', 'dwAmmoPick'].includes(k) && op.acted[k]);
 const sprungNow = (op) => op.prevOrder === 'conceal' && op.order === 'engage';
 const holdsObjective = (g, t) => (g.objectives || []).some((o) => dist(t, o) - radius(t) - OBJ_R <= CONTROL && controller(g, o) === t.side);
@@ -4704,6 +4717,11 @@ const FF = {
   rtLarcenous: { kind: 'button', cond: (g, op) => (isSmall(op) ? null : { zh: '只有萊特林（不含歐格林、重盾歐格林）', en: 'Ratlings only (not Ogryns or Bullgryns)' }), apply(g, op) { op.rtLarcenous = true; } },
   rtShootHide: { kind: 'button', cond: (g, op) => rtShootHideWhy(g, op), apply(g, op) { op.order = 'conceal'; } },
   rtSurvival: { kind: 'auto' },
+  // ---- Sanctifiers ----
+  sfRosarius: { kind: 'auto' },
+  sfRedeemed: { kind: 'auto' },
+  sfUnwavering: { kind: 'auto' },
+  sfArdent: { kind: 'attack', cond: (g, op, t) => (isSF(op) && t && sfNearOrator(g, op.side, t) ? null : { zh: '目標要在佈道者 3"（懺悔師 6"）內', en: 'The target must be within 3" of the orator (6" for the Confessor)' }) },
   rtSharpshot: { kind: 'aim', cond: (g, op, t, w) => (isRat(op) && isRifle(w) ? null : { zh: '只有萊特林用步槍', en: 'A Ratling with a rifle only' }) },
   // ---- Scout Squad ----
   scTraining: { kind: 'button', cond: (g, op) => (isSC(op) ? (isAstartes(op) ? { zh: '士官本來就能雙射／雙打', en: 'The Sergeant already has Astartes' } : null) : { zh: '只有偵察小隊特工', en: 'Scout Squad operatives only' }), apply(g, op) { op.acted.scTrain = true; } },
@@ -5218,7 +5236,7 @@ function inflict(g, src, target, dmg) {
   if (target.medicShield) { target.wounds = Math.max(1, target.wounds - dmg); return false; }
   // Outright Conviction (Yaegir Theyn): the first time it would be incapacitated, it stays on 1 wound for the rest of the action.
   if (target.wounds - dmg <= 0 && tpl(target).outrightConviction && !target.convictionUsed && !target.frenzy) {
-    target.convictionUsed = true; target.wounds = 1; target.medicShield = true; target.convictionNow = true;
+    target.convictionUsed = true; target.wounds = 1; target.medicShield = true; target.convictionNow = true; target.sfMiracleNow = !!tpl(target).sfMiracle;
     log(g, { zh: `${opName(target, 'zh')} 堅定信念：以 1 生命撐住，剩下的攻擊骰全部作廢`, en: `${opName(target, 'en')} Outright Conviction: stays on 1 wound; the remaining attack dice are discarded` }, `side${target.side}`);
     return false;
   }
@@ -5358,6 +5376,7 @@ function killOff(g, src, target) {
       log(g, { zh: `${opName(target, 'zh')} 最後的反抗：引爆炸藥`, en: `${opName(target, 'en')} Final Defiance: detonates the charge` }, `side${target.side}`);
       target.explosivesUsed = 2; detonateExplosives(g, target);
     }
+    sfDeath(g, src, target); // Sanctifiers: Redeemed Through Fire, Imperial Cult Devotion
     wkBoom(g, target); // Boom! (Wrecka Bomb Squig): it may explode before it's removed
     if (g.pechra?.[target.side]?.by === target.uid) g.pechra[target.side] = null;
     if (g.pan?.[target.side]?.by === target.uid) g.pan[target.side] = null; // Pan Spectral Scan marker
@@ -5494,6 +5513,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   claimBoost(g, op, target, a); // Stake Claim (Elucidian Starstriders)
   wkRoll(g, op, a, target, tally); // Wrecka Rampage: 6s gain Wrecka points, points retain fails
   rtEquipRoll(g, op, weapon, a, tally); // Ratlings equipment: Purloined Rations, Lucky Round
+  sfRoll(g, op, a, tally); // Sanctifiers equipment: Purity Seals
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
   const inCover = vis.cover && !rules.ignoreCover;
@@ -5502,7 +5522,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // (Anti-PSYKER, Novitiate Condemnor: +1 to both Dmg against a psyker.)
   const tox = (rules.toxic && poisonedAtStart?.has(target.uid) ? 1 : 0) + (rules.closeAssault && weapon.rules.shotgun ? 1 : 0) + (rules.antiPsykerOn ? 1 : 0);
   // Xenotech Shielding (Archivist): Normal and Critical Dmg of 4+ deal 1 less.
-  const shield = (d) => (tpl(target).xenotech && d >= 4 ? d - 1 : d);
+  const shield = (d) => ((tpl(target).xenotech || sfSermon(g, target)) && d >= 4 ? d - 1 : d); // (Sermon: Sanctifiers)
   const tough = (d) => ((tpl(target).tough || bulwark(g, target)) && d >= 3 ? d - 1 : d); // Tough (Thug) / Bulwark Imperative: Normal Dmg of 3+ deals 1 less
   const refined = isArchon(op) && op.acted.refinedSequence && ['haSplinterRifle', 'haSplinterPistol', 'haCannonF', 'haCannonS', 'haShardcarbine', 'haStinger'].includes(weapon.id) ? 1 : 0;
   const mdBonus = mdRangedBonus(g, op, target);
@@ -5560,7 +5580,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
     // Gong Knell (Deathknell): +1 Save when shot until its next activation.
     // Aggressor Imperative (Hunter Clade): the Save is worsened by 1.
-    const save = Math.min(6, Math.max(2, tpl(target).save - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
+    const save = Math.min(6, Math.max(2, tpl(target).save - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target) - sfConversion(g, op, target)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
   // Only a shared terrain feature forces a cover/obscuring choice. Independent features stack.
@@ -5600,6 +5620,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
       };
     }
   }
+  sfSymbols(g, target, a); // Imperial Cult Symbols (Sanctifiers)
   // Sturdy (Hearthkyn firefight ploy): the attacker's retained crits become normal successes.
   if (a.crits > 0 && autoFF(g, target.side, 'sturdy')) {
     for (const x of a.dice) if (x.res === 'crit') { x.res = 'norm'; x.obsc = true; }
@@ -5622,7 +5643,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const grit = TEAM_MAP[target.team].bloodedTokens && hasPloy(g, target.side, 'malevolentGrit') && (target.bloodToken || whollyIn(g, target, 1 - target.side));
   const defRules = { relentless: !!tpl(target).emperorProtects || psyOn(g, 'fate', target.side, target) || !!target.shieldingOn
       || (isGM(target) && hasPloy(g, target.side, 'augmentedEndurance') && goreOf(target) === 2),
-    digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence')
+    digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence') || (isSF(target) && hasPloy(g, target.side, 'sfProtects') && sfSermon(g, target)) // (The Emperor Protects: Sanctifiers)
       || (target.ready && isBlade(target) && hasPloy(g, target.side, 'forewarned')) // Forewarned (Blades of Khaine)
       || (target.side < 2 && isCC(target) && hasPloy(g, target.side, 'hypershielding') && matrixCovers(g, target.side, op, target)), // Hypershielding (Canoptek Circle)
     balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit || inviolate(g, target)
@@ -5682,6 +5703,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (normals.length && dn >= 3 && autoFF(g, target.side, 'justScratch')) normals.pop();
   else if (normals.length && isWK(target) && !tpl(target).wkSquig && autoFF(g, target.side, 'wkJustScratch')) normals.pop(); // (Wrecka Krew: any Normal Dmg)
   else if (normals.length && dn > 0 && tpl(target).ncVisionary && ncPortent(g, target)) normals.pop(); // Portent (Nemesis Claw Visionary)
+  else if (normals.length && dn > 0 && isSF(target) && autoFF(g, target.side, 'sfRosarius')) normals.pop(); // Rosarius (Sanctifiers)
   else if (normals.length && dn >= 2 && tpl(target).automata && autoFF(g, target.side, 'allIsDust')) normals[0] = 1;
   // Critical Shot (Phobos firefight ploy): +D3 damage with a critical success (once per action).
   const critShot = block.remC > 0 && ffOn(g, op, 'criticalShot') && !g.ffAtk.critShotDone ? d3() : 0;
@@ -5697,6 +5719,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const res = resolveDice(target, [...Array(block.remC).fill(daemonShell(target, dc)), ...normals, critShot].filter((x) => x > 0), g);
   const dmg = res.dmg + devDmg; // (reported with the Devastating damage dealt earlier)
   let killed = target.dead || applyDamage(g, op, target, res.dmg);
+  sfShootBlaze(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); // Blaze (Sanctifiers)
   // Excess attack dice are excluded once the enemy's remaining wounds have been inflicted.
   if (res.dmg > 0) {
     let leftW = before - devDmg, damaging = 0;
@@ -5787,14 +5810,14 @@ export function resolveShoot(g, op, weapon, target) {
  * A free shot outside the normal flow (Boom!: a Bomb Squig exploding as it's incapacitated): each target in turn,
  * no cover, not obscured, and no re-roll decisions. The shot in progress (if any) is left as it was.
  */
-export function forcedShot(g, op, weapon, targets) {
+export function forcedShot(g, op, weapon, targets, real = false) {
   const saved = { shotTargets: g.shotTargets, ffAtk: g.ffAtk, runesLost: g.runesLost, magnifyNow: g.magnifyNow, wkStart: g.wkStart };
   g.shotTargets = targets.map((t) => t.uid); g.ffAtk = null; g.runesLost = {}; g.magnifyNow = null;
   wkActionStart(g, op, 'shoot');
   const poisoned = new Set(g.ops.filter((o) => o.poison).map((o) => o.uid));
   for (const t of targets) {
     if (t.dead) continue;
-    const it = shootSequence(g, op, weapon, t, { visible: true, cover: false, obscured: false }, false, poisoned);
+    const it = shootSequence(g, op, weapon, t, real ? shotVisibility(g, op, t, weapon) : { visible: true, cover: false, obscured: false }, false, poisoned); // (real: with the cover and obscuring of a normal shot)
     let r = it.next();
     while (!r.done) r = it.next();
     log(g, { zh: `${opName(op, 'zh')} 的${weapon.name.zh}波及 ${opName(t, 'zh')}：${r.value.dmg} 傷害`, en: `${opName(op, 'en')}'s ${weapon.name.en} hits ${opName(t, 'en')}: ${r.value.dmg} damage` }, `side${op.side}`);
@@ -5804,6 +5827,7 @@ export function forcedShot(g, op, weapon, targets) {
 
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
 export function* shootFlow(g, op, weapon, target) {
+  if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
   mwActionStart(g);
   wkActionStart(g, op, 'shoot'); // Wrecka Krew: Tanked Up, Wrecka Boss
   scNoteAttack(g, op); // Scout Squad: who attacked first this turning point (Emboldened Aspirant)
@@ -5851,7 +5875,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (vis.obscured && weapon.group === 'edRifle' && hasUp(op, 'fated') && op.fatedTP !== g.tp) { op.fatedTP = g.tp; vis = { ...vis, obscured: false }; log(g, { zh: '命定一擊：目標不能被遮蔽', en: 'Fated Shot: the target cannot be obscured' }, `side${op.side}`); }
   if (weapon.rules.aimed) op.acted.aimedUsed = true; // (Aimed: no more than 3" of movement after it)
   // Unquestioning Loyalty (Brood Brothers): a bodyguard takes the shot instead (in cover / obscured only if the Leader was).
-  target = loyalSwap(g, op, holySwap(g, target, weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
+  target = loyalSwap(g, op, sfSwap(g, holySwap(g, target, weapon), weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
   uprising(g, op, target); // Uprising: the target gains a Crossfire token as soon as it's selected
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
@@ -5941,6 +5965,7 @@ export function* shootFlow(g, op, weapon, target) {
   corsairAfterAction(g, op);
   dwAfterAction(g, op);
   faithRejuvenate(g); // Blessed Rejuvenation (Novitiates)
+  sfMiracleMoves(g); // Miracle (Sanctifier Miraculist)
   for (const o of g.ops) o.medicShield = false;
   rtAfterEnemyAction(g, op, false); // Ratlings: Evade after an enemy action
   return { kind: 'shoot', attacker: op.uid, weapon, ap, ...main, extra, hot, suppressed: noReroll };
@@ -5968,6 +5993,7 @@ const other = (k) => (k === 'A' ? 'D' : 'A');
 const left = (p) => p.c + p.n;
 
 export function startFight(g, op, weapon, target) {
+  if (sfDeclaim(g, op, 'fight')) { spend(g, op, 'fight'); return null; } // Commanding Declamation (Sanctifier Confessor): the Fight is cancelled, the AP isn't refunded
   const hatch = !isEngaged(g,op) && target && hatchwayFightAccess(g,op,target,radius(op),radius(target));
   if (g.map?.startsWith('tombworld-') && !fightTargets(g,op).includes(target)) return false;
   if (hatch) {
@@ -5985,7 +6011,7 @@ export function startFight(g, op, weapon, target) {
     target = hound;
   }
   // Unquestioning Loyalty (Brood Brothers): a bodyguard is fought instead (treated as within control range).
-  target = loyalSwap(g, op, holySwap(g, target, weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
+  target = loyalSwap(g, op, sfSwap(g, holySwap(g, target, weapon), weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
   if (hatch) g.hatchwayFight = [op.uid,target.uid];
   uprising(g, op, target);
   const free = op.acted.free?.fight; // Savage Assault (an enemy uid), Stealth Attack ('stealth') or Swipe ('swipe')
@@ -6053,6 +6079,7 @@ export function startFight(g, op, weapon, target) {
   broodRerolls(g, op, target, aRoll); broodRerolls(g, target, op, dRoll); // (Brood Brothers, fighting or retaliating)
   claimBoost(g, op, target, aRoll); claimBoost(g, target, op, dRoll); // Stake Claim (Elucidian Starstriders)
   wkRoll(g, op, aRoll, target, tally); wkRoll(g, target, dRoll, op, tally); // Wrecka Rampage (fighting or retaliating)
+  sfRoll(g, op, aRoll, tally); sfRoll(g, target, dRoll, tally); // Purity Seals (Sanctifiers)
   spend(g, op, 'fight');
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons
   if (free) { op.acted.free.fight = null; if (op.acted.ancestors && op.acted.free.shoot === 'any') op.acted.free.shoot = null; }
@@ -6243,6 +6270,7 @@ export function fightApply(g, optId) {
     if (!shrug && opt.die === 'n' && opt.dmg >= 3 && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
     if (!shrug && opt.die === 'n' && isWK(foeOp) && !tpl(foeOp).wkSquig && autoFF(g, foeOp.side, 'wkJustScratch')) shrug = true; // Just a Scratch (Wrecka Krew)
     if (!shrug && opt.die === 'n' && tpl(foeOp).ncVisionary && ncPortent(g, foeOp)) shrug = true; // Portent (Nemesis Claw Visionary)
+    if (!shrug && opt.die === 'n' && isSF(foeOp) && autoFF(g, foeOp.side, 'sfRosarius')) shrug = true; // Rosarius (Sanctifiers)
     // Brawler (Dôzr): Normal Dmg of 4 or more inflicts 1 less when it's fighting or retaliating.
     // Tough (Blooded Thug): Normal Dmg of 3 or more inflicts 1 less.
     // War Gong: a critical strike inflicts Normal Dmg instead (when lower, or to keep a Frenzied Fellgor up).
@@ -6257,6 +6285,7 @@ export function fightApply(g, optId) {
     if (asNormal && amount >= 3 && isMurderwing(foeOp) && k === 'D' && hasPloy(g, foeOp.side, 'mwFear')) amount--;
     // Holy Resilience (Celestian Insidiants ploy): an inspiring friendly takes 1 less from Normal and Critical Dmg of 4+.
     if (amount >= 4 && foeOp.inspiring && isCI(foeOp) && hasPloy(g, foeOp.side, 'holyResilience')) amount--;
+    if (amount >= 4 && sfSermon(g, foeOp)) amount--; // the Ministorum Sermon (Sanctifiers): Normal and Critical Dmg of 4+ deals 1 less
     // Gory Tenacity (Goremongers ploy): the opponent's first strike on it this sequence is halved (rounding up, minimum 2).
     if (amount > 2 && !foe.tenacityUsed && isGM(foeOp) && foeOp.side < 2 && hasPloy(g, foeOp.side, 'goryTenacity')) { foe.tenacityUsed = true; amount = Math.max(2, Math.ceil(amount / 2)); }
     if (!shrug && opt.die === 'n' && amount >= 2 && tpl(foeOp).automata && autoFF(g, foeOp.side, 'allIsDust')) amount = 1; // All Is Dust (Rubric Marines)
@@ -6305,6 +6334,7 @@ export function fightApply(g, optId) {
     if (g.frenzyNow === foeOp.uid) { f.A.c = f.A.n = f.D.c = f.D.n = 0; g.frenzyNow = null; }
     poisonOnHit(g, meOp, foeOp, { poison: me.poison }, res.dmg);
     ncFightToken(g, meOp, fightWeapon(g, k), foeOp, opt.die === 'c', res.dmg); // Terrorchem (Nemesis Claw)
+    sfFightBlaze(g, meOp, fightWeapon(g, k), foeOp, opt.die === 'c', res.dmg); // Blaze (Sanctifiers)
     if (fightWeapon(g, k).rules.wkSmash && !killed) wkSmash(g, meOp, foeOp); // Smash (Krusha): knock the enemy back 1" and follow
     // Headtaker (Gorehorn): a kill heals D3 (no Frenzy token) and adds D3 to the skullcleaver's Critical Dmg (max 8).
     if (killed && fightWeapon(g, k).rules.headtaker) {
@@ -6331,7 +6361,7 @@ export function fightApply(g, optId) {
     if (opt.die === 'c' && fightWeapon(g, k).rules.bloodOffering && !me.offered) { me.offered = true; gainBlood(g, meOp.side, { zh: '血之獻祭', en: 'Blood Offering' }); }
     // Unholy Sustenance (Butcher): incapacitating the enemy in a fight regains D3 wounds.
     if (killed && tpl(meOp).unholySustenance && !meOp.dead) { const h = d3(); meOp.wounds = Math.min(meOp.maxW, meOp.wounds + h); }
-    if (killed && (tpl(foeOp).bruiser || tpl(foeOp).brawler || tpl(foeOp).wretched || tpl(foeOp).irrepressible || tpl(foeOp).mwFrenzied) && left(foe) > 0 && !meOp.dead) {
+    if (killed && (tpl(foeOp).bruiser || tpl(foeOp).fanatical || tpl(foeOp).brawler || tpl(foeOp).wretched || tpl(foeOp).irrepressible || tpl(foeOp).mwFrenzied) && left(foe) > 0 && !meOp.dead) {
       const w = fightWeapon(g, other(k)), crit = foe.c > 0;
       foe[crit ? 'c' : 'n']--;
       const dmg = crit ? w.dmg[1] + (foe.tox || 0) : normalDmg(w, meOp, g, foeOp) + (foe.tox || 0);
@@ -6455,6 +6485,14 @@ function finishFight(g) {
     f.savageNext = true;
     log(g, { zh: `${opName(a, 'zh')} 野蠻突擊：可再對 ${opName(d, 'zh')} 免費近戰一次`, en: `${opName(a, 'en')} Savage Assault: may fight ${opName(d, 'en')} again for free` }, `side${a.side}`);
   }
+  // Merciless Castigation (Sanctifier Persecutor): its first Fight each activation is followed by a free Fight against the same enemy.
+  if (tpl(a).castigation && g.active === a.uid && !a.acted.castigationUsed && !a.dead && !d.dead && inEngagement(a, d)) {
+    a.acted.castigationUsed = true;
+    a.acted.free = { ...(a.acted.free || {}), fight: d.uid };
+    f.savageNext = true;
+    log(g, { zh: `${opName(a, 'zh')} 無情懲戒：可再對 ${opName(d, 'zh')} 免費近戰一次`, en: `${opName(a, 'en')} Merciless Castigation: may fight ${opName(d, 'en')} again for free` }, `side${a.side}`);
+  }
+  sfMiracleMoves(g); // Miracle (Sanctifier Miraculist): the free Dash or Fall Back
   for (const o of g.ops) o.medicShield = false;
 }
 
@@ -6509,7 +6547,7 @@ export function fightAutoChoice(g) {
 
 /** Resolve a whole fight automatically (AI vs AI, simulations). */
 export function resolveFight(g, op, weapon, target) {
-  if (startFight(g, op, weapon, target) === false) return null;
+  if (!startFight(g, op, weapon, target)) return null; // (refused, or cancelled by Commanding Declamation)
   while (!g.fight.done) fightApply(g, fightAutoChoice(g));
   const f = g.fight;
   endFight(g);

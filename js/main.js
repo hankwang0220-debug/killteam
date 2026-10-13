@@ -9,6 +9,8 @@ import { scoutsRosterError, FORWARD_SCOUTING, cleanScouting, DEFAULT_SCOUTING } 
 import { scGambitsLeft, scDiversionTargets, scTactical, scDiversion } from './scouts.js';
 import { ratlingsRosterError, ratFreeCount, cleanRatFree, DEFAULT_RAT_FREE, RATLING_PLOYS } from './data/ratlings.js';
 import { rtGambitLeft, rtDesignate, slingshotCheck, doSlingshot } from './ratlings.js';
+import { SANCTIFIERS_EQUIPMENT, sanctifiersRosterError } from './data/sanctifiers.js';
+import { sfGambitLeft, sfChooseOrator, sfOrator, sfSermon } from './sanctifiers.js';
 import { wreckaOf } from './wrecka.js';
 import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
 import { dwScrambleTargets, dwScramble } from './deathwatch.js';
@@ -511,6 +513,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'nemesisClaw') { const error = nightlordsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wreckaKrew') { // (and only one Glyphs)
     const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
     return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
@@ -1175,6 +1178,13 @@ function gambitView(side) {
       <select data-act="rtdesignate" data-side="${side}" ${rtGambitLeft(g, side) ? '' : 'disabled'}><option value="">${cur ? nm(cur) : L('（選敵人）', '(choose an enemy)')}</option>
         ${foes(g, { side }).filter((o) => o.side < 2).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
   }
+  if (g.teams[side] === 'sanctifiers' && !isAI(side) && !living(g, side).some((o) => tpl(o).sfConfessor)) {
+    const cur = sfOrator(g, side);
+    html += `<div class="gambit"><h4>${L('佈道（選佈道者）', 'Ministorum Sermon (pick the orator)')}</h4>
+      <p class="hint small">${L('懺悔師已倒下：選一名友方淨化者成為佈道者，直到你再次使用。', 'The Confessor has fallen: pick a friendly SANCTIFIER as the orator until you use this again.')}</p>
+      <select data-act="sforator" data-side="${side}" ${sfGambitLeft(g, side) ? '' : 'disabled'}><option value="">${cur ? nm(cur) : L('（選特工）', '(choose an operative)')}</option>
+        ${living(g, side).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
+  }
   const kb = living(g, side).find((o) => tpl(o).callTheKill);
   if (kb) {
     const cur = g.mark?.[side];
@@ -1744,6 +1754,10 @@ function datacard(op, extra = '') {
   if (op.scTracked?.tp === g.tp) flags.push(`<span class="flag inj">🎯 ${L('被追蹤：被友方射擊時搜尋（輕型）', 'Tracked: shot with Seek Light')}</span>`);
   if (op.scTarget?.some(Boolean)) flags.push(`<span class="flag inj">⊕ ${L('目標標記：被偵察小隊攻擊時可重擲一顆攻擊骰', 'Target token: Scout Squad can re-roll one attack die against it')}</span>`);
   if (op.scRaw) flags.push(`<span class="flag">${L('原生體魄：Move +1"、不受重傷影響', 'Raw Physiology: +1" Move, ignores injury')}</span>`);
+  if (sfSermon(g, op)) flags.push(`<span class="flag">✝ ${L('佈道加成：普通／暴擊傷害 4 以上少 1', 'Sermon: Normal and Critical Dmg of 4+ deals 1 less')}</span>`);
+  if (sfOrator(g, op.side) === op) flags.push(`<span class="flag">📣 ${L('佈道者', 'Orator')}</span>`);
+  if (op.sfBlaze?.some(Boolean)) flags.push(`<span class="flag inj">🔥 ${L('烈焰標記（每次啟動受 D3 傷害）', 'Blaze token (D3 damage each activation)')}</span>`);
+  if (op.sfDoused?.some(Boolean)) flags.push(`<span class="flag inj">💧 ${L('濕透標記：被烈焰武器射擊時「搜尋」', 'Doused: Blaze weapons shooting it have Seek')}</span>`);
   if (op.scCovert) flags.push(`<span class="flag">${L('隱蔽陣地', 'Covert Position')}</span>`);
   if (t.ncVisionary) flags.push(`<span class="flag mk">${L(`預知點數 ${prescienceOf(g, op.side)}`, `Prescience ${prescienceOf(g, op.side)}`)}</span>`);
   if (t.mwLord) flags.push(`<span class="flag mk">${L(`詛咒點數 ${op.damnation || 1}/6`, `Damnation ${op.damnation || 1}/6`)}</span>`);
@@ -1847,6 +1861,17 @@ const ABILITIES = {
   wellStocked: () => ['補給充足', 'Well Stocked', '多放一個彈藥箱。', 'Places a second Ammo Cache.'],
   bayonetCharge: () => ['刺刀衝鋒', 'Bayonet Charge', '衝鋒時近戰武器獲得額外優勢。', 'Bonus when charging in melee.'],
   rtBruteShield: () => ['盾牌', 'Shield', '近戰格擋時可用盾牌，成功格擋加倍。', 'Parries with the shield; successful parries count double.'],
+  sfConfessor: () => ['懺悔師・號令宣告＋帶領遊行', 'Confessor · Commanding Declamation, Lead the Procession', '號令宣告：6" 內看得到的敵人要射擊、近戰或衝鋒時，擲 D6 高過它的 APL 就取消該動作（AP 不退還），成功後整場不能再用（系統自動）。懺悔師還活著就是佈道者（範圍 6"）。', 'Commanding Declamation: when an enemy within 6" and visible would Shoot, Fight or Charge, a D6 above its APL cancels that action (AP not refunded); once it works it can\'t be used again (automatic). The Confessor is the orator while he lives (range 6").'],
+  sfCherub: () => ['小天使・飛行＋激勵', 'Cherub · Fly, Incentivise', '飛行：衝鋒、撤退、重新定位時被移走再放回移動距離內（衝鋒沒有額外距離）。控制目標時 APL 視為少 1；隱蔽且在掩護中時 2" 外不能被選為有效目標；只能做移動、拾取、近戰和激勵。', 'Fly: removed and set up again within its Move for Charge, Fall Back and Reposition (a Charge gains no extra distance). Counts as 1 APL lower for control; Concealed in cover it can\'t be targeted beyond 2"; only movement, Pick Up, Fight and Incentivise.'],
+  sfAssassin: () => ['死亡教派刺客・受過訓練的刺客', 'Death Cult Assassin · Trained Assassin', '1AP（不在交戰中）：改變自己的指令。近戰或反擊時可先結算一個成功並用來格擋（Bladed Stance）。', '1AP (not engaged): change its order. Bladed Stance: when fighting or retaliating, one success is resolved first and used to block.'],
+  sfConflagrator: () => ['縱火者・淨化聖球架', 'Conflagrator · Sanctification Rack', '可執行「淨化聖球」（1AP），不佔每回合一次的裝備限制。雙重洪流：兩個不同的有效目標各射擊一次（自動選第二個）。', 'Can perform Sanctification Orb (1AP) without using the once-per-TP equipment limit. Twin Torrent: shoots two different valid targets (the second chosen automatically).'],
+  sfDrill: () => ['訓練導師・無情教導＋空洞顱骨', 'Drill Abbot · Schola Progenium Disciplinarian, Null Skull', '6" 內的友方淨化者無視重傷造成的數值變化。4" 內的敵人不能有正向的 APL 變化。', 'Friendly SANCTIFIERs within 6" ignore the stat changes of being injured. An enemy within 4" can\'t have a positive APL change.'],
+  sfMiraculist: () => ['奇蹟使・奇蹟＋烈焰纏身', 'Miraculist · Miracle, Wreathe in Fire', '奇蹟：第一次會殘廢時留 1 生命、本次動作剩下的骰全部作廢，並免費衝刺或撤退（3"）。烈焰纏身（1AP，限用 1 次）：在交戰中也能對 1" 內所有敵人用烈焰攻擊（無掩護、不被遮蔽）。', 'Miracle: the first time it would be incapacitated it stays on 1 wound, the remaining dice are discarded and it makes a free Dash or Fall Back (3"). Wreathe in Fire (1AP, Limited 1): attacks every enemy within 1", even when engaged (no cover, not obscured).'],
+  sfSpread: () => ['傳教士・傳播皇帝之言', 'Missionary · Spread the Word of the God-Emperor', '離其他友方特工超過 6" 時，武器獲得「嚴重」。有聖物的傳教士永遠享有佈道加成。', 'More than 6" from other friendlies, its weapons have Severe. A Missionary with a holy relic always benefits from the Sermon.'],
+  fanatical: () => ['迫害者・無情懲戒＋狂熱報復', 'Persecutor · Merciless Castigation, Fanatical Retribution', '每次啟動第一次近戰後，若雙方都沒殘廢，可再對同一敵人免費近戰一次。近戰中殘廢時，可先用一個還沒結算的成功打擊敵人。', 'After its first Fight each activation, if neither is incapacitated, a free Fight against the same enemy. If incapacitated in a fight it strikes with an unresolved success first.'],
+  defendFaith: () => ['布道者・捍衛信仰', 'Preacher · Defend the Faith', '控制目標標記時享有佈道加成。', 'While it controls an objective marker it benefits from the Sermon.'],
+  sfReliquant: () => ['聖物官・教派聖像＋帝國教派奉獻', 'Reliquant · Cult Icon, Imperial Cult Devotion', '4" 內的標記：只要有友方淨化者爭奪，總 APL 視為高 1。每回合一次：6" 內看得到的準備中友方淨化者殘廢時，它在被移除前免費射擊一次（自動）。', 'Markers within 4": total APL counts as 1 higher while a friendly SANCTIFIER contests. Once per TP, a ready friendly within 6" that is incapacitated shoots for free before it is removed (automatic).'],
+  sfSalvationist: () => ['救贖者・轉化力場＋醫療包', 'Salvationist · Conversion Field, Medikit', '距離射擊者超過 6"、在救贖者 6" 內的友方淨化者防禦 +1。醫療包 1AP：控制範圍內一名友方淨化者回復最多 2D3。', 'A friendly SANCTIFIER within 6" of it, shot from more than 6" away, saves 1 better. Medikit 1AP: a friendly within control range regains up to 2D3.'],
   scTracker: () => ['追蹤敵人', 'Track Enemy', '1AP（不在交戰中）：選 8" 內一名敵人，本回合友方偵察小隊特工射擊它時，遠程武器「搜尋（輕型）」。', '1AP (not engaged): select an enemy within 8"; this TP friendly Scout Squad operatives shooting it have Seek Light on their ranged weapons.'],
   scSniper: () => ['狙擊手協同', 'Sniper Synergy', '正受到光學瞄準效果時，鳥卜儀掃描範圍內的目標被它射擊，遠程武器再加「搜尋（輕型）」。', 'While Optics is active, targets inside an Auspex Scan are shot with Seek Light on its ranged weapons.'],
   // ---- Nemesis Claw ----
@@ -1941,6 +1966,8 @@ const ABILITIES = {
     ? ['快去做！', 'Get It Dun!', '1AP（支援，不能在反擊時）：6" 內可見的另一名友方下次啟動 APL +1。', '1AP (Support, not while counteracting): another visible friendly within 6" gets +1 APL next activation.']
     : v === 'wayfind' ? ['尋路', 'Wayfind', '1AP（支援）：它或偵察車 6" 內可見的另一名友方（機械除外）下次啟動 APL +1。', '1AP (Support): another friendly (not a machine) visible within 6" of it or of the C.A.T. unit gets +1 APL next activation.']
     : v === 'spot' ? ['觀測', 'Spot', '1AP（支援）：選一名可見的敵人；本回合觀測手 3" 內的友方射擊它時「搜尋（輕型）」，且它不會被遮擋。', '1AP (Support): pick a visible enemy; this TP, friendlies within 3" of the Spotter shooting it have Seek Light and it can\'t be obscured.']
+    : v === 'sfIncentivise' ? ['激勵', 'Incentivise', '1AP（不在交戰中）：選 2" 內看得到的另一名友方淨化者（懺悔師、刺客、奇蹟使、佈道者除外），到它下次啟動結束 APL +1。', '1AP (not engaged): another friendly SANCTIFIER visible within 2" (not Confessor, Assassin, Miraculist or orator) gets +1 APL until the end of its next activation.']
+    : v === 'rtIntercept' ? ['攔截通訊', 'Intercept Communications', '1AP（支援）：6" 內可見的另一名友方萊特林到下次啟動結束 APL +1。', '1AP (Support): another friendly RATLING visible within 6" gets +1 APL until the end of its next activation.']
     : [v === 'eyeAbove' ? '天上之眼' : '聽好了', v === 'eyeAbove' ? 'From the Eye Above' : 'Listen In', '1AP（支援）：6" 內可見的另一名友方下次啟動 APL +1。', '1AP (Support): another visible friendly within 6" gets +1 APL next activation.']),
   dakkaDash: () => ['達卡衝刺', 'Dakka Dash', '1AP（非隱蔽）：免費衝刺一次並用達卡槍免費射擊一次，順序不限。', '1AP (not Concealed): a free Dash and a free dakka shoota Shoot, in either order.'],
   datAllYouGot: () => ['就這樣？', 'Dat All You Got?', '近戰或反擊後若還站著，對方受到 D3 傷害。', 'After fighting or retaliating, if still standing, the enemy takes D3 damage.'],
@@ -2235,6 +2262,12 @@ const dmgText = (w) => (w.rules.wkPulsa ? '-' : w.rules.wkDetonate ? 'D6+6/2D6+6
 function resultView(r, readonly = false) {
   const a = getOp(g, r.attacker), t = getOp(g, r.target);
   const ca = team(g, a.side).color, ct = team(g, t.side).color;
+  if (r.kind === 'sfDeclaim') { // Commanding Declamation (Sanctifier Confessor): the action was cancelled
+    return `<div class="${readonly ? 'noanim' : ''}"><h2>📣 ${L('號令宣告', 'Commanding Declamation')}</h2>
+      <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b></p>
+      <p>${L('這個動作被取消了，AP 不退還。', 'That action was cancelled; the AP is not refunded.')}</p>
+      ${readonly ? '' : '<button class="primary wide" data-act="closeresult">' + L('繼續', 'Continue') + '</button>'}</div>`;
+  }
   if (r.kind === 'pulsa') { // Pulsa rokkit (Wrecka Krew): the marker's points and the D3 hits
     const hits = r.hits.map((h) => { const o = getOp(g, h.uid); return `<li><b style="color:${team(g, o.side).color}">${nm(o)}</b>：${h.dmg} ${L('傷害', 'damage')}${h.killed ? ' ☠' : ''}</li>`; }).join('');
     return `<div class="${readonly ? 'noanim' : ''}"><h2>⌖ ${esc(bi(r.weapon.name))}</h2>
@@ -2682,6 +2715,11 @@ app.addEventListener('change', (e) => {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && !isAI(side)) { setReboot(g, side, +e.target.value); render(); } // (secret: no log line until both are revealed)
   }
+  if (e.target.dataset.act === 'sforator' && g?.phase === 'strategy' && e.target.value) {
+    const side = +e.target.dataset.side;
+    if (side === ployChooser(g) && !isAI(side)) { sfChooseOrator(g, side, +e.target.value); afterChange(); }
+    return;
+  }
   if (e.target.dataset.act === 'rtdesignate' && g?.phase === 'strategy' && e.target.value) {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && !isAI(side)) { rtDesignate(g, side, +e.target.value); afterChange(); }
@@ -2788,6 +2826,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'nemesisClaw' && nightlordsRosterError(TEAM_MAP.nemesisClaw, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
@@ -2919,7 +2958,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf')) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

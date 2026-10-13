@@ -71,7 +71,7 @@ export function moveCtx(g, op, kind = 'reposition') {
     return { ok: !outside && !terrain.length && !operatives.length, outside, terrain, operatives };
   }
   // Jump Pack (FLY): the operative is set up again within its move distance, so only where it lands matters.
-  const fly = (!!tpl(op).jumpPack && (op.team !== 'murderwing' || (g.active === op.uid && !op.counter && kind !== 'dash'))) || !!(tpl(op).blinkPack && op.blinkOn);
+  const fly = (!!tpl(op).jumpPack && !(tpl(op).sfCherub && kind === 'dash') && (op.team !== 'murderwing' || (g.active === op.uid && !op.counter && kind !== 'dash'))) || !!(tpl(op).blinkPack && op.blinkOn);
   // Climbing (house rules, 2D): crossing a piece of Heavy or Light terrain is a climb. It costs at least 2" (which covers a
   // 2" climb), plus the climb above 2" and the drop beyond 2". The spot where the base lands after a climb must be clear
   // and not within an enemy's control range. Flying and terrain-ignoring moves don't climb.

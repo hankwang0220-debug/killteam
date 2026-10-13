@@ -14,6 +14,7 @@ import { isDeathwatch, dwAmmoAvailable, dwAmmoWeapon } from './deathwatch.js';
 import { breakTarget } from './wrecka.js';
 import { scAiStrategy } from './scouts.js';
 import { rtAiStrategy, rtSlingshotAI, doSlingshot } from './ratlings.js';
+import { sfAiStrategy } from './sanctifiers.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -21,6 +22,7 @@ import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
 export function aiStrategy(g, side) {
   scAiStrategy(g, side); // Scout Squad: Tactical Manoeuvre and Diversion gambits
   rtAiStrategy(g, side); // Ratlings: Target Designation
+  sfAiStrategy(g, side); // Sanctifiers: a new orator after the Confessor falls
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
@@ -675,6 +677,17 @@ export function aiStep(g) {
     const t = TARGET_ACTIONS.veriscant.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
     if (t) { doTargetAction(g, op, 'veriscant', t); return null; }
   }
+  // Sanctifiers: Incentivise a ready friendly, Sanctification Orb when a flamer is about, Wreathe in Fire when surrounded, Trained Assassin.
+  if (can.sfIncentivise && op.ap >= 1) {
+    const t = TARGET_ACTIONS.sfIncentivise.targets(g, op).filter((o) => o.ready && (o.aplNext || 0) < 1).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'sfIncentivise', t); return null; }
+  }
+  if (can.sfOrb && op.ap >= 1 && living(g, op.side).some((o) => o !== op && o.ready && tpl(o).weapons.some((w) => w.rules.blaze))) {
+    const t = TARGET_ACTIONS.sfOrb.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'sfOrb', t); return null; }
+  }
+  if (can.sfWreathe) { doSelfAction(g, op, 'sfWreathe'); return null; }
+  if (can.sfTrained && op.order === 'conceal' && foes(g, op).some((e) => edgeDist(op, e) <= 12)) { doSelfAction(g, op, 'sfTrained'); return null; }
   if (can.medikit) {
     const t = TARGET_ACTIONS.medikit.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds - b.wounds)[0];
     if (t) { doTargetAction(g, op, 'medikit', t); return null; }

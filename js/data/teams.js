@@ -6,6 +6,7 @@ import { WRECKA_TEAM } from './wrecka.js';
 import { NIGHTLORDS_TEAM } from './nightlords.js';
 import { SCOUTS_TEAM } from './scouts.js';
 import { RATLINGS_TEAM } from './ratlings.js';
+import { SANCTIFIERS_TEAM } from './sanctifiers.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2135,6 +2136,7 @@ TEAMS.push(WRECKA_TEAM);
 TEAMS.push(NIGHTLORDS_TEAM);
 TEAMS.push(SCOUTS_TEAM);
 TEAMS.push(RATLINGS_TEAM);
+TEAMS.push(SANCTIFIERS_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the
@@ -2499,6 +2501,9 @@ export const RULE_LABELS = {
   bloodOffering: { zh: '血之獻祭（第一次暴擊打擊得血祭標記）', en: 'Blood Offering (first critical strike gains a Blooded token)' },
   repress: { zh: '鎮壓（反擊時先結算）', en: 'Repress (resolves first when retaliating)' },
   devSplash: { zh: '毀滅也波及目標周圍', en: 'Devastating also hits operatives within' },
+  blaze: { zh: '烈焰（暴擊傷害後目標獲得烈焰標記）', en: 'Blaze (critical damage gives the target a Blaze token)' },
+  wreathed: { zh: '烈焰纏身（交戰中也能射擊自己周圍）', en: 'Wreathed (shoots around itself, even engaged)' },
+  twinTorrent: { zh: '雙重洪流（兩個不同目標）', en: 'Twin Torrent (two different targets)' },
   rapid: { zh: '快速射擊', en: 'Rapid Fire' },
   siphon: { zh: '吸取生命', en: 'Siphon Life' },
   magnify: { zh: '放大（借技師／學徒的視角）', en: 'Magnify (through a Cryptek / Apprentek)' },

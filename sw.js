@@ -3,7 +3,7 @@ const CACHE = 'killteam-v22';
 const ASSETS = [
   'js/tombworld-access.js', 'js/tombworld-maps.js', 'js/tombworld.js', 'js/data/tombworld.js',
   'js/wrecka.js', 'js/data/wrecka.js',
-  'js/nightlords.js', 'js/data/nightlords.js', 'js/ratlings.js', 'js/data/ratlings.js',
+  'js/nightlords.js', 'js/data/nightlords.js', 'js/ratlings.js', 'js/data/ratlings.js', 'js/sanctifiers.js', 'js/data/sanctifiers.js',
   'js/scouts.js', 'js/data/scouts.js',
   'js/murderwing.js', 'js/data/murderwing.js',
   'js/mandrakes.js', 'js/data/mandrakes.js',
