@@ -39,6 +39,7 @@ const foe = (g, i = 0) => g.ops.filter((o) => o.side === 1)[i];
   assert(G.effectiveRules(g, a, G.weaponsFor(g, a)[0], q).ceaseless, 'Ceaseless vs the quarry');
   G.applyDamage(g, a, q, 99);
   assert(g.quarry[0] && g.quarry[0].uid !== q.uid, 'a new quarry');
+  G.finishPloys(g); // (each ploy passes the turn: the opponent passes before this side buys again)
   G.buyPloy(g, 0, ploy('denounce'));
   assert(g.denounce[0], 'denounced');
   g.tp = 2;
