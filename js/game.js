@@ -1,6 +1,8 @@
 import { DEATHWATCH_EQUIPMENT } from './data/deathwatch.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT } from './data/murderwing.js';
+import { WRECKA_EQUIPMENT } from './data/wrecka.js';
+import { isWK, wkSetup, wkActionStart, wkRoll, wkKompetitive, wkActivate, shokked, wkMove, wkSaveBonus, wkReckless, wkRules, wkGlyphFree, wkPloyBought, wkReady, wkBoom, wkDetonate, wkSmash, wkPulsaShot, wkActions, wkSelf, registerWreckaActions } from './wrecka.js';
 import { isMurderwing, mwSetup, mwStrategy, mwActivation, mwActionStart, mwBoon, mwRules, mwDelay, mwFallBack, mwMoved, mwActions, mwSelf, mwHonour, registerMurderwingActions } from './murderwing.js';
 import { isMandrake, withinShadow, mdSetup, mdReady, mdStrategy, mdActivate, mdProjected, mdRules, mdRangedBonus, mdWeapons, mdShot, mdKill, mdDeath, mdFeast, mdActions, mdSelfAction, mdFallBack, mdInterrupt, mdEnd, registerMandrakeActions } from './mandrakes.js';
 import { isDeathwatch, dwSetup, dwCommandFree, dwConsumeCommand, dwSecondShotExtra, dwReduceDamage, dwRules, dwDefence, dwAuspexOn, dwTriangulation, dwActivate, dwBeforeActivation, dwApplyAmmo, dwAmmoWeapon, dwActions, dwSelfAction, dwMissionDone, dwDigital, dwAfterAction, dwBlocked, dwStrategy, registerDwActions } from './deathwatch.js';
@@ -90,6 +92,7 @@ export function moveStat(g, op) {
   m += op.acted?.moveBonus || 0; // Wild Rage (firefight ploy)
   if (deprecated(g, op, 'bulwark')) m -= 1; // Bulwark Imperative
   if (isDrone(op) && living(g, op.side).some((o) => tpl(o).droneController)) m += 2;
+  m += wkMove(g, op); // Shokkwave (Pulsa marker), Extra Armour (Wrecka Krew)
   return m;
 }
 
@@ -103,7 +106,8 @@ export const aplNow = (g, op) => matrixApl(g, op, tpl(op).nemesis && op.cardApl 
 /** Obelisk Node Matrix (Canoptek Circle): +1 APL within it, to a maximum of 3. */
 // (Ardour, a Celestian Insidiant Benediction: +1 APL for the rest of the battle.)
 // (Mania, a Goremonger Sanguavitae: +1 APL until its next activation.)
-const matrixApl = (g, op, v0) => { const v = v0 + (op.ardour ? 1 : 0) + (op.mania ? 1 : 0) + (op.mdSoulApl ? 1 : 0); return v < 3 && op.side < 2 && TEAM_MAP[op.team]?.obeliskNodes && inMatrix(g, op.side, op) ? v + 1 : v; };
+// (Tanked Up, Wrecka Krew: +1 APL until its next activation.)
+const matrixApl = (g, op, v0) => { const v = v0 + (op.ardour ? 1 : 0) + (op.mania ? 1 : 0) + (op.mdSoulApl ? 1 : 0) + (op.wkTanked ? 1 : 0); return v < 3 && op.side < 2 && TEAM_MAP[op.team]?.obeliskNodes && inMatrix(g, op.side, op) ? v + 1 : v; };
 
 /** Change APL until the end of the operative's next activation (not the one it's in right now). */
 export function changeApl(g, op, n) {
@@ -203,6 +207,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   dwSetup(g, roster);
   mdSetup(g, roster);
   mwSetup(g, roster, loadouts);
+  wkSetup(g, roster);
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -545,6 +550,7 @@ function startTP(g) {
   // The computer plays its initiative cards at once; with no card a human player can use, the result stands.
   aiInitCards(g);
   if (![0, 1].some((s) => s !== g.ai && g.initCards[s].length)) lockInitRoll(g);
+  wkReady(g); // Wrecka Krew: Pulsa markers lose a point, Demolition markers go
   mission(g).onReady?.(g); // the Ready step
 }
 
@@ -693,6 +699,7 @@ export const ployCost = (g, side, ploy) => (dwCommandFree(g, side, 'strategy') |
   || (ploy.id === 'contagion' && living(g, side).some((o) => tpl(o).iconBearer && inEnemyTerritory(g, o)))
   || (ploy.group === 'navyOrder' && living(g, side).some((o) => tpl(o).commandBreach))
   || broodFreePloy(g, side, ploy)
+  || wkGlyphFree(g, side, ploy) // Glyphs (Wrecka Krew)
   || (ploy.id === 'suspectEliminate' && living(g, side).some((o) => tpl(o).accusingExorcist && o.inspiring)) ? 0 : ploy.cp + (ploy.id === 'denounce' ? g.denounceUses?.[side] || 0 : 0)); // Accusing Exorcist (Denuncia); Denounce (Inquisition): +1CP per earlier use
 /** Brood Brothers: Broodcoven selections taken as ploys — the first ones bought cost 0CP for the rest of the battle. */
 const broodFreePloy = (g, side, ploy) => !!g.freePloyCount?.[side] && team(g, side).ploys.includes(ploy)
@@ -721,6 +728,7 @@ export function buyPloy(g, side, ploy) {
   if (isIATeam(g, side)) inquisitionPloy(g, side, ploy); // Denounce / Quarry
   if (broodFreePloy(g, side, ploy) && !g.bbFree?.[side]?.includes(ploy.id)) ((g.bbFree ||= [[], []])[side]).push(ploy.id); // (free from now on)
   if (ploy.id === 'plunderers') corsairPlunder(g, side);
+  wkPloyBought(g, side, ploy, cost); // Wrecka Krew: Glyphs used, Amped Up heals
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
   if (ploy.id === 'gloryKill') setGloryKill(g, side, living(g, 1 - side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]);
@@ -790,6 +798,7 @@ export function activate(g, op) {
   op.acted = {}; // (before Cult Ambush below records whether it started unseen)
   mdActivate(g, op);
   mwActivation(g);
+  wkActivate(g, op); // Wrecka Krew: Tanked Up ends, Stoopid, Engine Oil
   if (!g.counter && tpl(op).ruststalker && hasPloy(g, op.side, 'accelerant')) op.acted.accelerant = true;
   if (!g.counter) op.jam = false; // System Jam token removed when activated
   if (!g.counter) op.shieldingOn = false; // Shielding lasts until the start of its next activation
@@ -893,7 +902,7 @@ export function deactivate(g) {
 
 export function setOrder(g, op, order) {
   if (op.orderSet) return;
-  if (op.frenzy && order === 'conceal') return; // Frenzy: it can't have a Conceal order
+  if ((op.frenzy || tpl(op).stoopid) && order === 'conceal') return; // Frenzy / Stoopid (Bomb Squig): it can't have a Conceal order
   op.order = order;
   op.orderPicked = true; // the player has chosen this activation's order (the UI asks before any action)
 }
@@ -1165,7 +1174,7 @@ function attackAllowed(op, kind) {
   if (isMurderwing(op) && kind === 'fight' && op.acted.mwCarving && count(op, kind) >= 1) return false;
   if (isDeathwatch(op) && op.counter) return !count(op, 'shoot') && !count(op, 'fight');
   if (count(op, kind) === 0) return true;
-  if (kind === 'fight' && (tpl(op).krumpin || tpl(op).twoFights) && count(op, kind) === 1) return true; // Krumpin' Time / Expert Swordsman
+  if (kind === 'fight' && (tpl(op).krumpin || tpl(op).twoFights || op.acted?.wkTwoFights) && count(op, kind) === 1) return true; // Krumpin' Time / Expert Swordsman / Proppa Scrap (Wrecka Krew)
   if (kind === 'shoot' && tpl(op).pistolBarrage && op.acted.barrage?.remaining > 0) return true;
   if (kind === 'shoot' && op.acted.iaBar?.left > 0) return true; // Pistol Barrage (Inquisition Pistolier)
   if (kind === 'shoot' && tpl(op).mercilessHunter && !op.acted.archonMark && count(op, kind) === 1) return true;
@@ -2044,7 +2053,9 @@ export function availableActions(g, op) {
   add('fallBack', engaged && !held && !heavyBlocks('fallBack') && !did('fallBack', 'reposition', 'charge'), !engaged ? { zh: '未處於交戰', en: 'Not engaged' } : held ? { zh: '被逮捕／扣押，無法撤退', en: 'Apprehended / arrested — cannot Fall Back' } : heavyBlocks('fallBack') ? HEAVY : count(op, 'fallBack') ? DONE : COMBO);
   const shots = weaponsFor(g, op).filter((w) => w.type === 'ranged').map((w) => shootWeapon(g, op, w));
   // Close Quarters Vigilance (Vigilant): may Shoot while engaged, unless it Charged this activation (counteracting is fine).
-  const shootEngaged = engaged && !tpl(op).quickTrigger && !(tpl(op).vigilance && (op.counter || !count(op, 'charge')));
+  // (Explosive: a Bomb Squig can set off its explosives within an enemy's control range.)
+  const shootEngaged = engaged && !tpl(op).quickTrigger && !(tpl(op).vigilance && (op.counter || !count(op, 'charge')))
+    && !weaponsFor(g, op).some((w) => w.rules.wkExplosive && shootWeapon(g, op, w).ok);
   const shootWhy = shootEngaged ? ENG : !attackAllowed(op, 'shoot') ? DONE : (shots.find((s) => !s.ok)?.why || DONE);
   add('shoot', hasRanged && !shootEngaged && attackAllowed(op, 'shoot') && shots.some((s) => s.ok), shootWhy);
   // Savage Assault / Stealth Attack: a free Fight (against the same enemy for Savage Assault).
@@ -2209,6 +2220,7 @@ export function availableActions(g, op) {
   dwActions(g, op, add, attackAllowed(op, 'shoot') && shots.some((a) => a.ok));
   mdActions(g, op, add);
   mwActions(g, op, add);
+  wkActions(g, op, add); // Break Stuff (Wrecka Krew Fighter)
   // Exodite Dragon Masters: a rider in reserve only enters (see enterFromReserve); riders move by Sprint and Turn only.
   if (op.reserve) return [];
   if (isMounted(op)) {
@@ -2245,6 +2257,7 @@ export function fightTargets(g, op) {
 export function doSelfAction(g, op, id) {
   if (mdSelfAction(g, op, id)) return;
   if (mwSelf(g, op, id)) return;
+  if (wkSelf(g, op, id)) return;
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
@@ -2362,6 +2375,7 @@ export function doMove(g, op, kind, path) {
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
   const dest = path?.pts?.at(-1);
   if (kind === 'charge' && isMandrake(op) && op.order === 'conceal' && hasPloy(g, op.side, 'mdBladeDark') && !withinShadow(g, op) && !withinShadow(g, { ...op, ...dest })) return false;
+  if (kind === 'charge') wkActionStart(g, op, 'charge'); // Tanked Up (Wrecka Krew): at the start of the Charge
   if (kind === 'fallBack' && !mdFallBack(g, op, d6, d3)) return false;
   const seenBefore = foes(g, op).filter((t) => visibility(g, op, t).visible).map((t) => t.uid);
   const movedFrom = { x: op.x, y: op.y }; // (Preternatural Evasion, Drakolithe)
@@ -2545,6 +2559,8 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
     const ok = !target.dead && target.side === op.side && !!tpl(target).gheistskull && shootWeapon(g, op, weapon).ok && !isEngaged(g, op);
     return ok ? { ok: true, cover: false, obscured: false } : { ok: false };
   }
+  // Explosive (Bomb Squig): no valid target is picked — the squig itself is always the primary target (no cover, not obscured).
+  if (weapon.rules.wkExplosive) return target === op && shootWeapon(g, op, weapon).ok ? { ok: true, cover: false, obscured: false } : { ok: false };
   if (tpl(op).quickTrigger && isEngaged(g, op) && !inEngagement(op, target)) return { ok: false };
   if (target.dead || target.side === op.side) return { ok: false };
   if (weapon.rules.psychic && tpl(target).nullRodAura) return { ok: false }; // Null Rod: PSYCHIC weapons can't harm it
@@ -2571,6 +2587,8 @@ export function effectiveRules(g, op, weapon, target) {
   const r = { ...weapon.rules };
   mdRules(g, op, weapon, target, r);
   mwRules(g, op, weapon, target, r);
+  wkRules(g, op, weapon, target, r); // Wrecka Krew: Destruction, Armoured Up
+  if (target && ffOn(g, op, 'wkKaboom') && g.shotTargets?.[0] === target.uid) r.severe = true; // Kaboom!: Severe against the primary target
   if (weapon.type === 'melee') {
     if (hasPloy(g, op.side, 'docAssault')) r.balanced = true;
     if (hasPloy(g, op.side, 'waaagh')) r.balanced = true;
@@ -2830,6 +2848,7 @@ export function effectiveRules(g, op, weapon, target) {
   if ((mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o))) || voxbroken(g, op) || neurostatic(g, op)) { // (Neurostatic Interference: Hunter Clade)
     delete r.balanced; delete r.ceaseless; delete r.relentless;
   }
+  if (target && tpl(target).wkArmouredUp) { delete r.lethal; delete r.rending; delete r.severe; delete r.promote; delete r.grudge; } // Armoured Up (Krusha): only 6s are crits against it
   return r;
 }
 
@@ -3549,7 +3568,7 @@ function dragTarget(g, op, target, n) {
   const ctx = moveCtx(g, target);
   for (let len = Math.ceil(Math.min(max, room)); len >= 1; len--) {
     const l = Math.min(len, room), q = { x: target.x + (op.x - target.x) / d * l, y: target.y + (op.y - target.y) / d * l };
-    if (!ctx.free(q) || !ctx.segFree(target, q)) continue;
+    if (!ctx.free(q) || !ctx.segFree(target, q) || ctx.climbs([target, q])) continue; // (not dragged over terrain)
     log(g, { zh: `拖拽：${opName(target, 'zh')} 被拉近 ${Math.ceil(l)}"`, en: `Drag: ${opName(target, 'en')} is pulled ${Math.ceil(l)}" closer` }, `side${op.side}`);
     target.x = q.x; target.y = q.y;
     for (const m of carriables(g)) if (m.carriedBy === target.uid) { m.x = q.x; m.y = q.y; }
@@ -4140,8 +4159,9 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT);
 registerMurderwingActions();
+registerWreckaActions();
 registerMandrakeActions();
 registerDwActions();
 registerCorsairActions();
@@ -4186,7 +4206,7 @@ function clearSpot(g, p, r = 0.5) {
 }
 /** Set up the chosen equipment for a side (called from newGame). */
 function setupEquipment(g, side, ids) {
-  (g.equip ||= [[], []])[side] = ids.filter((id) => EQUIPMENT[id] && (!ARCHON_EQUIPMENT[id] || g.teams[side] === 'handOfArchon') && (!CORSAIR_EQUIPMENT[id] || g.teams[side] === 'corsairVoidscarred') && (!DEATHWATCH_EQUIPMENT[id] || g.teams[side] === 'deathwatch') && (!MANDRAKES_EQUIPMENT[id] || g.teams[side] === 'mandrakes') && (!MURDERWING_EQUIPMENT[id] || g.teams[side] === 'murderwing')).slice(0, living(g, side).some((o) => tpl(o).dwCommand) ? 5 : 4);
+  (g.equip ||= [[], []])[side] = ids.filter((id) => EQUIPMENT[id] && (!ARCHON_EQUIPMENT[id] || g.teams[side] === 'handOfArchon') && (!CORSAIR_EQUIPMENT[id] || g.teams[side] === 'corsairVoidscarred') && (!DEATHWATCH_EQUIPMENT[id] || g.teams[side] === 'deathwatch') && (!MANDRAKES_EQUIPMENT[id] || g.teams[side] === 'mandrakes') && (!MURDERWING_EQUIPMENT[id] || g.teams[side] === 'murderwing') && (!WRECKA_EQUIPMENT[id] || g.teams[side] === 'wreckaKrew')).slice(0, living(g, side).some((o) => tpl(o).dwCommand) ? 5 : 4);
   (g.eqUses ||= [{}, {}])[side] = { frag: 0, krak: 0, stun: 0, smoke: 0 };
   const along = g.axis === 'y' ? 'y' : 'x';
   // Where each kind may go: light cover and razor wire wholly within your territory (half); heavy cover wholly
@@ -4443,6 +4463,11 @@ const FF = {
   overwhelmTarget: { kind: 'button', start: true, cond: (g, op) => (op.breachedTP === g.tp || op.breach?.length ? null : { zh: '要在突破清場啟動時', en: 'Only when activated with Breach and Clear' }), apply(g, op) { op.ap += 1; } },
   // ---- Kommandos ----
   justScratch: { kind: 'auto' },
+  // ---- Wrecka Krew ----
+  wkJustScratch: { kind: 'auto' },
+  wkDemolition: { kind: 'auto' },
+  wkKaboom: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w && w.rules.blast ? null : { zh: '只能用有爆破的武器', en: 'Blast weapons only' }) },
+  wkProppaScrap: { kind: 'button', cond: (g, op) => (/Breaka Boy|Boss Nob/.test(tpl(op).name.en) ? null : { zh: '只有破壞小子或頭目', en: 'Breaka Boyz and the Boss Nob only' }), apply(g, op) { op.acted.wkTwoFights = true; } },
   shakeItOff: { kind: 'button', start: true, apply(g, op) { op.shakeTP = g.tp; if ((op.aplNext || 0) < 0 && !op.counter) op.ap += Math.min(1, -op.aplNext); } },
   // ---- Pathfinders ----
   supportingFire: { kind: 'aim' },
@@ -5078,6 +5103,7 @@ function killOff(g, src, target) {
       log(g, { zh: `${opName(target, 'zh')} 最後的反抗：引爆炸藥`, en: `${opName(target, 'en')} Final Defiance: detonates the charge` }, `side${target.side}`);
       target.explosivesUsed = 2; detonateExplosives(g, target);
     }
+    wkBoom(g, target); // Boom! (Wrecka Bomb Squig): it may explode before it's removed
     if (g.pechra?.[target.side]?.by === target.uid) g.pechra[target.side] = null;
     if (g.pan?.[target.side]?.by === target.uid) g.pan[target.side] = null; // Pan Spectral Scan marker
     if (g.auspex?.[target.side] === target.uid) g.auspex[target.side] = null; // Auspex Scan
@@ -5200,6 +5226,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (!rules.fixedHit) {
     // injured / Contagion / Mindburn; Quicksilver Speed: a Slaanesh Legionary that moved, shot from more than 6"
     hit += hitWorse(g, op, weapon) || (markOf(target) === 'slaanesh' && quick(g, target) && edgeDist(op, target) > 6) ? 1 : 0;
+    if (shokked(g, op)) hit += 1; // Shokkwave (Wrecka Krew Pulsa marker): cumulative with being injured
     if (rules.mlHit && hit > 3) hit = Math.max(3, hit - 1);
   }
   hit = clampHit(hit);
@@ -5208,6 +5235,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   archonPrey(g, op, target, a);
   broodRerolls(g, op, target, a, noReroll); // Psiren Caster, Crossfire tokens, Idolisation (Brood Brothers)
   claimBoost(g, op, target, a); // Stake Claim (Elucidian Starstriders)
+  wkRoll(g, op, a, target, tally); // Wrecka Rampage: 6s gain Wrecka points, points retain fails
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
   const inCover = vis.cover && !rules.ignoreCover;
@@ -5220,10 +5248,11 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const tough = (d) => ((tpl(target).tough || bulwark(g, target)) && d >= 3 ? d - 1 : d); // Tough (Thug) / Bulwark Imperative: Normal Dmg of 3+ deals 1 less
   const refined = isArchon(op) && op.acted.refinedSequence && ['haSplinterRifle', 'haSplinterPistol', 'haCannonF', 'haCannonS', 'haShardcarbine', 'haStinger'].includes(weapon.id) ? 1 : 0;
   const mdBonus = mdRangedBonus(g, op, target);
-  const dn = dwReduceDamage(g, target, tough(shield(Math.max(1, refined + normalDmg(weapon, target, g, op) + tox + mdBonus))), true);
+  const dn = wkReckless(target, dwReduceDamage(g, target, tough(shield(Math.max(1, refined + normalDmg(weapon, target, g, op) + tox + mdBonus))), true), true); // (Reckless Temperament: Demolisha)
   // Hardy (Cold-blood): a critical hit can inflict Normal Dmg instead.
   let dc = tpl(target).hardyCrit || tpl(target).brutish ? Math.min(shield(weapon.dmg[1] + tox + inspCrit(op)), dn) : shield(weapon.dmg[1] + tox + inspCrit(op)); // (Inspired Strikes: +1 Critical Dmg)
   if (mdBonus) dc = Math.max(1, dc + mdBonus);
+  dc = wkReckless(target, dc, false); // Reckless Temperament: Critical Dmg too with an Engage order
   const camo = !!tpl(target).camoCloak || !!tpl(target).weavewerke; // Camo Cloak ignores Saturate
   const rogue = hasPloy(g, target.side, 'rogue'); // Rogue: ignore Saturate, and Stealthy-style cover saves
   const saturated = rules.saturate && !camo && !rogue && !tpl(target).cultAgent; // Cult Agents ignore Saturate
@@ -5272,7 +5301,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
     // Gong Knell (Deathknell): +1 Save when shot until its next activation.
     // Aggressor Imperative (Hunter Clade): the Save is worsened by 1.
-    const save = Math.min(6, Math.max(2, tpl(target).save - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0)) + (deprecated(g, target, 'aggressor') ? 1 : 0));
+    const save = Math.min(6, Math.max(2, tpl(target).save - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
   // Only a shared terrain feature forces a cover/obscuring choice. Independent features stack.
@@ -5340,6 +5369,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit || inviolate(g, target)
       || (isGM(target) && hasPloy(g, target.side, 'augmentedEndurance') && goreOf(target) === 1) // Augmented Endurance (Goremongers): half tank one die, full any
       || (target.side < 2 && isCI(target) && target.order === 'engage' && hasPloy(g, target.side, 'wrathfulDetermination')) // Wrathful Determination
+      || (isWK(target) && target.order === 'engage' && hasPloy(g, target.side, 'wkTuffGitz')) // Tuff Gitz (Wrecka Krew)
       || (target.side < 2 && isCult(target) && target.wounds < target.maxW && hasPloy(g, target.side, 'exaltationPain')) // Exaltation in Pain
       || (target.side < 2 && isES(target) && living(g, target.side).some((l) => tpl(l).voltagheistArray && edgeDist(l, target) <= 4)) // Voltagheist Array (Lectro-Maester)
       || (base > 0 && TEAM_MAP[target.team].skillAtArms && hasPloy(g, target.side, 'engageFromCover')), // Engage From Cover (Kasrkin)
@@ -5385,6 +5415,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   else if (normals.length && target.side < 2 && isCC(target) && matrixCovers(g, target.side, op, target) && autoFF(g, target.side, 'shieldFlare')) normals.shift(); // Shield Flare
   // Just a Scratch (Kommandos) ignores one normal hit; All Is Dust (Rubric Marines) makes one deal 1.
   if (normals.length && dn >= 3 && autoFF(g, target.side, 'justScratch')) normals.pop();
+  else if (normals.length && isWK(target) && !tpl(target).wkSquig && autoFF(g, target.side, 'wkJustScratch')) normals.pop(); // (Wrecka Krew: any Normal Dmg)
   else if (normals.length && dn >= 2 && tpl(target).automata && autoFF(g, target.side, 'allIsDust')) normals[0] = 1;
   // Critical Shot (Phobos firefight ploy): +D3 damage with a critical success (once per action).
   const critShot = block.remC > 0 && ffOn(g, op, 'criticalShot') && !g.ffAtk.critShotDone ? d3() : 0;
@@ -5433,7 +5464,14 @@ function secondaryTargets(g, op, weapon, primary) {
     // Salvo: a second valid target (the most wounded one).
     const second = foes(g, op).filter((t) => t !== primary && shootCheck(g, op, t, weapon, true).ok)
       .sort((a, b) => a.wounds - b.wounds)[0];
-    return second ? [second] : [];
+    const out = second ? [second] : [];
+    // Salvo with Blast (Wrecka Boss Nob): then everyone caught in either blast, each shot once.
+    if (blast) {
+      for (const p of [primary, ...out]) {
+        for (const t of g.ops.filter((x) => !x.dead && x !== op && x !== primary && !out.includes(x) && edgeDist(p, x) <= blast + 0.01 && visibility(g, p, x).visible)) out.push(t);
+      }
+    }
+    return out;
   }
   if (torrent) {
     const ts = foes(g, op).filter((t) => t !== primary && edgeDist(primary, t) <= torrent + 0.01
@@ -5479,9 +5517,30 @@ export function resolveShoot(g, op, weapon, target) {
   return r.value;
 }
 
+/**
+ * A free shot outside the normal flow (Boom!: a Bomb Squig exploding as it's incapacitated): each target in turn,
+ * no cover, not obscured, and no re-roll decisions. The shot in progress (if any) is left as it was.
+ */
+export function forcedShot(g, op, weapon, targets) {
+  const saved = { shotTargets: g.shotTargets, ffAtk: g.ffAtk, runesLost: g.runesLost, magnifyNow: g.magnifyNow, wkStart: g.wkStart };
+  g.shotTargets = targets.map((t) => t.uid); g.ffAtk = null; g.runesLost = {}; g.magnifyNow = null;
+  wkActionStart(g, op, 'shoot');
+  const poisoned = new Set(g.ops.filter((o) => o.poison).map((o) => o.uid));
+  for (const t of targets) {
+    if (t.dead) continue;
+    const it = shootSequence(g, op, weapon, t, { visible: true, cover: false, obscured: false }, false, poisoned);
+    let r = it.next();
+    while (!r.done) r = it.next();
+    log(g, { zh: `${opName(op, 'zh')} 的${weapon.name.zh}波及 ${opName(t, 'zh')}：${r.value.dmg} 傷害`, en: `${opName(op, 'en')}'s ${weapon.name.en} hits ${opName(t, 'en')}: ${r.value.dmg} damage` }, `side${op.side}`);
+  }
+  Object.assign(g, saved);
+}
+
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
 export function* shootFlow(g, op, weapon, target) {
   mwActionStart(g);
+  wkActionStart(g, op, 'shoot'); // Wrecka Krew: Tanked Up, Wrecka Boss
+  if (weapon.rules.wkExplosive) { op.wkExploded = true; (op.used ||= {})[weapon.id] = 1; } // (used now, so Boom! can't follow its own blast)
   mdShot(g, op, weapon);
   const painBefore = painSnapshot(g);
   archonBeforeAttack(g, op, 'shoot');
@@ -5498,15 +5557,28 @@ export function* shootFlow(g, op, weapon, target) {
   if (weapon.technique) spendFF(g, op.side, weapon.technique); // Shriek-that-Kills
   if (weapon.rules.supportAsset) { (g.assetTP ||= [0, 0])[op.side] = g.tp; ((g.assetsUsed ||= [[], []])[op.side]).push(weapon.id); } // Privateer Support Asset used
   if (ffOn(g, op, 'avThousand')) weapon = { ...weapon, rules: { ...weapon.rules, torrent: 2, torrentMax: 1 } }; // Death of a Thousand Blades
+  if (weapon.rules.wkPulsa) { // Pulsa rokkit (Rokkiteer): no attack sequence, it places the Pulsa marker
+    const res = wkPulsaShot(g, op, weapon, target, ap, clampHit(weapon.hit + (hitWorse(g, op, weapon) ? 1 : 0) + (shokked(g, op) ? 1 : 0)), tally);
+    g.ffAtk = null;
+    return res;
+  }
+  if (ffOn(g, op, 'wkKaboom')) weapon = { ...weapon, rules: { ...weapon.rules, blast: (weapon.rules.blast || 0) + 1 } }; // Kaboom!: Blast +1"
+  // Drill Rokkits (Wrecka Krew equipment, once per TP): a rokkit launcha with nobody else in the blast trades Blast for Piercing 1.
+  if (weapon.group === 'wkRokkit' && !ffOn(g, op, 'wkKaboom') && hasEquip(g, op.side, 'wkDrill') && g.wkDrillTP?.[op.side] !== g.tp && !secondaryTargets(g, op, weapon, target).length) {
+    (g.wkDrillTP ||= [0, 0])[op.side] = g.tp;
+    const rules = { ...weapon.rules, piercing: 1 }; delete rules.blast;
+    weapon = { ...weapon, rules };
+    log(g, { zh: `${opName(op, 'zh')} 鑽地火箭：失去爆破、獲得穿甲 1`, en: `${opName(op, 'en')} Drill Rokkits: loses Blast, gains Piercing 1` }, `side${op.side}`);
+  }
   if (ffOn(g, op, 'livingLightning')) { // Living Lightning: Blast 2" instead of 2" Devastating
     const rules = { ...weapon.rules, blast: 2 }; delete rules.devSplash;
     weapon = { ...weapon, rules };
   }
   // Revolting Technology (Gellerpox firefight ploy): the shooter's weapon gains Hot for this action.
   const revolt = !weapon.rules.hot && target.side < 2 && autoFF(g, target.side, 'revoltingTech');
-  const relay = weapon.rules.detonate ? null : magnifyRelay(g, op, target, weapon);
+  const relay = weapon.rules.detonate || weapon.rules.wkExplosive ? null : magnifyRelay(g, op, target, weapon);
   // (Mounted Exodite riders get no cover from Light terrain.)
-  let vis = weapon.rules.detonate ? { visible: true, cover: false, obscured: false } : shotVisibility(g, relay || op, target, weapon, isMounted(target) ? { ignoreLight: true } : undefined);
+  let vis = weapon.rules.detonate || weapon.rules.wkExplosive ? { visible: true, cover: false, obscured: false } : shotVisibility(g, relay || op, target, weapon, isMounted(target) ? { ignoreLight: true } : undefined);
   // Fated Shot (Leystalker upgrade, once per TP): its long rifle's target can't be obscured.
   if (vis.obscured && weapon.group === 'edRifle' && hasUp(op, 'fated') && op.fatedTP !== g.tp) { op.fatedTP = g.tp; vis = { ...vis, obscured: false }; log(g, { zh: '命定一擊：目標不能被遮蔽', en: 'Fated Shot: the target cannot be obscured' }, `side${op.side}`); }
   if (weapon.rules.aimed) op.acted.aimedUsed = true; // (Aimed: no more than 3" of movement after it)
@@ -5516,6 +5588,7 @@ export function* shootFlow(g, op, weapon, target) {
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
   const others = secondaryTargets(g, op, weapon, target); // chosen before any damage is dealt
+  wkKompetitive(g, op, [target, ...others]); // Kompetitive Streak (Tankbusta Gunner)
   // Sinuous Flux (Exodite ploy): shooting a fast Dragon Master from more than 6" — no attack re-rolls.
   const noReroll = suppressed(g, op, weapon, target) || (isEDM(target) && hasPloy(g, target.side, 'sinuousFlux') && speedOf(g, target) >= 4 && edgeDist(op, target) > 6);
   g.shotTargets = [target.uid, ...others.map((t) => t.uid)];
@@ -5593,6 +5666,7 @@ export function* shootFlow(g, op, weapon, target) {
   // Siphon Life (life siphon): heal a friendly for the dice that inflicted damage.
   if (weapon.rules.siphon && !op.dead) siphonLife(g, op, [...Array(main.remC).fill(true), ...Array(main.remN).fill(false)].slice(0, main.dmg > 0 ? 99 : 0));
   g.ffAtk = null;
+  demolitionJob(g, op, target); // Demolition Job (Wrecka Krew)
   if (op.acted.contemptuous) op.acted.contemptUsed = true;
   corsairAfterAction(g, op);
   dwAfterAction(g, op);
@@ -5623,6 +5697,7 @@ const other = (k) => (k === 'A' ? 'D' : 'A');
 const left = (p) => p.c + p.n;
 
 export function startFight(g, op, weapon, target) {
+  wkActionStart(g, op, 'fight'); // Wrecka Krew: Tanked Up, Wrecka Boss
   mwActionStart(g);
   g.runesLost = null; // (Runes of Khorne only count damage from a Shoot action)
   // Bad-tempered (Kroot Hound): an enemy fighting while the hound is a valid choice must fight the hound.
@@ -5671,9 +5746,9 @@ export function startFight(g, op, weapon, target) {
   const assist = (me, foe) => !tpl(foe).brawler && !tpl(foe).noAssistVs && !hasGift(g, foe, 'barbed') && living(g, me.side).some((f) => f !== me && edgeDist(f, foe) <= CONTROL + 0.01);
   const aAssist = assist(op, target), dAssist = assist(target, op);
   // Quicksilver Speed (Legionaries): against a Legionary that moved this TP, melee Hit is worsened by 1 (not with injured).
-  const aHit = weapon.rules.fixedHit ? weapon.hit : clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) - (aAssist ? 1 : 0));
+  const aHit = weapon.rules.fixedHit ? weapon.hit : clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) + (shokked(g, op) ? 1 : 0) - (aAssist ? 1 : 0)); // (Shokkwave)
   // Banshee Mask (Howling Banshees): fighting, the enemy's melee Hit is worsened by 1 (not cumulative with injured).
-  const dHit = dWeapon.rules.fixedHit ? dWeapon.hit : clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) || tpl(op).bansheeMask ? 1 : 0) - (dAssist ? 1 : 0));
+  const dHit = dWeapon.rules.fixedHit ? dWeapon.hit : clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) || tpl(op).bansheeMask ? 1 : 0) + (shokked(g, target) ? 1 : 0) - (dAssist ? 1 : 0)); // (Shokkwave)
   // Cut-throats: +1 Atk to a maximum of 5.
   const atk = (w, r) => Math.max(1, (r.atkPlus ? Math.max(w.atk, Math.min(r.atkMax || 5, w.atk + r.atkPlus)) : w.atk) - (r.atkMinus || 0)); // (For Cadia!: max 4; atkMinus: Sanctification)
   // Whip Control (Herd-goad): -1 Atk on the melee weapons of a whipped enemy (to a minimum of 1).
@@ -5697,6 +5772,7 @@ export function startFight(g, op, weapon, target) {
   if (isDeathwatch(target)) archonPrey(g, target, op, dRoll);
   broodRerolls(g, op, target, aRoll); broodRerolls(g, target, op, dRoll); // (Brood Brothers, fighting or retaliating)
   claimBoost(g, op, target, aRoll); claimBoost(g, target, op, dRoll); // Stake Claim (Elucidian Starstriders)
+  wkRoll(g, op, aRoll, target, tally); wkRoll(g, target, dRoll, op, tally); // Wrecka Rampage (fighting or retaliating)
   spend(g, op, 'fight');
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons
   if (free) { op.acted.free.fight = null; if (op.acted.ancestors && op.acted.free.shoot === 'any') op.acted.free.shoot = null; }
@@ -5866,6 +5942,7 @@ export function fightApply(g, optId) {
   const k = f.turn, me = f[k], foe = f[other(k)];
   me[opt.die]--;
   if (mwHonour(g, fightOp(g, k), fightOp(g, other(k)), opt.die === 'c', autoFF)) { advanceFight(g); return; }
+  if (opt.act === 'strike' && wkDetonate(g, f, fightOp(g, k), fightOp(g, other(k)), fightWeapon(g, k), opt.die === 'c')) { advanceFight(g); return; } // Detonate (Demolisha)
   if (opt.act === 'strike' && opt.die === 'c' && me.critBonus) me.critBonusUsed = true;
   if (opt.act === 'strike' && me.firstBonus) me.firstBonus = 0; // Shock Assault: only the first strike
   if (opt.act === 'strike' && opt.die === 'n' && me.firstNorm) me.firstNormUsed = true; // Speartip of the Clan: only the first normal strike
@@ -5878,6 +5955,7 @@ export function fightApply(g, optId) {
     if (!shrug && opt.die === 'n' && useCrest(g, foeOp)) shrug = true; // Weavefield Crest (Theyn)
     if (!shrug && opt.die === 'n' && foeOp.side < 2 && isCC(foeOp) && inMatrix(g, foeOp.side, foeOp) && autoFF(g, foeOp.side, 'shieldFlare')) shrug = true; // Shield Flare (Canoptek Circle)
     if (!shrug && opt.die === 'n' && opt.dmg >= 3 && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
+    if (!shrug && opt.die === 'n' && isWK(foeOp) && !tpl(foeOp).wkSquig && autoFF(g, foeOp.side, 'wkJustScratch')) shrug = true; // Just a Scratch (Wrecka Krew)
     // Brawler (Dôzr): Normal Dmg of 4 or more inflicts 1 less when it's fighting or retaliating.
     // Tough (Blooded Thug): Normal Dmg of 3 or more inflicts 1 less.
     // War Gong: a critical strike inflicts Normal Dmg instead (when lower, or to keep a Frenzied Fellgor up).
@@ -5887,6 +5965,7 @@ export function fightApply(g, optId) {
     const dmg0 = (gong ? normalHit : opt.dmg) + mwBoon(g, meOp), asNormal = opt.die === 'n' || gong;
     let amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || ((tpl(foeOp).tough || bulwark(g, foeOp)) && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
     amount = dwReduceDamage(g, foeOp, amount, asNormal, true);
+    amount = wkReckless(foeOp, amount, asNormal); // Reckless Temperament (Demolisha)
     if (asNormal && amount >= 3 && isMurderwing(foeOp) && k === 'D' && hasPloy(g, foeOp.side, 'mwFear')) amount--;
     // Holy Resilience (Celestian Insidiants ploy): an inspiring friendly takes 1 less from Normal and Critical Dmg of 4+.
     if (amount >= 4 && foeOp.inspiring && isCI(foeOp) && hasPloy(g, foeOp.side, 'holyResilience')) amount--;
@@ -5937,6 +6016,7 @@ export function fightApply(g, optId) {
     // Gaining a Frenzy token discards all remaining attack dice of the fight.
     if (g.frenzyNow === foeOp.uid) { f.A.c = f.A.n = f.D.c = f.D.n = 0; g.frenzyNow = null; }
     poisonOnHit(g, meOp, foeOp, { poison: me.poison }, res.dmg);
+    if (fightWeapon(g, k).rules.wkSmash && !killed) wkSmash(g, meOp, foeOp); // Smash (Krusha): knock the enemy back 1" and follow
     // Headtaker (Gorehorn): a kill heals D3 (no Frenzy token) and adds D3 to the skullcleaver's Critical Dmg (max 8).
     if (killed && fightWeapon(g, k).rules.headtaker) {
       const r = d3();
@@ -6083,6 +6163,14 @@ function finishFight(g) {
   for (const o of g.ops) o.medicShield = false;
 }
 
+/** Demolition Job (Wrecka Krew firefight ploy, automatic): after its Shoot / Fight, a Demolition marker on the target if an enemy is within 3" of it. */
+function demolitionJob(g, op, target) {
+  if (!isWK(op) || !target || op.side > 1 || !living(g, 1 - op.side).some((e) => dist(e, target) - radius(e) <= 3)) return;
+  if (!autoFF(g, op.side, 'wkDemolition')) return;
+  (g.markers ||= []).push({ id: g.markers.length, kind: 'demolition', owner: op.side, x: target.x, y: target.y, carriedBy: null });
+  log(g, { zh: `拆除工作：在 ${opName(target, 'zh')} 身上放拆除標記`, en: `Demolition Job: a Demolition marker on ${opName(target, 'en')}` }, `side${op.side}`);
+}
+
 export function endFight(g) {
   if (g.fight) for (const [k, other] of [['A', 'D'], ['D', 'A']]) {
     mdFeast(g, fightOp(g, k), fightOp(g, other), g.fight[k].mdDamageDice || 0, autoFF);
@@ -6093,6 +6181,7 @@ export function endFight(g) {
     fa.bloodlustTP = g.tp; fa.acted.free = { ...(fa.acted.free || {}), charge: 'bloodlust' };
     log(g, { zh: `${opName(fa, 'zh')} 執迷的血慾：可以免費衝鋒最多 2"`, en: `${opName(fa, 'en')} Obsessive Bloodlust: may make a free Charge of up to 2"` }, `side${fa.side}`);
   }
+  if (fa && g.fight) demolitionJob(g, fa, getOp(g, g.fight.D.uid)); // Demolition Job (Wrecka Krew)
   g.fight = null;
   // Chaos Cult: a Devotee that incapacitated its enemy in the fight mutates now that the fight is over.
   for (const uid of g.mutateQueue || []) mutate(g, getOp(g, uid), { zh: '使敵人殘廢', en: 'incapacitated an enemy' });

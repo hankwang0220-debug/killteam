@@ -41,10 +41,10 @@ function dice(values, fn) { const old = Math.random; let n = 0; Math.random = ()
   g.terrain=[{kind:'heavy',x:7,y:0,w:1,h:22}];
   assert.equal(G.moveAllowance(g,o,'charge'),6);
   assert(findPath(moveCtx(g,o,'reposition'),{x:10,y:10}));
-  assert(!findPath(moveCtx(g,o,'dash'),{x:10,y:10}));
+  { const c=moveCtx(g,o,'dash'); assert.equal(c.climbs(findPath(c,{x:10,y:10}).pts),3.2,'Dash on foot: a 3.2" climb'); }
   assert(!moveCtx(g,o).free({x:7.5,y:10}));
   assert.equal(G.doMove(g,o,'charge',{pts:[o,{x:12,y:10}],len:7}),false);
-  o.counter=true; assert(!findPath(moveCtx(g,o),{x:10,y:10}));
+  o.counter=true; { const c=moveCtx(g,o); assert.equal(c.climbs(findPath(c,{x:10,y:10}).pts),3.2,'counteracting on foot: a 3.2" climb'); }
 }
 // Paid boost-zone Strike From Above, and zero-AP Clawed Charge.
 {

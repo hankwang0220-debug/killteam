@@ -10,6 +10,7 @@ import {
 import { isMandrake, doShadowPassage, shadowPassageCheck } from './mandrakes.js';
 import { isArchon, painOptions, usePain } from './archon.js';
 import { isDeathwatch, dwAmmoAvailable, dwAmmoWeapon } from './deathwatch.js';
+import { breakTarget } from './wrecka.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -60,7 +61,7 @@ export function aiStrategy(g, side) {
 function shootOptions(g, op) {
   const opts = [];
   const hitMod = statPenalty(g, op) ? 1 : 0;
-  for (const w of weaponsFor(g, op).filter((x) => x.type === 'ranged')) {
+  for (const w of weaponsFor(g, op).filter((x) => x.type === 'ranged' && !x.rules.wkPulsa)) { // (the Pulsa rokkit is picked separately)
     for (const t of foes(g, op)) {
       const c = shootCheck(g, op, t, w);
       if (!c.ok) continue;
@@ -77,7 +78,7 @@ function shootOptions(g, op) {
 }
 
 const bestRanged = (op, hitMod) => Math.max(0, ...tpl(op).weapons.filter((w) => w.type === 'ranged').map((w) => avgDmg(w, hitMod)));
-const prefersMelee = (op) => avgDmg(bestMelee(op)) > bestRanged(op, 0) * 1.1;
+const prefersMelee = (op) => !!tpl(op).wkSquig || avgDmg(bestMelee(op)) > bestRanged(op, 0) * 1.1; // (a Bomb Squig runs at the enemy)
 
 function pickGoal(g, op) {
   // Envoy (Tac Op): head deep into enemy territory.
@@ -158,7 +159,7 @@ function safeMove(g, op, kind, goal, order) {
     for (let a = 0; a < 16; a++) {
       const q = { x: op.x + Math.cos(a * Math.PI / 8) * max * f, y: op.y + Math.sin(a * Math.PI / 8) * max * f };
       if (!ctx.free(q) || !endOk(q)) continue;
-      if (ctx.segFree(op, q)) { const pts = [{ x: op.x, y: op.y }, q], len = dist(op, q) + ctx.extra(pts); if (len <= max + 0.01) cands.push({ pts, len }); continue; }
+      if (ctx.segFree(op, q) && !ctx.climbs([op, q])) { const pts = [{ x: op.x, y: op.y }, q], len = dist(op, q) + ctx.extra(pts); if (len <= max + 0.01) cands.push({ pts, len }); continue; }
       const path = findPath(ctx, q);
       if (path && path.len <= max + 0.01) cands.push(path);
     }
@@ -311,6 +312,7 @@ function aiButtonPloys(g, op) {
     if (ok.wrathVengeance && (engagedEnemies(g, op).length || shootOptions(g, op).length)) return use('wrathVengeance');
     if (ok.bondsThatBind) return use('bondsThatBind'); // (Hernkyn Yaegirs)
   }
+  if (ok.wkProppaScrap && engagedEnemies(g, op).length && op.ap >= 2) return use('wkProppaScrap'); // (Wrecka Krew: two Fights)
   if (ok.virulentPoison) return use('virulentPoison');
   if (ok.frighteningOnslaught) return use('frighteningOnslaught');
   if (ok.ruthlessRampage && foes(g, op).some((e) => edgeDist(op, e) <= 3.5)) return use('ruthlessRampage');
@@ -365,7 +367,7 @@ export function aiStep(g) {
     if (g.active !== op.uid) return null; // Mandrake activation interruption
     // Melee operatives stay Concealed while closing in, and only go Engage when they can Charge or fight now.
     const melee = prefersMelee(op) && !op.frenzy;
-    op.order = melee && !engagedEnemies(g, op).length && !chargePath(g, op) && g.tp < 4 ? 'conceal' : 'engage';
+    op.order = !tpl(op).stoopid && melee && !engagedEnemies(g, op).length && !chargePath(g, op) && g.tp < 4 ? 'conceal' : 'engage'; // (Stoopid: always Engage)
     return null;
   }
   if (op.dead) { endActivation(g); return null; }
@@ -384,6 +386,25 @@ export function aiStep(g) {
     if (can.mwCarving && foes(g, op).filter((t) => edgeDist(op, t) <= 2 && visibility(g, op, t).visible).length >= 2 && !living(g, op.side).some((t) => t !== op && edgeDist(op, t) <= 2)) { doSelfAction(g, op, 'mwCarving'); return null; }
     if (can.mwShriek && op.ap >= 2) { const t = TARGET_ACTIONS.mwShriek.targets(g, op).sort((a,b) => a.wounds-b.wounds)[0]; if(t) { doTargetAction(g, op, 'mwShriek', t); return null; } }
     if (can.mwVox && foes(g, op).filter((t) => edgeDist(op, t) <= 2).length >= 2) { doSelfAction(g, op, 'mwVox'); return null; }
+  }
+  if (op.team === 'wreckaKrew') {
+    // Bomb Squig: set off its explosives once more enemies than friendlies are caught within the blast.
+    const boom = weaponsFor(g, op).find((w) => w.rules.wkExplosive);
+    if (boom && can.shoot && shootCheck(g, op, op, boom).ok) {
+      const near = g.ops.filter((t) => !t.dead && t !== op && t.x > -50 && edgeDist(op, t) <= boom.rules.blast && visibility(g, op, t).visible);
+      const enemies = near.filter((t) => t.side !== op.side).length, friends = near.filter((t) => t.side === op.side && !tpl(t).wkSquig).length;
+      if (enemies > friends) return aiPloysFor(g, op, { kind: 'shoot', weapon: boom, target: op });
+    }
+    // Pulsa rokkit: on a visible enemy with another enemy close by and no friendly near.
+    const pulsa = weaponsFor(g, op).find((w) => w.rules.wkPulsa);
+    if (pulsa && can.shoot && op.ap >= 1) {
+      const t = foes(g, op).filter((e) => e.side < 2 && shootCheck(g, op, e, pulsa).ok
+        && foes(g, op).filter((x) => edgeDist(x, e) <= 1.5).length >= 1 && !living(g, op.side).some((f) => edgeDist(f, e) <= 3))
+        .sort((a, b) => foes(g, op).filter((x) => edgeDist(x, b) <= 2).length - foes(g, op).filter((x) => edgeDist(x, a) <= 2).length)[0];
+      if (t) return { kind: 'shoot', weapon: pulsa, target: t };
+    }
+    // Break Stuff: tear down the enemy's equipment terrain.
+    if (can.wkBreak && breakTarget(g, op)?.equip === 1 - op.side) { doSelfAction(g, op, 'wkBreak'); return null; }
   }
   if (isMandrake(op)) {
     const soul = can.mdSoulHeal && op.maxW - op.wounds >= 4 ? 'mdSoulHeal' : can.mdSoulApl ? 'mdSoulApl' : null;

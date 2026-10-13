@@ -30,7 +30,7 @@ function arena() {
   assert(html.includes('底盤放不下')); assert(html.includes('placement-base')); assert(html.includes('placement-cross'));
   assert.equal((html.match(/class="placement-block"/g) || []).length, 2);
 }
-// All cover and living bases block endpoints; ordinary movement cannot cut through either.
+// All cover and living bases block endpoints; moving over cover is a climb (bases can't be crossed).
 for (const kind of ['heavy', 'light']) {
   const { g, op } = arena();
   const terrain = { kind, x: 5, y: 9, w: .1, h: 2 }; g.terrain = [terrain];
@@ -42,16 +42,36 @@ for (const kind of ['heavy', 'light']) {
   const ap = op.ap;
   assert.equal(G.doMove(g, op, 'reposition', { pts: [op, clipped] }), false);
   assert.equal(op.ap, ap); assert.equal(op.x, 3);
-  // Jump packs may cross cover, but their landing base must be clear.
-  assert(ctx.segFree(op, { x: 7, y: 10 }));
+  // Jump packs fly over cover for free, but their landing base must be clear.
+  assert(ctx.segFree(op, { x: 7, y: 10 })); assert.equal(ctx.climbs([op, { x: 7, y: 10 }]), 0);
   op.counter = true;
   const ground = moveCtx(g, op);
-  assert(!ground.segFree(op, { x: 7, y: 10 }));
+  // On foot: climbing over costs at least 2" (Light 2" high: 2"; Heavy 2.6" high: 2.6" up + 0.6" drop = 3.2").
+  assert(ground.segFree(op, { x: 7, y: 10 }));
+  assert.equal(ground.climbs([op, { x: 7, y: 10 }]), kind === 'light' ? 2 : 3.2);
   const route = findPath(ground, { x: 7, y: 10 });
   assert(route); assert(route.pts.slice(1).every((p, i) => ground.segFree(route.pts[i], p)));
-  // A tiny corner overlap between former 0.1-inch samples must also be blocked.
+  assert.equal(ground.climbs(route.pts), 0, 'a short wall is cheaper to walk around');
+  // Even a tiny piece of cover is a climb.
   g.terrain = [{ kind, x: 4.05, y: 10 + r - .0001, w: .001, h: .001 }];
-  assert(!moveCtx(g, op).segFree(op, { x: 5, y: 10 }));
+  assert.equal(moveCtx(g, op).climbs([op, { x: 5, y: 10 }]), kind === 'light' ? 2 : 3.2);
+}
+// A wall across the whole killzone has to be climbed: Light (2") +2", Heavy (2.6") +3.2", Heavy Barricade (3") +4", a map height of 5" +8".
+for (const [wall, cost] of [[{ kind: 'light' }, 2], [{ kind: 'heavy' }, 3.2], [{ kind: 'heavy', equip: 0 }, 4], [{ kind: 'heavy', height: 5 }, 5 + 3]]) {
+  const { g, op } = arena();
+  g.terrain = [{ ...wall, x: 6, y: 0, w: .3, h: G.BOARD.h }]; op.counter = true; // (on foot: no jump pack)
+  const ctx = moveCtx(g, op), path = findPath(ctx, { x: 8, y: 10 });
+  assert(path, JSON.stringify(wall));
+  assert.equal(ctx.climbs(path.pts), cost, JSON.stringify(wall));
+  assert(Math.abs(path.len - (5 + cost)) < 0.3, `${JSON.stringify(wall)}: ${path.len}`);
+  // Not enough movement for the climb: the move stops before the wall.
+  assert(wholeInchPath(ctx, path, Math.ceil(cost) + 3).pts.at(-1).x < 6); // (3" to the wall + the climb isn't enough to land beyond it)
+  assert(wholeInchPath(ctx, path, Math.ceil(cost) + 4).pts.at(-1).x > 6.3, 'with 1" more it gets over');
+  // The spot where the base lands after the climb can't be within an enemy's control range.
+  const foe = g.ops.find((o) => o.side !== op.side); foe.x = 7.3; foe.y = 11.7; // (beside the route, but within 1" of the landing spot)
+  const blocked = moveCtx(g, op);
+  assert.equal(blocked.segFree({ x: 5, y: 10 }, { x: 9.5, y: 10 }), false, 'landing next to the enemy');
+  assert(blocked.segFree({ x: 5, y: 4 }, { x: 9.5, y: 4 }), 'climbing further from the enemy is fine');
 }
 for (const side of [0, 1]) {
   const { g, op } = arena(), other = g.ops.find((o) => o !== op && o.side === side);
@@ -60,7 +80,16 @@ for (const side of [0, 1]) {
   assert(!ctx.free(p)); assert.equal(ctx.placement(p).operatives[0].uid, other.uid);
   assert.equal(G.doMove(g, op, 'reposition', { pts: [op, p] }), false);
   op.counter = true; other.y = 10 + G.radius(op) + G.radius(other) - .0001; other.x = 4.05;
-  assert(!moveCtx(g, op).segFree(op, { x: 5, y: 10 }));
+  // A move can pass through friendly operatives (side 0) but never enemy ones.
+  assert.equal(moveCtx(g, op).segFree(op, { x: 5, y: 10 }), side === 0);
+}
+// Straight through a friendly operative standing in the way; an enemy one has to be walked around.
+for (const side of [0, 1]) {
+  const { g, op } = arena(), other = g.ops.find((o) => o !== op && o.side === side);
+  op.counter = true; // (on foot: no jump pack)
+  other.x = 6; other.y = 10; other.order = 'conceal';
+  const p = findPath(moveCtx(g, op), { x: 9, y: 10 });
+  assert(p); assert.equal(p.pts.length === 2, side === 0, `side ${side}`);
 }
 // No legal deployment or NPO spawn space means no forced overlapping placement.
 {

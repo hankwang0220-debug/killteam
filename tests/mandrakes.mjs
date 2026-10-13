@@ -130,7 +130,7 @@ for (const [other, apl, values, retained] of [['angels', 3, [1, 2, 3], ['crit', 
 {
   const g = arena(), o = get(g, 'mdWarrior'); o.x = 5; o.y = 10; G.activate(g, o); g.cp[0] = 3;
   g.terrain = [{ kind: 'heavy', x: 7, y: 0, w: 1, h: 22 }];
-  assert(!findPath(moveCtx(g, o), { x: 10, y: 10 }));
+  { const c = moveCtx(g, o); assert.equal(c.climbs(findPath(c, { x: 10, y: 10 }).pts), 3.2, 'on foot: a 3.2" climb'); }
   assert(G.useFFButton(g, o, 'mdNowhere'));
   const p = findPath(moveCtx(g, o), { x: 10, y: 10 }); assert(p && p.len === 5);
   assert(!moveCtx(g, o).free({ x: 7.5, y: 10 })); assert.equal(G.moveAllowance(g, o, 'charge'), 7);

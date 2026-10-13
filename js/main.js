@@ -1,6 +1,8 @@
 import { DEATHWATCH_EQUIPMENT, deathwatchRosterError } from './data/deathwatch.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT, murderwingRosterError } from './data/murderwing.js';
+import { WRECKA_EQUIPMENT, wreckaRosterError } from './data/wrecka.js';
+import { wreckaOf } from './wrecka.js';
 import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
 import { dwEquipmentLimit, dwScrambleTargets, dwScramble } from './deathwatch.js';
 import { CORSAIR_EQUIPMENT } from './corsair.js';
@@ -474,6 +476,10 @@ function inquisitionRosterWarning(t, cur) {
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
 function rosterWarning(t, cur, side) {
   if (t.id === 'murderwing') { const error = murderwingRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'wreckaKrew') { // (and only one Glyphs)
+    const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
+    return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
+  }
   if (t.id === 'deathwatch') { const error = deathwatchRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.insidiants) {
     const ids = Object.keys(t.replacements).map((slot) => cur[slot] || slot).map((id) => (id === 'ciCremator2' ? 'ciCremator' : id));
@@ -516,7 +522,7 @@ function equipPick(side) {
   const cur = ui.setup.equip?.[side] || [];
   const limit = dwEquipmentLimit(TEAM_MAP[ui.setup.teams[side]], ui.setup.roster?.[side]);
   return `<div class="tactics"><h4>${L(`通用裝備（最多 ${limit} 項，已選 ${cur.length}）`, `Universal equipment (up to ${limit}, ${cur.length} chosen)`)}</h4>
-    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : [])].map((id) => `<label class="small"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> ${esc(tx(EQUIPMENT[id].name))}<span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
+    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'wreckaKrew' ? Object.keys(WRECKA_EQUIPMENT) : [])].map((id) => `<label class="small"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> ${esc(tx(EQUIPMENT[id].name))}<span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
 }
 
@@ -785,7 +791,7 @@ function scoreBar() {
     return `<div class="score ${isTurn ? 'turn' : ''}" style="--tc:${t.color}">
       <div class="sname">${esc(tx(t.name))}${g.ai === side ? ' 🤖' : ''}${lang() === 'zh' ? `<small>${esc(t.name.en)}</small>` : ''}</div>
       <div class="snums"><span title="Victory Points">VP <b>${totalVP(g, side)}</b></span><span title="Command Points">CP <b>${g.cp[side]}</b></span>
-      <span title="${L('存活', 'Alive')}">👤 ${living(g, side).length}</span></div>
+      <span title="${L('存活', 'Alive')}">👤 ${living(g, side).length}</span>${t.id === 'wreckaKrew' ? `<span title="${L('破壞點數', 'Wrecka points')}">💥 <b>${wreckaOf(g, side)}</b></span>` : ''}</div>
     </div>`;
   };
   const tpTxt = g.phase === 'deploy' ? L('部署', 'Deploy') : g.phase === 'gameover' ? L('結束', 'End') : `TP ${g.tp}/${MAX_TP}`;
@@ -807,7 +813,7 @@ function boardUi() {
     b.highlight = new Map();
     const op = shooter(activeOp(g)); // (Interstitial Command: the commanded operative shoots)
     // Detonate: the target is the friendly Gheistskull.
-    for (const t of ui.mode.weapon.rules.detonate ? living(g, op.side).filter((o) => tpl(o).gheistskull) : foes(g, op)) {
+    for (const t of ui.mode.weapon.rules.detonate ? living(g, op.side).filter((o) => tpl(o).gheistskull) : ui.mode.weapon.rules.wkExplosive ? [op] : foes(g, op)) { // (Explosive: the Bomb Squig itself)
       const c = shootCheck(g, op, t, ui.mode.weapon);
       if (!c.ok) continue;
       const r = effectiveRules(g, op, ui.mode.weapon, t);
@@ -1342,7 +1348,7 @@ function firefightPanel() {
     html += `<p><b>${L('選擇這次啟動的指令', 'Choose its order for this activation')}</b></p>
       <div class="orders">
       <button class="primary" data-act="order" data-order="engage">⚔ ${L('交戰 Engage', 'Engage')}</button>
-      <button class="primary" data-act="order" data-order="conceal" ${op.frenzy ? 'disabled' : ''}>◐ ${L('隱蔽 Conceal', 'Conceal')}</button>
+      <button class="primary" data-act="order" data-order="conceal" ${op.frenzy || tpl(op).stoopid ? 'disabled' : ''}>◐ ${L('隱蔽 Conceal', 'Conceal')}</button>
     </div><p class="hint small">${L(`目前是${op.order === 'engage' ? '交戰' : '隱蔽'}指令。交戰：可以射擊、衝鋒、反擊；隱蔽：在掩體中時敵人無法選為目標，只能用「無聲」武器射擊，不能衝鋒。選完後、執行第一個動作前都還能改。`, `Currently ${op.order === 'engage' ? 'Engage' : 'Conceal'}. Engage: shoot, charge, counteract. Conceal: can't be targeted while in cover, Silent weapons only, no Charge. You can still change it until the first action.`)}</p>${undoBtn}</section>${datacard(op)}`;
     return html;
   }
@@ -1511,7 +1517,7 @@ function ruleText(rules) {
 
 function weaponLine(w) {
   return `<span class="wname">${w.type === 'ranged' ? '⌖' : '⚔'} ${esc(bi(w.name))}</span>
-    <span class="wstats">A${w.atk} · ${w.hit}+ · ${w.dmg[0]}/${w.dmg[1]}</span>
+    <span class="wstats">A${w.atk} · ${w.hit}+ · ${dmgText(w)}</span>
     ${ruleText(w.rules) ? `<span class="wrules">${esc(ruleText(w.rules))}</span>` : ''}`;
 }
 
@@ -1598,7 +1604,7 @@ function datacard(op, extra = '') {
     ${flags.length ? `<div class="flags">${flags.join('')}</div>` : ''}
     <table class="weapons"><tr><th></th><th>ATK</th><th>HIT</th><th>DMG</th></tr>
     ${weaponsFor(g, op).map((w) => `<tr><td>${w.type === 'ranged' ? '⌖' : '⚔'} ${esc(bi(w.name))}${ruleText(w.rules) ? `<div class="wrules">${esc(ruleText(w.rules))}</div>` : ''}</td>
-      <td>${w.atk}</td><td>${w.hit}+</td><td>${w.dmg[0]}/${w.dmg[1]}</td></tr>`).join('')}</table>
+      <td>${w.atk}</td><td>${w.hit}+</td><td>${dmgText(w)}</td></tr>`).join('')}</table>
     ${abilityList(t)}
   </section>`;
 }
@@ -1620,6 +1626,14 @@ const ABILITIES = {
   veteranLeadership: () => ['老兵領導', 'Veteran Leadership', '在場時策略階段可選兩種戰技。', 'While it\'s in the killzone, pick two Skills at Arms.'],
   tacticalCommand: () => ['戰術指揮', 'Tactical Command', '0AP：一名友方直到下回合多一種戰技。', '0AP: a friendly gains one more Skill at Arms until next TP.'],
   medikit0: () => ['快速急救', 'Quick Medikit', '醫療包只要 0AP。', 'Its Medikit costs 0AP.'],
+  // ---- Wrecka Krew ----
+  wreckaBoss: () => ['破壞頭目', 'Wrecka Boss', '每次射擊或近戰（守衛除外）得 1 破壞點數。', 'Each Shoot or Fight (not Guard) gains 1 Wrecka point.'],
+  stoopid: () => ['笨蛋', 'Stoopid', '交戰階段一律是交戰指令；只能衝鋒、衝刺、近戰、重新定位、射擊，只能用資料卡上的武器。', 'Always an Engage order in the Firefight phase; only Charge, Dash, Fight, Reposition and Shoot, with its datacard weapons only.'],
+  boom: () => ['轟！', 'Boom!', '還沒用炸藥就殘廢時擲兩顆 D6，任一 4+ 就在移除前免費用炸藥射擊。', 'Incapacitated before using its explosives: roll two D6, on any 4+ it shoots its explosives for free before it\'s removed.'],
+  wkReckless: () => ['魯莽脾氣', 'Reckless Temperament', '4 以上的普通傷害 -1；交戰指令時 4 以上的暴擊傷害也 -1。', 'Normal Dmg of 4+ deals 1 less; with an Engage order Critical Dmg of 4+ too.'],
+  wkBreakStuff: () => ['搗毀', 'Break Stuff', '1AP：控制範圍內的裝備地形直接拆掉；其他地形打出破口，1" 內厚度 1" 以下的部分可以穿過（不扣攀爬）。', '1AP: equipment terrain in control range is removed; other terrain gets a Breach marker — within 1", parts no more than 1" thick can be crossed (no climbing).'],
+  wkArmouredUp: () => ['全副武裝', 'Armoured Up', '被射擊、近戰或反擊時，對手只有擲出 6 才算暴擊（致命、撕裂、嚴重無效）。', 'Shot at, fighting or retaliating: the opponent\'s crits need a 6 (no Lethal, Rending or Severe).'],
+  wkKompetitive: () => ['好勝心', 'Kompetitive Streak', '每次射擊一次：目標（含次要目標）本回合已被其他友方射過，得 1 破壞點數。', 'Once per Shoot: a target (secondary ones included) another friendly already shot this TP gains 1 Wrecka point.'],
   blastPadding: () => ['防爆護甲', 'Blast Padding', '被爆炸／洪流武器射擊時可重擲一顆防禦骰；不受範圍毀滅波及。', 'Re-rolls one defence die against Blast / Torrent; not hit by x" Devastating unless it\'s the target.'],
   meltaMine: () => ['熱熔地雷', 'Melta Mine', '1AP（整場一次）：放下熱熔地雷並免費衝刺；其他特工第一次進入它的控制範圍受 2D6+3 傷害。', '1AP (once): place the Melta Mine and Dash for free; the first other operative within its control range takes 2D6+3.'],
   battleComms: () => ['戰場通訊', 'Battle Comms', '1AP（每次啟動最多兩次）：另一名友方下次 APL +1（最多 3）。', '1AP (up to twice per activation): another friendly +1 APL next activation (max 3).'],
@@ -1850,7 +1864,7 @@ const ABILITIES = {
   nanoscarab: () => ['奈米聖甲蟲光束', 'Nanoscarab Beam', '1AP（每回合一次）：6" 內看得到（或雙方都在矩陣內）的友方回復 3D3 生命。', '1AP (once per TP): a friendly visible within 6" (or both within the matrix) regains up to 3D3 wounds.'],
   matrixMedic: () => ['復甦', 'Reanimate', '「醫療兵！」範圍是 6"，或雙方都在矩陣內。', 'Its Medic! reaches 6", or anywhere both are within the matrix.'],
   aggressiveDefence: () => ['侵略性防禦', 'Aggressive Defence', '被 2" 內的敵人打成殘廢時擲 D3，2+ 對該敵人造成等量傷害。', 'Incapacitated by an enemy within 2": roll a D3 — on a 2+, that much damage to it.'],
-  expendable: () => ['消耗品', 'Expendable', '不計入對手的擊殺任務。從第 2 回合起，少於 3 隻時每回合在降落區補 1 隻（無盡爬行）。', 'Ignored for the opponent\'s kill op. From the second TP, if fewer than three remain, a new one is set up in your drop zone each TP (A Ceaseless Scuttling).'],
+  expendable: (v, t) => (t?.wkSquig ? ['消耗品', 'Expendable', '不計入對手的擊殺任務，也不算在擊殺任務的開場人數裡。', 'Ignored for the opponent\'s kill op, including the starting number of operatives.'] : ['消耗品', 'Expendable', '不計入對手的擊殺任務。從第 2 回合起，少於 3 隻時每回合在降落區補 1 隻（無盡爬行）。', 'Ignored for the opponent\'s kill op. From the second TP, if fewer than three remain, a new one is set up in your drop zone each TP (A Ceaseless Scuttling).']),
   // Brood Brothers
   bbLeader: () => ['領袖', 'Leader', '有族群聖會特工（巫師、首領或族長）時由它當領袖，指揮官就不是。', 'With a Broodcoven operative (Magus, Primus or Patriarch) it is the Leader instead of the Commander.'],
   coordinate: () => ['協調', 'Coordinate', '策略階段：離我方最近的敵人得到一個交叉火力標記（自動）。', 'Strategy phase: the enemy nearest your operatives gains a Crossfire token (automatic).'],
@@ -1891,7 +1905,7 @@ const ABILITIES = {
 
 function abilityList(t) {
   const items = Object.keys(ABILITIES).filter((k) => t[k]).map((k) => {
-    const [zh, en, dzh, den] = ABILITIES[k](t[k]);
+    const [zh, en, dzh, den] = ABILITIES[k](t[k], t);
     return `<li><b>${L(zh, en)}</b>：${L(dzh, den)}</li>`;
   });
   if (t.ability) items.push(`<li>${esc(tx(t.ability))}</li>`);
@@ -1983,9 +1997,20 @@ const die = (d, i = 0) => {
   return `<span class="die ${d.res} ${cls}" style="--i:${i}" title="${marks.map((k) => L(...DIE_NOTES[k])).join(', ')}">${d.v}</span>`;
 };
 
+/** A weapon's Dmg as printed (Pulsa: none; Detonate: D6+6 / 2D6+6). */
+const dmgText = (w) => (w.rules.wkPulsa ? '-' : w.rules.wkDetonate ? 'D6+6/2D6+6' : `${w.dmg[0]}/${w.dmg[1]}`);
 function resultView(r, readonly = false) {
   const a = getOp(g, r.attacker), t = getOp(g, r.target);
   const ca = team(g, a.side).color, ct = team(g, t.side).color;
+  if (r.kind === 'pulsa') { // Pulsa rokkit (Wrecka Krew): the marker's points and the D3 hits
+    const hits = r.hits.map((h) => { const o = getOp(g, h.uid); return `<li><b style="color:${team(g, o.side).color}">${nm(o)}</b>：${h.dmg} ${L('傷害', 'damage')}${h.killed ? ' ☠' : ''}</li>`; }).join('');
+    return `<div class="${readonly ? 'noanim' : ''}"><h2>⌖ ${esc(bi(r.weapon.name))}</h2>
+      <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b></p>
+      <div class="dicerow"><label>${L('攻擊', 'Attack')}</label>${r.dice.map((d, i) => die(d, i)).join('')}</div>
+      <p>${L(`脈衝標記 ${r.pts} 點：${r.pts}" 內的特工 Move -2"、命中 -1（每個準備步驟 -1 點）`, `Pulsa marker with ${r.pts} point(s): operatives within ${r.pts}" get -2" Move and -1 Hit (it loses a point each Ready step)`)}</p>
+      <ul>${hits || `<li>${L('沒有特工完全在範圍內', 'No operative wholly within')}</li>`}</ul>
+      ${readonly ? '' : '<button class="primary wide" data-act="closeresult">' + L('繼續', 'Continue') + '</button>'}</div>`;
+  }
   if (r.kind === 'shoot') {
     // Dice are revealed one at a time: attack row, then defence row, then the outcome (the whole dialog
     // is a timeline; each secondary target follows the previous one).
@@ -2205,7 +2230,8 @@ function trySelectOwn(clicked) {
 
 /** One leg of a move: a straight line if nothing is in the way, otherwise the shortest way around. */
 function moveLeg(ctx, from, to) {
-  if (ctx.segFree(from, to)) return { pts: [from, to], len: Math.hypot(to.x - from.x, to.y - from.y) + (ctx.extra?.([from, to]) || 0) };
+  // (a straight line that climbs is only taken when going around isn't cheaper)
+  if (ctx.segFree(from, to) && !ctx.climbs?.([from, to])) return { pts: [from, to], len: Math.hypot(to.x - from.x, to.y - from.y) + (ctx.extra?.([from, to]) || 0) };
   return findPath({ ...ctx, op: { ...ctx.op, x: from.x, y: from.y } }, to);
 }
 /** The route through the player's waypoints (ui.mode.wps), then on to p (or ending at the last waypoint). */
@@ -2254,7 +2280,7 @@ function previewMove(op, action, p) {
   if (!full) {
     const from = ui.mode?.wps?.at(-1) || { x: op.x, y: op.y };
     ui.path = { pts: [{ x: op.x, y: op.y }, ...(ui.mode?.wps || []), p], len: Math.ceil(Math.hypot(p.x - from.x, p.y - from.y)), ok: false, r, unreachable: true,
-      why: L('無法到達（被地形或其他棋子阻擋）', 'Unreachable (blocked by terrain or operatives)') };
+      why: L('無法到達（被其他棋子阻擋，或攀爬後會落在敵人控制範圍內）', 'Unreachable (blocked by operatives, or a climb would land within an enemy\'s control range)') };
     return render();
   }
   if (ui.mode) ui.mode.dest = p;
@@ -2270,7 +2296,7 @@ function previewMove(op, action, p) {
   else if (action === 'fallBack' && ctx.inEnemyER(end)) why = L('撤退必須離開交戰範圍', 'Fall Back must end outside engagement range');
   else if (action === 'charge' && op.order === 'conceal' && isMandrake(op) && !withinShadow(g, op) && !withinShadow(g, { ...op, ...end })) why = L('隱蔽衝鋒起點或終點必須在暗影', 'Concealed Charge must start or end in shadow');
   else if (action !== 'charge' && ctx.inEnemyER(end)) why = L('移動結束時不能在敵人 1" 交戰範圍內', 'Cannot end a move within 1" of an enemy');
-  ui.path = { ...path, ok: !why, why, r, unreachable: !snapped };
+  ui.path = { ...path, ok: !why, why, r, unreachable: !snapped, climb: ctx.climbs?.(path.pts) || 0 }; // (climb: shown with the distance)
   render();
 }
 
@@ -2448,6 +2474,7 @@ function handle(act, d) {
     case 'rexit': stopReplayPlay(); ui.screen = ui.replay.from; ui.replay = null; ui.sel = null; return render();
     case 'start':
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'murderwing' && murderwingRosterError(TEAM_MAP.murderwing, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'wreckaKrew' && wreckaRosterError(TEAM_MAP.wreckaKrew, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
@@ -2553,7 +2580,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw')) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

@@ -46,7 +46,7 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 
 Run `node tests/movement.mjs` to check base clearance, rounded movement costs, preview/confirmation consistency, wire costs, movement limits and complete AI battles. Distance-free placement abilities such as Shadow Passage retain their own destination rules; the measuring tool still measures fractional distances.
 
-Every landing base must clear both Heavy and Light cover and all living operative bases, including friendly and enemy units. Ordinary movement checks the entire swept base footprint; flying and terrain-phasing abilities retain their traversal exceptions but require a clear landing. Deployment and NPO spawning never force an overlapping placement when space is unavailable, and mutations cannot enlarge a base into cover or another unit.
+Every landing base must clear both Heavy and Light cover and all living operative bases, including friendly and enemy units. Ordinary movement can pass through friendly operatives but never enemy ones (Kill Team 2024); crossing Heavy or Light cover is a climb (at least 2", which covers a 2" climb, plus the climb above 2" and the drop beyond 2"; default heights unless a map gives them: Light 2", Heavy Barricade 3", other Heavy 2.6"), the base must land clear and outside enemy control range after each climb, and it can never stop on cover; flying and terrain-phasing abilities retain their traversal exceptions but require a clear landing. Deployment and NPO spawning never force an overlapping placement when space is unavailable, and mutations cannot enlarge a base into cover or another unit.
 
 ## File structure
 
@@ -65,6 +65,10 @@ Every landing base must clear both Heavy and Light cover and all living operativ
 | `js/main.js` | UI and interaction |
 | `js/help.js` | Rules reference text |
 | `sw.js` / `manifest.webmanifest` | PWA offline support and installation |
+
+## Wrecka Krew
+
+Wrecka Krew (破壞專隊) is defined in `js/data/wrecka.js`, with its runtime in `js/wrecka.js` (June '26 online rules). The team is a Boss Nob, two Bomb Squigs and five operatives (only Fighters and Gunners repeat). Implemented: Wrecka Rampage (Wrecka points are gained from retained 6s and spent automatically on fails, up to 2 per roll), Tanked Up, Wrecka Boss, Stoopid / Explosive / Boom! / Expendable Bomb Squigs, Salvo with Blast, Detonate, Smash, Reckless Temperament, Armoured Up, Kompetitive Streak, the Pulsa rokkit and Shokkwave, Break Stuff, all four strategy ploys, all four firefight ploys and all four faction equipment options. 2D simplifications: the Pulsa marker is placed on the target enemy, and a Breach marker lets operatives within 1" move through parts of that terrain no more than 1" thick without climbing. Run `node tests/wrecka.mjs`.
 
 ## Adding a team
 

@@ -27,6 +27,9 @@ export function wholeInchPath(ctx, path, maxLen = Infinity, endOk = () => true) 
   return null;
 }
 
+/** A terrain piece's height for climbing (user's 2D defaults unless the map gives a height): Light 2", Heavy Barricade 3", other Heavy 2.6". */
+export const climbHeight = (t) => t.height ?? (t.kind === 'light' ? 2 : t.equip != null ? 3 : 2.6);
+
 /**
  * Movement context for an operative. Paths avoid terrain and other bases; where the move may
  * END relative to enemies (outside engagement range, or inside it for a Charge) is checked by
@@ -35,10 +38,11 @@ export function wholeInchPath(ctx, path, maxLen = Infinity, endOk = () => true) 
 export function moveCtx(g, op, kind = 'reposition') {
   const r = radius(op);
   const others = g.ops.filter((o) => !o.dead && o.uid !== op.uid).map((o) => ({ uid: o.uid, x: o.x, y: o.y, r: radius(o), enemy: o.side !== op.side }));
+  // A base can't end on Heavy or Light terrain, but a move can climb over it (see climbWalk).
   const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
-  function free(p) {
+  function free(p, blocks = cover) {
     if (p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r) return false;
-    for (const t of cover) if (distPointRect(p, t) < r - 1e-6) return false;
+    for (const t of blocks) if (distPointRect(p, t) < r - 1e-6) return false;
     for (const o of others) {
       const d = dist(p, o);
       if (d < r + o.r - 1e-6) return false;
@@ -57,13 +61,46 @@ export function moveCtx(g, op, kind = 'reposition') {
   }
   // Jump Pack (FLY): the operative is set up again within its move distance, so only where it lands matters.
   const fly = (!!tpl(op).jumpPack && (op.team !== 'murderwing' || (g.active === op.uid && !op.counter && kind !== 'dash'))) || !!(tpl(op).blinkPack && op.blinkOn);
+  // Climbing (house rules, 2D): crossing a piece of Heavy or Light terrain is a climb. It costs at least 2" (which covers a
+  // 2" climb), plus the climb above 2" and the drop beyond 2". The spot where the base lands after a climb must be clear
+  // and not within an enemy's control range. Flying and terrain-ignoring moves don't climb.
+  const noClimb = fly || !!op.acted?.mdNowhere;
+  // Break Stuff (Wrecka Krew): within 1" of a Breach marker, parts of its terrain no more than 1" thick are Accessible (no climb).
+  const breaches = (g.markers || []).filter((m) => m.kind === 'breach');
+  const breached = cover.map((t) => (Math.min(t.w, t.h) <= 1 + EPS ? breaches.filter((m) => m.rect && m.rect.x === t.x && m.rect.y === t.y && m.rect.w === t.w && m.rect.h === t.h) : []));
+  const accessible = (i, p) => breached[i].some((m) => dist(p, m) - r <= 1 + EPS);
+  const coverAt = (p) => { const s = []; for (let i = 0; i < cover.length; i++) if (distPointRect(p, cover[i]) < r - EPS && !accessible(i, p)) s.push(i); return s; };
+  const climbCost = (i) => { const h = climbHeight(cover[i]); return Math.round((Math.max(2, h) + Math.max(0, h - 2)) * 10) / 10; };
+  /** Follow a polyline: the climbing cost of the terrain it gets onto, and whether every landing after a climb is legal. */
+  function climbWalk(pts) {
+    let cost = 0, ok = true, prev = coverAt(pts[0]);
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      // Only the pieces this segment's base sweeps over matter (plus any it starts on).
+      const near = [];
+      for (let t = 0; t < cover.length; t++) if (prev.includes(t) || distSegmentRect(a, b, cover[t]) < r - EPS) near.push(t);
+      if (!near.length) { prev = []; continue; }
+      const n = Math.max(1, Math.ceil(dist(a, b) / 0.05));
+      for (let k = 1; k <= n; k++) {
+        const p = { x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n };
+        const cur = near.filter((t) => distPointRect(p, cover[t]) < r - EPS && !accessible(t, p));
+        for (const t of cur) if (!prev.includes(t)) cost += climbCost(t);
+        if (prev.length && !cur.length && inEnemyER(p)) ok = false;
+        prev = cur;
+      }
+    }
+    return { cost: Math.round(cost * 10) / 10, ok };
+  }
   function segFree(a, b) {
     if (fly) return true;
     if ([a, b].some((p) => p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r)) return false;
-    if (others.some((o) => distPointSegment(o, a, b) < r + o.r - EPS)) return false;
-    if (!op.acted?.mdNowhere && cover.some((t) => distSegmentRect(a, b, t) < r - EPS)) return false;
+    // (A move can pass through friendly operatives — never enemy ones — but can't end on any base: see free.)
+    if (others.some((o) => o.enemy && distPointSegment(o, a, b) < r + o.r - EPS)) return false;
+    if (!noClimb && cover.some((t) => distSegmentRect(a, b, t) < r - EPS) && !climbWalk([a, b]).ok) return false;
     return true;
   }
+  /** The climbing cost of a polyline (0 for flying and terrain-ignoring moves). */
+  const climbs = (pts) => (noClimb ? 0 : climbWalk(pts).cost);
   // Razor wire (鐵絲網, Obstructing): crossing over it counts as 1" more.
   const wires = g.terrain.filter((t) => t.kind === 'wire');
   // Cryptogravitic Repulsion (Canoptek Circle ploy): an enemy moving into that team's matrix counts 1" more (once).
@@ -80,9 +117,11 @@ export function moveCtx(g, op, kind = 'reposition') {
   }
   function extra(pts) {
     const wire = !wires.length || fly || op.acted?.mdNowhere ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
-    return wire + (entersMatrix(pts) ? 1 : 0);
+    return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts);
   }
-  return { op, r, free, placement, segFree, inEnemyER, extra };
+  // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).
+  const pass = (p) => !(p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
+  return { op, r, free, pass, placement, segFree, inEnemyER, extra, climbs, coverAt, climbCost, noClimb };
 }
 
 /** Shorten a path to maxLen, backing off until the end point is a legal place to stand. */
@@ -118,14 +157,21 @@ class Heap {
 export function findPath(ctx, goal) {
   const start = { x: ctx.op.x, y: ctx.op.y };
   if (!ctx.free(goal)) return null;
-  if (ctx.segFree(start, goal)) return { pts: [start, goal], len: dist(start, goal) + (ctx.extra?.([start, goal]) || 0) };
+  // Straight there, unless that climbs: then a way around may be cheaper.
+  const straight = ctx.segFree(start, goal) ? { pts: [start, goal], len: dist(start, goal) + (ctx.extra?.([start, goal]) || 0) } : null;
+  if (straight && !ctx.climbs?.(straight.pts)) return straight;
+  const around = gridPath(ctx, start, goal);
+  return !around || (straight && straight.len <= around.len) ? straight : around;
+}
 
+/** A* over a 0.25" grid; climbing onto terrain adds its climbing cost, and the landing after a climb must be legal. */
+function gridPath(ctx, start, goal) {
   const cols = Math.round(BOARD.w / RES) + 1, rows = Math.round(BOARD.h / RES) + 1;
   const state = new Int8Array(cols * rows); // 0 unknown, 1 free, 2 blocked
   const cfree = (c, r) => {
     if (c < 0 || r < 0 || c >= cols || r >= rows) return false;
     const i = r * cols + c;
-    if (!state[i]) state[i] = ctx.free({ x: c * RES, y: r * RES }) ? 1 : 2;
+    if (!state[i]) state[i] = (ctx.pass || ctx.free)({ x: c * RES, y: r * RES }) ? 1 : 2; // (the goal itself was checked with ctx.free)
     return state[i] === 1;
   };
   const sc = Math.round(start.x / RES), sr = Math.round(start.y / RES);
@@ -140,6 +186,10 @@ export function findPath(ctx, goal) {
   const si = sr * cols + sc;
   gScore[si] = 0;
   heap.push({ i: si, c: sc, r: sr, f: h(sc, sr) });
+  // Terrain each cell's base overlaps (climbing): getting onto a piece costs its climb; a landing must be outside enemy control range.
+  const climbing = !ctx.noClimb && !!ctx.coverAt;
+  const covers = new Map();
+  const coverOf = (i, c, r) => { let s = covers.get(i); if (!s) { s = ctx.coverAt({ x: c * RES, y: r * RES }); covers.set(i, s); } return s; };
   const dirs = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.4142], [1, -1, 1.4142], [-1, 1, 1.4142], [-1, -1, 1.4142]];
   let found = false;
   while (heap.size) {
@@ -151,7 +201,13 @@ export function findPath(ctx, goal) {
       if (!cfree(nc, nr)) continue;
       if (dc && dr && (!cfree(cur.c + dc, cur.r) || !cfree(cur.c, cur.r + dr))) continue;
       const ni = nr * cols + nc;
-      const ng = gScore[cur.i] + cost * RES;
+      let climb = 0;
+      if (climbing) {
+        const from = coverOf(cur.i, cur.c, cur.r), to = coverOf(ni, nc, nr);
+        if (from.length && !to.length && ctx.inEnemyER({ x: nc * RES, y: nr * RES })) continue;
+        for (const t of to) if (!from.includes(t)) climb += ctx.climbCost(t);
+      }
+      const ng = gScore[cur.i] + cost * RES + climb;
       if (ng < gScore[ni]) {
         gScore[ni] = ng; came[ni] = cur.i;
         heap.push({ i: ni, c: nc, r: nr, f: ng + h(nc, nr) });
@@ -174,7 +230,9 @@ export function findPath(ctx, goal) {
   let i = 0;
   while (i < raw.length - 1) {
     let j = raw.length - 1;
-    while (j > i + 1 && !ctx.segFree(raw[i], raw[j])) j--;
+    // (a shortcut may not climb more than the route it replaces)
+    const ok = (j) => ctx.segFree(raw[i], raw[j]) && (!climbing || ctx.climbs([raw[i], raw[j]]) <= ctx.climbs(raw.slice(i, j + 1)));
+    while (j > i + 1 && !ok(j)) j--;
     pts.push(raw[j]);
     i = j;
   }

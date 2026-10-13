@@ -119,11 +119,13 @@ export function renderBoard(g, ui) {
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
     // (Hernkyn Yaegir Minefield markers: face down "?", flipped a HY-Pex mine "✸" or a blank "○"; the Fallen Kin marker "⚑".)
     const sym = m.kind === 'hyMine' ? (!m.flipped ? '?' : m.live ? '✸' : '○')
-      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i' }[m.kind] || '✦';
+      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i', pulsa: '◎', breach: '⛏', demolition: '✹' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
     if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);
   }
+  // Pulsa markers (Wrecka Krew): the Shokkwave area, x" where x is its Pulsa points.
+  for (const m of (g.markers || []).filter((x) => x.kind === 'pulsa' && x.pts > 0)) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="${f(m.pts)}" class="pechra" stroke="${team(g, m.owner).color}" pointer-events="none"/>`);
   // Clearance Sweep (Kasrkin ploy): its 5" area this turning point.
   (g.sweep || []).forEach((m, side) => { if (m && m.tp === g.tp) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="5" class="pechra" stroke="${team(g, side).color}" pointer-events="none"/>`); });
   // Smoke grenades: an area of smoke 1" around the marker.
@@ -154,7 +156,7 @@ export function renderBoard(g, ui) {
       if (outside) s.push(`<rect x="0" y="0" width="${BOARD.w}" height="${BOARD.h}" class="placement-edge" pointer-events="none"/>`);
       s.push(`<circle cx="${f(end.x)}" cy="${f(end.y)}" r="${f(ui.path.r)}" class="placement-base" pointer-events="none"/><path d="M${f(end.x - .2)} ${f(end.y - .2)}L${f(end.x + .2)} ${f(end.y + .2)}M${f(end.x + .2)} ${f(end.y - .2)}L${f(end.x - .2)} ${f(end.y + .2)}" class="placement-cross" pointer-events="none"/>`);
     }
-    s.push(`<text x="${f(end.x)}" y="${f(end.y - ui.path.r - 0.25)}" class="pathlen ${ui.path.placement ? 'placement-label' : ''}" pointer-events="none">${ui.path.placement ? (getLang() === 'zh' ? '底盤放不下' : 'Base does not fit') : `${Math.ceil(ui.path.len - 1e-6)}"`}</text>`);
+    s.push(`<text x="${f(end.x)}" y="${f(end.y - ui.path.r - 0.25)}" class="pathlen ${ui.path.placement ? 'placement-label' : ''}" pointer-events="none">${ui.path.placement ? (getLang() === 'zh' ? '底盤放不下' : 'Base does not fit') : `${Math.ceil(ui.path.len - 1e-6)}"${ui.path.climb ? (getLang() === 'zh' ? `（含攀爬 ${ui.path.climb}"）` : ` (incl. ${ui.path.climb}" climb)`) : ''}`}</text>`);
   }
 
   // Hearthkyn markers: Pan Spectral Scan and the Tactician's Attack / Defence marker (3" areas).
