@@ -15,6 +15,8 @@ import { angelsRosterError } from './data/angels.js';
 import { plagueRosterError } from './data/plague.js';
 import { kommandosRosterError } from './data/kommandos.js';
 import { kinbandRosterError } from './data/kinband.js';
+import { deathKorpsRosterError, dkFreeCount, cleanDkFree, DEFAULT_DK_FREE, DK_FREE_PLOYS } from './data/deathkorps.js';
+import { dkGambitOk, dkGambit } from './deathkorps.js';
 import { kmGrappleCheck, kmDoGrapple } from './kommandos.js';
 import { sfGambitLeft, sfChooseOrator, sfOrator, sfSermon } from './sanctifiers.js';
 import { wreckaOf } from './wrecka.js';
@@ -437,6 +439,7 @@ function setupView() {
     ${equipPick(side)}
     ${scoutingPick(side)}
     ${ratFreePick(side)}
+    ${dkFreePick(side)}
   </div>`;
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
   return `${topBar()}
@@ -525,6 +528,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'plagueMarines') { const error = plagueRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'kommandos') { const error = kommandosRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'farstalkers') { const error = kinbandRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'deathKorps') { const error = deathKorpsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wreckaKrew') { // (and only one Glyphs)
     const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
     return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
@@ -577,6 +581,18 @@ function scoutingPick(side) {
       <span><b>${esc(tx(o.name))}</b><span class="hint"> — ${esc(tx(o.desc))}</span></span></div>`;
   }).join('')}
     <p class="hint small">${L('佈署完成後依序自動執行；戰術機動與誘餌在策略階段使用。', 'Resolved automatically once deployment ends; Tactical Manoeuvre and Diversion are used in the Strategy phase.')}</p></div>`;
+}
+
+/** Death Korps: the Trooper slots traded for a ploy that costs 0CP for the battle. */
+function dkFreePick(side) {
+  if (ui.setup.teams[side] !== 'deathKorps' || (side === 1 && ui.setup.ai === 1)) return '';
+  const t = TEAM_MAP.deathKorps, n = dkFreeCount(t, ui.setup.roster?.[side] || {});
+  if (!n) return '';
+  const cur = cleanDkFree(ui.setup.dkFree?.[side] ?? DEFAULT_DK_FREE, n);
+  const all = [...t.ploys, ...t.firefight].filter((x) => DK_FREE_PLOYS.includes(x.id));
+  return `<div class="tactics"><h4>${L(`免費計謀（${n} 個，已選 ${cur.length}）`, `Free ploys (${n}, ${cur.length} chosen)`)}</h4>
+    ${all.map((x) => `<label class="small equip-option"><input type="checkbox" data-act="dkfree" data-side="${side}" data-id="${x.id}" ${cur.includes(x.id) ? 'checked' : ''} ${!cur.includes(x.id) && cur.length >= n ? 'disabled' : ''}> <span class="equip-name">${esc(tx(x.name))}</span></label>`).join('')}
+    <p class="hint small">${L('把步兵名額改成計謀：所選計謀整場 0CP。', 'Trade a Trooper slot for a ploy: the chosen ploys cost 0CP all battle.')}</p></div>`;
 }
 
 /** Ratlings: the ploys that cost 0CP for the battle (three, fewer for each Ogryn or Bullgryn taken). */
@@ -1197,6 +1213,11 @@ function gambitView(side) {
       <p class="hint small">${L('懺悔師已倒下：選一名友方淨化者成為佈道者，直到你再次使用。', 'The Confessor has fallen: pick a friendly SANCTIFIER as the orator until you use this again.')}</p>
       <select data-act="sforator" data-side="${side}" ${sfGambitLeft(g, side) ? '' : 'disabled'}><option value="">${cur ? nm(cur) : L('（選特工）', '(choose an operative)')}</option>
         ${living(g, side).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
+  }
+  if (g.teams[side] === 'deathKorps' && !isAI(side) && (dkGambitOk(g, side, 'chrono') || dkGambitOk(g, side, 'gas'))) {
+    html += `<div class="gambit"><h4>${L('戰略謀略（裝備）', 'Strategic gambits (equipment)')}</h4>
+      ${dkGambitOk(g, side, 'chrono') ? `<button data-act="dkgambit" data-side="${side}" data-id="chrono">${L('懷錶：友方免費衝刺（整場一次）', 'Chronometer: free Dashes (once per battle)')}</button>` : ''}
+      ${dkGambitOk(g, side, 'gas') ? `<button data-act="dkgambit" data-side="${side}" data-id="gas">${L('毒氣轟炸：放毒氣標記（整場一次）', 'Gas Bombardment: place the Gas marker (once per battle)')}</button>` : ''}</div>`;
   }
   const kb = living(g, side).find((o) => tpl(o).callTheKill);
   if (kb) {
@@ -1820,7 +1841,7 @@ function datacard(op, extra = '') {
   if (op.jam) flags.push(`<span class="flag inj">${L('系統干擾：最後才能啟動', 'System Jam: activates last')}</span>`);
   if (tpl(op).weavefield && op.crestUsed) flags.push(`<span class="flag">${L('紋章已用', 'Crest used')}</span>`);
   const go = guardOrder(g, op);
-  if (go) flags.push(`<span class="flag">${L(`命令：${GUARD_ORDERS[go].zh}`, `Order: ${GUARD_ORDERS[go].en}`)}</span>`);
+  if (go) flags.push(`<span class="flag">${op.gOrder?.all ? L('命令：全部', 'Orders: all') : L(`命令：${GUARD_ORDERS[go].zh}`, `Order: ${GUARD_ORDERS[go].en}`)}</span>`);
   if (op.energised === g.tp) flags.push(`<span class="flag">${L('充能', 'Energised')}</span>`);
   if (op.longSightOn) flags.push(`<span class="flag">${L('遠視', 'Long-sight')}</span>`);
   if (op.optics) flags.push(`<span class="flag mk">${L('光學瞄準', 'Optics')}</span>`);
@@ -1856,6 +1877,9 @@ const ABILITIES = {
   medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將殘廢時改為剩 1 生命，雙方下次啟動 APL -1。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation.'],
   multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
   droneController: () => ['無人機操控員・遙控操作', 'Drone Controller · Remote Pilot', '在場時友方無人機 Move +2"。遙控操作 1AP（不在交戰中）：一架友方無人機立刻免費做一個動作（移動不超過 2"，可做無人機規則限制的動作）；可重複使用，但同一架無人機每次啟動不能做兩次相同的動作。', 'While it is in the killzone, friendly drones get +2" Move. Remote Pilot 1AP (not engaged): a friendly drone performs one free action (moving no more than 2", even one its Drone rule restricts); repeatable, but the same drone can\'t take the same free action twice in an activation.'],
+  adaptiveOrders: () => ['適應性命令', 'Adaptive Orders', '看守長這回合沒有以策略謀略下達命令時，「鼓舞領導」在他啟動中 0CP。', 'If the Watchmaster doesn\'t issue an order as a strategic gambit, Inspirational Leadership costs 0CP during his activation.'],
+  dkSapper: () => ['工兵・地雷手', 'Sapper · Mine Layer', '攜帶地雷標記：可撿起它；「放下地雷標記」（1AP）放下後免費衝刺。遙控引爆器（限用 1 次，只能衝刺後使用）：引爆行動，對地雷標記 2" 內每名特工各射擊一次（無掩護、不被遮蔽），然後移除標記。', 'Carries the Mine marker: it can pick it up; Place Marker (1AP) then a free Dash. Remote detonator (Limited 1, Dash only before it): the Detonate action shoots every operative within 2" of the Mine marker (no cover, not obscured), then removes it.'],
+  dkVeteran: () => ['老兵衛兵・仿生', 'Veteran Guardsman · Bionics', '啟動時可收到一道衛兵命令（自動）。3 以上的普通傷害少 1。', 'Receives a Guardsman Order when activated (automatic). Normal Dmg of 3 or more inflicts 1 less.'],
   quickDraw: () => ['快拔', 'Quick Draw', '每回合一次：敵人射擊它（或是爆裂的次要目標）、且它準備中時，它可以搶先免費用雙持手槍（集中）射擊那名敵人（可改交戰指令）。自動使用。', 'Once per TP: when an enemy shoots it (or it is a Blast secondary target) and it is ready, it shoots that enemy first for free with its focused dual pistols (it can change to Engage). Automatic.'],
   kfHound: () => ['採集', 'Gather', '1AP：免費衝刺一次，途中可免費撿起或放置標記（只需爭奪標記）；剩下的距離可以之後再用。', '1AP: a free Dash during which it can Pick Up or Place a Marker for free (the marker only has to be contested); any remaining distance can be used afterwards.'],
   kfWarrior: () => ['準備好面對一切', 'Ready for Anything', '每回合一次，友方戰士啟動中可以額外使用生肉、穿甲彈或毒彈（不佔每回合一次的限制）。', 'Once per TP during a Warrior\'s activation, use Meat, Piercing Shot or Toxin Shot once more (it doesn\'t count towards their limit).'],
@@ -2867,13 +2891,22 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'plagueMarines' && plagueRosterError(TEAM_MAP.plagueMarines, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'kommandos' && kommandosRosterError(TEAM_MAP.kommandos, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'farstalkers' && kinbandRosterError(TEAM_MAP.farstalkers, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathKorps' && deathKorpsRosterError(TEAM_MAP.deathKorps, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
-      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'dkfree': {
+      const s = +d.side, n = dkFreeCount(TEAM_MAP.deathKorps, ui.setup.roster?.[s] || {}), cur = cleanDkFree(ui.setup.dkFree?.[s] ?? DEFAULT_DK_FREE, n);
+      const i = cur.indexOf(d.id);
+      if (i >= 0) cur.splice(i, 1); else if (cur.length < n) cur.push(d.id);
+      (ui.setup.dkFree ||= [undefined, undefined])[s] = cur;
+      return render();
+    }
+    case 'dkgambit': if (+d.side === ployChooser(g) && !isAI(+d.side)) { dkGambit(g, +d.side, d.id); } return afterChange();
     case 'ratfree': {
       const s = +d.side, n = ratFreeCount(TEAM_MAP.ratlings, ui.setup.roster?.[s]), cur = cleanRatFree(ui.setup.ratFree?.[s] ?? DEFAULT_RAT_FREE, n);
       const i = cur.indexOf(d.id);
@@ -2998,7 +3031,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'kfGather') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

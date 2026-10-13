@@ -236,6 +236,25 @@ const longLasMobile = W('longLasMobile', '長管雷射槍（機動）', 'Long-la
 const longLasStationary = W('longLasStationary', '長管雷射槍（定點）', 'Long-las (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true }, 'longLas');
 // noOrders: the Take Aim! order doesn't apply to it.
 const mortarBarrage = W('mortarBarrage', '迫擊砲彈幕', 'Mortar barrage', 'ranged', 4, 4, 3, 5, { blast: 2, heavy: 'dash', silent: true, noOrders: true });
+// Death Korps: the Watchmaster's and Confidant's weapon options, the Gunners, the Veteran and the Sapper.
+const boltPistolWM = W('boltPistolWM', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const boltgunWM = W('boltgunWM', '爆彈槍', 'Boltgun', 'ranged', 4, 3, 3, 4);
+const relicWM = W('relicWM', '傳家雷射手槍', 'Relic laspistol', 'ranged', 4, 3, 2, 4, { range: 8, lethal: 5 });
+const bayonetWM = W('bayonetWM', '刺刀', 'Bayonet', 'melee', 4, 3, 2, 3);
+const chainswordWM = W('chainswordWM', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5);
+const boltgunCF = W('boltgunCF', '爆彈槍', 'Boltgun', 'ranged', 4, 4, 3, 4);
+const relicCF = W('relicCF', '傳家雷射手槍', 'Relic laspistol', 'ranged', 4, 4, 2, 4, { range: 8, lethal: 5 });
+const flamerDK = W('flamerDK', '火焰噴射器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const glFragDK = W('glFragDK', '榴彈發射器（破片）', 'Grenade launcher (frag)', 'ranged', 4, 4, 2, 4, { blast: 2 }, 'glDK');
+const glKrakDK = W('glKrakDK', '榴彈發射器（穿甲）', 'Grenade launcher (krak)', 'ranged', 4, 4, 4, 5, { piercing: 1 }, 'glDK');
+const bionicArmDK = W('bionicArmDK', '仿生手臂', 'Bionic arm', 'melee', 3, 4, 4, 5);
+const remoteDetonator = W('remoteDetonator', '遙控引爆器', 'Remote detonator', 'ranged', 4, 2, 5, 6, { heavy: 'dash', limited: 1, piercing: 1, silent: true, dkDetonate: true, noOrders: true });
+const wmLoadouts = {
+  bolt: [boltgunWM, bayonetWM],
+  ...Object.fromEntries([['bolt', [boltPistolWM]], ['plasma', [plasmaPistolWM, plasmaPistolWMs]], ['relic', [relicWM]]].flatMap(([pk, pw]) => [['chain', chainswordWM], ['power', powerWeaponWM]].map(([mk2, mw]) => [`${pk}-${mk2}`, [...pw, mw]]))),
+};
+const cfLoadouts = { bolt: [boltgunCF, bayonetDK], las: [lasgunDK, bayonetDK], pistol: [boltPistolCF, chainswordCF], relic: [relicCF, chainswordCF] };
+const DK_PICKS = ['bruiser', 'confidant', 'gunnerFlamer', 'gunnerGL', 'gunnerMelta', 'gunnerPlasma', 'medic', 'sapper', 'sniper', 'spotter', 'trooper', 'veteran', 'vox', 'zealot'];
 
 // ---- Gellerpox Infected ----
 const pyregutStd = W('pyregutStd', '焚腸（標準）', 'Pyregut (standard)', 'ranged', 5, 2, 3, 3, { range: 6, saturate: true, torrent: 2 }, 'pyregut');
@@ -1005,19 +1024,32 @@ export const TEAMS = [
         desc: { zh: '本回合友方被射擊時，若能保留掩護豁免，豁免值改善 1。', en: 'This TP, when a friendly operative is shot and can retain cover saves, its Save improves by 1.' } },
       { id: 'clearTheLine', cp: 1, name: { zh: '清理戰線', en: 'Clear the Line' },
         desc: { zh: '本回合友方近戰武器獲得「精準 1」；完全在我方領域內近戰，或反擊時，再獲得「嚴厲」。', en: 'This TP, friendly melee weapons have Accurate 1; also Severe when fighting wholly within your territory or when retaliating.' } },
+      { id: 'regroup', cp: 1, name: { zh: '重整', en: 'Regroup' },
+        desc: { zh: '支援：選一名離敵人超過 3" 的友方；它 5" 內不在敵人控制範圍內的其他友方各免費衝刺一次，必須結束得更靠近它。（自動選擇；不能和懷錶同回合使用）', en: 'Support: pick a friendly more than 3" from enemies; each other friendly within 5" and not engaged makes a free Dash, ending closer to it. (Chosen automatically; not in the same turning point as the Chronometer.)' } },
     ],
+    // The Watchmaster, four Troopers (each can instead be a ploy that costs 0CP for the battle) and nine selections: each once, except Troopers.
+    perCopyRoster: true,
+    replacements: {
+      ...Object.fromEntries(['confidant', 'bruiser', 'gunnerPlasma', 'gunnerMelta', 'medic', 'sniper', 'spotter', 'vox', 'zealot'].map((id) => [id, DK_PICKS])),
+      trooper: ['trooper', 'dkFree'],
+    },
     ops: [
-      op('watchmaster', '看守長', 'Watchmaster', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, watchmaster: true }, [plasmaPistolWM, plasmaPistolWMs, powerWeaponWM]),
-      op('confidant', '心腹', 'Confidant', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, confidant: true }, [boltPistolCF, chainswordCF]),
+      op('watchmaster', '看守長', 'Watchmaster', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, watchmaster: true, adaptiveOrders: true, loadouts: wmLoadouts }, [plasmaPistolWM, plasmaPistolWMs, powerWeaponWM]),
+      op('confidant', '心腹', 'Confidant', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, confidant: true, loadouts: cfLoadouts }, [boltPistolCF, chainswordCF]),
       op('bruiser', '打手', 'Bruiser', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, bruiser: true }, [lasgunDK, trenchClub]),
       op('gunnerPlasma', '槍手（等離子）', 'Gunner (plasma)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [plasmaGunDK, plasmaGunDKs, bayonetDK]),
       op('gunnerMelta', '槍手（熱熔）', 'Gunner (melta)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [meltagunDK, bayonetDK]),
+      op('gunnerFlamer', '槍手（火焰噴射器）', 'Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [flamerDK, bayonetDK], 0),
+      op('gunnerGL', '槍手（榴彈發射器）', 'Gunner (grenade launcher)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [glFragDK, glKrakDK, bayonetDK], 0),
       op('medic', '醫療兵', 'Medic', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, medic: true, medikit: true }, [lasgunDK, bayonetDK]),
+      op('sapper', '工兵', 'Sapper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, dkSapper: true }, [lasgunDK, remoteDetonator, bayonetDK], 0),
       op('sniper', '狙擊手', 'Sniper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [longLasConcealed, longLasMobile, longLasStationary, bayonetDK]),
       op('spotter', '觀測手', 'Spotter', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, support: 'spot' }, [lasgunDK, mortarBarrage, bayonetDK]),
+      op('veteran', '老兵', 'Veteran', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, dkVeteran: true, tough: true }, [lasgunDK, bionicArmDK], 0),
       op('vox', '通訊兵', 'Vox-operator', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, signal: true, relay: true }, [lasgunDK, bayonetDK]),
       op('zealot', '狂信者', 'Zealot', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, emperorProtects: true, uplifting: true }, [lasgunDK, bayonetDK]),
       op('trooper', '步兵', 'Trooper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, groupAct: 'trooper' }, [lasgunDK, bayonetDK], 4),
+      op('dkFree', '（改選：免費計謀）', '(instead: a ploy that costs 0CP)', { apl: 0, move: 0, save: 6, wounds: 1, base: 25, none: true }, [bayonetDK], 0),
     ],
   },
   {
@@ -2410,6 +2442,9 @@ const FIREFIGHT = {
     ff('rewardEarned', '應得的獎賞', 'Reward Earned', '自動：持有血祭標記的友方在 2" 內使敵人殘廢時，獲得 1 個血祭標記。', 'Auto: when a friendly with a Blooded token incapacitates an enemy within 2", gain a Blooded token.'),
   ],
   deathKorps: [
+    ff('inspirationalLeadership', '鼓舞領導', 'Inspirational Leadership', '支援。看守長或心腹啟動中、行動前後：下達一道衛兵命令（自動選擇命令）。看守長這次啟動沒有以策略謀略下令時 0CP（適應性命令）。', 'Support. During a Watchmaster\'s or Confidant\'s activation, before or after an action: it issues a Guardsman Order (chosen automatically). Free for a Watchmaster that didn\'t issue one as a strategic gambit (Adaptive Orders).'),
+    ff('lifeShame', '生之恥辱', 'In Life, Shame', '自動：友方啟動並選交戰指令時，它收到所有衛兵命令（不受一次只能一道的限制）。', 'Auto: when a friendly is activated and given an Engage order, it receives every Guardsman Order (overriding the one-at-a-time rule).'),
+    ff('deathAtonement', '死之救贖', 'In Death, Atonement', '自動：準備中、不在敵人控制範圍內的友方殘廢時，被移除前可免費做一個動作（近戰除外），並可改指令；這個動作中它視為重傷。（自動：免費射擊）', 'Auto: when a ready friendly not in enemy control range is incapacitated, before it\'s removed it performs one free action (not Fight) and may change its order; it counts as injured for it. (Automatically a free Shoot.)'),
     ff('combinedArms', '聯合火力', 'Combined Arms', '射擊本回合已被其他友方射擊過的敵人：可重擲任意攻擊骰（無情）。', 'Shooting an enemy another friendly shot this TP: re-roll any attack dice (Relentless).'),
   ],
   exaction: [

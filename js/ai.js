@@ -16,6 +16,7 @@ import { scAiStrategy } from './scouts.js';
 import { rtAiStrategy, rtSlingshotAI, doSlingshot } from './ratlings.js';
 import { sfAiStrategy } from './sanctifiers.js';
 import { kmGrappleAI, kmDoGrapple } from './kommandos.js';
+import { dkAiStrategy, dkMine } from './deathkorps.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -24,6 +25,7 @@ export function aiStrategy(g, side) {
   scAiStrategy(g, side); // Scout Squad: Tactical Manoeuvre and Diversion gambits
   rtAiStrategy(g, side); // Ratlings: Target Designation
   sfAiStrategy(g, side); // Sanctifiers: a new orator after the Confessor falls
+  dkAiStrategy(g, side); // Death Korps: Chronometer, Gas Bombardment
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
@@ -690,6 +692,12 @@ export function aiStep(g) {
   if (can.sfWreathe) { doSelfAction(g, op, 'sfWreathe'); return null; }
   if (can.pfAccel && living(g, op.side).some((o) => o !== op && o.ready && !tpl(o).drone && edgeDist(o, op) <= 6)) { doSelfAction(g, op, 'pfAccel'); return null; } // Pathfinder MV31 Pulse Accelerator
   if (can.kmGrapple && !shootOptions(g, op).length && !engagedEnemies(g, op).length) { const p = kmGrappleAI(g, op); if (p && kmDoGrapple(g, op, p)) return null; } // Kommando Grot
+  if (can.dkDetonate) { // Death Korps Sapper: blow the mine when it hurts the enemy more than us
+    const m = dkMine(g, op.side);
+    const near = m ? g.ops.filter((o) => !o.dead && o.side < 2 && dist(o, m) - radius(o) <= 2.01) : [];
+    if (near.filter((o) => o.side !== op.side).length >= 1 && near.filter((o) => o.side === op.side).length === 0) { doSelfAction(g, op, 'dkDetonate'); return null; }
+  }
+  if (can.dkPlaceMine && foes(g, op).some((e) => edgeDist(op, e) <= 14)) { doSelfAction(g, op, 'dkPlaceMine'); return null; }
   if (can.sfTrained && op.order === 'conceal' && foes(g, op).some((e) => edgeDist(op, e) <= 12)) { doSelfAction(g, op, 'sfTrained'); return null; }
   if (can.medikit) {
     const t = TARGET_ACTIONS.medikit.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds - b.wounds)[0];

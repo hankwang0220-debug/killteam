@@ -13,6 +13,8 @@ import { ANGELS_EQUIPMENT } from './data/angels.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
+import { DEATHKORPS_EQUIPMENT } from './data/deathkorps.js';
+import { dkSetup, dkFreeHas, dkAdaptiveFree, dkBeadsOn, dkBeadsTarget, dkLeadership, dkLifeShame, dkVeteranActivate, dkDeath, dkPloyBought, dkGasApl, dkReady, dkWeapons, dkActions, dkSelf, registerDeathKorpsActions, hasOrder } from './deathkorps.js';
 import { kfSetup, kfActions, kfSelf, kfActivate, kfQuickDraw, kfShootStart, kfShootEnd, kfRules, kfGatherFree, registerKinbandActions } from './kinband.js';
 import { kmSetup, kmReady, kmWeapons, kmPloyBought, kmEndFirefight, kmKunnin, kmActions, kmSelf, registerKommandoActions } from './kommandos.js';
 import { pmSetup, pmRules, pmBells, pmVents, pmWeapons, pmPloyBought, pmReady, pmCloud, pmCurse } from './plague.js';
@@ -125,9 +127,9 @@ export function moveStat(g, op) {
 // The APL stat can't be changed by more than 1 in total.
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
-export const aplNow = (g, op) => sfNullApl(g, op, matrixApl(g, op, tpl(op).nemesis && op.cardApl ? op.cardApl
+export const aplNow = (g, op) => Math.max(0, sfNullApl(g, op, matrixApl(g, op, tpl(op).nemesis && op.cardApl ? op.cardApl
   : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
-    : Math.max(-1, Math.min((op.aplNext || 0) > 0 && (cursed(g, op, 'voxStatic') || ncJammed(g, op)) ? 0 : 1, op.aplNext || 0))))));
+    : Math.max(-1, Math.min((op.aplNext || 0) > 0 && (cursed(g, op, 'voxStatic') || ncJammed(g, op)) ? 0 : 1, op.aplNext || 0)))))) - dkGasApl(g, op));
 /** Obelisk Node Matrix (Canoptek Circle): +1 APL within it, to a maximum of 3. */
 // (Ardour, a Celestian Insidiant Benediction: +1 APL for the rest of the battle.)
 // (Mania, a Goremonger Sanguavitae: +1 APL until its next activation.)
@@ -143,7 +145,7 @@ export function moveAllowance(g, op, kind) {
   let d = moveStat(g, op);
   if (tpl(op).blinkPack && op.blinkOn && kind !== 'dash') return op.counter ? 2 : 7;
   if (kind === 'dash') d = tpl(op).blademaster && op.acted?.charge ? Math.min(3, op.acted.chargeRemaining || 0) : 3;
-  if (kind === 'reposition' && guardOrder(g, op) === 'moveMove') d += 1; // Move! Move! Move!
+  if (kind === 'reposition' && hasOrder(g, op, 'moveMove')) d += 1; // Move! Move! Move!
   if (kind === 'reposition' && skillOn(g, op, 'strikeFast')) d += 1; // Strike Fast (Kasrkin)
   if (kind === 'reposition' && isES(op) && hasPloy(g, op.side, 'quickMarch') && !op.counter) d += 1; // Quick March (Elucidian Starstriders)
   // Stealth Attack's free Charge can't exceed the Move stat.
@@ -186,7 +188,7 @@ function makeTerrain() {
 const OBJECTIVES = [{ x: 15, y: 11 }, { x: 10, y: 4.5 }, { x: 20, y: 4.5 }, { x: 10, y: 17.5 }, { x: 20, y: 17.5 }];
 
 // ---------- setup ----------
-export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [] }) {
+export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [], dkFree = [] }) {
   const m = MISSIONS[missionId] || MISSIONS.standard;
   const map = m.terrain ? null : TOMB_WORLD_MAPS.find((v) => v.id === mapId);
   const g = {
@@ -248,6 +250,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   pmSetup(g, roster); // Plague Marines: roster limits
   kmSetup(g, roster); // Kommandos: roster limits
   kfSetup(g, roster); // Farstalker Kinband: roster limits
+  dkSetup(g, roster, dkFree); // Death Korps: roster limits, the Trooper slots traded for free ploys
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -391,6 +394,7 @@ export const carriables = (g) => [...(g.markers || []), ...(mission(g).carryObje
 export function canPickUpMarker(g, op, m) {
   if (m.kind === 'retrieval' || m.kind === 'intel') return m.owner === op.side; // Retrieval / Steal Intelligence tac ops
   if (m.kind === 'banner') return true; // Plant Banner tac op: either side
+  if (m.kind === 'dkMine') return m.owner === op.side && !!tpl(op).dkSapper; // the Death Korps Mine marker: its Sapper
   if (g.objectives.includes(m)) return !!mission(g).carryObjectives && !!mission(g).canPickUpObjective?.(g, op, m);
   return !!mission(g).canPickUp?.(g, op, m);
 }
@@ -612,6 +616,7 @@ function startTP(g) {
   scReady(g); // Scout Squad: Trip Alarm markers go in the third turning point
   pmReady(g); // Plague Marines: the Clouds of Flies go
   kmReady(g); // Kommandos: the Harpoon is ready again
+  dkReady(g); // Death Korps: the Gas marker goes
   sfReady(g); // Sanctifiers: a new Orator when needed, Ecclesiarchy Texts
   mission(g).onReady?.(g); // the Ready step
 }
@@ -775,6 +780,7 @@ export const ployCost = (g, side, ploy) => (dwCommandFree(g, side, 'strategy') |
   || broodFreePloy(g, side, ploy)
   || wkGlyphFree(g, side, ploy) // Glyphs (Wrecka Krew)
   || rtFree(g, side, ploy.id) // a Ratling ploy chosen to cost 0CP for the battle
+  || dkFreeHas(g, side, ploy.id) // a Death Korps ploy chosen to cost 0CP for the battle
   || (ploy.id === 'suspectEliminate' && living(g, side).some((o) => tpl(o).accusingExorcist && o.inspiring)) ? 0 : ploy.cp + (ploy.id === 'denounce' ? g.denounceUses?.[side] || 0 : 0)); // Accusing Exorcist (Denuncia); Denounce (Inquisition): +1CP per earlier use
 /** Brood Brothers: Broodcoven selections taken as ploys — the first ones bought cost 0CP for the rest of the battle. */
 const broodFreePloy = (g, side, ploy) => !!g.freePloyCount?.[side] && team(g, side).ploys.includes(ploy)
@@ -811,6 +817,7 @@ export function buyPloy(g, side, ploy) {
   pmPloyBought(g, side, ploy); // Plague Marines: Cloud of Flies, Nurglings
   kmPloyBought(g, side, ploy); // Kommandos: Sssshhhh!
   pfPloyBought(g, side, ploy); // Pathfinders: Recon Sweep
+  dkPloyBought(g, side, ploy); // Death Korps: Regroup
   adPloyBought(g, side, ploy); // Angels of Death: Adaptive Tactics
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
@@ -976,6 +983,7 @@ export function activate(g, op) {
   sfActivate(g, op); // Sanctifiers: the Sermon for this activation, Blaze token damage
   pfActivate(g, op); // Pathfinders: Point-Blank Fusillade snapshot, Pulse Accelerator and Photon Grenade tokens
   kfActivate(g, op); // Farstalker Kinband: Meat, Trophy
+  dkVeteranActivate(g, op); // Death Korps: the Veteran receives an order
 }
 
   // Archon effects are committed only when an action begins.
@@ -1006,6 +1014,7 @@ export function setOrder(g, op, order) {
   if ((op.frenzy || tpl(op).stoopid) && order === 'conceal') return; // Frenzy / Stoopid (Bomb Squig): it can't have a Conceal order
   op.order = order;
   op.orderPicked = true; // the player has chosen this activation's order (the UI asks before any action)
+  if (order === 'engage') dkLifeShame(g, op); // In Life, Shame (Death Korps)
 }
 
 /** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
@@ -2091,6 +2100,7 @@ export function shootWeapon(g, op, w) {
   const no = (zh, en) => ({ ok: false, ap: 1, why: { zh, en } });
   if (w.type !== 'ranged') return no('不是遠程武器', 'Not a ranged weapon');
   if (w.rules.wreathed) return no('用「烈焰纏身」行動施放', 'Use the Wreathe in Fire action');
+  if (w.rules.dkDetonate) return no('用「引爆」行動', 'Use the Detonate action');
   if (op.acted?.rtSlingshot) return no('用過彈弓的啟動不能射擊', 'No Shoot in an activation with a Slingshot'); // (Ratling Raider)
   if (op.order === 'conceal' && !w.rules.silent && !rtSilent(g, op, w)) return no('隱蔽指令無法射擊', 'Cannot Shoot while Concealed');
   if (w.rules.psychic && witchHunted(g, op)) return no('3" 內有隱伏者，不能用靈能武器', 'An Insidiant within 3": no Psychic weapons');
@@ -2210,6 +2220,7 @@ export function availableActions(g, op) {
   pfActions(g, op, add); // Pathfinders: Pulse Accelerator, Photon Grenade
   kmActions(g, op, add); // Kommandos: Breach, Grappling Hook, Smoke Grenade
   kfActions(g, op, add); // Farstalker Kinband: Gather
+  dkActions(g, op, add); // Death Korps: the Sapper's mine
   if (tpl(op).signal) unique('signal');
   if (tpl(op).signalAny) unique('signalAny');
   if (tpl(op).jamToken) unique('jamToken');
@@ -2408,6 +2419,7 @@ export function doSelfAction(g, op, id) {
   if (pfSelf(g, op, id)) return; // Pathfinders: Pulse Accelerator
   if (kmSelf(g, op, id)) return; // Kommandos: Breach
   if (kfSelf(g, op, id)) return; // Farstalker Kinband: Gather
+  if (dkSelf(g, op, id)) return; // Death Korps: the Sapper's mine
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
@@ -2790,9 +2802,9 @@ export function effectiveRules(g, op, weapon, target) {
   // Call the Kill (Balanced) / Bring it Down! (Death Korps: Punishing) against the marked enemy.
   if (target && g.mark?.[op.side] === target.uid) { if (TEAM_MAP[op.team].bringItDown) r.punishing = true; else r.balanced = true; }
   // ---- Death Korps ----
-  const order = guardOrder(g, op);
-  if (order === 'takeAim' && weapon.type === 'ranged' && !weapon.rules.noOrders) r.ceaseless = true;
-  if (order === 'fixBayonets' && weapon.type === 'melee') r.ceaseless = true;
+  const order = guardOrder(g, op), allOrders = !!op.gOrder?.all && op.gOrder.tp === g.tp;
+  if ((order === 'takeAim' || allOrders) && weapon.type === 'ranged' && !weapon.rules.noOrders) r.ceaseless = true;
+  if ((order === 'fixBayonets' || allOrders) && weapon.type === 'melee') r.ceaseless = true;
   // Uplifting Primer: within 3" of the Zealot, weapons have Severe.
   if (living(g, op.side).some((z) => tpl(z).uplifting && sameTeam(z, op) && edgeDist(z, op) <= 3)) r.severe = true;
   if (weapon.type === 'ranged' && hasPloy(g, op.side, 'siegeWarfare')) { r.saturate = true; r.accurate = Math.max(r.accurate || 0, 1); }
@@ -4388,7 +4400,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4396,7 +4408,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4413,6 +4425,7 @@ registerSanctifierActions();
 registerPathfinderActions();
 registerKommandoActions();
 registerKinbandActions();
+registerDeathKorpsActions();
 registerMandrakeActions();
 registerDwActions();
 registerCorsairActions();
@@ -4436,6 +4449,7 @@ export function weaponsFor(g, op) {
   ws = scWeapons(g, op, ws); // Combat Blades equipment (Scout Squad)
   ws = pmWeapons(g, op, ws); // Blight Grenades equipment (Plague Marines)
   ws = kmWeapons(g, op, ws); // Choppas, Collapsible Stocks, Dynamite, Harpoon (Kommandos equipment)
+  ws = dkWeapons(g, op, ws); // Hand Axes (Death Korps equipment)
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -4595,7 +4609,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => scVoxFree(g, side, id) || rtFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id, target = g.dwAuspexTarget) => ffBaseCost(g, side, id, target) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id, target = g.dwAuspexTarget) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id, target) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -4676,6 +4690,10 @@ const FF = {
   momentRepute: { kind: 'button', cond: (g, op) => (underGaze(g, op) ? null : { zh: '不在諸神注視下', en: 'Not under the Gaze of the Gods' }), apply(g, op) { op.ap += 1; } },
   rewardEarned: { kind: 'auto' },
   // ---- Death Korps ----
+  // ---- Death Korps ----
+  inspirationalLeadership: { kind: 'button', cond: (g, op) => (tpl(op).watchmaster || tpl(op).confidant ? null : { zh: '只有看守長或心腹', en: 'Watchmasters and Confidants only' }), apply(g, op) { return dkLeadership(g, op, giveGuardOrder); } },
+  lifeShame: { kind: 'auto' },
+  deathAtonement: { kind: 'auto' },
   combinedArms: { kind: 'attack', shoot: true, cond: (g, op, t) => (t?.shotBy?.tp === g.tp && t.shotBy.uids.some((u) => u !== op.uid && getOp(g, u)?.side === op.side) ? null : { zh: '目標本回合還沒被其他友方射擊', en: 'Not shot by another friendly this TP' }) },
   // ---- Exaction Squad ----
   longArm: { kind: 'aim', cond: (g, op, t, w) => (w?.rules.range ? null : { zh: '武器沒有射程限制', en: 'The weapon has no Range rule' }) },
@@ -5032,10 +5050,16 @@ function handOutGuardOrder(g, side) {
   const issuer = orderIssuer(g, side);
   if (!pick || !issuer) return;
   if (!tpl(issuer).watchmaster) (g.secondInCommand ||= [false, false])[side] = true;
+  (g.gIssued ||= [false, false])[side] = true; // (Adaptive Orders: the Watchmaster issued one as a strategic gambit)
+  giveGuardOrder(g, side, issuer, pick);
+}
+/** An issuer's Guardsman Order reaches the friendlies within 6" (or everyone via the Vox-operator, or one operative with Comm-beads). */
+export function giveGuardOrder(g, side, issuer, pick) {
   let got = living(g, side).filter((o) => edgeDist(o, issuer) <= 6 || o === issuer);
   const vox = got.find((o) => tpl(o).relay && !isEngaged(g, o));
   const relayed = pick.relay && vox;
   if (relayed) { got = living(g, side); changeApl(g, vox, -1); }
+  else if (dkBeadsOn(g, side)) got = [dkBeadsTarget(g, got, pick.id)].filter(Boolean); // Comm-beads (equipment): one operative instead of everyone
   for (const o of got) o.gOrder = { id: pick.id, tp: g.tp };
   const o = GUARD_ORDERS[pick.id];
   log(g, {
@@ -5448,6 +5472,7 @@ function killOff(g, src, target) {
       target.explosivesUsed = 2; detonateExplosives(g, target);
     }
     sfDeath(g, src, target); // Sanctifiers: Redeemed Through Fire, Imperial Cult Devotion
+    dkDeath(g, src, target); // In Death, Atonement (Death Korps)
     wkBoom(g, target); // Boom! (Wrecka Bomb Squig): it may explode before it's removed
     if (g.pechra?.[target.side]?.by === target.uid) g.pechra[target.side] = null;
     if (g.pan?.[target.side]?.by === target.uid) g.pan[target.side] = null; // Pan Spectral Scan marker
@@ -5715,7 +5740,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const grit = TEAM_MAP[target.team].bloodedTokens && hasPloy(g, target.side, 'malevolentGrit') && (target.bloodToken || whollyIn(g, target, 1 - target.side));
   const defRules = { relentless: !!tpl(target).emperorProtects || psyOn(g, 'fate', target.side, target) || !!target.shieldingOn
       || (isGM(target) && hasPloy(g, target.side, 'augmentedEndurance') && goreOf(target) === 2),
-    digIn: (base > 0 && guardOrder(g, target) === 'digIn') || navyOrderNear(g, target, 'defence') || (isSF(target) && hasPloy(g, target.side, 'sfProtects') && sfSermon(g, target)) // (The Emperor Protects: Sanctifiers)
+    digIn: (base > 0 && hasOrder(g, target, 'digIn')) || navyOrderNear(g, target, 'defence') || (isSF(target) && hasPloy(g, target.side, 'sfProtects') && sfSermon(g, target)) // (The Emperor Protects: Sanctifiers)
       || (target.ready && isBlade(target) && hasPloy(g, target.side, 'forewarned')) // Forewarned (Blades of Khaine)
       || (target.side < 2 && isCC(target) && hasPloy(g, target.side, 'hypershielding') && matrixCovers(g, target.side, op, target)), // Hypershielding (Canoptek Circle)
     balanced: (hasPloy(g, target.side, 'plagueridden') && target.order === 'engage') || defenceMarker(g, target) || grit || inviolate(g, target)
