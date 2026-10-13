@@ -140,6 +140,13 @@ const snipaSweeping = W('snipaSweeping', '瞄準大口徑槍（掃射）', 'Scop
 const throwingKnives = W('throwingKnives', '飛刀', 'Throwing knives', 'ranged', 4, 3, 2, 5, { range: 6, silent: true });
 const twinChoppas = W('twinChoppas', '雙劈砍刀', 'Twin choppas', 'melee', 4, 3, 4, 5, { ceaseless: true, lethal: 5 });
 const fistsO = W('fistsO', '拳頭', 'Fists', 'melee', 3, 3, 3, 4);
+// Kommandos: the Boss Nob's big choppa, the Grot and the Bomb Squig.
+const bigChoppa = W('bigChoppa', '大劈砍刀', 'Big choppa', 'melee', 5, 3, 5, 6);
+const grotChoppa = W('grotChoppa', '格洛特砍刀', 'Grot choppa', 'melee', 3, 5, 1, 4);
+const kmExplosives = W('kmExplosives', '炸藥', 'Explosives', 'ranged', 6, 4, 4, 5, { blast: 1, limited: 1, wkExplosive: true });
+const kmBite = W('kmBite', '啃咬', 'Bite', 'melee', 3, 4, 4, 5);
+const nobLoadoutsKM = { klaw: [slugga, powerKlaw], choppa: [slugga, bigChoppa] };
+const KM_PICKS = ['boy', 'breacha', 'burna', 'comms', 'dakka', 'grot', 'rokkit', 'slasha', 'snipa', 'squig'];
 
 // ---- Pathfinders ----
 const pulseCarbine = W('pulseCarbine', '脈衝卡賓槍', 'Pulse carbine', 'ranged', 4, 4, 4, 5);
@@ -759,8 +766,8 @@ export const TEAMS = [
     rule: {
       name: { zh: '割喉者', en: 'Throat Slittas' },
       desc: {
-        zh: '（官方：友方在隱蔽指令下也能「衝鋒」。目前依基本規則停用：隱蔽一律不能衝鋒。）',
-        en: '(Official: friendly operatives can Charge while Concealed. Currently disabled by the basic rules: Concealed operatives never Charge.)',
+        zh: '每名友方歐克蠻人（炸彈史奎格除外）在隱蔽指令下也能執行「衝鋒」。',
+        en: 'Each friendly KOMMANDO operative (not a Bomb Squig) can perform the Charge action while it has a Conceal order.',
       },
     },
     concealCharge: true, // engine flag for Throat Slittas
@@ -771,17 +778,29 @@ export const TEAMS = [
         desc: { zh: '本回合友方近戰武器獲得「平衡」。', en: 'This TP, friendly melee weapons have Balanced.' } },
       { id: 'skulkAbout', cp: 1, name: { zh: '鬼祟潛行', en: 'Skulk About' },
         desc: { zh: '本回合隱蔽指令的友方被射擊時，可多保留 1 顆防禦骰作為普通成功（可與掩護豁免疊加）。', en: 'This TP, a friendly operative with a Conceal order being shot retains one extra defence die as a normal success (on top of any cover save).' } },
+      { id: 'sssshhhh', cp: 1, name: { zh: '噓——！', en: 'Sssshhhh!' },
+        desc: { zh: '不是敵人有效目標、或是隱蔽指令且離敵人超過 6" 的友方特工，立刻各免費衝刺一次。第 1 回合不能用。（自動移動）', en: 'Each friendly operative that isn\'t a valid target for enemy operatives, or has a Conceal order and is more than 6" from enemy operatives, makes a free Dash. Not in the first turning point. (Moves chosen automatically.)' } },
     ],
+    // The Boss Nob and nine selections: each once except Boys; the Grot and the Bomb Squig count as half a selection each, so the
+    // extra slot (empty, Grot or Bomb Squig) holds the second of the pair.
+    perCopyRoster: true,
+    replacements: {
+      ...Object.fromEntries(['breacha', 'burna', 'comms', 'dakka', 'rokkit', 'slasha', 'snipa', 'boy'].map((id) => [id, KM_PICKS])),
+      kmNone: ['kmNone', 'grot', 'squig'],
+    },
     ops: [
-      op('nob', '頭目', 'Boss Nob', { apl: 3, move: 6, save: 5, wounds: 14, base: 32, krumpin: true, support: 'getItDun' }, [slugga, powerKlaw]),
-      op('breacha', '破門小子', 'Breacha Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [slugga, breachaRam]),
+      op('nob', '頭目', 'Boss Nob', { apl: 3, move: 6, save: 5, wounds: 14, base: 32, krumpin: true, support: 'getItDun', loadouts: nobLoadoutsKM }, nobLoadoutsKM.klaw),
+      op('breacha', '破門小子', 'Breacha Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, kmBreacha: true }, [slugga, breachaRam]),
       op('burna', '噴火小子', 'Burna Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [burnaStd, burnaDeluge, fistsO]),
-      op('comms', '通訊小子', 'Comms Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, support: 'listenIn' }, [shokkaPistol, fistsO]),
+      op('comms', '通訊小子', 'Comms Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, support: 'listenIn', gotAPlan: true }, [shokkaPistol, fistsO]),
       op('dakka', '達卡小子', 'Dakka Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, dakkaDash: true }, [dakkaShort, dakkaLong, fistsO]),
       op('rokkit', '火箭小子', 'Rokkit Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [rokkitAimed, rokkitMobile, fistsO]),
       op('slasha', '劈砍小子', 'Slasha Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, datAllYouGot: true }, [throwingKnives, twinChoppas]),
       op('snipa', '狙擊小子', 'Snipa Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [snipaConcealed, snipaStationary, snipaSweeping, fistsO]),
       op('boy', '小子', 'Boy', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, wotNotz: true }, [slugga, choppa], 2),
+      op('grot', '格洛特', 'Grot', { apl: 2, move: 6, save: 5, wounds: 5, base: 25, kmSmall: true, sneaky: true, noEngage: true, kmGrapple: true }, [grotChoppa], 0),
+      op('squig', '炸彈史奎格', 'Bomb Squig', { apl: 2, move: 6, save: 5, wounds: 5, base: 25, kmSmall: true, expendable: true, stoopid: true, boom: true, actionsOnly: ['charge', 'dash', 'fight', 'reposition', 'shoot'] }, [kmExplosives, kmBite], 0),
+      op('kmNone', '（空：額外名額）', '(empty: the extra half selection)', { apl: 0, move: 0, save: 6, wounds: 1, base: 25, none: true }, [kmBite]),
     ],
   },
   {
@@ -846,7 +865,7 @@ export const TEAMS = [
       op('mv31', 'MV31 脈衝加速無人機', 'MV31 Pulse Accelerator Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, pfAccelerator: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'pfAccel', 'reposition'] }, [ram], 0),
       op('mv33', 'MV33 重力抑制無人機', 'MV33 Grav-inhibitor Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, pfGrav: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition'] }, [ram], 0),
       op('mv4', 'MV4 護盾無人機', 'MV4 Shield Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, pfShield: true, ignorePiercing: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition'] }, [ram], 0),
-      op('pfNone', '（空：MB3 佔兩個名額）', '(empty: the MB3 takes two selections)', { apl: 0, move: 0, save: 6, wounds: 1, base: 25 }, [fistsT], 0),
+      op('pfNone', '（空：MB3 佔兩個名額）', '(empty: the MB3 takes two selections)', { apl: 0, move: 0, save: 6, wounds: 1, base: 25, none: true }, [fistsT], 0),
     ],
   },
   {
@@ -2418,8 +2437,10 @@ const FIREFIGHT = {
     ff('overwhelmTarget', '壓制目標', 'Overwhelm Target', '以突破清場啟動時：本次 APL +1。', 'When activated with Breach and Clear: +1 APL.'),
   ],
   kommandos: [
-    ff('justScratch', '只是擦傷', 'Just a Scratch', '自動：一顆 3 以上的普通傷害攻擊骰改為不造成傷害。', 'Auto: ignore the damage of one attack die inflicting 3+ Normal Dmg.'),
+    ff('justScratch', '只是擦傷', 'Just a Scratch', '自動：一顆攻擊骰對友方（炸彈史奎格與格洛特除外）造成普通傷害時，忽略那次傷害。', 'Auto: when an attack die inflicts Normal Dmg on a friendly (not a Bomb Squig or Grot), ignore that damage.'),
     ff('shakeItOff', '甩掉它', 'Shake It Off', '啟動時：本回合無視 APL 的變化（被減的 AP 補回）。', 'When activated: ignore APL changes this TP (a lost AP is restored).'),
+    ff('krumpEm', '開扁！', 'Krump \'Em!', '自動：火力戰鬥階段結束時，一名友方立刻免費近戰一次（需要有敵人在控制範圍內；自動選擇）。', 'Auto: at the end of the Firefight phase, one friendly operative makes a free Fight (needs an enemy in control range; chosen automatically).'),
+    ff('kunnin', '狡猾但殘暴', 'Kunnin\' But Brutal', '自動：隱蔽指令的友方在有衝鋒的啟動中近戰，結算第一顆攻擊骰時若是普通成功的打擊，改當暴擊成功。', 'Auto: a friendly with a Conceal order fighting in an activation in which it charged: when resolving the first attack die as a strike with a normal success, treat it as a critical success.'),
   ],
   tauPathfinders: [
     ff('supportingFire', '支援火力', 'Supporting Fire', '射擊選目標時：6" 內被友方纏住的敵人也能選。', 'Picking a target: enemies within 6" in friendly control range can be selected.'),

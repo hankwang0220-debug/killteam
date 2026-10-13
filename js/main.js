@@ -13,6 +13,8 @@ import { SANCTIFIERS_EQUIPMENT, sanctifiersRosterError } from './data/sanctifier
 import { pathfindersRosterError } from './data/pathfinders.js';
 import { angelsRosterError } from './data/angels.js';
 import { plagueRosterError } from './data/plague.js';
+import { kommandosRosterError } from './data/kommandos.js';
+import { kmGrappleCheck, kmDoGrapple } from './kommandos.js';
 import { sfGambitLeft, sfChooseOrator, sfOrator, sfSermon } from './sanctifiers.js';
 import { wreckaOf } from './wrecka.js';
 import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
@@ -520,6 +522,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'tauPathfinders') { const error = pathfindersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'angels') { const error = angelsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'plagueMarines') { const error = plagueRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'kommandos') { const error = kommandosRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wreckaKrew') { // (and only one Glyphs)
     const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
     return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
@@ -971,7 +974,7 @@ function statusBox({ color, icon, phase, tp, who, doing, last, key }) {
 function boardUi() {
   const b = { sel: ui.sel, peek: ui.peek, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy', terrainRanges: ui.setup.terrainRanges };
   const op = activeOp(g);
-  if (op && ui.mode?.kind === 'move' && !['mdPass', 'rtSlingshot'].includes(ui.mode.action)) b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
+  if (op && ui.mode?.kind === 'move' && !['mdPass', 'rtSlingshot', 'kmGrapple'].includes(ui.mode.action)) b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   // Exodite riders: where a Sprint can go (or the turn arc).
   if (op && ui.mode?.kind === 'sprint') {
     const tpLeft = 12 - (op.movedTP || 0);
@@ -1638,19 +1641,20 @@ function modeView(op) {
     return `<div class="mode"><h3>${esc(tx(ACTIONS.edTurn.name))}</h3><p class="hint">${L('點棋盤指定要面向的方向（最多轉 45°）。', 'Tap the board towards where it should face (45° at most).')}</p><div class="row">${cancel}<button class="primary" data-act="confirmturn" ${m.dest ? '' : 'disabled'}>${L('確認轉向（1AP）', 'Turn (1AP)')}</button></div></div>`;
   }
   if (m.kind === 'move') {
-    const max = m.action === 'mdPass' ? 40 : m.action === 'rtSlingshot' ? 12 : moveAllowance(g, op, m.action);
+    const max = m.action === 'mdPass' ? 40 : m.action === 'rtSlingshot' ? 12 : m.action === 'kmGrapple' ? 40 : moveAllowance(g, op, m.action);
     let info = L(`點擊棋盤選擇目的地（最多 ${max}"），落點可自由選擇，總移動距離無條件進位計算。要轉彎：先點轉彎處，按「設為折點」，再點下一段。`, `Tap the board to choose a destination (max ${max}"); choose any legal endpoint; total movement cost rounds up. To turn: tap the corner, press "Set waypoint", then tap the next leg.`);
     if (m.action === 'charge') info += L('必須結束於敵人交戰範圍 1" 內。', ' Must end within 1" of an enemy.');
     if (m.action === 'fallBack') info += L('必須離開所有敵人的交戰範圍。', ' Must end outside all enemy engagement ranges.');
-    if (m.action !== 'charge' && m.action !== 'fallBack' && m.action !== 'rtSlingshot') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
+    if (m.action !== 'charge' && m.action !== 'fallBack' && m.action !== 'rtSlingshot' && m.action !== 'kmGrapple') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
     if (m.action === 'mdPass') info = L('點擊暗影落點：不限距離，不能成為敵人的有效目標。本回合不能射擊／近戰。', 'Tap a shadow destination at any distance, outside valid enemy targeting. No Shoot/Fight this TP.');
     if (m.action === 'rtSlingshot') info = L('點擊彈弓落點：看得到、6" 內的地形點，且落點完全在其 6" 內並看得到它。', 'Tap a slingshot destination: a terrain point visible within 6", the destination wholly within 6" of it and seeing it.');
+    if (m.action === 'kmGrapple') info = L('點擊鉤爪落點：落點要在一個看得到的地形點 1" 內，並看得到那一點；落點可以離得很遠。', 'Tap the grappling destination: within 1" of a terrain point visible to the Grot, and seeing that point; any distance.');
     const p = ui.path;
     const status = p ? (p.ok ? `<p class="ok">✔ ${L('消耗', 'Cost')} ${p.len}" / ${max}"</p>` : p.placement ? `<div class="placement-warning" role="status"><strong>${L('底盤放不下', 'Base does not fit')}</strong><p>${esc(p.why)}</p><p class="hint">${L('紅色輪廓標出底盤與阻擋物，請將落點移開。', 'Red outlines show the base and its blockers. Choose a clear landing point.')}</p></div>` : `<p class="bad" role="status">✘ ${esc(p.why)}</p>`) : '';
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
     const canPin = !!(p && m.dest && !p.unreachable && !p.breach && (p.exactLen ?? p.len) < max - 0.05);
-    const wpRow = ['mdPass', 'rtSlingshot'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
+    const wpRow = ['mdPass', 'rtSlingshot', 'kmGrapple'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
     return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
@@ -1689,6 +1693,7 @@ function modeView(op) {
       geomantic: L('點擊一名靠近地形（2" 內）、離你 8" 內的敵人：在離它最近的地形點引爆，2" 內每名特工擲 2D6。', 'Tap an enemy within 2" of terrain and within 8": the terrain point nearest it erupts — every operative within 2" rolls 2D6.'),
       canoptekControl: L('點擊一名冥工機械：它立刻免費做一個 1AP 動作。', 'Tap a Canoptek: it performs a free 1AP action now.'),
       remotePilot: L('點擊一架友方無人機：它立刻免費做一個動作（移動不超過 2"，可以做無人機原本不能做的動作）。', 'Tap a friendly drone: it performs a free action now (moving no more than 2", even one its Drone rule restricts).'),
+      kmSmoke: L('點擊 6" 內可見的一名特工（敵我皆可）：在那裡放出煙霧。', 'Tap an operative visible within 6" (friend or foe): smoke is placed there.'),
       molecularBreach: L('點擊一名友方：它下次移動改為直接傳送。', 'Tap a friendly: its next move is a teleport.'),
       overcharge: L('點擊一名冥工機械：下次啟動 APL +1。', 'Tap a Canoptek: +1 APL next activation.'),
       cranialOverload: L('點擊一名敵人：下次啟動 APL -1。', 'Tap an enemy: -1 APL next activation.'),
@@ -1849,6 +1854,10 @@ const ABILITIES = {
   medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將殘廢時改為剩 1 生命，雙方下次啟動 APL -1。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation.'],
   multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
   droneController: () => ['無人機操控員・遙控操作', 'Drone Controller · Remote Pilot', '在場時友方無人機 Move +2"。遙控操作 1AP（不在交戰中）：一架友方無人機立刻免費做一個動作（移動不超過 2"，可做無人機規則限制的動作）；可重複使用，但同一架無人機每次啟動不能做兩次相同的動作。', 'While it is in the killzone, friendly drones get +2" Move. Remote Pilot 1AP (not engaged): a friendly drone performs one free action (moving no more than 2", even one its Drone rule restricts); repeatable, but the same drone can\'t take the same free action twice in an activation.'],
+  kmGrapple: () => ['鉤爪', 'Grappling Hook', '1AP（視為重新定位，不在交戰中，不能和衝鋒或撤退同一次啟動）：選一個看得到的地形點，被移走後放回該點 1" 內、看得到該點的位置。', '1AP (a Reposition; not engaged; not with Charge or Fall Back): pick a visible point on terrain and be set up again within 1" of it, seeing it.'],
+  sneaky: () => ['鬼祟搗蛋', 'Sneaky Zogger', '不能有交戰指令；在掩護中時，2" 外不能被選為有效目標（優先於其他規則）。', 'Can\'t have an Engage order; in cover it can\'t be selected as a valid target beyond 2" (taking precedence over other rules).'],
+  kmBreacha: () => ['破門', 'Breach', '1AP（不在交戰中）：在控制範圍內的地形上放破口標記；標記 1" 內，厚度 1" 以下的地形部分視為可通行。', '1AP (not engaged): place a Breach marker on terrain in control range; within 1" of it, parts of that terrain no more than 1" thick are Accessible.'],
+  gotAPlan: () => ['我有計畫，夥計們', 'I Got a Plan, Ladz', '每次啟動一次：撿起標記、放置標記或任務動作少 1AP。', 'Once per activation: Pick Up Marker, Place Marker or a mission action costs 1 less AP.'],
   repulsive: () => ['令人作嘔的堅韌', 'Repulsive Fortitude', '被射擊時，防禦骰 5+ 為暴擊成功。', 'When shot, defence dice results of 5+ are critical successes.'],
   fearless: () => ['戰線無畏', 'Fearless on the Frontline', '在敵人控制範圍內也能做標記光；撤退少 1AP。', 'Can perform Markerlight while within enemy control range; Fall Back costs 1 less AP.'],
   analyse: () => ['分析', 'Analyse', '做標記光時，目標 3" 內它看得到的每名其他敵人也獲得一個標記。它做標記光和射擊時不受「同一目標」限制。', 'When it performs Markerlight, each other enemy visible to it within 3" of the target also gains a token. The same-target limit with Shoot doesn\'t apply to it.'],
@@ -2556,6 +2565,12 @@ function previewMove(op, action, p) {
       why: L(`${tpl(op).base}mm 底盤${reasons.join('、')}。`, `${tpl(op).base}mm base ${reasons.join(' and ')}.`) };
     return render();
   }
+  if (action === 'kmGrapple') {
+    const c = kmGrappleCheck(g, op, p);
+    ui.mode.dest = p;
+    ui.path = { pts: [{ x: op.x, y: op.y }, p], len: 0, ok: c.ok, why: c.why ? tx(c.why) : null, r: radius(op) };
+    return render();
+  }
   if (action === 'rtSlingshot') {
     const c = slingshotCheck(g, op, p);
     ui.mode.dest = p;
@@ -2845,6 +2860,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'tauPathfinders' && pathfindersRosterError(TEAM_MAP.tauPathfinders, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'angels' && angelsRosterError(TEAM_MAP.angels, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'plagueMarines' && plagueRosterError(TEAM_MAP.plagueMarines, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'kommandos' && kommandosRosterError(TEAM_MAP.kommandos, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
@@ -2965,7 +2981,7 @@ function handle(act, d) {
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack
     case 'action': {
-      if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass', 'rtSlingshot'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
+      if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass', 'rtSlingshot', 'kmGrapple'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
       else if (d.id === 'edSprint') ui.mode = { kind: 'sprint' }; // Exodite riders
       else if (d.id === 'edTurn') ui.mode = { kind: 'turn' };
       else if (d.id === 'shoot' || d.id === 'fight') {
@@ -2976,7 +2992,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
@@ -3015,7 +3031,7 @@ function handle(act, d) {
       return render();
     }
     case 'confirmmove':
-      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => action === 'mdPass' ? doShadowPassage(g, op, path.pts.at(-1)) : action === 'rtSlingshot' ? doSlingshot(g, op, path.pts.at(-1)) : doMove(g, op, action, path)); }
+      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => action === 'mdPass' ? doShadowPassage(g, op, path.pts.at(-1)) : action === 'rtSlingshot' ? doSlingshot(g, op, path.pts.at(-1)) : action === 'kmGrapple' ? kmDoGrapple(g, op, path.pts.at(-1)) : doMove(g, op, action, path)); }
       ui.mode = null; ui.path = null;
       return afterChange();
     case 'endact':

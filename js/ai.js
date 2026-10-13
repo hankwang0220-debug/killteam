@@ -15,6 +15,7 @@ import { breakTarget } from './wrecka.js';
 import { scAiStrategy } from './scouts.js';
 import { rtAiStrategy, rtSlingshotAI, doSlingshot } from './ratlings.js';
 import { sfAiStrategy } from './sanctifiers.js';
+import { kmGrappleAI, kmDoGrapple } from './kommandos.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -688,6 +689,7 @@ export function aiStep(g) {
   }
   if (can.sfWreathe) { doSelfAction(g, op, 'sfWreathe'); return null; }
   if (can.pfAccel && living(g, op.side).some((o) => o !== op && o.ready && !tpl(o).drone && edgeDist(o, op) <= 6)) { doSelfAction(g, op, 'pfAccel'); return null; } // Pathfinder MV31 Pulse Accelerator
+  if (can.kmGrapple && !shootOptions(g, op).length && !engagedEnemies(g, op).length) { const p = kmGrappleAI(g, op); if (p && kmDoGrapple(g, op, p)) return null; } // Kommando Grot
   if (can.sfTrained && op.order === 'conceal' && foes(g, op).some((e) => edgeDist(op, e) <= 12)) { doSelfAction(g, op, 'sfTrained'); return null; }
   if (can.medikit) {
     const t = TARGET_ACTIONS.medikit.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds - b.wounds)[0];

@@ -11,6 +11,8 @@ import { SANCTIFIERS_EQUIPMENT } from './data/sanctifiers.js';
 import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
 import { ANGELS_EQUIPMENT } from './data/angels.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
+import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
+import { kmSetup, kmReady, kmWeapons, kmPloyBought, kmEndFirefight, kmKunnin, kmActions, kmSelf, registerKommandoActions } from './kommandos.js';
 import { pmSetup, pmRules, pmBells, pmVents, pmWeapons, pmPloyBought, pmReady, pmCloud, pmCurse } from './plague.js';
 import { adSetup, adTactics, adVeteran, adPloyBought, adHeroicFree, adHeroicUsed, adIronHalo, adRoll, adShootStart, adAuspexOn, adEnd, adTilting, adReliquaries } from './angels.js';
 import { isPulse, pfSetup, pfActivate, pfEnd, pfRules, pfGravHit, pfShield, pfTaoBonus, pfShootStart, pfShootEnd, pfMarkerTargets, pfMarkerlight, pfSwap, pfPointBlank, pfPloyBought, pfWorthy, pfActions, pfSelf, registerPathfinderActions } from './pathfinders.js';
@@ -216,8 +218,8 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
       for (let k = 0; k < slot.count; k++) {
         const chosen = (Array.isArray(pick) ? pick[k] : pick) || slot.id;
         if (chosen !== slot.id && !allowed?.includes(chosen)) throw new Error('Invalid roster replacement');
-        if (chosen === 'pfNone') continue; // (the MB3 Recon Drone's second selection: nobody is set up)
         const t = TEAM_MAP[teams[side]].ops.find((o) => o.id === chosen);
+        if (t.none) continue; // (an empty selection: the MB3 Recon Drone's second one, the Kommandos' extra half selection)
         n++;
         g.ops.push({
           uid: `${side}-${n}`, side, team: teams[side], tplId: t.id, num: n, x: 0, y: 0,
@@ -242,6 +244,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   pfSetup(g, roster); // Pathfinders: roster limits
   adSetup(g, roster); // Angels of Death: roster limits
   pmSetup(g, roster); // Plague Marines: roster limits
+  kmSetup(g, roster); // Kommandos: roster limits
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -605,6 +608,7 @@ function startTP(g) {
   ncReady(g); // Nemesis Claw: D3 Prescience points
   scReady(g); // Scout Squad: Trip Alarm markers go in the third turning point
   pmReady(g); // Plague Marines: the Clouds of Flies go
+  kmReady(g); // Kommandos: the Harpoon is ready again
   sfReady(g); // Sanctifiers: a new Orator when needed, Ecclesiarchy Texts
   mission(g).onReady?.(g); // the Ready step
 }
@@ -802,6 +806,7 @@ export function buyPloy(g, side, ploy) {
   scPloyBought(g, side, ploy); // Scout Squad: Adaptable Training, Stealth Relocation
   sfPloyBought(g, side, ploy); // Sanctifiers: Rally the Flock
   pmPloyBought(g, side, ploy); // Plague Marines: Cloud of Flies, Nurglings
+  kmPloyBought(g, side, ploy); // Kommandos: Sssshhhh!
   pfPloyBought(g, side, ploy); // Pathfinders: Recon Sweep
   adPloyBought(g, side, ploy); // Angels of Death: Adaptive Tactics
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
@@ -993,6 +998,7 @@ export function deactivate(g) {
 
 export function setOrder(g, op, order) {
   if (op.orderSet) return;
+  if (tpl(op).noEngage && order === 'engage') return; // Sneaky Zogger (Kommando Grot)
   if ((op.frenzy || tpl(op).stoopid) && order === 'conceal') return; // Frenzy / Stoopid (Bomb Squig): it can't have a Conceal order
   op.order = order;
   op.orderPicked = true; // the player has chosen this activation's order (the UI asks before any action)
@@ -1204,6 +1210,7 @@ function endTP(g) {
   log(g, { zh: `第 ${g.tp} 回合結束`, en: `End of Turning Point ${g.tp}` }, 'tp');
   mission(g).onTPEnd?.(g);
   tacOnTPEnd(g); // Tac Op scoring (before damage this TP is forgotten)
+  kmEndFirefight(g); // Krump 'Em! (Kommandos): a free Fight at the end of the Firefight phase
   ncTPEnd(g); // Nemesis Claw: unspent Prescience points are discarded
   if (g.phase === 'gameover') return;
   g.ploys = [[], [], []];
@@ -1425,7 +1432,7 @@ export function actionCost(g, op, id) {
   if (id === 'fight' && count(op, 'fight') === 1 && accelerant(op)) return 0; // Accelerant Agents: one Fight is free
   if (id === 'fight' && count(op, 'fight') === 1 && op.acted?.fury) return 0; // Fury (Goremonger Sanguavitae): the second Fight is free
   // Acute Focus (Malocator): once per activation, Pick Up, Veriscant or a mission action costs 1 less.
-  const acute = (tpl(op).acuteFocus || tpl(op).lightFingered) && !op.acted?.acuteUsed && (ACUTE.includes(id) || MISSION_ACTIONS[id]) ? 1 : 0; // (Light-fingered: Ratling Stashmaster)
+  const acute = (tpl(op).acuteFocus || tpl(op).lightFingered || tpl(op).gotAPlan) && !op.acted?.acuteUsed && (ACUTE.includes(id) || MISSION_ACTIONS[id]) ? 1 : 0; // (Light-fingered: Ratling Stashmaster)
   if (id === 'veriscant') return ACTIONS.veriscant.ap - acute;
   // Pick Up Marker and mission actions: +1AP for Nightmare Hulks (not Vulgrar), and within 3" of a Fleshscreamer.
   if (id === 'pickUp' || MISSION_ACTIONS[id]) {
@@ -2163,7 +2170,7 @@ export function availableActions(g, op) {
   const caprice = free.dash === 'capricious' || free.dash === 'fade' || free.dash === 'murder'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
   add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
-  const noCharge = conceal && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
+  const noCharge = conceal && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
   const rampage = free.charge === 'rampage' || free.charge === 'woe' || free.charge === 'bloodlust' || free.charge === 'murder'; // (murder: Proclivity for Murder) // Ruthless Rampage / The Woe / Obsessive Bloodlust: a free Charge even after one
   add('charge', !chargeEngaged && !noCharge && (rampage || (!heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'))), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
@@ -2196,6 +2203,7 @@ export function availableActions(g, op) {
   if (tpl(op).archonMark) unique('archonMark', count(op, 'shoot') < 2, DONE);
   if (tpl(op).markerlight) { if (tpl(op).fearless) add('markerlight', !count(op, 'markerlight') && TARGET_ACTIONS.markerlight.targets(g, op).length > 0, count(op, 'markerlight') ? DONE : NONE); else unique('markerlight'); } // (Shas'la, Fearless on the Frontline: even when engaged)
   pfActions(g, op, add); // Pathfinders: Pulse Accelerator, Photon Grenade
+  kmActions(g, op, add); // Kommandos: Breach, Grappling Hook, Smoke Grenade
   if (tpl(op).signal) unique('signal');
   if (tpl(op).signalAny) unique('signalAny');
   if (tpl(op).jamToken) unique('jamToken');
@@ -2392,6 +2400,7 @@ export function doSelfAction(g, op, id) {
   if (ncSelf(g, op, id)) return;
   if (sfSelf(g, op, id)) return; // Sanctifiers: Trained Assassin, Wreathe in Fire
   if (pfSelf(g, op, id)) return; // Pathfinders: Pulse Accelerator
+  if (kmSelf(g, op, id)) return; // Kommandos: Breach
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
@@ -2493,7 +2502,7 @@ export function spend(g, op, id, ap = actionCost(g, op, id)) {
   corsairSpend(g, op, id, ap);
   op.ap -= ap;
   if ((id === 'pickUp' || MISSION_ACTIONS[id]) && ap > 0 && intimidated(g, op)) spendFF(g, 1 - op.side, 'intimidatingPresence'); // (Inquisition)
-  if ((tpl(op).acuteFocus || tpl(op).lightFingered) && (ACUTE.includes(id) || MISSION_ACTIONS[id])) op.acted.acuteUsed = true; // Acute Focus / Light-fingered used
+  if ((tpl(op).acuteFocus || tpl(op).lightFingered || tpl(op).gotAPlan) && (ACUTE.includes(id) || MISSION_ACTIONS[id])) op.acted.acuteUsed = true; // Acute Focus / Light-fingered used
   if (tpl(op).apprentek && CRYPTEK_ACTIONS.includes(id)) op.crypTP = g.tp; // Apprentek Assistance: one per turning point
   if (tpl(op).vanguard && (id === 'pickUp' || MISSION_ACTIONS[id])) (g.vanguardTP ||= [0, 0])[op.side] = g.tp; // Vanguard used
   op.acted[id] = count(op, id) + 1;
@@ -2671,7 +2680,7 @@ const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, 
 /** Is target a valid target for op with this weapon (visible, and not a Concealed operative in cover)? */
 function validTarget(g, op, target, weapon) {
   const v = shotVisibility(g, op, target, weapon);
-  if ((target.mdGlyph || target.scCovert || rtShifty(g, target)) && target.order === 'conceal' && visibility(g, op, target).cover && edgeDist(op, target) > 2) return null; // (Covert Position: Scout Squad)
+  if ((target.mdGlyph || target.scCovert || rtShifty(g, target) || tpl(target).sneaky) && target.order === 'conceal' && visibility(g, op, target).cover && edgeDist(op, target) > 2) return null; // (Covert Position: Scout Squad)
   if (!v.visible) return null;
   if (weapon.rules?.psychic && isCI(target) && target.side !== op.side) return null; // (Psychic ranged weapons can't damage Insidiants)
   if (target.reserve) return null; // (an Exodite rider still in reserve isn't in the killzone)
@@ -4370,7 +4379,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4378,7 +4387,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4393,6 +4402,7 @@ registerScoutActions();
 registerRatlingActions();
 registerSanctifierActions();
 registerPathfinderActions();
+registerKommandoActions();
 registerMandrakeActions();
 registerDwActions();
 registerCorsairActions();
@@ -4415,6 +4425,7 @@ export function weaponsFor(g, op) {
   ws = ncWeapons(g, op, ws); // Preysight (Nemesis Claw): Range 6" and Seek Light versions
   ws = scWeapons(g, op, ws); // Combat Blades equipment (Scout Squad)
   ws = pmWeapons(g, op, ws); // Blight Grenades equipment (Plague Marines)
+  ws = kmWeapons(g, op, ws); // Choppas, Collapsible Stocks, Dynamite, Harpoon (Kommandos equipment)
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -4519,6 +4530,8 @@ function setupEquipment(g, side, ids) {
     if (id === 'ammo' && living(g, side).some((o) => tpl(o).wellStocked)) g.markers.push({ id: g.markers.length, kind: 'ammo', owner: side, ...clearSpot(g, ownPoint(g, side, 7.5, 0.5)), carriedBy: null }); // Well Stocked (Ratling Stashmaster): one more Ammo Cache
     if (id === 'utility') Object.assign(g.eqUses[side], { stun: 1, smoke: 1 });
     if (id === 'pmBlight') g.eqUses[side].blight = 2; // Blight Grenades (Plague Marines): twice in the battle
+    if (id === 'kmDynamite') g.eqUses[side].dynamite = 1; // Dynamite (Kommandos): once in the battle
+    if (id === 'kmHarpoon') g.eqUses[side].harpoon = 1; // Harpoon (Kommandos): once per turning point
     if (id === 'explosive') Object.assign(g.eqUses[side], { frag: 1, krak: 1 });
     if (id === 'lightBarricades') { wall(ownPoint(g, side, 10.5, 0.25), 3, 'light', inHalf); wall(ownPoint(g, side, 10.5, 0.75), 3, 'light', inHalf); }
     if (id === 'heavyBarricade') wall(ownPoint(g, side, 9, 0.5), 3.5, 'heavy', near4);
@@ -5749,7 +5762,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (normals.length && corsairShield(g, target)) normals.shift();
   else if (normals.length && target.side < 2 && isCC(target) && matrixCovers(g, target.side, op, target) && autoFF(g, target.side, 'shieldFlare')) normals.shift(); // Shield Flare
   // Just a Scratch (Kommandos) ignores one normal hit; All Is Dust (Rubric Marines) makes one deal 1.
-  if (normals.length && dn >= 3 && autoFF(g, target.side, 'justScratch')) normals.pop();
+  if (normals.length && dn > 0 && !tpl(target).kmSmall && autoFF(g, target.side, 'justScratch')) normals.pop();
   else if (normals.length && isWK(target) && !tpl(target).wkSquig && autoFF(g, target.side, 'wkJustScratch')) normals.pop(); // (Wrecka Krew: any Normal Dmg)
   else if (normals.length && dn > 0 && tpl(target).ncVisionary && ncPortent(g, target)) normals.pop(); // Portent (Nemesis Claw Visionary)
   else if (normals.length && dn > 0 && isSF(target) && autoFF(g, target.side, 'sfRosarius')) normals.pop(); // Rosarius (Sanctifiers)
@@ -6312,6 +6325,7 @@ export function fightApply(g, optId) {
   const opt = fightOptions(g).find((o) => o.id === optId);
   if (!opt) return;
   const k = f.turn, me = f[k], foe = f[other(k)];
+  if (opt.act === 'strike' && opt.die === 'n' && kmKunnin(g, f, k, me, fightOp(g, k))) { me.n--; me.c++; return fightApply(g, 'strike-c'); } // Kunnin' But Brutal (Kommandos): the first strike counts as a crit
   me[opt.die]--;
   if (me.dirty) { me.dirty = false; me.c = 0; me.n = 0; } // Dirty Fighter: no other success is resolved this sequence
   if (mwHonour(g, fightOp(g, k), fightOp(g, other(k)), opt.die === 'c', autoFF)) { advanceFight(g); return; }
@@ -6329,7 +6343,7 @@ export function fightApply(g, optId) {
     if (!shrug && opt.die === 'n' && pfShield(g, foeOp)) shrug = true; // Shield Generator (MV4 Shield Drone)
     if (!shrug && opt.die === 'n' && adIronHalo(g, foeOp)) shrug = true; // Iron Halo (Space Marine Captain)
     if (!shrug && opt.die === 'n' && foeOp.side < 2 && isCC(foeOp) && inMatrix(g, foeOp.side, foeOp) && autoFF(g, foeOp.side, 'shieldFlare')) shrug = true; // Shield Flare (Canoptek Circle)
-    if (!shrug && opt.die === 'n' && opt.dmg >= 3 && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
+    if (!shrug && opt.die === 'n' && opt.dmg > 0 && !tpl(foeOp).kmSmall && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
     if (!shrug && opt.die === 'n' && isWK(foeOp) && !tpl(foeOp).wkSquig && autoFF(g, foeOp.side, 'wkJustScratch')) shrug = true; // Just a Scratch (Wrecka Krew)
     if (!shrug && opt.die === 'n' && tpl(foeOp).ncVisionary && ncPortent(g, foeOp)) shrug = true; // Portent (Nemesis Claw Visionary)
     if (!shrug && opt.die === 'n' && isSF(foeOp) && autoFF(g, foeOp.side, 'sfRosarius')) shrug = true; // Rosarius (Sanctifiers)
