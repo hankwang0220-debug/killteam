@@ -1,3 +1,4 @@
+import { TOMB_WORLD_MAPS, tombWorldMapSvg } from './tombworld-maps.js';
 import { tombWorldView } from './tombworld.js';
 import { DEATHWATCH_EQUIPMENT, deathwatchRosterError } from './data/deathwatch.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
@@ -58,7 +59,7 @@ const ui = {
   undo: [],           // snapshots before the player's undoable actions this activation
   help: false,
   settingsOpen: false,
-  setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null], mission: 'standard', terrainRanges: 'nearby' },
+  setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null], mission: 'standard', map: 'default', terrainRanges: 'nearby' },
 };
 try { const mode = localStorage.getItem('kt.terrainRanges'); if (['nearby', 'always', 'off'].includes(mode)) ui.setup.terrainRanges = mode; } catch { /* optional preference */ }
 let aiTimer = null;
@@ -399,7 +400,7 @@ function homeView() {
         <button class="primary big" data-act="setup">${L('新遊戲', 'New Game')}</button>
         ${saved && saved.phase !== 'gameover' ? `<button class="big" data-act="resume">${L('繼續上一場', 'Resume')}</button>` : ''}
         <button class="big ghost" data-act="help">${L('規則速查', 'Quick Rules')}</button>
-        <button class="big ghost" data-act="tombworld">${L('墓穴世界地形', 'Tomb World Terrain')}</button>
+        <button class="big ghost" data-act="tombworld">${L('Tombworld（墓穴世界）地圖', 'Tomb World Maps')}</button>
       </div>
     </section>
     ${historyView()}
@@ -418,7 +419,7 @@ function homeView() {
 function setupView() {
   const s = ui.setup;
   const pick = (side) => `<div class="pick">
-    <h3>${side === 0 ? L('玩家 1（藍方/左）', 'Player 1 (left)') : L('玩家 2（右）', 'Player 2 (right)')}</h3>
+    <h3>${side === 0 ? L('玩家 1（A）', 'Player 1 (A)') : L('玩家 2（B）', 'Player 2 (B)')}</h3>
     <div class="picklist">${TEAMS.map((t) => `<button class="teampick ${s.teams[side] === t.id ? 'on' : ''}" style="--tc:${t.color}" data-act="pick" data-side="${side}" data-team="${t.id}">
       <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
     ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>` : ''}
@@ -440,6 +441,10 @@ function setupView() {
     <section class="card missionpick"><h3>${L('任務', 'Mission')}</h3>
       <select data-act="mission">${MISSION_LIST.map((m) => `<option value="${m.id}" ${m.id === ms.id ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
       <p class="hint small">${esc(tx(ms.desc))}${ms.source ? ` <i>（${esc(ms.source)}）</i>` : ''}</p></section>
+    <section class="card missionpick"><h3>${L('地圖', 'Map')}</h3>
+      <select data-act="map" ${ms.terrain ? 'disabled' : ''}><option value="default" ${s.map === 'default' ? 'selected' : ''}>${L('原有地圖', 'Default map')}</option>${TOMB_WORLD_MAPS.map(m => `<option value="${m.id}" ${s.map === m.id && !ms.terrain ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
+      ${ms.terrain ? `<p class="hint">${L('此任務使用專屬地圖。', 'This mission uses its own map.')}</p>` : s.map !== 'default' ? `<p class="hint">28″ × 24″ · ${L('圖卡排列的平面近似；艙門預設開啟，A1 保持完整。', 'Flat approximation of the map card; hatchways start open, A1 remains intact.')}</p>${tombWorldMapSvg(TOMB_WORLD_MAPS.find(m => m.id === s.map) || TOMB_WORLD_MAPS[0])}` : ''}
+    </section>
     <div class="picks">${pick(0)}${pick(1)}</div>
     <div class="setupbar"><button class="ghost" data-act="home">${L('返回', 'Back')}</button>
     <button class="primary big" data-act="start">${L('開始部署', 'Start Deployment')}</button></div>
@@ -2637,6 +2642,7 @@ modalRoot.addEventListener('click', (e) => {
 });
 app.addEventListener('change', (e) => {
   if(e.target.dataset.act==='seekerorder'){ui.seeker={...(ui.seeker||{}),order:e.target.value};return;}
+  if (e.target.dataset.act === 'map') { ui.setup.map = e.target.value; return render(); }
   if (e.target.dataset.act === 'terrainRanges') { ui.setup.terrainRanges = e.target.value; try { localStorage.setItem('kt.terrainRanges', e.target.value); } catch { /* optional preference */ } return render(); }
   if (e.target.dataset.act === 'roster') {
     const r = ((ui.setup.roster ||= [{}, {}])[+e.target.dataset.side]), id = e.target.dataset.id;
@@ -2753,8 +2759,9 @@ function handle(act, d) {
   if (['home', 'help', 'lang', 'replay'].includes(act)) closeSettings();
   const op = g && activeOp(g);
   switch (act) {
-    case 'home': ui.screen = 'home'; return render();
-    case 'tombworld': ui.screen = 'tombworld'; return render();
+    case 'home': history.replaceState(null, '', location.pathname + location.search); ui.screen = 'home'; return render();
+    case 'tombworld': location.hash = 'tombworld'; ui.screen = 'tombworld'; return render();
+    case 'twplay': ui.setup.map = d.id; ui.setup.mission = 'secure'; ui.screen = 'setup'; return render();
     case 'twstate': {
       const states = (ui.tombWorldStates ||= {});
       states[d.id] = d.id === 'A1' ? states[d.id] === 'breached' ? 'intact' : 'breached' : states[d.id] === 'open' ? 'closed' : 'open';
@@ -2784,7 +2791,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
-      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
@@ -2977,6 +2984,8 @@ function handle(act, d) {
 }
 
 setLang(getLang());
+if (location.hash === '#tombworld') ui.screen = 'tombworld';
+window.addEventListener('hashchange', () => { if (location.hash === '#tombworld') { ui.screen = 'tombworld'; render(); } });
 render();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

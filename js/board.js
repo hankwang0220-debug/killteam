@@ -1,4 +1,4 @@
-import { BOARD, DEPLOY, OBJ_R, CONTROL, controller, isInjured, opName, radius, team, tpl } from './game.js';
+import { boardOf, DEPLOY, OBJ_R, CONTROL, controller, isInjured, opName, radius, team, tpl } from './game.js';
 import { getLang, tx } from './i18n.js';
 import { objBadges } from './missions.js';
 import { distPointRect } from './geometry.js';
@@ -66,21 +66,21 @@ export function tokenLegend() {
  */
 export function renderBoard(g, ui) {
   const s = [];
-  s.push(`<svg id="board" class="${ui.canDrag ? 'deploy' : ''}" viewBox="-0.6 -0.6 ${BOARD.w + 1.2} ${BOARD.h + 1.2}" xmlns="http://www.w3.org/2000/svg">`);
+  s.push(`<svg id="board" class="${ui.canDrag ? 'deploy' : ''}" viewBox="-0.6 -0.6 ${boardOf(g).w + 1.2} ${boardOf(g).h + 1.2}" xmlns="http://www.w3.org/2000/svg">`);
   s.push(`<defs>
-    <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="var(--grid)" stroke-width="0.03"/></pattern>
+    <pattern id="grid" width="${boardOf(g).grid || 1}" height="${boardOf(g).grid || 1}" patternUnits="userSpaceOnUse"><path d="M${boardOf(g).grid || 1} 0H0V${boardOf(g).grid || 1}" fill="none" stroke="var(--grid)" stroke-width="0.03"/></pattern>
     <pattern id="hatch" width="0.4" height="0.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.4" height="0.4" fill="var(--light-t)"/><line x1="0" y1="0" x2="0" y2="0.4" stroke="var(--light-s)" stroke-width="0.15"/></pattern>
   </defs>`);
-  s.push(`<rect class="mat" x="0" y="0" width="${BOARD.w}" height="${BOARD.h}"/>`);
-  s.push(`<rect x="0" y="0" width="${BOARD.w}" height="${BOARD.h}" fill="url(#grid)" pointer-events="none"/>`);
+  s.push(`<rect class="mat" x="0" y="0" width="${boardOf(g).w}" height="${boardOf(g).h}"/>`);
+  s.push(`<rect x="0" y="0" width="${boardOf(g).w}" height="${boardOf(g).h}" fill="url(#grid)" pointer-events="none"/>`);
   (g.deploy || DEPLOY).forEach((z, side) => {
-    const y0 = z.y0 ?? 0, y1 = z.y1 ?? BOARD.h;
+    const y0 = z.y0 ?? 0, y1 = z.y1 ?? boardOf(g).h;
     s.push(`<rect x="${z.x0}" y="${y0}" width="${z.x1 - z.x0}" height="${y1 - y0}" fill="${team(g, side).color}" opacity="${g.phase === 'deploy' ? 0.16 : 0.07}" pointer-events="none"/>`);
   });
 
   // One SVG unit is one inch. Rounded corners preserve the true 1" distance
   // from the rectangular footprint, including diagonally around its corners.
-  s.push(`<defs><clipPath id="cover-range-clip"><rect width="${BOARD.w}" height="${BOARD.h}"/></clipPath></defs>`);
+  s.push(`<defs><clipPath id="cover-range-clip"><rect width="${boardOf(g).w}" height="${boardOf(g).h}"/></clipPath></defs>`);
   s.push('<g class="cover-ranges" clip-path="url(#cover-range-clip)" pointer-events="none" aria-hidden="true">');
   for (const t of g.terrain) {
     const mode = ui.terrainRanges || 'nearby';
@@ -103,6 +103,7 @@ export function renderBoard(g, ui) {
     s.push(`<g class="tlabel tl-${kind}" transform="translate(${f(cx)} ${f(cy)})" pointer-events="none"><rect x="-.24" y="-.24" width=".48" height=".48" rx=".12"/><text y=".15">${lab}</text></g>`);
   }
 
+  for (const p of g.pads || []) s.push(`<g class="tw-pad" pointer-events="none"><title>${getLang() === 'zh' ? '傳送台 T（1AP）' : 'Teleport pad T (1AP)'}</title><circle cx="${p.x}" cy="${p.y}" r="1.125"/><text x="${p.x}" y="${p.y + .22}">T</text></g>`);
   for (const o of g.objectives) {
     const c = controller(g, o);
     const col = c == null ? 'var(--obj)' : team(g, c).color;
@@ -166,7 +167,7 @@ export function renderBoard(g, ui) {
       const { terrain, operatives, outside } = ui.path.placement;
       for (const t of terrain) s.push(`<rect x="${f(t.x)}" y="${f(t.y)}" width="${f(t.w)}" height="${f(t.h)}" rx=".05" class="placement-block" pointer-events="none"/>`);
       for (const o of operatives) s.push(`<circle cx="${f(o.x)}" cy="${f(o.y)}" r="${f(o.r + .08)}" class="placement-block" pointer-events="none"/>`);
-      if (outside) s.push(`<rect x="0" y="0" width="${BOARD.w}" height="${BOARD.h}" class="placement-edge" pointer-events="none"/>`);
+      if (outside) s.push(`<rect x="0" y="0" width="${boardOf(g).w}" height="${boardOf(g).h}" class="placement-edge" pointer-events="none"/>`);
       s.push(`<circle cx="${f(end.x)}" cy="${f(end.y)}" r="${f(ui.path.r)}" class="placement-base" pointer-events="none"/><path d="M${f(end.x - .2)} ${f(end.y - .2)}L${f(end.x + .2)} ${f(end.y + .2)}M${f(end.x + .2)} ${f(end.y - .2)}L${f(end.x - .2)} ${f(end.y + .2)}" class="placement-cross" pointer-events="none"/>`);
     }
     s.push(`<text x="${f(end.x)}" y="${f(end.y - ui.path.r - 0.25)}" class="pathlen ${ui.path.placement ? 'placement-label' : ''}" pointer-events="none">${ui.path.placement ? (getLang() === 'zh' ? '底盤放不下' : 'Base does not fit') : `${Math.ceil(ui.path.len - 1e-6)}"${ui.path.climb ? (getLang() === 'zh' ? `（含攀爬 ${ui.path.climb}"）` : ` (incl. ${ui.path.climb}" climb)`) : ''}`}</text>`);
@@ -298,8 +299,8 @@ export function renderBoard(g, ui) {
   for (const o of g.ops) {
     if (o.dead || o.x < -50) continue;
     const r = radius(o), right = o.x + r + .65;
-    const x = right + .43 <= BOARD.w ? right : o.x - r - .65;
-    const y = Math.max(.4, Math.min(BOARD.h - (o.counteracted ? 1.35 : .45), o.y));
+    const x = right + .43 <= boardOf(g).w ? right : o.x - r - .65;
+    const y = Math.max(.4, Math.min(boardOf(g).h - (o.counteracted ? 1.35 : .45), o.y));
     s.push(`<g class="operative-tokens" data-token-for="${o.uid}" transform="translate(${f(Math.max(.45, x))} ${f(y)})">${operativeTokens(o)}</g>`);
   }
   // Name tags: who is activating, and in an attack who attacks and who is the target.
@@ -316,7 +317,7 @@ export function renderBoard(g, ui) {
     const r = radius(o), text = `${label}：${shortName(o)}`;
     const w = [...text].reduce((n, c) => n + (c.charCodeAt(0) > 255 ? 0.5 : 0.27), 0.5);
     const below = o.y < 1.8, y = below ? o.y + r + 0.55 : o.y - r - 0.75;
-    const x = Math.min(BOARD.w - w / 2, Math.max(w / 2, o.x));
+    const x = Math.min(boardOf(g).w - w / 2, Math.max(w / 2, o.x));
     s.push(`<g class="optag ${cls}" pointer-events="none"><rect x="${f(x - w / 2)}" y="${f(y - 0.3)}" width="${f(w)}" height="0.62" rx="0.14"/>
       <text x="${f(x)}" y="${f(y + 0.14)}">${text}</text></g>`);
   }

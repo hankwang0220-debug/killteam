@@ -103,3 +103,9 @@ Run `node tests/eldar.mjs` to verify loadouts, pain tokens, free actions, pistol
 Shooting geometry follows the explanations at [Can I Shoot It?](https://canishoot.it/rules/shooting/shoot): visibility is distinct from intervening base lines, cover uses intervening parts within 1 inch of the target, and obscuring uses Heavy parts more than 1 inch from both bases. Independent terrain benefits stack; the same feature offers a defensive choice. Run `node tests/sight.mjs` for these scenarios, including Seek versus Saturate.
 
 This remains a flat-board approximation: model centres/silhouettes stand in for head visibility, heavy rectangles are opaque walls unless `blocksSight:false`, and shooter-base origins/target arcs are sampled. It does not simulate model heights, vantage or floors. The automatic defender choice remains a simulator convenience.
+
+## Tombworld（墓穴世界）地圖
+
+首頁地圖按鈕及 `#tombworld` 可開啟 Approved Ops 2025 的 01–06 六張排列。對戰設定可選 28″ × 24″ 墓穴世界地圖（4″ 網格），含部署區、三個目標點及兩個 1AP 傳送台；棋盤尺寸亦保存於回放。這是圖卡排列的平面近似，牆段端點按棋盤調整，實體組裝請參考地形實測卡。艙門預設開啟、B2 有洞口、A1 保持完整；艙門切換與破牆仍只在組件預覽中提供。傳送要求整個底座位於台內、未交戰，並自動選擇另一端的合法空位。詳見 [地形與模擬器條件](docs/tombworld.md)。
+
+驗證：`node tests/tombworld.mjs`、`node tests/tombworld-maps.mjs`。

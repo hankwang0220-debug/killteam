@@ -2,7 +2,7 @@
 // Maps are rebuilt in 2D from the official mission-pack maps (1 grid square = 1"): walls of
 // strongholds and ruins are Heavy terrain, rubble is Heavy or Light, upper floors are left out.
 import {
-  BOARD, CONTROL, NPO, OBJ_R, addVP, aplNow, applyDamage, contests, controller, d6, deployZones, edgeDist, getOp, isEngaged, missionEngaged, living, log, opName, radius,
+  boardOf, CONTROL, NPO, OBJ_R, addVP, aplNow, applyDamage, contests, controller, d6, deployZones, edgeDist, getOp, isEngaged, missionEngaged, living, log, opName, radius,
   spawnNpo, team, territoryOf, tpl, visibility,
 } from './game.js';
 import { dist, distPointRect } from './geometry.js';
@@ -25,7 +25,7 @@ function nearestFree(g, op, p) {
   for (let ring = 0; ring <= 6; ring += 0.5) {
     for (let a = 0; a < 16; a++) {
       const q = { x: p.x + Math.cos(a * Math.PI / 8) * ring, y: p.y + Math.sin(a * Math.PI / 8) * ring };
-      if (q.x < r || q.y < r || q.x > BOARD.w - r || q.y > BOARD.h - r) continue;
+      if (q.x < r || q.y < r || q.x > boardOf(g).w - r || q.y > boardOf(g).h - r) continue;
       if (!ctx.free(q)) continue;
       if (g.ops.some((o) => o !== op && !o.dead && dist(o, q) < radius(o) + r + 0.05)) continue;
       return q;
@@ -234,7 +234,7 @@ const negotiation = {
       g.npoState.reserve = [];
       const op = spawnNpo(g, 'archivist');
       const left = Math.random() < 0.5, r = radius(op);
-      const p = nearestFree(g, op, { x: left ? r : BOARD.w - r, y: BOARD.h / 2 });
+      const p = nearestFree(g, op, { x: left ? r : boardOf(g).w - r, y: boardOf(g).h / 2 });
       if (!p) { g.ops.splice(g.ops.indexOf(op), 1); g.npoState.reserve = ['archivist']; return; }
       op.x = p.x; op.y = p.y;
       log(g, { zh: `${opName(op, 'zh')} 從${left ? '左' : '右'}側邊緣出現`, en: `${opName(op, 'en')} arrives at the ${left ? 'left' : 'right'} edge` }, 'npo');
@@ -286,7 +286,31 @@ const negotiation = {
 
 // ---------- mission actions ----------
 // cond(g, op) -> null if allowed, else a reason; apply(g, op) performs it.
+export function tombWorldTeleportDestination(g, op) {
+  if (missionEngaged(g, op) || !g.pads?.length) return null;
+  const from = g.pads.find(p => dist(op, p) + radius(op) <= p.diameter / 2 + .001);
+  if (!from) return null;
+  const ctx = moveCtx(g, op);
+  for (const to of g.pads.filter(p => p !== from)) {
+    for (let ring = 0; ring <= to.diameter / 2 - radius(op); ring += .15) {
+      for (let i = 0; i < 16; i++) {
+        const p = { x: to.x + Math.cos(i * Math.PI / 8) * ring, y: to.y + Math.sin(i * Math.PI / 8) * ring };
+        if (ctx.free(p) && !ctx.inEnemyER(p)) return p;
+      }
+    }
+  }
+  return null;
+}
+
 export const MISSION_ACTIONS = {
+  twTeleport: {
+    ap: 1, name: { zh: '傳送台：傳送', en: 'Teleport pad: Teleport' },
+    cond: (g, op) => tombWorldTeleportDestination(g, op) ? null : { zh: '需整個底座在傳送台內、未交戰，且另一端有合法落點', en: 'Requires the whole base on a pad, not engaged, and a clear destination pad' },
+    apply(g, op) {
+      const p = tombWorldTeleportDestination(g, op);
+      if (p) { op.x = p.x; op.y = p.y; return { zh: '花費 1AP 傳送到另一個傳送台', en: 'teleports to the other pad for 1AP' }; }
+    },
+  },
   // ----- Crit Ops (Approved Ops 2025) -----
   secure: {
     ap: 1, name: { zh: '確保', en: 'Secure' },
@@ -841,7 +865,7 @@ export const scoutTargets = (g, op) => living(g, 1 - op.side).filter((e) => e.re
 const markerWholly = (g, m, side) => { const along = g.axis === 'y' ? 'y' : 'x'; return [-OBJ_R, OBJ_R].every((d) => territoryOf(g, { ...m, [along]: m[along] + d }) === side); };
 /** Plant Banner: a marker at op's spot would be wholly in the opponent's territory and more than 5" from both neutral edges. */
 function bannerOk(g, side, op) {
-  const across = g.axis === 'y' ? 'x' : 'y', size = across === 'y' ? BOARD.h : BOARD.w;
+  const across = g.axis === 'y' ? 'x' : 'y', size = across === 'y' ? boardOf(g).h : boardOf(g).w;
   return markerWholly(g, op, 1 - side) && op[across] - OBJ_R > 5 && size - op[across] - OBJ_R > 5;
 }
 /** "Valid target" for tracking: visible, and not a Concealed operative in cover. */
@@ -852,7 +876,7 @@ const tracked = (g, s, e) => living(g, s).some((f) => f.order === 'conceal' && e
 const intelCarried = (g, s) => (g.markers || []).filter((m) => m.kind === 'intel' && m.owner === s && m.carriedBy && getOp(g, m.carriedBy)?.side === s && !getOp(g, m.carriedBy).dead).length;
 /** Flank: [left, right] — controlled by this side? An operative contests a flank while wholly within it and wholly in the opponent's territory. */
 export function flanksHeld(g, s) {
-  const across = g.axis === 'y' ? 'x' : 'y', mid = across === 'y' ? BOARD.h / 2 : BOARD.w / 2;
+  const across = g.axis === 'y' ? 'x' : 'y', mid = across === 'y' ? boardOf(g).h / 2 : boardOf(g).w / 2;
   const inFlank = (o, f) => { const r = radius(o); return f === 0 ? o[across] + r <= mid : o[across] - r >= mid; };
   return [0, 1].map((f) => {
     const sum = (side) => living(g, side).filter((o) => inFlank(o, f) && wholly(g, o, 1 - side)).reduce((a, o) => a + (tpl(o).control ?? aplNow(g, o)), 0);
@@ -885,7 +909,7 @@ export function tacOnStrategyEnd(g, side) {
   if (t?.id === 'flank' && g.tp >= 2) reveal(g, side);
   if (t?.id === 'envoy' && g.tp >= 2 && t.envoy?.tp !== g.tp) {
     // Already wholly in enemy territory first (unless next to an enemy), then whoever is closest to the centreline.
-    const along = g.axis === 'y' ? 'y' : 'x', mid = along === 'y' ? BOARD.h / 2 : BOARD.w / 2;
+    const along = g.axis === 'y' ? 'y' : 'x', mid = along === 'y' ? boardOf(g).h / 2 : boardOf(g).w / 2;
     const deep = (o) => (wholly(g, o, 1 - side) && !living(g, 1 - side).some((x) => edgeDist(x, o) <= CONTROL + 0.01) ? 100 : 0) - Math.abs(o[along] - mid);
     const pick = envoyChoices(g, side).sort((a, b) => deep(b) - deep(a))[0];
     if (pick) setEnvoy(g, side, pick);

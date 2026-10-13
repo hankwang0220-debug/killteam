@@ -1,7 +1,7 @@
 // Scout Squad (偵察小隊) rules engine: Forward Scouting, Guidance and Experience, Track Enemy, Grapnel Assault, the ploys
 // and the faction equipment. game.js calls these hooks; the team data is in data/scouts.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { ACTIONS, TARGET_ACTIONS, BOARD, CONTROL, OBJ_R, applyDamage, changeApl, d3, d6, deployZones, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, moveAllowance, opName, placeAuto, radius, team, tpl, visibility } from './game.js';
+import { ACTIONS, TARGET_ACTIONS, boardOf, CONTROL, OBJ_R, applyDamage, changeApl, d3, d6, deployZones, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, moveAllowance, opName, placeAuto, radius, team, tpl, visibility } from './game.js';
 import { dist, distPointRect, pathLength, truncatePath } from './geometry.js';
 import { moveCtx, wholeInchPath } from './path.js';
 import { revealTacOp } from './missions.js';
@@ -71,11 +71,11 @@ function reposition(g, side) {
   const heavy = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
   let best = null;
   for (const o of living(g, side).filter((x) => wholly(x, radius(x), 0))) {
-    const goal = [...(g.objectives || [])].sort((a, b) => dist(o, a) - dist(o, b))[0] || { x: BOARD.w / 2, y: BOARD.h / 2 };
+    const goal = [...(g.objectives || [])].sort((a, b) => dist(o, a) - dist(o, b))[0] || { x: boardOf(g).w / 2, y: boardOf(g).h / 2 };
     const ctx = moveCtx(g, o, 'reposition'), max = moveAllowance(g, o, 'reposition');
     for (const f of [1, 0.75, 0.5]) for (let a = 0; a < 16; a++) {
       const p = { x: o.x + Math.cos(a * Math.PI / 8) * max * f, y: o.y + Math.sin(a * Math.PI / 8) * max * f };
-      if (!wholly(p, radius(o), lim) || p.x < radius(o) || p.y < radius(o) || p.x > BOARD.w - radius(o) || p.y > BOARD.h - radius(o)) continue;
+      if (!wholly(p, radius(o), lim) || p.x < radius(o) || p.y < radius(o) || p.x > boardOf(g).w - radius(o) || p.y > boardOf(g).h - radius(o)) continue;
       if (!ctx.free(p) || ctx.inEnemyER(p) || !ctx.segFree(o, p) || ctx.climbs?.([o, p])) continue;
       const path = wholeInchPath(ctx, { pts: [{ x: o.x, y: o.y }, p] }, max, (q) => !ctx.inEnemyER(q));
       if (!path) continue;
@@ -94,7 +94,7 @@ function placeMarker(g, side, kind) {
   const others = [...(g.markers || []), ...(g.objectives || [])];
   const taken = (g.markers || []).filter((m) => m.kind === kind && m.owner === side);
   let best = null;
-  for (let x = 1; x <= BOARD.w - 1; x += 1) for (let y = 1; y <= BOARD.h - 1; y += 1) {
+  for (let x = 1; x <= boardOf(g).w - 1; x += 1) for (let y = 1; y <= boardOf(g).h - 1; y += 1) {
     const p = { x, y };
     if (distPointRect(p, ez) <= 6.01 || g.terrain.some((t) => distPointRect(p, t) < 0.5)) continue;
     const nearest = Math.min(...others.map((m) => dist(m, p)), 99);
@@ -106,7 +106,7 @@ function placeMarker(g, side, kind) {
       const d = Math.min(...objs.map((o) => Math.abs(dist(o, p) - 1.5)), 99);
       score = -d * 3 - distPointRect(p, ez) * 0.05;
       if (nearest < 1) continue;
-    } else score = -distPointRect(p, ez) - 0.15 * Math.abs(p.y - BOARD.h / 2); // the most forward spot on the middle lane
+    } else score = -distPointRect(p, ez) - 0.15 * Math.abs(p.y - boardOf(g).h / 2); // the most forward spot on the middle lane
     if (!best || score > best.score) best = { p, score };
   }
   if (!best) { note(g, side, `${team(g, side).name.zh} 找不到放${kind === 'tripAlarm' ? '警報' : '陷阱'}的位置`, `${team(g, side).name.en} found no place for the ${kind === 'tripAlarm' ? 'Trip Alarm' : 'Booby Trap'}`); return; }
@@ -240,7 +240,7 @@ export function scPloyBought(g, side, ploy) {
 }
 /** A free Dash (up to 3") towards the nearest objective marker, preferring a spot beside terrain. */
 function stealthDash(g, o) {
-  const ctx = moveCtx(g, o, 'dash'), goal = [...(g.objectives || [])].sort((a, b) => dist(o, a) - dist(o, b))[0] || { x: BOARD.w / 2, y: BOARD.h / 2 };
+  const ctx = moveCtx(g, o, 'dash'), goal = [...(g.objectives || [])].sort((a, b) => dist(o, a) - dist(o, b))[0] || { x: boardOf(g).w / 2, y: boardOf(g).h / 2 };
   const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
   let best = null;
   for (const r of [3, 2, 1]) for (let a = 0; a < 16; a++) {
@@ -260,8 +260,8 @@ function stealthDash(g, o) {
 
 // ---------- strategic gambits: Tactical Manoeuvre and Diversion ----------
 export const scGambitsLeft = (g, side, k) => (g.scGambit?.[side]?.[k] || 0) > 0 && g.scGambit[side].usedTP?.[k] !== g.tp;
-const nearEdge = (o) => Math.min(o.x, o.y, BOARD.w - o.x, BOARD.h - o.y) - radius(o) <= 6;
-export const scDiversionTargets = (g, side) => living(g, 1 - side).filter((o) => o.side < 2 && nearEdge(o));
+const nearEdge = (g, o) => Math.min(o.x, o.y, boardOf(g).w - o.x, boardOf(g).h - o.y) - radius(o) <= 6;
+export const scDiversionTargets = (g, side) => living(g, 1 - side).filter((o) => o.side < 2 && nearEdge(g, o));
 export function scTactical(g, side, uid) {
   const o = getOp(g, uid);
   if (!scGambitsLeft(g, side, 'tactical') || !o || o.dead || o.side !== side || g.phase !== 'strategy') return false;
@@ -272,7 +272,7 @@ export function scTactical(g, side, uid) {
 }
 export function scDiversion(g, side, uid) {
   const o = getOp(g, uid);
-  if (!scGambitsLeft(g, side, 'diversion') || !o || o.dead || o.side !== 1 - side || !nearEdge(o) || g.phase !== 'strategy') return false;
+  if (!scGambitsLeft(g, side, 'diversion') || !o || o.dead || o.side !== 1 - side || !nearEdge(g, o) || g.phase !== 'strategy') return false;
   g.scGambit[side].diversion--; g.scGambit[side].usedTP.diversion = g.tp;
   changeApl(g, o, -1);
   note(g, side, `誘餌：${opName(o, 'zh')} 到下次啟動結束 APL -1`, `Diversion: ${opName(o, 'en')} gets -1 APL until the end of its next activation`);

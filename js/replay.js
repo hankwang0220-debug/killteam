@@ -20,7 +20,7 @@ function ensureReplay(g) {
   if (!g.replay) {
     g.replay = {
       base: {
-        teams: g.teams, ai: g.ai, terrain: JSON.parse(JSON.stringify(g.terrain)), objectives: g.objectives, mission: g.mission, deploy: g.deploy,
+        board: g.board, map: g.map, pads: g.pads, axis: g.axis, teams: g.teams, ai: g.ai, terrain: JSON.parse(JSON.stringify(g.terrain)), objectives: g.objectives, mission: g.mission, deploy: g.deploy,
         ops: g.ops.map(baseOp),
       },
       snaps: [],
@@ -83,7 +83,7 @@ export function rewindRecorder(g, snaps, seq) {
 export function viewAt(rep, i) {
   const s = rep.snaps[i], b = rep.base;
   return {
-    teams: b.teams, ai: b.ai, terrain: s.terrain || b.terrain, objectives: b.objectives, mission: b.mission, deploy: b.deploy,
+    board: b.board, map: b.map, pads: b.pads, axis: b.axis, teams: b.teams, ai: b.ai, terrain: s.terrain || b.terrain, objectives: b.objectives, mission: b.mission, deploy: b.deploy,
     tp: s.tp, phase: s.phase, turn: s.turn, active: s.active, initiative: s.initiative, counter: s.counter,
     cp: s.cp, vp: s.vp, kills: s.kills, ploys: s.ploys || [[], [], []], log: [], fight: s.fight || null,
     winner: null,

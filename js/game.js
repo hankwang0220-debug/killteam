@@ -1,3 +1,4 @@
+import { TOMB_WORLD_MAPS, tombWorldTerrain } from './tombworld-maps.js';
 import { DEATHWATCH_EQUIPMENT } from './data/deathwatch.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT } from './data/murderwing.js';
@@ -23,6 +24,7 @@ import { flatSight } from './sight.js';
 import { moveCtx, findPath, wholeInchPath } from './path.js'; // (Exodite Sprint, Goremonger Hunt for Blood; path.js imports this module too — only used at run time)
 
 export const BOARD = { w: 30, h: 22 };
+export const boardOf = (g) => g.board || BOARD;
 export const ER = 1;          // engagement range (inches, base edge to base edge)
 export const CONTROL = 1;     // objective control range
 export const OBJ_R = 0.4;     // objective marker radius
@@ -168,16 +170,18 @@ function makeTerrain() {
 const OBJECTIVES = [{ x: 15, y: 11 }, { x: 10, y: 4.5 }, { x: 20, y: 4.5 }, { x: 10, y: 17.5 }, { x: 20, y: 17.5 }];
 
 // ---------- setup ----------
-export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', tacOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [] }) {
+export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [] }) {
   const m = MISSIONS[missionId] || MISSIONS.standard;
+  const map = m.terrain ? null : TOMB_WORLD_MAPS.find((v) => v.id === mapId);
   const g = {
     // Index 2 (NPO) of the per-side arrays is for mission NPOs.
     v: 1, teams: [...teams, 'npo'], ai, tp: 0, phase: 'deploy', cp: [2, 2, 0], vp: [0, 0, 0], kills: [0, 0, 0], ploys: [[], [], []],
     initiative: 0, turn: 0, active: null, log: [], mission: m.id,
-    terrain: (m.terrain || makeTerrain()).map((t) => ({ ...t })),
-    objectives: (m.objectives || OBJECTIVES).map((o, i) => ({ ...o, id: i })),
+    map: map?.id || 'default', board: map ? { ...map.board } : { ...BOARD }, pads: map ? map.pads.map((p) => ({ ...p })) : [],
+    terrain: (map ? tombWorldTerrain(map) : m.terrain || makeTerrain()).map((t) => ({ ...t })),
+    objectives: (map?.objectives || m.objectives || OBJECTIVES).map((o, i) => ({ ...o, id: i })),
     markers: [], // mission markers that can be carried: {id, kind, x, y, carriedBy}
-    deploy: m.deploy || null, axis: m.axis || 'x', ops: [], seq: 0,
+    deploy: map?.deploy.map((z) => ({ ...z })) || m.deploy || null, axis: map?.axis || m.axis || 'x', ops: [], seq: 0,
     // Chapter Tactics [primary, secondary] for teams that have them; free ploys already used (Doctrine Warfare).
     tactics: [0, 1].map((s) => (TEAM_MAP[teams[s]].tactics ? tactics[s] || TEAM_MAP[teams[s]].defaultTactics : null)),
     freePloys: [[], [], []],
@@ -381,7 +385,7 @@ export function tacOpsFor(teamId) {
 }
 const randomTacOp = (teamId) => { const ids = tacOpsFor(teamId); return ids[Math.floor(Math.random() * ids.length)]; };
 /** Mission actions this side can perform: the mission's, plus its Tac Op's (Clear, Retrieve). */
-export const missionActionsFor = (g, side) => [...(mission(g).actions || []), ...(side < 2 ? TAC_OPS[g.tacOps?.[side]?.id]?.actions || [] : [])];
+export const missionActionsFor = (g, side) => [...(g.pads?.length ? ['twTeleport'] : []), ...(mission(g).actions || []), ...(side < 2 ? TAC_OPS[g.tacOps?.[side]?.id]?.actions || [] : [])];
 /** Is any operative of this side contesting the marker (within control range of it)? */
 export const contests = (g, side, m) => living(g, side).some((o) => inMarkerRange(o, m));
 /** Score VP from a mission source ('crit' / 'tac'), with a log line. */
@@ -483,7 +487,7 @@ export function placeAuto(g, side, ops) {
     for (let y = z.y0 + 0.8; y <= z.y1 - 0.8; y += 1.7) cands.push({ x, y });
   // Hidden spots first, then the front line (nearest the centre along the mission's axis), spread out from the middle.
   const along = g.axis === 'y' ? 'y' : 'x', across = along === 'x' ? 'y' : 'x';
-  const mid = { x: BOARD.w / 2, y: BOARD.h / 2 };
+  const mid = { x: boardOf(g).w / 2, y: boardOf(g).h / 2 };
   const front = (a) => Math.abs(a[along] - mid[along]);
   // Prefer spots where a Concealed operative can't be targeted from the enemy's drop zone (or from enemies
   // already set up): in cover or out of sight from as many viewpoints as possible.
@@ -724,7 +728,7 @@ function freePloyOp(g, side, ploy) {
 
 /** Which player's territory a point is in (its half of the killzone, along the mission's axis). */
 export function territoryOf(g, p) {
-  const zones = deployZones(g), along = g.axis === 'y' ? 'y' : 'x', mid = along === 'x' ? BOARD.w / 2 : BOARD.h / 2;
+  const zones = deployZones(g), along = g.axis === 'y' ? 'y' : 'x', mid = along === 'x' ? boardOf(g).w / 2 : boardOf(g).h / 2;
   const side0Low = zones[0][along + '0'] < mid;
   return (p[along] < mid) === side0Low ? 0 : 1;
 }
@@ -778,7 +782,7 @@ export function buyPloy(g, side, ploy) {
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
   if (ploy.id === 'gloryKill') setGloryKill(g, side, living(g, 1 - side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]);
   // Attack / Defence Order: the marker starts by the friendly operative nearest the centre of the killzone.
-  if (ploy.marker) placeNavyOrder(g, side, living(g, side).sort((a, b) => dist(a, { x: BOARD.w / 2, y: BOARD.h / 2 }) - dist(b, { x: BOARD.w / 2, y: BOARD.h / 2 }))[0]);
+  if (ploy.marker) placeNavyOrder(g, side, living(g, side).sort((a, b) => dist(a, { x: boardOf(g).w / 2, y: boardOf(g).h / 2 }) - dist(b, { x: boardOf(g).w / 2, y: boardOf(g).h / 2 }))[0]);
   const free = cost === 0 && ploy.cp > 0 ? freePloyOp(g, side, ploy) : null;
   if (free) (g.freePloys[side] ||= []).push(ploy.id);
   const note = free ? { zh: `（${opName(free, 'zh')} 教條戰：0CP）`, en: ` (${opName(free, 'en')} Doctrine Warfare: 0CP)` } : { zh: '', en: '' };
@@ -3086,7 +3090,7 @@ function reanimSpot(g, op, m) {
   for (const d of [0, 0.8, 1.6, 2.4, 3]) {
     for (let i = 0; i < (d ? 12 : 1); i++) {
       const p = { x: m.x + Math.cos(i * Math.PI / 6) * d, y: m.y + Math.sin(i * Math.PI / 6) * d };
-      if (p.x - r < 0 || p.y - r < 0 || p.x + r > BOARD.w || p.y + r > BOARD.h) continue;
+      if (p.x - r < 0 || p.y - r < 0 || p.x + r > boardOf(g).w || p.y + r > boardOf(g).h) continue;
       if (g.terrain.some((t) => distPointRect(p, t) < r)) continue;
       if (g.ops.some((o) => o !== op && !o.dead && o.x > -50 && dist(o, p) < radius(o) + r + 0.05)) continue;
       if (foes(g, op).some((e) => dist(e, p) - radius(e) - r <= CONTROL)) continue;
@@ -3325,7 +3329,7 @@ export function doTurn(g, op, p) {
 }
 /** Draconic Cavalry Tactics: a rider in reserve enters touching your killzone edge (treated as a Turn: 1AP). */
 export function entryPoint(g, op, p) {
-  const along = g.axis === 'y' ? 'y' : 'x', perp = along === 'x' ? 'y' : 'x', size = { x: BOARD.w, y: BOARD.h }, r = radius(op);
+  const along = g.axis === 'y' ? 'y' : 'x', perp = along === 'x' ? 'y' : 'x', size = { x: boardOf(g).w, y: boardOf(g).h }, r = radius(op);
   const low = territoryOf(g, { [along]: 1, [perp]: size[perp] / 2 }) === op.side;
   return { [along]: low ? r + 0.01 : size[along] - r - 0.01, [perp]: Math.max(r, Math.min(size[perp] - r, p[perp])) };
 }
@@ -3476,9 +3480,9 @@ export function useResource(g, op, id) {
 function setupMinefield(g, side) {
   if (!isHYTeam(g, side) || !g.ops.some((o) => o.side === side && tpl(o).minefield)) return;
   const opp = deployZones(g)[1 - side];
-  const zoneDist = (p, z) => Math.hypot(Math.max(0, z.x0 - p.x, p.x - z.x1), Math.max(0, (z.y0 ?? 0) - p.y, p.y - (z.y1 ?? BOARD.h)));
+  const zoneDist = (p, z) => Math.hypot(Math.max(0, z.x0 - p.x, p.x - z.x1), Math.max(0, (z.y0 ?? 0) - p.y, p.y - (z.y1 ?? boardOf(g).h)));
   const cands = [];
-  for (let x = 1.5; x <= BOARD.w - 1.5; x += 1) for (let y = 1.5; y <= BOARD.h - 1.5; y += 1) {
+  for (let x = 1.5; x <= boardOf(g).w - 1.5; x += 1) for (let y = 1.5; y <= boardOf(g).h - 1.5; y += 1) {
     const p = { x, y }, dz = zoneDist(p, opp);
     if (dz <= 6.2 || g.terrain.some((t) => distPointRect(p, t) < 0.6)) continue;
     cands.push({ p, s: -Math.abs(dz - 8) * 0.6 - Math.min(...(g.objectives || []).map((o) => dist(o, p))) * 0.3 + Math.random() * 1.5 });
@@ -3511,7 +3515,7 @@ function dauntlessExplorers(g, side) {
   if (!isHYTeam(g, side) || g.tp !== 1 || g.dauntless?.[side]) return;
   (g.dauntless ||= [false, false])[side] = true;
   const z = deployZones(g)[side];
-  const zd = (p, r) => Math.hypot(Math.max(0, z.x0 - (p.x - r), (p.x + r) - z.x1), Math.max(0, (z.y0 ?? 0) - (p.y - r), (p.y + r) - (z.y1 ?? BOARD.h)));
+  const zd = (p, r) => Math.hypot(Math.max(0, z.x0 - (p.x - r), (p.x + r) - z.x1), Math.max(0, (z.y0 ?? 0) - (p.y - r), (p.y + r) - (z.y1 ?? boardOf(g).h)));
   let n = 0;
   for (const op of living(g, side).filter((o) => isHY(o) && zd(o, radius(o)) <= 0.01)) {
     const ctx = moveCtx(g, op), r = radius(op), max = moveStat(g, op);
@@ -3915,7 +3919,7 @@ function placeNodes(g, side) {
   const mine = living(g, side);
   if (!mine.length) return;
   const along = g.axis === 'y' ? 'y' : 'x', perp = along === 'x' ? 'y' : 'x';
-  const size = { x: BOARD.w, y: BOARD.h }, mid = size[along] / 2;
+  const size = { x: boardOf(g).w, y: boardOf(g).h }, mid = size[along] / 2;
   const low = territoryOf(g, { [along]: 1, [perp]: size[perp] / 2 }) === side; // our territory is the low half
   const c = { x: mine.reduce((s, o) => s + o.x, 0) / mine.length, y: mine.reduce((s, o) => s + o.y, 0) / mine.length };
   const clampPerp = (v) => Math.max(1, Math.min(size[perp] - 1, v));
@@ -3935,7 +3939,7 @@ function placeNodes(g, side) {
   const d = dist(goal, nc), step = Math.min(3, Math.max(0, d - 1));
   if (step < 0.5) return;
   const vx = (goal.x - nc.x) / d * step, vy = (goal.y - nc.y) / d * step;
-  for (const n of nodes) { n.x = Math.max(0.5, Math.min(BOARD.w - 0.5, n.x + vx)); n.y = Math.max(0.5, Math.min(BOARD.h - 0.5, n.y + vy)); }
+  for (const n of nodes) { n.x = Math.max(0.5, Math.min(boardOf(g).w - 0.5, n.x + vx)); n.y = Math.max(0.5, Math.min(boardOf(g).h - 0.5, n.y + vy)); }
   log(g, { zh: `${teamZh(g, side)} 方尖碑節點移動 ${step.toFixed(1)}"`, en: `${team(g, side).name.en} moves its obelisk nodes ${step.toFixed(1)}"` }, `side${side}`);
 }
 /** Geomantic Disturbance: the point of terrain nearest this enemy, if within 2" of it and within 8" of the Geomancer. */
@@ -4142,7 +4146,7 @@ export function seekerOptions(g, op) {
 
 function seekerZoneGap(g, op, p) {
   const z=deployZones(g)[op.side],r=radius(op);
-  return distPointRect(p,{x:z.x0+r,y:(z.y0??0)+r,w:Math.max(0,z.x1-z.x0-2*r),h:Math.max(0,(z.y1??BOARD.h)-(z.y0??0)-2*r)});
+  return distPointRect(p,{x:z.x0+r,y:(z.y0??0)+r,w:Math.max(0,z.x1-z.x0-2*r),h:Math.max(0,(z.y1??boardOf(g).h)-(z.y0??0)-2*r)});
 }
 
 export function seekerMoveCheck(g, op, action, path) {
@@ -4155,8 +4159,8 @@ export function seekerMoveCheck(g, op, action, path) {
   if (markers.some(m=>dist(end,m)-radius(op)-OBJ_R <= CONTROL+.01) || seekerZoneGap(g,op,end)<.01) return true;
   // If the drop zone cannot be reached this move, find the closest legal reachable position.
   let best=seekerZoneGap(g,op,op);
-  for(let x=Math.max(radius(op),op.x-max);x<=Math.min(BOARD.w-radius(op),op.x+max);x+=.5)
-    for(let y=Math.max(radius(op),op.y-max);y<=Math.min(BOARD.h-radius(op),op.y+max);y+=.5){
+  for(let x=Math.max(radius(op),op.x-max);x<=Math.min(boardOf(g).w-radius(op),op.x+max);x+=.5)
+    for(let y=Math.max(radius(op),op.y-max);y<=Math.min(boardOf(g).h-radius(op),op.y+max);y+=.5){
       const p={x,y},gap=seekerZoneGap(g,op,p);
       if(gap>=best || !ctx.free(p) || ctx.inEnemyER(p))continue;
       const route=findPath(ctx,p),candidate=route&&wholeInchPath(ctx,route,max,q=>!ctx.inEnemyER(q));
@@ -4338,16 +4342,16 @@ export function weaponsFor(g, op) {
 /** A point in a side's territory: d inches from its own killzone edge, at fraction c across the board. */
 export function ownPoint(g, side, d, c) {
   const z = deployZones(g)[side];
-  if (g.axis === 'y') { const fromLow = z.y0 === 0; return { x: c * BOARD.w, y: fromLow ? d : BOARD.h - d }; }
+  if (g.axis === 'y') { const fromLow = z.y0 === 0; return { x: c * boardOf(g).w, y: fromLow ? d : boardOf(g).h - d }; }
   const fromLow = z.x0 === 0;
-  return { x: fromLow ? d : BOARD.w - d, y: c * BOARD.h };
+  return { x: fromLow ? d : boardOf(g).w - d, y: c * boardOf(g).h };
 }
 /** The nearest spot to p clear of terrain (by r) and other markers (by 2"). */
 export function clearSpot(g, p, r = 0.5) {
   for (let ring = 0; ring <= 5; ring += 0.5) {
     for (let a = 0; a < 16; a++) {
       const q = { x: p.x + Math.cos(a * Math.PI / 8) * ring, y: p.y + Math.sin(a * Math.PI / 8) * ring };
-      if (q.x < r || q.y < r || q.x > BOARD.w - r || q.y > BOARD.h - r) continue;
+      if (q.x < r || q.y < r || q.x > boardOf(g).w - r || q.y > boardOf(g).h - r) continue;
       if (g.terrain.some((t) => distPointRect(q, t) < r + 0.3)) continue;
       if ([...g.objectives, ...g.markers].some((m) => dist(m, q) < 2)) continue;
       return q;
@@ -4363,10 +4367,10 @@ export function equipmentPlacement(g, p, rotated = false) {
   if (entry.type === 'terrain') {
     const w = rotated ? source.h : source.w, h = rotated ? source.w : source.h;
     const t = { ...source, x: p.x - w / 2, y: p.y - h / 2, w, h };
-    if (t.x < 0 || t.y < 0 || t.x + w > BOARD.w || t.y + h > BOARD.h) return null;
+    if (t.x < 0 || t.y < 0 || t.x + w > boardOf(g).w || t.y + h > boardOf(g).h) return null;
     const corners = [{ x:t.x,y:t.y }, { x:t.x+w,y:t.y }, { x:t.x,y:t.y+h }, { x:t.x+w,y:t.y+h }];
     const z = deployZones(g)[side];
-    if (t.kind === 'heavy' ? corners.some(c => distPointRect(c, {x:z.x0,y:z.y0 ?? 0,w:z.x1-z.x0,h:(z.y1 ?? BOARD.h)-(z.y0 ?? 0)}) > 4)
+    if (t.kind === 'heavy' ? corners.some(c => distPointRect(c, {x:z.x0,y:z.y0 ?? 0,w:z.x1-z.x0,h:(z.y1 ?? boardOf(g).h)-(z.y0 ?? 0)}) > 4)
       : corners.some(c => territoryOf(g,c) !== side)) return null;
     const gap = (a,b) => Math.hypot(Math.max(0,a.x-b.x-b.w,b.x-a.x-a.w),Math.max(0,a.y-b.y-b.h,b.y-a.y-a.h));
     if (g.terrain.some(o => gap(t,o) <= (o.equip != null ? 2 : 0))) return null;
@@ -4374,7 +4378,7 @@ export function equipmentPlacement(g, p, rotated = false) {
     if ([...g.objectives,...g.markers].some(m => distPointRect(m,t) < .4)) return null;
     return { type:'terrain', item:t };
   }
-  if (p.x < .4 || p.y < .4 || p.x > BOARD.w-.4 || p.y > BOARD.h-.4 || territoryOf(g,p) !== side) return null;
+  if (p.x < .4 || p.y < .4 || p.x > boardOf(g).w-.4 || p.y > boardOf(g).h-.4 || territoryOf(g,p) !== side) return null;
   if (g.terrain.some(t => distPointRect(p,t) < .4) || [...g.objectives,...g.markers].some(m => (source.kind === 'tripwire' ? dist(p,m) <= 2 : dist(p,m) < .8))) return null; // (Tripwire: more than 2" from other markers)
   if (source.kind === 'tripwire' && (g.accessPoints || []).some(a => dist(a,p) <= 2)) return null;
   return { type:'marker', item:{ ...source, x:p.x,y:p.y,id:g.markers.reduce((max,m)=>Math.max(max,typeof m.id === 'number' ? m.id : -1),-1)+1 } };
@@ -4398,7 +4402,7 @@ export function autoPlaceEquipment(g) {
   if (!entry) return false;
   const p = entry.type === 'terrain' ? {x:entry.item.x+entry.item.w/2,y:entry.item.y+entry.item.h/2} : entry.item;
   if (placeEquipment(g,p)) return true;
-  for (let y=.5;y<BOARD.h;y+=.5) for(let x=.5;x<BOARD.w;x+=.5) for(const rotated of [false,true]) if(placeEquipment(g,{x,y},rotated)) return true;
+  for (let y=.5;y<boardOf(g).h;y+=.5) for(let x=.5;x<boardOf(g).w;x+=.5) for(const rotated of [false,true]) if(placeEquipment(g,{x,y},rotated)) return true;
   return false;
 }
 
@@ -4411,15 +4415,15 @@ function setupEquipment(g, side, ids) {
   // within 4" of your drop zone. All of them more than 2" from other equipment terrain and from access points.
   const zone = deployZones(g)[side];
   const inHalf = (t) => [[t.x, t.y], [t.x + t.w, t.y], [t.x, t.y + t.h], [t.x + t.w, t.y + t.h]].every(([x, y]) => territoryOf(g, { x, y }) === side);
-  const near4 = (t) => t.x >= zone.x0 - 4 && t.x + t.w <= zone.x1 + 4 && t.y >= (zone.y0 ?? 0) - 4 && t.y + t.h <= (zone.y1 ?? BOARD.h) + 4;
+  const near4 = (t) => t.x >= zone.x0 - 4 && t.x + t.w <= zone.x1 + 4 && t.y >= (zone.y0 ?? 0) - 4 && t.y + t.h <= (zone.y1 ?? boardOf(g).h) + 4;
   const rectGap = (a, b) => Math.hypot(Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w)), Math.max(0, a.y - (b.y + b.h), b.y - (a.y + a.h)));
   const wall = (p, len, kind, area, thick = 0.5) => { // across the line of advance, moved until every rule is met
-    const across = along === 'x' ? 'y' : 'x', dir = ownPoint(g, side, 1, 0.5)[along] < BOARD[along === 'x' ? 'w' : 'h'] / 2 ? -1 : 1;
+    const across = along === 'x' ? 'y' : 'x', dir = ownPoint(g, side, 1, 0.5)[along] < boardOf(g)[along === 'x' ? 'w' : 'h'] / 2 ? -1 : 1;
     for (const back of [0, 1, 2, 0.5, 1.5, -1, 3, -2, 4]) {
       for (const shift of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6]) {
         const q = { ...p, [along]: p[along] + back * dir, [across]: p[across] + shift };
         const t = along === 'x' ? { kind, x: q.x - thick / 2, y: q.y - len / 2, w: thick, h: len } : { kind, x: q.x - len / 2, y: q.y - thick / 2, w: len, h: thick };
-        if (t.x < 0 || t.y < 0 || t.x + t.w > BOARD.w || t.y + t.h > BOARD.h || !area(t)) continue;
+        if (t.x < 0 || t.y < 0 || t.x + t.w > boardOf(g).w || t.y + t.h > boardOf(g).h || !area(t)) continue;
         if (g.terrain.some((o) => rectGap(t, o) < (o.equip != null ? 2.01 : 0.4))) continue; // 2" from other equipment terrain
         if ((g.accessPoints || []).some((a) => distPointRect(a, t) <= 2)) continue; // and from access points
         if ([...g.objectives, ...g.markers].some((m) => distPointRect(m, t) < 1.5)) continue;

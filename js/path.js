@@ -1,4 +1,4 @@
-import { BOARD, ER, radius, tpl, hasPloy, inMatrix } from './game.js';
+import { boardOf, ER, radius, tpl, hasPloy, inMatrix } from './game.js';
 import { dist, distPointRect, distPointSegment, distSegmentRect, pathLength, segRect, truncatePath } from './geometry.js';
 
 const RES = 0.25;
@@ -41,7 +41,7 @@ export function moveCtx(g, op, kind = 'reposition') {
   // A base can't end on Heavy or Light terrain, but a move can climb over it (see climbWalk).
   const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
   function free(p, blocks = cover) {
-    if (p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r) return false;
+    if (p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) return false;
     for (const t of blocks) if (distPointRect(p, t) < r - 1e-6) return false;
     for (const o of others) {
       const d = dist(p, o);
@@ -54,7 +54,7 @@ export function moveCtx(g, op, kind = 'reposition') {
   }
   // Explain endpoint clearance separately from whether a route can reach it.
   function placement(p) {
-    const outside = p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r;
+    const outside = p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r;
     const terrain = cover.filter((t) => distPointRect(p, t) < r - 1e-6);
     const operatives = others.filter((o) => dist(p, o) < r + o.r - 1e-6);
     return { ok: !outside && !terrain.length && !operatives.length, outside, terrain, operatives };
@@ -94,7 +94,7 @@ export function moveCtx(g, op, kind = 'reposition') {
   }
   function segFree(a, b) {
     if (fly) return true;
-    if ([a, b].some((p) => p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r)) return false;
+    if ([a, b].some((p) => p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r)) return false;
     // (A move can pass through friendly operatives — never enemy ones — but can't end on any base: see free.)
     if (others.some((o) => o.enemy && distPointSegment(o, a, b) < r + o.r - EPS)) return false;
     if (!noClimb && cover.some((t) => distSegmentRect(a, b, t) < r - EPS) && !climbWalk([a, b]).ok) return false;
@@ -121,8 +121,8 @@ export function moveCtx(g, op, kind = 'reposition') {
     return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts);
   }
   // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).
-  const pass = (p) => !(p.x < r || p.y < r || p.x > BOARD.w - r || p.y > BOARD.h - r) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
-  return { op, r, free, pass, placement, segFree, inEnemyER, extra, climbs, coverAt, climbCost, noClimb };
+  const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
+  return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, climbs, coverAt, climbCost, noClimb };
 }
 
 /** Shorten a path to maxLen, backing off until the end point is a legal place to stand. */
@@ -167,7 +167,7 @@ export function findPath(ctx, goal) {
 
 /** A* over a 0.25" grid; climbing onto terrain adds its climbing cost, and the landing after a climb must be legal. */
 function gridPath(ctx, start, goal) {
-  const cols = Math.round(BOARD.w / RES) + 1, rows = Math.round(BOARD.h / RES) + 1;
+  const cols = Math.round(ctx.board.w / RES) + 1, rows = Math.round(ctx.board.h / RES) + 1;
   const state = new Int8Array(cols * rows); // 0 unknown, 1 free, 2 blocked
   const cfree = (c, r) => {
     if (c < 0 || r < 0 || c >= cols || r >= rows) return false;

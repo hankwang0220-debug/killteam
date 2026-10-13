@@ -3,3 +3,4 @@ Thumbs.db
 *.log
 # Local Claude Code preview config
 .claude/
+tmp/

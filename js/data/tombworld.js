@@ -1,6 +1,6 @@
 // Tomb World measurements supplied by the user on 2026-10-13. All distances are inches.
 // Non-T wall/cover geometry is implemented by js/tombworld.js. Only T's pattern
-// awaits the user's image; map placement is not yet configured.
+// awaits the user's image; schematic map layouts are in js/tombworld-maps.js.
 // `height` is vertical height; it must not be confused with the renderer's footprint `h`.
 // `squareThickness` is the size of each square end pillar. Both pillars are included
 // in overall length and overlap with the adjoining component's pillar at a join.
@@ -10,7 +10,7 @@ export const TOMB_WORLD_BOARD = {
   length: 28,
   width: 24,
   gridSpacing: 4,
-  layoutStatus: 'not-arranged',
+  layoutStatus: 'six-schematic-layouts',
 };
 
 const wall = (id, length, extra = {}) => ({

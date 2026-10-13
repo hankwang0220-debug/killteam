@@ -577,3 +577,17 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 .tw-breach-guide { fill: none; stroke: #edb05d; stroke-dasharray: .12 .08; stroke-width: .04; }
 .tw-state { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .tw-state span { font-size: .8rem; color: #bdcec7; }
+
+.tw-maps { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr)); gap:20px; margin:24px 0 36px; }
+.tw-maps h2 { margin:0 0 12px; }
+.tw-map { width:100%; display:block; max-height:480px; }
+.tw-map-mat { fill:#121f23; stroke:#7c999a; stroke-width:.1; }
+.tw-map-grid { fill:none; stroke:#527071; stroke-width:.035; opacity:.65; }
+.tw-map-label { fill:#e9f4ef; font-size:.55px; text-anchor:middle; paint-order:stroke; stroke:#152426; stroke-width:.15; }
+.tw-map-zone { fill:#e7ece8; font-size:1.2px; text-anchor:middle; opacity:.6; }
+.tw-pad circle { fill:#183b34; stroke:#8ee2ba; stroke-width:.09; }
+.tw-pad text { fill:#b3f8d1; font-size:.65px; text-anchor:middle; }
+.tw-map-objective circle { fill:none; stroke:#efac65; stroke-width:.06; }
+.tw-map-objective circle:first-child { stroke-dasharray:.15 .12; }
+.tw-map-objective circle:nth-child(2) { fill:#efac65; }
+.tw-map-objective text { fill:#142126; font-size:.55px; text-anchor:middle; font-weight:bold; }

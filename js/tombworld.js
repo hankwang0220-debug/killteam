@@ -1,3 +1,4 @@
+import { TOMB_WORLD_MAPS, tombWorldMapSvg } from './tombworld-maps.js';
 import { TOMB_WORLD_BOARD, TOMB_WORLD_COMPONENTS } from './data/tombworld.js';
 import { L } from './i18n.js';
 
@@ -97,8 +98,11 @@ export function tombWorldView(states = {}) {
       ${toggle ? `<div class="tw-state">${toggle}<span>${c.breach ? state === 'breached' ? L('已破牆', 'Breached') : L('完整牆', 'Intact') : state === 'open' ? L('門已開', 'Door open') : L('門已關', 'Door closed')}</span></div>` : ''}
     </article>`;
   };
-  return `<main class="tw-catalogue"><div class="tw-heading"><div><h1>${L('墓穴世界地形', 'Tomb World Terrain')}</h1><p>${TOMB_WORLD_BOARD.length}″ × ${TOMB_WORLD_BOARD.width}″ · ${L('網格間隔', 'Grid spacing')} ${TOMB_WORLD_BOARD.gridSpacing}″</p></div><button data-act="home">${L('返回', 'Back')}</button></div>
+  return `<main class="tw-catalogue"><div class="tw-heading"><div><h1>${L('Tombworld（墓穴世界）地圖', 'Tomb World Maps')}</h1><p>${TOMB_WORLD_BOARD.length}″ × ${TOMB_WORLD_BOARD.width}″ · ${L('網格間隔', 'Grid spacing')} ${TOMB_WORLD_BOARD.gridSpacing}″</p></div><button data-act="home">${L('返回', 'Back')}</button></div>
+    <p>${L('Approved Ops 2025 六種排列。藍色 A／橘色 B 為部署區，數字為目標點，綠色 T 為傳送台。排列依圖卡轉錄至 28″ × 24″，為平面近似；實體組裝尺寸請參考下方組件。', 'Six Approved Ops 2025 layouts. Blue A / orange B mark drop zones, numbers mark objectives, green T marks teleport pads. Schematic layouts are adapted to 28″ × 24″; consult the component measurements below for physical assembly.')}</p>
+    <div class="tw-maps">${TOMB_WORLD_MAPS.map(m => `<article class="card"><h2>${L('墓穴世界', 'Tomb World')} ${m.number}</h2>${tombWorldMapSvg(m)}<p class="hint">${m.axis === 'x' ? L('左右部署：A 右、B 左', 'Side deployment: A right, B left') : L('上下部署：A 上、B 下', 'End deployment: A top, B bottom')} · ${L('3 個目標點／2 個傳送台', '3 objectives / 2 teleport pads')}</p><button class="primary" data-act="twplay" data-id="${m.id}">${L('使用此地圖對戰', 'Play this map')}</button></article>`).join('')}</div>
+    <h2>${L('地形組件尺寸', 'Terrain component measurements')}</h2>
     <p>${L('13 種非 T 組件的尺寸示意；俯視與正面均按比例繪製。門洞上方仍有 0.6″ 牆體，虛線標示通道或破牆位置。', 'Dimension previews for the 13 non-T components, drawn to scale in top and front views. Openings retain a 0.6″ lintel; dashed guides mark passages or breach points.')}</p>
-    <p class="hint">${L('兩端正方形柱已包含在組件長度內；拼接時柱位重疊，不再另加長度。T 僅保留直徑、高度與 1AP 傳送資料，圖樣待提供。這裡的門與破牆按鈕是組件預覽。', 'Square end pillars are included in component length and overlap at joins. T retains its diameter, height and 1AP teleport data pending its pattern. Door and breach buttons here control the component preview.')}</p>
+    <p class="hint">${L('兩端正方形柱已包含在組件長度內；拼接時柱位重疊，不再另加長度。T 在地圖以圓形示意呈現，裝飾圖樣待提供。這裡的門與破牆按鈕是組件預覽。', 'Square end pillars are included in component length and overlap at joins. T is shown as a circular map symbol pending its decorative pattern. Door and breach buttons here control the component preview.')}</p>
     <div class="tw-components">${Object.values(TOMB_WORLD_COMPONENTS).filter((c) => c.id !== 'T').map(card).join('')}</div></main>`;
 }
