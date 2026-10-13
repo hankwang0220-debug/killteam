@@ -5,6 +5,7 @@ import { MURDERWING_TEAM } from './murderwing.js';
 import { WRECKA_TEAM } from './wrecka.js';
 import { NIGHTLORDS_TEAM } from './nightlords.js';
 import { SCOUTS_TEAM } from './scouts.js';
+import { RATLINGS_TEAM } from './ratlings.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2133,6 +2134,7 @@ TEAMS.push(MURDERWING_TEAM);
 TEAMS.push(WRECKA_TEAM);
 TEAMS.push(NIGHTLORDS_TEAM);
 TEAMS.push(SCOUTS_TEAM);
+TEAMS.push(RATLINGS_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the

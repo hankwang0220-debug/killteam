@@ -132,7 +132,7 @@ export function renderBoard(g, ui) {
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
     // (Hernkyn Yaegir Minefield markers: face down "?", flipped a HY-Pex mine "✸" or a blank "○"; the Fallen Kin marker "⚑".)
     const sym = m.kind === 'hyMine' ? (!m.flipped ? '?' : m.live ? '✸' : '○')
-      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i', pulsa: '◎', breach: '⛏', demolition: '✹', tripAlarm: '❗', boobyTrap: '💣' }[m.kind] || '✦';
+      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i', pulsa: '◎', breach: '⛏', demolition: '✹', tripAlarm: '❗', boobyTrap: '💣', tripwire: '〰' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
     if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);

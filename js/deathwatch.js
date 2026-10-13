@@ -13,6 +13,7 @@ export function dwSetup(g, roster) {
   }
 }
 export function dwEquipmentLimit(t, roster = {}) {
+  if (t.id === 'ratlings') return 5; // Munitorum Contacts (the Ratling Fixer is always in the kill team)
   return t.id === 'deathwatch' && Object.keys(t.replacements).some((slot) => (roster[slot] || slot) === 'dwSergeant') ? 5 : 4;
 }
 export const dwCommandFree = (g, side, kind) => g.teams[side] === 'deathwatch' && !g.dwCommand?.[side]?.[kind] && living(g, side).some((o) => tpl(o).dwCommand && o.placed !== false);

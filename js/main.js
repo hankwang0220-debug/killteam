@@ -6,6 +6,8 @@ import { NIGHTLORDS_EQUIPMENT, nightlordsRosterError } from './data/nightlords.j
 import { prescienceOf, canForeboding, ncForeboding } from './nightlords.js';
 import { SCOUTS_EQUIPMENT, scoutsRosterError, FORWARD_SCOUTING, cleanScouting, DEFAULT_SCOUTING } from './data/scouts.js';
 import { scGambitsLeft, scDiversionTargets, scTactical, scDiversion } from './scouts.js';
+import { RATLINGS_EQUIPMENT, ratlingsRosterError, ratFreeCount, cleanRatFree, DEFAULT_RAT_FREE, RATLING_PLOYS } from './data/ratlings.js';
+import { rtGambitLeft, rtDesignate, slingshotCheck, doSlingshot } from './ratlings.js';
 import { wreckaOf } from './wrecka.js';
 import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
 import { dwEquipmentLimit, dwScrambleTargets, dwScramble } from './deathwatch.js';
@@ -423,6 +425,7 @@ function setupView() {
     ${tacOpPick(side)}
     ${equipPick(side)}
     ${scoutingPick(side)}
+    ${ratFreePick(side)}
   </div>`;
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
   return `${topBar()}
@@ -500,6 +503,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'murderwing') { const error = murderwingRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'nemesisClaw') { const error = nightlordsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wreckaKrew') { // (and only one Glyphs)
     const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
     return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
@@ -554,13 +558,24 @@ function scoutingPick(side) {
     <p class="hint small">${L('佈署完成後依序自動執行；戰術機動與誘餌在策略階段使用。', 'Resolved automatically once deployment ends; Tactical Manoeuvre and Diversion are used in the Strategy phase.')}</p></div>`;
 }
 
+/** Ratlings: the ploys that cost 0CP for the battle (three, fewer for each Ogryn or Bullgryn taken). */
+function ratFreePick(side) {
+  if (ui.setup.teams[side] !== 'ratlings' || (side === 1 && ui.setup.ai === 1)) return '';
+  const t = TEAM_MAP.ratlings, n = ratFreeCount(t, ui.setup.roster?.[side]);
+  const cur = cleanRatFree(ui.setup.ratFree?.[side] ?? DEFAULT_RAT_FREE, n);
+  const all = [...t.ploys, ...t.firefight].filter((x) => RATLING_PLOYS.includes(x.id));
+  return `<div class="tactics"><h4>${L(`免費計謀（${n} 個，已選 ${cur.length}）`, `Free ploys (${n}, ${cur.length} chosen)`)}</h4>
+    ${all.map((x) => `<label class="small equip-option"><input type="checkbox" data-act="ratfree" data-side="${side}" data-id="${x.id}" ${cur.includes(x.id) ? 'checked' : ''} ${!cur.includes(x.id) && cur.length >= n ? 'disabled' : ''}> <span class="equip-name">${esc(tx(x.name))}</span></label>`).join('')}
+    <p class="hint small">${L('所選計謀整場 0CP；每帶一名歐格林／重盾歐格林少一個。', 'Chosen ploys cost 0CP all battle; one fewer for each Ogryn or Bullgryn.')}</p></div>`;
+}
+
 /** Universal equipment: up to 4 options (the computer takes its usual kit). */
 function equipPick(side) {
   if (side === 1 && ui.setup.ai === 1) return '';
   const cur = ui.setup.equip?.[side] || [];
   const limit = dwEquipmentLimit(TEAM_MAP[ui.setup.teams[side]], ui.setup.roster?.[side]);
   return `<div class="tactics"><h4>${L(`通用裝備（最多 ${limit} 項，已選 ${cur.length}）`, `Universal equipment (up to ${limit}, ${cur.length} chosen)`)}</h4>
-    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'wreckaKrew' ? Object.keys(WRECKA_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'nemesisClaw' ? Object.keys(NIGHTLORDS_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'scoutSquad' ? Object.keys(SCOUTS_EQUIPMENT) : [])].map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
+    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'wreckaKrew' ? Object.keys(WRECKA_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'nemesisClaw' ? Object.keys(NIGHTLORDS_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'scoutSquad' ? Object.keys(SCOUTS_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'ratlings' ? Object.keys(RATLINGS_EQUIPMENT) : [])].map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
 }
 
@@ -937,7 +952,7 @@ function statusBox({ color, icon, phase, tp, who, doing, last, key }) {
 function boardUi() {
   const b = { sel: ui.sel, peek: ui.peek, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy', terrainRanges: ui.setup.terrainRanges };
   const op = activeOp(g);
-  if (op && ui.mode?.kind === 'move' && ui.mode.action !== 'mdPass') b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
+  if (op && ui.mode?.kind === 'move' && !['mdPass', 'rtSlingshot'].includes(ui.mode.action)) b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   // Exodite riders: where a Sprint can go (or the turn arc).
   if (op && ui.mode?.kind === 'sprint') {
     const tpLeft = 12 - (op.movedTP || 0);
@@ -1049,7 +1064,7 @@ function omenPick() {
 function deployPanel() {
   if (g.eqDeploy && !g.eqDeploy.done) {
     const d = g.eqDeploy, e = d.queues[d.turn][0], kind = e.item.kind;
-    const name = {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache')}[kind] || kind;
+    const name = {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache'),tripwire:L('絆線','Tripwire')}[kind] || kind;
     return `<section class="card"><h2>${L('通用裝備部署', 'Equipment deployment')}</h2><h3>${esc(bi(team(g,d.turn).name))} · ${name}</h3>
       <p class="hint">${L('雙方輪流放置一件裝備，全部完成後才部署特工。點棋盤放置目前裝備；裝備地形需符合半區、降落區與間距限制。', 'Alternate placing one equipment item; deploy operatives afterwards. Tap the board to place the current item within its legal area and spacing.')}</p>
       <p>${L('剩餘', 'Remaining')}：P1 ${d.queues[0].length} / P2 ${d.queues[1].length}</p>
@@ -1144,6 +1159,13 @@ function gambitView(side) {
       <p class="hint small">${L('選戰場邊緣 6" 內的一名敵人：到它下次啟動結束 APL -1。', 'Pick an enemy within 6" of a killzone edge: -1 APL until the end of its next activation.')}</p>
       <select data-act="scdiversion" data-side="${side}"><option value="">${L('（選敵人）', '(choose an enemy)')}</option>
         ${scDiversionTargets(g, side).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
+  }
+  if (g.teams[side] === 'ratlings' && !isAI(side) && living(g, side).some((o) => tpl(o).rtFixer)) {
+    const cur = g.rtTarget?.[side]?.tp === g.tp ? getOp(g, g.rtTarget[side].uid) : null;
+    html += `<div class="gambit"><h4>${L('指定目標', 'Target Designation')}</h4>
+      <p class="hint small">${L('選一名敵方特工：本回合友方萊特林用步槍射擊它時有「致命 5+」。', 'Pick an enemy operative: this TP friendly RATLING rifles shooting it have Lethal 5+.')}</p>
+      <select data-act="rtdesignate" data-side="${side}" ${rtGambitLeft(g, side) ? '' : 'disabled'}><option value="">${cur ? nm(cur) : L('（選敵人）', '(choose an enemy)')}</option>
+        ${foes(g, { side }).filter((o) => o.side < 2).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
   }
   const kb = living(g, side).find((o) => tpl(o).callTheKill);
   if (kb) {
@@ -1590,18 +1612,19 @@ function modeView(op) {
     return `<div class="mode"><h3>${esc(tx(ACTIONS.edTurn.name))}</h3><p class="hint">${L('點棋盤指定要面向的方向（最多轉 45°）。', 'Tap the board towards where it should face (45° at most).')}</p><div class="row">${cancel}<button class="primary" data-act="confirmturn" ${m.dest ? '' : 'disabled'}>${L('確認轉向（1AP）', 'Turn (1AP)')}</button></div></div>`;
   }
   if (m.kind === 'move') {
-    const max = m.action === 'mdPass' ? 40 : moveAllowance(g, op, m.action);
+    const max = m.action === 'mdPass' ? 40 : m.action === 'rtSlingshot' ? 12 : moveAllowance(g, op, m.action);
     let info = L(`點擊棋盤選擇目的地（最多 ${max}"），落點可自由選擇，總移動距離無條件進位計算。要轉彎：先點轉彎處，按「設為折點」，再點下一段。`, `Tap the board to choose a destination (max ${max}"); choose any legal endpoint; total movement cost rounds up. To turn: tap the corner, press "Set waypoint", then tap the next leg.`);
     if (m.action === 'charge') info += L('必須結束於敵人交戰範圍 1" 內。', ' Must end within 1" of an enemy.');
     if (m.action === 'fallBack') info += L('必須離開所有敵人的交戰範圍。', ' Must end outside all enemy engagement ranges.');
-    if (m.action !== 'charge' && m.action !== 'fallBack') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
+    if (m.action !== 'charge' && m.action !== 'fallBack' && m.action !== 'rtSlingshot') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
     if (m.action === 'mdPass') info = L('點擊暗影落點：不限距離，不能成為敵人的有效目標。本回合不能射擊／近戰。', 'Tap a shadow destination at any distance, outside valid enemy targeting. No Shoot/Fight this TP.');
+    if (m.action === 'rtSlingshot') info = L('點擊彈弓落點：看得到、6" 內的地形點，且落點完全在其 6" 內並看得到它。', 'Tap a slingshot destination: a terrain point visible within 6", the destination wholly within 6" of it and seeing it.');
     const p = ui.path;
     const status = p ? (p.ok ? `<p class="ok">✔ ${L('消耗', 'Cost')} ${p.len}" / ${max}"</p>` : p.placement ? `<div class="placement-warning" role="status"><strong>${L('底盤放不下', 'Base does not fit')}</strong><p>${esc(p.why)}</p><p class="hint">${L('紅色輪廓標出底盤與阻擋物，請將落點移開。', 'Red outlines show the base and its blockers. Choose a clear landing point.')}</p></div>` : `<p class="bad" role="status">✘ ${esc(p.why)}</p>`) : '';
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
     const canPin = !!(p && m.dest && !p.unreachable && !p.breach && (p.exactLen ?? p.len) < max - 0.05);
-    const wpRow = m.action === 'mdPass' ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
+    const wpRow = ['mdPass', 'rtSlingshot'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
     return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
@@ -1806,6 +1829,16 @@ const ABILITIES = {
   // ---- Scout Squad ----
   scSergeant: () => ['引導與經驗', 'Guidance and Experience', '每次啟動一次（自動）：另一名友方偵察小隊特工到它下次啟動結束 APL +1。有阿斯塔特規則：射擊兩次（至少一次用霰彈槍、爆彈手槍或爆彈槍）或近戰兩次，任何指令都能反擊。', 'Once per activation (automatic): another friendly Scout Squad operative gets +1 APL until the end of its next activation. Astartes: two Shoots (an Astartes shotgun, bolt pistol or boltgun for at least one) or two Fights, and it can counteract under either order.'],
   scGrapnel: () => ['鉤爪發射器・鉤爪突襲', 'Grapnel Launcher · Grapnel Assault', '向上攀爬時垂直距離視為 2"。衝鋒中若攀爬、落下、跳躍或底盤移到高處地形下，本次啟動近戰武器「致命 3+」。', 'Climbing up counts as 2". A Charge that climbs, drops, jumps or goes under Vantage terrain gives its melee weapons Lethal 3+ for the activation.'],
+  rtFixer: () => ['固定者・指定目標＋軍需門路', 'Fixer · Target Designation, Munitorum Contacts', '策略階段可指定一名敵人：本回合友方萊特林步槍射擊它「致命 5+」。裝備上限 5 項。', 'In the Strategy phase designate an enemy: friendly RATLING rifles shooting it have Lethal 5+ this TP. Up to 5 equipment options.'],
+  rtMutt: () => ['戰犬・預警＋野獸', 'Battlemutt · Early Warning, Beast', '只能做移動、撤退、衝刺、拾取、任務行動；敵人在其視線內行動後，可自動免費衝刺 2"。', 'Only Reposition, Fall Back, Dash, Pick Up, mission actions; after an enemy acts in its sight it may take a free 2" Dash (automatic).'],
+  rtBomber: () => ['炸彈手・絆線＋地雷', 'Bomber · Tripwire, Mine', '佈署時放置絆線標記（敵人經過 APL -1）；地雷：敵人觸發受 2D3+3 傷害，友方不受影響。', 'Places Tripwire markers (enemy crossing: APL -1); Mines deal 2D3+3 to enemies, friendlies are exempt.'],
+  rtHunter: () => ['獵手・潛伏待機', 'Hunter · Lie in Wait', '可衝鋒；被敵人衝鋒時先攻。', 'May charge; strikes first when charged.'],
+  rtRaider: () => ['突襲手・彈弓＋鉤爪', 'Raider · Slingshot, Grappling Hook', '彈弓：視為移動，飛到 12" 內的落點；向上攀爬計 2"。彈弓後不能射擊。', 'Slingshot: counts as a Reposition to a point within 12"; climbing up counts as 2". No shooting after Slingshot.'],
+  rtSneak: () => ['潛行者・規避', 'Sneak · Evade', '敵人行動後可自動免費衝刺 3"（離開敵人視線）。', 'After an enemy acts it may take a free 3" Dash (automatic).'],
+  lightFingered: () => ['手腳靈巧', 'Light-fingered', '拾取標記只花 0AP。', 'Picking up a marker costs 0AP.'],
+  wellStocked: () => ['補給充足', 'Well Stocked', '多放一個彈藥箱。', 'Places a second Ammo Cache.'],
+  bayonetCharge: () => ['刺刀衝鋒', 'Bayonet Charge', '衝鋒時近戰武器獲得額外優勢。', 'Bonus when charging in melee.'],
+  rtBruteShield: () => ['盾牌', 'Shield', '近戰格擋時可用盾牌，成功格擋加倍。', 'Parries with the shield; successful parries count double.'],
   scTracker: () => ['追蹤敵人', 'Track Enemy', '1AP（不在交戰中）：選 8" 內一名敵人，本回合友方偵察小隊特工射擊它時，遠程武器「搜尋（輕型）」。', '1AP (not engaged): select an enemy within 8"; this TP friendly Scout Squad operatives shooting it have Seek Light on their ranged weapons.'],
   scSniper: () => ['狙擊手協同', 'Sniper Synergy', '正受到光學瞄準效果時，鳥卜儀掃描範圍內的目標被它射擊，遠程武器再加「搜尋（輕型）」。', 'While Optics is active, targets inside an Auspex Scan are shot with Seek Light on its ranged weapons.'],
   // ---- Nemesis Claw ----
@@ -2467,6 +2500,12 @@ function previewMove(op, action, p) {
       why: L(`${tpl(op).base}mm 底盤${reasons.join('、')}。`, `${tpl(op).base}mm base ${reasons.join(' and ')}.`) };
     return render();
   }
+  if (action === 'rtSlingshot') {
+    const c = slingshotCheck(g, op, p);
+    ui.mode.dest = p;
+    ui.path = { pts: [{ x: op.x, y: op.y }, p], len: 0, ok: c.ok, why: c.why ? tx(c.why) : null, r: radius(op) };
+    return render();
+  }
   if (action === 'mdPass') {
     const c = shadowPassageCheck(g, op, p);
     ui.mode.dest = p;
@@ -2634,6 +2673,11 @@ app.addEventListener('change', (e) => {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && !isAI(side)) { setReboot(g, side, +e.target.value); render(); } // (secret: no log line until both are revealed)
   }
+  if (e.target.dataset.act === 'rtdesignate' && g?.phase === 'strategy' && e.target.value) {
+    const side = +e.target.dataset.side;
+    if (side === ployChooser(g) && !isAI(side)) { rtDesignate(g, side, +e.target.value); afterChange(); }
+    return;
+  }
   if ((e.target.dataset.act === 'sctactical' || e.target.dataset.act === 'scdiversion') && g?.phase === 'strategy' && e.target.value) {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && !isAI(side)) { (e.target.dataset.act === 'sctactical' ? scTactical : scDiversion)(g, side, e.target.value); afterChange(); }
@@ -2727,13 +2771,21 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'wreckaKrew' && wreckaRosterError(TEAM_MAP.wreckaKrew, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'nemesisClaw' && nightlordsRosterError(TEAM_MAP.nemesisClaw, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
-      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'ratfree': {
+      const s = +d.side, n = ratFreeCount(TEAM_MAP.ratlings, ui.setup.roster?.[s]), cur = cleanRatFree(ui.setup.ratFree?.[s] ?? DEFAULT_RAT_FREE, n);
+      const i = cur.indexOf(d.id);
+      if (i >= 0) cur.splice(i, 1); else if (cur.length < n) cur.push(d.id);
+      (ui.setup.ratFree ||= [undefined, undefined])[s] = cur;
+      return render();
+    }
     case 'scoutopt': {
       const s = +d.side, cur = cleanScouting(ui.setup.scouting?.[s] ?? DEFAULT_SCOUTING);
       if (+d.d > 0) cur.push(d.id); else { const i = cur.lastIndexOf(d.id); if (i >= 0) cur.splice(i, 1); }
@@ -2840,7 +2892,7 @@ function handle(act, d) {
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack
     case 'action': {
-      if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
+      if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass', 'rtSlingshot'].includes(d.id)) ui.mode = { kind: 'move', action: d.id };
       else if (d.id === 'edSprint') ui.mode = { kind: 'sprint' }; // Exodite riders
       else if (d.id === 'edTurn') ui.mode = { kind: 'turn' };
       else if (d.id === 'shoot' || d.id === 'fight') {
@@ -2890,7 +2942,7 @@ function handle(act, d) {
       return render();
     }
     case 'confirmmove':
-      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => action === 'mdPass' ? doShadowPassage(g, op, path.pts.at(-1)) : doMove(g, op, action, path)); }
+      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => action === 'mdPass' ? doShadowPassage(g, op, path.pts.at(-1)) : action === 'rtSlingshot' ? doSlingshot(g, op, path.pts.at(-1)) : doMove(g, op, action, path)); }
       ui.mode = null; ui.path = null;
       return afterChange();
     case 'endact':

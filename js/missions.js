@@ -472,11 +472,11 @@ export const MISSION_ACTIONS = {
 };
 
 const nearObj = (op, o) => !o.carriedBy && dist(op, o) - radius(op) - 0.4 <= 1.01;
-const clearTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && controller(g, o) === op.side && o.cleared?.[op.side] !== g.tp);
-const retrieveTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && controller(g, o) === op.side && !o.searched?.[op.side]);
+const clearTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous) && o.cleared?.[op.side] !== g.tp);
+const retrieveTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous) && !o.searched?.[op.side]);
 
 function siphonTarget(g, op) {
-  return g.objectives.find((o) => o.siphonedTP !== g.tp && dist(op, o) - radius(op) - 0.4 <= 1.01 && controller(g, o) === op.side);
+  return g.objectives.find((o) => o.siphonedTP !== g.tp && dist(op, o) - radius(op) - 0.4 <= 1.01 && (controller(g, o) === op.side || op.rtLarcenous));
 }
 
 // ---------- the standard mission ----------
@@ -559,7 +559,7 @@ const energyCells = {
 /** A player's objective marker: the one in their territory (not the centre one). */
 const isOwnObj = (g, o, side) => !o.centre && territoryOf(g, o) === side;
 /** The objective marker the active operative controls (within its control range) that passes the test. */
-const ctrlObj = (g, op, test = () => true) => g.objectives.find((o) => nearObj(op, o) && controller(g, o) === op.side && test(o));
+const ctrlObj = (g, op, test = () => true) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous) && test(o)); // (Larcenous: Ratlings only need to contest it)
 /** Per-turning-point counter for a side (Loot VP, Compile Data actions…), reset each turning point. */
 function perTP(g, key, side) {
   const c = ((g.critTP ||= {})[key] ||= { tp: g.tp, n: [0, 0] });

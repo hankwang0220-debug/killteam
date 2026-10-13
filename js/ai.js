@@ -12,12 +12,14 @@ import { isArchon, painOptions, usePain } from './archon.js';
 import { isDeathwatch, dwAmmoAvailable, dwAmmoWeapon } from './deathwatch.js';
 import { breakTarget } from './wrecka.js';
 import { scAiStrategy } from './scouts.js';
+import { rtAiStrategy, rtSlingshotAI, doSlingshot } from './ratlings.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
 
 export function aiStrategy(g, side) {
   scAiStrategy(g, side); // Scout Squad: Tactical Manoeuvre and Diversion gambits
+  rtAiStrategy(g, side); // Ratlings: Target Designation
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
@@ -299,6 +301,7 @@ function aiButtonPloys(g, op) {
   // Blades of Khaine Aspect Techniques (free): Raging Heat when injured, One with the Gloom before its last action.
   if (ok.avRagingHeat && isInjured(op)) return use('avRagingHeat');
   if (ok.ssGloom && op.order === 'conceal' && op.ap <= 1 && !engagedEnemies(g, op).length) return use('ssGloom');
+  if (ok.rtShootHide && op.acted?.rtRifleShot) return use('rtShootHide');
   if (!spare) return false;
   if (ok.bladewind && engagedEnemies(g, op).length && !tpl(op).exarch && prefersMelee(op)) return use('bladewind');
   if (ok.starfall && !tpl(op).exarch && op.ap >= 2 && shootOptions(g, op).length && !prefersMelee(op)) return use('starfall');
@@ -441,6 +444,11 @@ export function aiStep(g) {
     if (can.mdProject && op.ap >= 2) {
       const t = TARGET_ACTIONS.mdProject.targets(g, op).sort((a, b) => edgeDist(op, a) - edgeDist(op, b))[0];
       if (t) { doTargetAction(g, op, 'mdProject', t); return null; }
+    }
+    if (can.rtSlingshot && !shootOptions(g, op).length && !engagedEnemies(g, op).length) { const p = rtSlingshotAI(g, op); if (p && doSlingshot(g, op, p)) return null; }
+    if (can.rtIntercept && op.ap >= 1) {
+      const t = TARGET_ACTIONS.rtIntercept.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+      if (t) { doTargetAction(g, op, 'rtIntercept', t); return null; }
     }
     if (can.mdPass && !shootOptions(g, op).length && !engagedEnemies(g, op).length) {
       const goal = pickGoal(g, op);

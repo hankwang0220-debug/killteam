@@ -121,7 +121,7 @@ export function scReady(g) {
 // ---------- Booby Trap ----------
 /** The first moment a moving operative's control range reaches an enemy Booby Trap marker: {len, m}, or null. */
 export function scTrapPath(g, op, path) {
-  const traps = (g.markers || []).filter((m) => m.kind === 'boobyTrap' && m.owner !== op.side && !m.gone);
+  const traps = (g.markers || []).filter((m) => (m.kind === 'boobyTrap' || m.kind === 'tripwire') && m.owner !== op.side && !m.gone); // (tripwire: Ratling Bomber)
   if (!traps.length || op.side > 1 || !path?.pts?.length) return null;
   let acc = 0;
   for (let i = 1; i < path.pts.length; i++) {
@@ -144,6 +144,11 @@ export function scTrapFire(g, op, m) {
   if (!m || m.gone || op.dead) return;
   m.gone = true;
   g.markers = g.markers.filter((x) => !x.gone);
+  if (m.kind === 'tripwire') { // Tripwire (Ratling Bomber): -1 APL until the end of its next activation, and its action ends
+    changeApl(g, op, -1);
+    note(g, m.owner, `💥 ${opName(op, 'zh')} 絆到絆線：APL -1（到下次啟動結束），動作結束`, `💥 ${opName(op, 'en')} trips a Tripwire: -1 APL until the end of its next activation, and its action ends`);
+    return;
+  }
   const dmg = d3() + d3();
   note(g, m.owner, `💥 ${opName(op, 'zh')} 觸發陷阱：受到 ${dmg} 傷害${op.dead ? '' : '，動作結束'}`, `💥 ${opName(op, 'en')} sets off a Booby Trap: ${dmg} damage${op.dead ? '' : ' and its action ends'}`);
   applyDamage(g, null, op, dmg);
