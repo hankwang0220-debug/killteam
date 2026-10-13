@@ -197,6 +197,10 @@ button.wide { width: 100%; margin-top: 10px; }
 .tactics h4 { margin: 0 0 6px; }
 .tactics .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .tactics label { display: flex; flex-direction: column; gap: 3px; font-size: .82rem; color: var(--muted); flex: 1; min-width: 130px; }
+.tactics label.equip-option { display: grid; grid-template-columns: 18px minmax(0, 1fr); column-gap: 8px; row-gap: 3px; align-items: start; margin: 10px 0; cursor: pointer; }
+.equip-option input[type="checkbox"] { grid-column: 1; grid-row: 1; width: 16px; height: 16px; margin: 2px 0 0; }
+.equip-option .equip-name { grid-column: 2; grid-row: 1; }
+.equip-option .hint { grid-column: 2; grid-row: 2; }
 .tactics select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
 .setupbar { display: flex; justify-content: space-between; margin-top: 16px; }
 
@@ -205,7 +209,7 @@ button.wide { width: 100%; margin-top: 10px; }
 .boardwrap { min-width: 0; display: flex; align-items: flex-start; justify-content: center; }
 #board { width: 100%; height: auto; max-height: calc(100vh - 90px); background: #0c0e11; border-radius: 10px; user-select: none; touch-action: manipulation; }
 #board .mat { fill: var(--mat); }
-#board .cover-range { fill: none; stroke: #9edbd2; stroke-width: .055; stroke-dasharray: .22 .16; opacity: .75; pointer-events: none; }
+#board .cover-range { fill: none; stroke: #9edbd2; stroke-width: .045; stroke-dasharray: .22 .16; opacity: .35; pointer-events: none; }
 #board .heavy { fill: var(--heavy); stroke: var(--heavy-s); stroke-width: .06; }
 #board .light { stroke: var(--light-s); stroke-width: .04; }
 #board .wire { fill: none; stroke: #b9b2a0; stroke-width: .07; stroke-dasharray: .18 .1; }
