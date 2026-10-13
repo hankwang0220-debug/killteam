@@ -9,6 +9,7 @@ import { RATLINGS_TEAM } from './ratlings.js';
 import { SANCTIFIERS_TEAM } from './sanctifiers.js';
 import { RAVENERS_TEAM } from './raveners.js';
 import { SPECTRES_TEAM } from './spectres.js';
+import { AQUILONS_TEAM } from './aquilons.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2263,6 +2264,7 @@ TEAMS.push(RATLINGS_TEAM);
 TEAMS.push(SANCTIFIERS_TEAM);
 TEAMS.push(RAVENERS_TEAM);
 TEAMS.push(SPECTRES_TEAM);
+TEAMS.push(AQUILONS_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the

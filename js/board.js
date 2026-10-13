@@ -128,6 +128,8 @@ export function renderBoard(g, ui) {
       s.push(`<line x1="${f(nodes[i].x)}" y1="${f(nodes[i].y)}" x2="${f(nodes[j].x)}" y2="${f(nodes[j].y)}" class="matrix" stroke="${team(g, side).color}" pointer-events="none"/>`);
     }
   }
+  // Drop markers (Tempestus Aquilons)
+  for (const side of [0, 1]) for (const m of g.aq?.drop?.[side] || []) s.push(`<g pointer-events="none"><circle cx="${f(m.x)}" cy="${f(m.y)}" r="3" fill="${team(g, side).color}" fill-opacity="0.07" stroke="${team(g, side).color}" stroke-width="0.08" stroke-dasharray="0.4 0.3"/><circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.45" fill="${team(g, side).color}"/><text x="${f(m.x)}" y="${f(m.y + 0.3)}" text-anchor="middle" font-size="0.8" fill="#fff">▼</text></g>`);
   // Tunnel (Raveners): numbered markers and the 2"-wide strips between consecutive ones.
   for (const side of [0, 1]) {
     const t = g.rv?.tunnel?.[side] || [];

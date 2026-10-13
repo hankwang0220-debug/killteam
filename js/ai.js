@@ -19,6 +19,7 @@ import { kmGrappleAI, kmDoGrapple } from './kommandos.js';
 import { dkAiStrategy, dkMine } from './deathkorps.js';
 import { rvAiStrategy, rvAiUnderground, rvAiBurrow } from './raveners.js';
 import { spAiStrategy } from './spectres.js';
+import { aqAiStrategy, aqAiAbove } from './aquilons.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -30,6 +31,7 @@ export function aiStrategy(g, side) {
   dkAiStrategy(g, side); // Death Korps: Chronometer, Gas Bombardment
   rvAiStrategy(g, side); // Raveners: the next Tunnel marker, Synaptic Link
   spAiStrategy(g, side); // Spectre Squad: Starshell Flare
+  aqAiStrategy(g, side); // Tempestus Aquilons: Rapid Insertion, Drop markers
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
@@ -392,6 +394,7 @@ export function aiStep(g) {
   if (op.dead) { endActivation(g); return null; }
   if (isArchon(op)) { const opts = painOptions(g, op); const id = opts.includes('painHeal') && op.maxW - op.wounds >= 3 ? 'painHeal' : opts.includes('darkAnimus') ? 'darkAnimus' : null; if (id) { usePain(g, op, id); return null; } }
   if (aiButtonPloys(g, op)) return null;
+  if (op.above) { if (op.ap <= 0) endActivation(g); else aqAiAbove(g, op); return null; } // Tempestus Aquilons set up above: land, or wait
   if (op.underground) { rvAiUnderground(g, op); return null; } // Raveners underground: emerge on the tunnel, or wait
   if (rvAiBurrow(g, op)) return null; // a hurt Ravener on the tunnel burrows away
   // Exodite riders in reserve come in along the killzone edge nearest to where they want to go.
