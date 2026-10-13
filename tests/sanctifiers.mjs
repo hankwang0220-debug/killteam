@@ -265,10 +265,10 @@ const wp = { id: 'x', group: 'x', name: { zh: 'x', en: 'x' }, type: 'ranged', at
 
 // Equipment: Purity Seals (a fail kept as a normal success) and Imperial Cult Symbols (a crit becomes normal).
 {
-  const g = arena({ equip: ['sfSeals'] }), pers = get(g, 'sfPersecutor'), e = foe(g);
+  const g = arena({ equip: ['sfSeals'], foe: 'plagueMarines' }), pers = get(g, 'sfPersecutor'), e = foe(g);
   place(pers, 10, 10); place(e, 14, 10); e.wounds = e.maxW = 40; G.activate(g, pers);
   const flat = { ...wp, atk: 2, hit: 4, dmg: [2, 2] };
-  dice([1, 1, 1, 1, 1, 1], () => G.resolveShoot(g, pers, flat, e));
+  dice([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], () => G.resolveShoot(g, pers, flat, e));
   assert.equal(g.sfUsed[0].seals, 1, 'Purity Seals');
   assert(e.wounds < 40, 'the retained success hit');
   const g2 = arena({ equip: ['sfSymbols'] }), conf = get(g2, 'sfConfessor'), p2 = get(g2, 'sfPersecutor'), e2 = foe(g2);

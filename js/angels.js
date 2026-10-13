@@ -8,7 +8,7 @@ function equip(g, side, id) { return !!g.equip?.[side]?.includes(id); }
 function note(g, side, zh, en) { log(g, { zh, en }, `side${side}`); }
 
 export function adSetup(g, roster) {
-  g.adUsed = [{}, {}]; g.adaptive = [null, null];
+  g.adUsed = [{}, {}]; g.adTactic = [null, null];
   for (const side of [0, 1]) if (g.teams[side] === 'angels') {
     const error = angelsRosterError(team(g, side), roster[side]);
     if (error) throw new Error(error.en);
@@ -19,7 +19,7 @@ export function adSetup(g, roster) {
 /** The tactic list that applies to a side now (Adaptive Tactics replaces the secondary for the turning point). */
 export function adTactics(g, side) {
   const list = g.tactics?.[side];
-  const a = g.adaptive?.[side];
+  const a = g.adTactic?.[side];
   return list && a && a.tp === g.tp ? [list[0], a.id] : list;
 }
 /** Chapter Veteran: a Sergeant has one more tactic for the battle. */
@@ -29,7 +29,7 @@ export function adPloyBought(g, side, ploy) {
   const have = g.tactics?.[side] || [];
   const pick = ADAPTIVE_ORDER.find((id) => !have.includes(id));
   if (!pick) return;
-  g.adaptive[side] = { tp: g.tp, id: pick };
+  g.adTactic[side] = { tp: g.tp, id: pick };
   const t = team(g, side).tactics.find((x) => x.id === pick);
   note(g, side, `適應戰術：本回合次要戰團戰術改為「${t.name.zh}」`, `Adaptive Tactics: the secondary Chapter Tactic is ${t.name.en} this turning point`);
 }

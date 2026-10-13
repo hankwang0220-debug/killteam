@@ -83,10 +83,10 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
 
 // Equipment: Purity Seals, Auspex, Chapter Reliquaries, Tilting Shields.
 {
-  const g = arena({ equip: ['adSeals'] }), gr = get(g, 'grenadier'), e = foe(g);
+  const g = arena({ equip: ['adSeals'], foe: 'plagueMarines' }), gr = get(g, 'grenadier'), e = foe(g);
   place(gr, 10, 10); place(e, 14, 10); e.wounds = e.maxW = 40; G.activate(g, gr);
   const flat = { id: 'x', group: 'x', name: { zh: 'x', en: 'x' }, type: 'ranged', atk: 2, hit: 4, dmg: [2, 2], rules: {} };
-  dice([1, 1, 1, 1, 1, 1], () => G.resolveShoot(g, gr, flat, e));
+  dice([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], () => G.resolveShoot(g, gr, flat, e));
   assert.equal(g.adUsed[0].seals, 1, 'Purity Seals');
   assert(e.wounds < 40, 'the retained success hit');
   // Chapter Reliquaries: Wrath of Vengeance for 0CP with an Engage order
