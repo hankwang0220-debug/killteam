@@ -136,6 +136,8 @@ const fistsT = W('fistsT', '槍托', 'Gun butt', 'melee', 3, 5, 2, 3);
 const gunButtSgt = W('gunButtSgt', '槍托', 'Gun butt', 'melee', 3, 4, 2, 3);
 const bionicArm = W('bionicArm', '仿生手臂', 'Bionic arm', 'melee', 3, 4, 3, 4);
 const ram = W('ram', '撞擊', 'Ram', 'melee', 3, 5, 2, 3);
+const burstFocused = W('burstFocused', '爆發砲（集中）', 'Burst cannon (focused)', 'ranged', 5, 4, 3, 4, { ceaseless: true, heavy: 'reposition', punishing: true }, 'burstCannon');
+const burstSweeping = W('burstSweeping', '爆發砲（掃射）', 'Burst cannon (sweeping)', 'ranged', 4, 4, 3, 4, { ceaseless: true, heavy: 'reposition', punishing: true, torrent: 1 }, 'burstCannon');
 const fistsC = W('fistsC', '徒手格鬥', 'Fists', 'melee', 3, 5, 2, 3);
 
 // ---- Plague Marines ----
@@ -775,12 +777,18 @@ export const TEAMS = [
         desc: { zh: '本回合友方（無人機除外）射擊時，若 3" 內有另一名友方（無人機除外），遠程武器獲得「精準 1」。', en: 'This TP, a friendly non-drone shooting within 3" of another friendly non-drone has Accurate 1.' } },
       { id: 'takeCover', cp: 1, name: { zh: '尋找掩護', en: 'Take Cover' },
         desc: { zh: '本回合友方被射擊時，若能保留掩護豁免，豁免值改善 1。', en: 'This TP, when a friendly operative is shot and can retain cover saves, its Save improves by 1.' } },
+      { id: 'reconSweep', cp: 1, name: { zh: '偵察掃蕩', en: 'Recon Sweep' },
+        desc: { zh: '選一條不是己方的戰場邊緣：完全在它 6" 內的每名友方探路者可免費衝刺一次，結束時必須完全在某條非己方邊緣 6" 內。第 1 回合不能用。（自動選邊與移動）', en: 'Pick a killzone edge that isn\'t yours: each friendly Pathfinder wholly within 6" of it makes a free Dash, ending wholly within 6" of a killzone edge that isn\'t yours. Not in the first turning point. (Edge and moves chosen automatically.)' } },
       // Shas'ui Art of War: once per battle each, one per turning point, while the Shas'ui is in the killzone.
       { id: 'montka', group: 'artOfWar', oncePerBattle: true, needs: 'shasui', cp: 0, name: { zh: '兵法：蒙卡', en: "Art of War: Mont'ka" },
         desc: { zh: '本回合友方 Move +1"。（整場一次，需要小隊長在場）', en: 'This TP, friendly operatives get +1" Move. (Once per battle; needs the Shas\'ui)' } },
       { id: 'kauyon', group: 'artOfWar', oncePerBattle: true, needs: 'shasui', cp: 0, name: { zh: '兵法：考陽', en: 'Art of War: Kauyon' },
         desc: { zh: '本回合隱蔽指令的友方啟動時可免費執行標記光。（整場一次，需要小隊長在場）', en: 'This TP, friendly operatives with a Conceal order can Markerlight for free. (Once per battle; needs the Shas\'ui)' } },
     ],
+    // Shas'ui + 11 selections: each once, except Shas'la and Weapons Experts (two at most); the MB3 Recon Drone counts as two
+    // selections, so its extra selection is a slot set to "none".
+    replacements: Object.fromEntries(['grenadier', 'blooded', 'comms', 'controller', 'marksman', 'medic', 'transpectral', 'ionExpert', 'railExpert', 'gunDrone', 'markerDrone']
+      .map((id) => [id, ['grenadier', 'blooded', 'comms', 'controller', 'marksman', 'medic', 'shasla', 'transpectral', 'ionExpert', 'railExpert', 'mb3', 'mv31', 'mv33', 'gunDrone', 'mv4', 'markerDrone', 'pfNone']])),
     ops: [
       op('shasui', '鈦衛小隊長', "Shas'ui", { apl: 2, move: 6, save: 5, wounds: 8, base: 25, markerlight: 1 }, [pulseCarbineSgt, gunButtSgt]),
       op('grenadier', '突擊擲彈兵', 'Assault Grenadier', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1 }, [fusionGrenade, fragGrenadeT, krakGrenadeT, pulseCarbine, fistsT]),
@@ -790,10 +798,17 @@ export const TEAMS = [
       op('marksman', '神射手', 'Marksman', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [marksmanRail, marksmanDart, fistsT]),
       op('medic', '醫療技師', 'Medical Technician', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, medic: true, medikit: true }, [pulseCarbine, fistsT]),
       op('transpectral', '跨光譜干擾兵', 'Transpectral Interference', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, systemJam: true, multiVision: true }, [pulseCarbine, fistsT]),
-      op('ionExpert', '武器專家（離子）', 'Weapons Expert (ion)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [ionStandard, ionOvercharge, fistsT]),
-      op('railExpert', '武器專家（軌道）', 'Weapons Expert (rail)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [railRifle, fistsT]),
+      op('ionExpert', '武器專家（離子）', 'Weapons Expert (ion)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, pfExpert: true }, [ionStandard, ionOvercharge, fistsT]),
+      op('railExpert', '武器專家（軌道）', 'Weapons Expert (rail)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, pfExpert: true }, [railRifle, fistsT]),
       op('gunDrone', 'MV1 槍械無人機', 'MV1 Gun Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition', 'shoot'] }, [twinPulseCarbine, ram]),
       op('markerDrone', 'MV7 標記無人機', 'MV7 Marker Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, markerlight: 2, drone: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'markerlight', 'reposition'] }, [ram]),
+      // Not in the default team (picked in setup).
+      op('shasla', '鈦衛戰士', "Shas'la", { apl: 2, move: 6, save: 5, wounds: 7, base: 25, markerlight: 1, groupAct: 'pfShasla', fearless: true }, [pulseCarbine, fistsT], 0),
+      op('mb3', 'MB3 偵察無人機', 'MB3 Recon Drone', { apl: 3, move: 6, save: 4, wounds: 12, base: 32, markerlight: 1, analyse: true, drone: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'markerlight', 'reposition', 'shoot'] }, [burstFocused, burstSweeping, ram], 0),
+      op('mv31', 'MV31 脈衝加速無人機', 'MV31 Pulse Accelerator Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, pfAccelerator: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'pfAccel', 'reposition'] }, [ram], 0),
+      op('mv33', 'MV33 重力抑制無人機', 'MV33 Grav-inhibitor Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, pfGrav: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition'] }, [ram], 0),
+      op('mv4', 'MV4 護盾無人機', 'MV4 Shield Drone', { apl: 2, move: 6, save: 4, wounds: 7, base: 32, drone: true, pfShield: true, ignorePiercing: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition'] }, [ram], 0),
+      op('pfNone', '（空：MB3 佔兩個名額）', '(empty: the MB3 takes two selections)', { apl: 0, move: 0, save: 6, wounds: 1, base: 25 }, [fistsT], 0),
     ],
   },
   {
@@ -2363,6 +2378,9 @@ const FIREFIGHT = {
   ],
   tauPathfinders: [
     ff('supportingFire', '支援火力', 'Supporting Fire', '射擊選目標時：6" 內被友方纏住的敵人也能選。', 'Picking a target: enemies within 6" in friendly control range can be selected.'),
+    ff('worthyCause', '正義之舉', 'A Worthy Cause', '自動：火力戰鬥階段一開始，一名友方探路者（無人機除外）免費做一個任務動作。', 'Auto: at the start of the Firefight phase, one friendly Pathfinder (not a drone) performs a free mission action.'),
+    ff('saviourProtocols', '救主協議', 'Saviour Protocols', '自動：友方探路者（無人機除外）被選為射擊的有效目標時，3" 內看得到的一架友方無人機代替成為目標（對爆裂／洪流武器無效；掩護與遮蔽依原目標）。無人機操控員在場或選到護盾無人機時 0CP。', 'Auto: when a friendly non-drone Pathfinder is selected as the valid target of a Shoot, a friendly drone visible within 3" becomes the target instead (no effect vs Blast/Torrent; cover and obscuring as the original target). 0CP while a Drone Controller is in the killzone or when it is the Shield Drone.'),
+    ff('pointBlank', '近距離齊射', 'Point-Blank Fusillade', '自動：友方探路者（無人機除外）反擊時，若本次啟動／反應開始時不在敵人控制範圍內，可把一把遠程武器（非手雷）當近戰武器用（那次不能格擋，毀滅／穿甲／洪流無效）；準備中、交戰指令、用脈衝武器反擊時，先結算防守方的骰。', 'Auto: when a friendly non-drone Pathfinder retaliates and wasn\'t engaged at the start of that activation, it uses a ranged weapon (not a grenade) as a melee weapon (no blocking; Devastating, Piercing and Torrent have no effect); a ready Engage-order one with a pulse weapon resolves first.'),
   ],
   phobos: [
     ff('criticalShot', '致命一擊', 'Critical Shot', '用爆彈武器射擊：有暴擊命中時，多造成 D3 傷害（每次行動一次）。', 'Shooting a bolt weapon: a critical hit inflicts D3 more damage (once per action).'),

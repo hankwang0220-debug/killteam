@@ -203,7 +203,7 @@ const sees = (g, a, b, p) => { const sx = b.x, sy = b.y; b.x = p.x; b.y = p.y; c
 
 // ---------- free moves (Rally the Flock, Miracle) ----------
 /** The best destination of up to maxLen" (or null): score(p) gives a number, or null when the spot isn't acceptable. */
-function bestStep(g, o, maxLen, kind, score) {
+export function bestStep(g, o, maxLen, kind, score) {
   const ctx = moveCtx(g, o, kind === 'fallBack' ? 'fallBack' : 'dash');
   let best = null;
   for (const r of [maxLen, maxLen * 0.67, maxLen * 0.33]) for (let a = 0; a < 16; a++) {
@@ -216,7 +216,7 @@ function bestStep(g, o, maxLen, kind, score) {
   }
   return best?.q || null;
 }
-function stepTo(g, o, q) {
+export function stepTo(g, o, q) {
   const from = { x: o.x, y: o.y };
   Object.assign(o, { x: q.x, y: q.y });
   for (const m of g.markers || []) if (m.carriedBy === o.uid) { m.x = q.x; m.y = q.y; }

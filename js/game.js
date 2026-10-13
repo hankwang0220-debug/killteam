@@ -8,6 +8,8 @@ import { NIGHTLORDS_EQUIPMENT } from './data/nightlords.js';
 import { SCOUTS_EQUIPMENT } from './data/scouts.js';
 import { RATLINGS_EQUIPMENT } from './data/ratlings.js';
 import { SANCTIFIERS_EQUIPMENT } from './data/sanctifiers.js';
+import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
+import { isPulse, pfSetup, pfActivate, pfEnd, pfRules, pfGravHit, pfShield, pfTaoBonus, pfShootStart, pfShootEnd, pfMarkerTargets, pfMarkerlight, pfSwap, pfPointBlank, pfPloyBought, pfWorthy, pfActions, pfSelf, registerPathfinderActions } from './pathfinders.js';
 import { isSF, sfSetup, sfSermon, sfOrator, sfNearOrator, sfReady, sfActivate, sfEnd, sfRules, sfConversion, sfNullApl, sfShootBlaze, sfFightBlaze, sfRoll, sfSymbols, sfSwap, sfPloyBought, sfMiracleMoves, sfDeath, sfDeclaim, sfActions, sfSelf, registerSanctifierActions } from './sanctifiers.js';
 import { rtShootHideWhy, isRat, isSmall, isRifle, rtSetup, rtFree, rtTripwires, rtStolen, rtMine, rtSilent, rtRules, rtShifty, rtEquipRoll, rtArmour, rtBlockSI, rtScarper, rtAfterEnemyAction, rtMoved, rtLieInWait, rtShot, rtActions, registerRatlingActions } from './ratlings.js';
 import { isSC, scSetup, scResolve, scReady, scActivate, scNoteAttack, scEmbOk, scRules, scGuerrilla, scCamoExtra, scWeapons, scOculars, scVoxFree, scPloyBought, scActions, scTrapPath, scTrapShorten, scTrapFire, scTrapCheck, registerScoutActions } from './scouts.js';
@@ -209,6 +211,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
       for (let k = 0; k < slot.count; k++) {
         const chosen = (Array.isArray(pick) ? pick[k] : pick) || slot.id;
         if (chosen !== slot.id && !allowed?.includes(chosen)) throw new Error('Invalid roster replacement');
+        if (chosen === 'pfNone') continue; // (the MB3 Recon Drone's second selection: nobody is set up)
         const t = TEAM_MAP[teams[side]].ops.find((o) => o.id === chosen);
         n++;
         g.ops.push({
@@ -231,6 +234,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   scSetup(g, roster, scouting);
   rtSetup(g, roster, ratFree);
   sfSetup(g, roster); // Sanctifiers: roster check, the Orator and Declamation state
+  pfSetup(g, roster); // Pathfinders: roster limits
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -789,6 +793,7 @@ export function buyPloy(g, side, ploy) {
   wkPloyBought(g, side, ploy, cost); // Wrecka Krew: Glyphs used, Amped Up heals
   scPloyBought(g, side, ploy); // Scout Squad: Adaptable Training, Stealth Relocation
   sfPloyBought(g, side, ploy); // Sanctifiers: Rally the Flock
+  pfPloyBought(g, side, ploy); // Pathfinders: Recon Sweep
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
   if (ploy.id === 'gloryKill') setGloryKill(g, side, living(g, 1 - side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]);
@@ -810,6 +815,7 @@ function advanceStrategy(g, side) {
 export function startFirefight(g) {
   g.phase = 'firefight';
   g.turn = g.initiative;
+  pfWorthy(g); // Pathfinders: A Worthy Cause
 }
 
 /**
@@ -949,6 +955,7 @@ export function activate(g, op) {
   corsairActivate(g, op);
   dwActivate(g, op);
   sfActivate(g, op); // Sanctifiers: the Sermon for this activation, Blaze token damage
+  pfActivate(g, op); // Pathfinders: Point-Blank Fusillade snapshot, Pulse Accelerator and Photon Grenade tokens
 }
 
   // Archon effects are committed only when an action begins.
@@ -996,7 +1003,7 @@ export function endActivation(g) {
   if (g.smoke?.length) { for (const s of g.smoke) if (s.left != null) s.left--; g.smoke = g.smoke.filter((s) => s.left == null || s.left > 0); }
   if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `${opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `${opName(op, 'en')} Slink into Darkness: now Concealed` }, `side${op.side}`); }
   if (op) {
-    op.ready = false; op.ap = 0; op.rtLarcenous = false; sfEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
+    op.ready = false; op.ap = 0; op.rtLarcenous = false; sfEnd(op); pfEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
     if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; op.ctlOnly = null; op.ctlMove = null; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
     // Lacerate Flesh (Goremonger firefight ploy): the tank goes down again at the end, or it takes D3.
@@ -1396,6 +1403,7 @@ export function actionCost(g, op, id) {
   if (/^tw(Open|Close)_/.test(id)) return 1;
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
+  if (id === 'fallBack' && tpl(op).fearless) return Math.max(1, ACTIONS.fallBack.ap - 1) + (whipped(g, op) ? 1 : 0); // Fearless on the Frontline (Shas'la): 1 less AP
   if (id === 'fallBack' && op.acted?.slip) return Math.max(1, actionCost(g, { ...op, acted: { ...op.acted, slip: false } }, id) - 1); // Slip Away
   if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
   if (id === 'fallBack' && whipped(g, op)) return ACTIONS.fallBack.ap + 1; // Whip Control (Herd-goad)
@@ -1442,14 +1450,8 @@ export const TARGET_ACTIONS = {
   },
   // Markerlight: a visible enemy gains tokens (max 4). After a Shoot this activation, only its target.
   markerlight: {
-    targets: (g, op) => foes(g, op).filter((t) => visibility(g, op, t).visible
-      && (!op.acted.shotTarget || op.acted.shotTarget === t.uid)),
-    apply(g, op, t) {
-      const n = Math.min(4 - (t.ml || 0), tpl(op).markerlight || 1);
-      t.ml = (t.ml || 0) + n;
-      op.acted.mlTarget = t.uid;
-      return { zh: `標記光：${opName(t, 'zh')} 獲得 ${n} 個標記（共 ${t.ml}）`, en: `Markerlight: ${opName(t, 'en')} gains ${n} token(s) (${t.ml} total)` };
-    },
+    targets: (g, op) => pfMarkerTargets(g, op),
+    apply: (g, op, t) => pfMarkerlight(g, op, t),
   },
   // Signal (SUPPORT): another friendly Pathfinder visible within 6" gets +1 APL until the end of its next activation.
   signal: {
@@ -2181,7 +2183,8 @@ export function availableActions(g, op) {
   if (tpl(op).tormentGrenade) unique('tormentGrenade');
   if (tpl(op).administerDrug) for (const id of ['drugHeal', 'drugPainbringer', 'drugAdrenalight', 'drugHypex']) unique(id, !['drugHeal', 'drugPainbringer', 'drugAdrenalight', 'drugHypex'].some((x) => count(op, x)), DONE);
   if (tpl(op).archonMark) unique('archonMark', count(op, 'shoot') < 2, DONE);
-  if (tpl(op).markerlight) unique('markerlight');
+  if (tpl(op).markerlight) { if (tpl(op).fearless) add('markerlight', !count(op, 'markerlight') && TARGET_ACTIONS.markerlight.targets(g, op).length > 0, count(op, 'markerlight') ? DONE : NONE); else unique('markerlight'); } // (Shas'la, Fearless on the Frontline: even when engaged)
+  pfActions(g, op, add); // Pathfinders: Pulse Accelerator, Photon Grenade
   if (tpl(op).signal) unique('signal');
   if (tpl(op).signalAny) unique('signalAny');
   if (tpl(op).jamToken) unique('jamToken');
@@ -2377,6 +2380,7 @@ export function doSelfAction(g, op, id) {
   if (wkSelf(g, op, id)) return;
   if (ncSelf(g, op, id)) return;
   if (sfSelf(g, op, id)) return; // Sanctifiers: Trained Assassin, Wreathe in Fire
+  if (pfSelf(g, op, id)) return; // Pathfinders: Pulse Accelerator
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
@@ -2644,7 +2648,7 @@ export function inRange(op, target, weapon, extra = 0) {
 
 /** Markerlight tokens that count when op shoots target with weapon (Pathfinders only, not the fusion grenade). */
 export const mlLevel = (g, op, weapon, target) =>
-  (TEAM_MAP[op.team].markerlights && !weapon.rules.noMarkerlight && target ? target.ml || 0 : 0);
+  (TEAM_MAP[op.team].markerlights && !weapon.rules.noMarkerlight && target ? (target.ml || 0) + pfTaoBonus(g, op, target) : 0);
 
 // Optics, Multi-dimensional Vision, Long-sight (hunting rifle) and 3+ Markerlight tokens: the target can't be obscured.
 const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, target, {
@@ -2711,7 +2715,7 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   // Long Arm of the Emperor's Law (Exaction firefight ploy): Range +3".
   if (!inRange(op, target, weapon, ffOn(g, op, 'longArm') ? 3 : 0)) return { ok: false };
   // Markerlights: after a Markerlight this activation, Shoot must pick that same target.
-  if (!secondary && op.acted?.mlTarget && op.acted.mlTarget !== target.uid) return { ok: false };
+  if (!secondary && !tpl(op).analyse && op.acted?.mlTarget && op.acted.mlTarget !== target.uid) return { ok: false };
   return { ok: true, cover: v.cover, obscured: v.obscured, defenceOptions: v.defenceOptions, relay: relay?.uid ?? null };
 }
 
@@ -2725,6 +2729,7 @@ export function effectiveRules(g, op, weapon, target) {
   scRules(g, op, weapon, target, r); // Scout Squad: Trip Alarm, Track Enemy, Designate Target, Ambush, Grapnel Assault
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
+  pfRules(g, op, weapon, target, r); // Pathfinders: Pulse Accelerator
   if (target && ffOn(g, op, 'sfArdent')) r.relentless = true; // Ardent Eradication
   if (target && isSC(op) && ffOn(g, op, 'scEmboldened') && scEmbOk(g, op, target)) r.promote = 1; // Emboldened Aspirant: a normal success is retained as a critical one
   if (target && ffOn(g, op, 'wkKaboom') && g.shotTargets?.[0] === target.uid) r.severe = true; // Kaboom!: Severe against the primary target
@@ -4353,7 +4358,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4361,7 +4366,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4375,6 +4380,7 @@ registerNightlordsActions();
 registerScoutActions();
 registerRatlingActions();
 registerSanctifierActions();
+registerPathfinderActions();
 registerMandrakeActions();
 registerDwActions();
 registerCorsairActions();
@@ -4552,7 +4558,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => scVoxFree(g, side, id) || rtFree(g, side, id) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => scVoxFree(g, side, id) || rtFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id, target = g.dwAuspexTarget) => ffBaseCost(g, side, id, target) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id, target = g.dwAuspexTarget) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id, target) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -4759,6 +4765,9 @@ const FF = {
   shakeItOff: { kind: 'button', start: true, apply(g, op) { op.shakeTP = g.tp; if ((op.aplNext || 0) < 0 && !op.counter) op.ap += Math.min(1, -op.aplNext); } },
   // ---- Pathfinders ----
   supportingFire: { kind: 'aim' },
+  worthyCause: { kind: 'auto' },
+  saviourProtocols: { kind: 'auto' },
+  pointBlank: { kind: 'auto' },
   // ---- Phobos Strike Team ----
   criticalShot: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w && isBoltWeapon(w) ? null : { zh: '只能用爆彈武器', en: 'Bolt weapons only' }) },
   // ---- Plague Marines ----
@@ -5716,7 +5725,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (gong) dc = dn;
   const dev = devDmg; // (already inflicted, straight after the attack dice)
   // Weavefield Crest (Theyn): once per battle, ignore the Normal Dmg of one attack die.
-  const crest = block.remN > 0 && dn > 0 && useCrest(g, target);
+  const crest = block.remN > 0 && dn > 0 && (useCrest(g, target) || pfShield(g, target)); // (Shield Generator: MV4 Shield Drone)
   const normals = Array(Math.max(0, block.remN - (crest ? 1 : 0))).fill(dn);
   if (normals.length && corsairShield(g, target)) normals.shift();
   else if (normals.length && target.side < 2 && isCC(target) && matrixCovers(g, target.side, op, target) && autoFF(g, target.side, 'shieldFlare')) normals.shift(); // Shield Flare
@@ -5849,6 +5858,7 @@ export function forcedShot(g, op, weapon, targets, real = false) {
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
 export function* shootFlow(g, op, weapon, target) {
   if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
+  pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
   mwActionStart(g);
   wkActionStart(g, op, 'shoot'); // Wrecka Krew: Tanked Up, Wrecka Boss
   scNoteAttack(g, op); // Scout Squad: who attacked first this turning point (Emboldened Aspirant)
@@ -5896,7 +5906,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (vis.obscured && weapon.group === 'edRifle' && hasUp(op, 'fated') && op.fatedTP !== g.tp) { op.fatedTP = g.tp; vis = { ...vis, obscured: false }; log(g, { zh: '命定一擊：目標不能被遮蔽', en: 'Fated Shot: the target cannot be obscured' }, `side${op.side}`); }
   if (weapon.rules.aimed) op.acted.aimedUsed = true; // (Aimed: no more than 3" of movement after it)
   // Unquestioning Loyalty (Brood Brothers): a bodyguard takes the shot instead (in cover / obscured only if the Leader was).
-  target = loyalSwap(g, op, sfSwap(g, holySwap(g, target, weapon), weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
+  target = loyalSwap(g, op, pfSwap(g, sfSwap(g, holySwap(g, target, weapon), weapon), weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
   uprising(g, op, target); // Uprising: the target gains a Crossfire token as soon as it's selected
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
@@ -5972,6 +5982,7 @@ export function* shootFlow(g, op, weapon, target) {
   g.shotTargets = null;
   g.magnifyNow = null;
   op.shotTP = g.tp; // (Interstitial Command can't give a Shoot to one that already shot this turning point)
+  pfShootEnd(g); // Target Analysis Optic ends with the action
   // Deathmarked: a Deathmark's surviving primary target gains a token; Deathmarks shooting it have Seek.
   if (tpl(op).deathmark && !target.dead && !(target.dmk?.[op.side])) {
     (target.dmk ||= {})[op.side] = true;
@@ -6040,7 +6051,9 @@ export function startFight(g, op, weapon, target) {
   if (weapon.rules.swipe) (op.acted.swiped ||= []).push(target.uid);
   const painBefore = painSnapshot(g);
   archonBeforeAttack(g, op, 'fight'); archonBeforeAttack(g, target, 'fight');
-  const dWeapon = bestMelee(target);
+  let dWeapon = bestMelee(target);
+  const pbWeapon = pfPointBlank(g, op, target, dWeapon, avgDmg); // Point-Blank Fusillade (Pathfinders): retaliating with a ranged weapon
+  if (pbWeapon) dWeapon = pbWeapon;
   ffCommit(g, op, 'fight', weapon, target); // firefight ploys chosen for this Fight are paid now
   // Mandiblasters (Striking Scorpions): at the start of the Roll Attack Dice step, 2 damage to the enemy.
   if (tpl(op).mandiblasters && target.side < 2) {
@@ -6072,9 +6085,9 @@ export function startFight(g, op, weapon, target) {
   const assist = (me, foe) => !tpl(foe).brawler && !tpl(foe).noAssistVs && !hasGift(g, foe, 'barbed') && living(g, me.side).some((f) => f !== me && inEngagement(f, foe, g));
   const aAssist = assist(op, target), dAssist = assist(target, op);
   // Quicksilver Speed (Legionaries): against a Legionary that moved this TP, melee Hit is worsened by 1 (not with injured).
-  const aHit = weapon.rules.fixedHit ? weapon.hit : clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) + (shokked(g, op) ? 1 : 0) - (aAssist ? 1 : 0)); // (Shokkwave)
+  const aHit = weapon.rules.fixedHit ? weapon.hit : clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) + pfGravHit(g, op, weapon) + (shokked(g, op) ? 1 : 0) - (aAssist ? 1 : 0)); // (Shokkwave)
   // Banshee Mask (Howling Banshees): fighting, the enemy's melee Hit is worsened by 1 (not cumulative with injured).
-  const dHit = dWeapon.rules.fixedHit ? dWeapon.hit : clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) || tpl(op).bansheeMask ? 1 : 0) + (shokked(g, target) ? 1 : 0) - (dAssist ? 1 : 0)); // (Shokkwave)
+  const dHit = dWeapon.rules.fixedHit ? dWeapon.hit : clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) || tpl(op).bansheeMask ? 1 : 0) + pfGravHit(g, target, dWeapon) + (shokked(g, target) ? 1 : 0) - (dAssist ? 1 : 0)); // (Shokkwave)
   // Cut-throats: +1 Atk to a maximum of 5.
   const atk = (w, r) => Math.max(1, (r.atkPlus ? Math.max(w.atk, Math.min(r.atkMax || 5, w.atk + r.atkPlus)) : w.atk) - (r.atkMinus || 0)); // (For Cadia!: max 4; atkMinus: Sanctification)
   // Whip Control (Herd-goad): -1 Atk on the melee weapons of a whipped enemy (to a minimum of 1).
@@ -6121,6 +6134,7 @@ export function startFight(g, op, weapon, target) {
   if (op.mdFocusTarget === target.uid) op.mdFocusTarget = null;
   if (count(op, 'charge') && isMandrake(target) && withinShadow(g, target) && autoFF(g, target.side, 'mdBite')) g.fight.turn = 'D';
   g.fight.painBefore = painBefore;
+  if (pbWeapon) { g.fight.D.noBlock = true; if (isPulse(pbWeapon) && target.ready && target.order === 'engage') g.fight.turn = 'D'; } // (no blocking; a ready Engage pulse-weapon retaliator resolves first)
   if (tpl(target).faolchuBond && target.ready && target.faolchuTP !== g.tp) { target.faolchuTP = g.tp; g.fight.turn = 'D'; }
   if (op.acted.darknessTarget === target.uid) op.acted.darknessUsed = true;
   g.fight.A.assist = aAssist; g.fight.D.assist = dAssist;
@@ -6263,7 +6277,7 @@ export function fightOptions(g) {
   // A success doesn't have to be used: discard it without striking.
   if (me.n) opts.push({ id: 'decline-n', act: 'decline', die: 'n' });
   else if (me.c) opts.push({ id: 'decline-c', act: 'decline', die: 'c' });
-  return opts;
+  return me.noBlock ? opts.filter((o) => o.act !== 'parry') : opts; // (Point-Blank Fusillade: no blocking)
 }
 
 export function fightApply(g, optId) {
@@ -6287,6 +6301,7 @@ export function fightApply(g, optId) {
     if (shrug) foeOp.bruiserTP = g.tp;
     if (!shrug && opt.die === 'n' && corsairShield(g, foeOp)) shrug = true;
     if (!shrug && opt.die === 'n' && useCrest(g, foeOp)) shrug = true; // Weavefield Crest (Theyn)
+    if (!shrug && opt.die === 'n' && pfShield(g, foeOp)) shrug = true; // Shield Generator (MV4 Shield Drone)
     if (!shrug && opt.die === 'n' && foeOp.side < 2 && isCC(foeOp) && inMatrix(g, foeOp.side, foeOp) && autoFF(g, foeOp.side, 'shieldFlare')) shrug = true; // Shield Flare (Canoptek Circle)
     if (!shrug && opt.die === 'n' && opt.dmg >= 3 && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
     if (!shrug && opt.die === 'n' && isWK(foeOp) && !tpl(foeOp).wkSquig && autoFF(g, foeOp.side, 'wkJustScratch')) shrug = true; // Just a Scratch (Wrecka Krew)

@@ -687,6 +687,7 @@ export function aiStep(g) {
     if (t) { doTargetAction(g, op, 'sfOrb', t); return null; }
   }
   if (can.sfWreathe) { doSelfAction(g, op, 'sfWreathe'); return null; }
+  if (can.pfAccel && living(g, op.side).some((o) => o !== op && o.ready && !tpl(o).drone && edgeDist(o, op) <= 6)) { doSelfAction(g, op, 'pfAccel'); return null; } // Pathfinder MV31 Pulse Accelerator
   if (can.sfTrained && op.order === 'conceal' && foes(g, op).some((e) => edgeDist(op, e) <= 12)) { doSelfAction(g, op, 'sfTrained'); return null; }
   if (can.medikit) {
     const t = TARGET_ACTIONS.medikit.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds - b.wounds)[0];

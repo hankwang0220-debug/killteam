@@ -1,4 +1,4 @@
-import { boardOf, ER, radius, tpl, hasPloy, inMatrix } from './game.js';
+import { boardOf, ER, radius, tpl, hasPloy, inMatrix, living, visibility } from './game.js';
 import { dist, distPointRect, distPointSegment, distSegmentRect, pathLength, segRect, truncatePath } from './geometry.js';
 import { accessPointsOf, accessCrossingCost, accessEdgeCost, wallAllowsControl } from './tombworld-access.js';
 
@@ -137,9 +137,26 @@ export function moveCtx(g, op, kind = 'reposition') {
     }
     return false;
   }
+  // Grav-inhibitor (Pathfinder MV33 drone): an enemy's move (not a Dash) that goes visible to and within 6" of it counts 2" more.
+  const gravs = kind === 'dash' || op.side > 1 ? [] : living(g, 1 - op.side).filter((d) => tpl(d).pfGrav);
+  function gravCost(pts) {
+    let cost = 0;
+    for (const d of gravs) {
+      let hit = false;
+      for (let i = 1; i < pts.length && !hit; i++) {
+        const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(dist(a, b)));
+        for (let k = 0; k <= n && !hit; k++) {
+          const p = { x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n };
+          if (dist(p, d) - radius(d) - r <= 6 && visibility(g, d, { ...op, x: p.x, y: p.y }).visible) hit = true;
+        }
+      }
+      if (hit) cost += 2;
+    }
+    return cost;
+  }
   function extra(pts) {
     const wire = !wires.length || fly || op.acted?.mdNowhere ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
-    return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts) + crossingCost(pts);
+    return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts) + crossingCost(pts) + gravCost(pts);
   }
   // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).
   const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !hardWalls.some(t => distPointRect(p,t) < r-EPS && !accessOverlap(t,p)) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
