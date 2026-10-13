@@ -1,7 +1,7 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v18';
+const CACHE = 'killteam-v19';
 const ASSETS = [
-  'js/tombworld-maps.js', 'js/tombworld.js', 'js/data/tombworld.js',
+  'js/tombworld-access.js', 'js/tombworld-maps.js', 'js/tombworld.js', 'js/data/tombworld.js',
   'js/wrecka.js', 'js/data/wrecka.js',
   'js/nightlords.js', 'js/data/nightlords.js', 'js/ratlings.js', 'js/data/ratlings.js',
   'js/scouts.js', 'js/data/scouts.js',

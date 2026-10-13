@@ -73,6 +73,7 @@ function loadSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
     // A save from a team that no longer exists (e.g. the old Astartes Strike Team) can't be resumed.
+    if (s?.map?.startsWith('tombworld-')) for (const t of s.terrain || []) if (t.kind === 'heavy' && /^[AB][1-4]$/.test(t.component || '')) t.twWall = true;
     return s && s.teams.every((id) => TEAM_MAP[id]) ? s : null;
   } catch { return null; }
 }
@@ -443,7 +444,7 @@ function setupView() {
       <p class="hint small">${esc(tx(ms.desc))}${ms.source ? ` <i>（${esc(ms.source)}）</i>` : ''}</p></section>
     <section class="card missionpick"><h3>${L('地圖', 'Map')}</h3>
       <select data-act="map" ${ms.terrain ? 'disabled' : ''}><option value="default" ${s.map === 'default' ? 'selected' : ''}>${L('原有地圖', 'Default map')}</option>${TOMB_WORLD_MAPS.map(m => `<option value="${m.id}" ${s.map === m.id && !ms.terrain ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
-      ${ms.terrain ? `<p class="hint">${L('此任務使用專屬地圖。', 'This mission uses its own map.')}</p>` : s.map !== 'default' ? `<p class="hint">28″ × 24″ · ${L('圖卡排列的平面近似；艙門預設開啟，A1 保持完整。', 'Flat approximation of the map card; hatchways start open, A1 remains intact.')}</p>${tombWorldMapSvg(TOMB_WORLD_MAPS.find(m => m.id === s.map) || TOMB_WORLD_MAPS[0])}` : ''}
+      ${ms.terrain ? `<p class="hint">${L('此任務使用專屬地圖。', 'This mission uses its own map.')}</p>` : s.map !== 'default' ? `<p class="hint">28″ × 24″ · ${L('圖卡排列的平面近似；艙門預設開啟，A1 保持完整。', 'Flat approximation of the map card; hatchways start open, A1 remains intact.')}</p>${tombWorldMapSvg(TOMB_WORLD_MAPS.find(m => m.id === s.map) || TOMB_WORLD_MAPS[0],getLang() === 'zh')}` : ''}
     </section>
     <div class="picks">${pick(0)}${pick(1)}</div>
     <div class="setupbar"><button class="ghost" data-act="home">${L('返回', 'Back')}</button>
@@ -1571,7 +1572,7 @@ function firefightPanel() {
       if (op.darknessTargets?.length && !op.orderSet) html += `<label>${L('死亡來自黑暗：目標', 'From Darkness, Death: target')}<select data-act="darkness">${op.darknessTargets.map((uid) => `<option value="${uid}" ${op.acted.darknessTarget === uid ? 'selected' : ''}>${nm(getOp(g, uid))}</option>`).join('')}</select></label>`;
     }
     html += `<div class="actions">${availableActions(g, op).map((a) => `<button data-act="action" data-id="${a.id}" ${a.ok ? '' : 'disabled'} title="${a.why ? esc(tx(a.why)) : ''}">
-      ${esc(tx(ACTIONS[a.id].name))} <span class="cp">${a.ap}AP</span></button>`).join('')}</div>`;
+      ${esc(tx(a.name || ACTIONS[a.id].name))} <span class="cp">${a.ap}AP</span></button>`).join('')}</div>`;
     // Firefight ploys this operative can use now (交戰計謀).
     const ffb = ffButtons(g, op);
     if (ffb.length) {
@@ -1655,7 +1656,7 @@ function modeView(op) {
       : m.weapon.rules.blast ? L(`爆炸：也會射擊主要目標 ${m.weapon.rules.blast}" 內所有可見的特工（包括己方）。`, ` Blast: also shoots every operative visible within ${m.weapon.rules.blast}" of the first — friends included.`) : '';
     return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}${area}</p>${aim}<div class="row">${cancel}</div></div>`;
   }
-  if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人。', 'Tap an engaged enemy.')}</p><div class="row">${cancel}</div></div>`;
+  if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人，或門另一側的合法門間近戰目標（底座接觸門口，目標距門口 2 吋內）。', 'Tap an engaged enemy, or a legal Hatchway Fight target across an access point you touch, within 2 inches of it.')}</p><div class="row">${cancel}</div></div>`;
   if (m.kind === 'target') {
     const hint = {
       markerlight: L('點擊一個可見的敵人，讓它獲得標記光標記。', 'Tap a visible enemy to give it Markerlight tokens.'),

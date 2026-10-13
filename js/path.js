@@ -1,5 +1,6 @@
 import { boardOf, ER, radius, tpl, hasPloy, inMatrix } from './game.js';
 import { dist, distPointRect, distPointSegment, distSegmentRect, pathLength, segRect, truncatePath } from './geometry.js';
+import { accessPointsOf, accessCrossingCost, accessEdgeCost, wallAllowsControl } from './tombworld-access.js';
 
 const RES = 0.25;
 const EPS = 1e-6;
@@ -40,6 +41,16 @@ export function moveCtx(g, op, kind = 'reposition') {
   const others = g.ops.filter((o) => !o.dead && o.uid !== op.uid).map((o) => ({ uid: o.uid, x: o.x, y: o.y, r: radius(o), enemy: o.side !== op.side }));
   // A base can't end on Heavy or Light terrain, but a move can climb over it (see climbWalk).
   const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
+  const hardWalls = cover.filter(t => t.twWall);
+  const access = accessPointsOf(g);
+  const crossingCost = (pts) => accessCrossingCost(pts, access);
+  const crossingEdgeCost = (a,b) => accessEdgeCost([a,b], access);
+  // Accessible openings allow the base's centre to pass; a wider base may clip
+  // adjacent wall wings in transit, but must still finish clear of all terrain.
+  const accessOverlap = (t,p) => t.twWall && t.role !== 'pillar' && access.some(d =>
+    t.component === d.component && distPointRect(d,t) <= d.width/2+EPS &&
+    Math.abs(p[d.axis]-d[d.axis]) <= r+.125+EPS &&
+    Math.abs(p[d.axis === 'x' ? 'y':'x']-d[d.axis === 'x' ? 'y':'x']) <= d.width/2+EPS);
   function free(p, blocks = cover) {
     if (p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) return false;
     for (const t of blocks) if (distPointRect(p, t) < r - 1e-6) return false;
@@ -50,7 +61,7 @@ export function moveCtx(g, op, kind = 'reposition') {
     return true;
   }
   function inEnemyER(p) {
-    return others.some((o) => o.enemy && dist(p, o) - r - o.r <= ER + 0.01);
+    return others.some((o) => o.enemy && dist(p, o) - r - o.r <= ER + 0.01 && wallAllowsControl(g,p,o));
   }
   // Explain endpoint clearance separately from whether a route can reach it.
   function placement(p) {
@@ -69,7 +80,7 @@ export function moveCtx(g, op, kind = 'reposition') {
   const breaches = (g.markers || []).filter((m) => m.kind === 'breach');
   const breached = cover.map((t) => (Math.min(t.w, t.h) <= 1 + EPS ? breaches.filter((m) => m.rect && m.rect.x === t.x && m.rect.y === t.y && m.rect.w === t.w && m.rect.h === t.h) : []));
   const accessible = (i, p) => breached[i].some((m) => dist(p, m) - r <= 1 + EPS);
-  const coverAt = (p) => { const s = []; for (let i = 0; i < cover.length; i++) if (distPointRect(p, cover[i]) < r - EPS && !accessible(i, p)) s.push(i); return s; };
+  const coverAt = (p) => { const s = []; for (let i = 0; i < cover.length; i++) if (distPointRect(p, cover[i]) < r - EPS && !accessible(i, p) && !accessOverlap(cover[i],p)) s.push(i); return s; };
   // (Grapnel Launcher, Scout Hunter: climbing up counts as 2", whatever the height.)
   const climbCost = (i) => { const h = climbHeight(cover[i]); return Math.round(((tpl(op).scGrapnel || tpl(op).grapple ? 2 : Math.max(2, h)) + Math.max(0, h - 2)) * 10) / 10; };
   /** Follow a polyline: the climbing cost of the terrain it gets onto, and whether every landing after a climb is legal. */
@@ -84,7 +95,7 @@ export function moveCtx(g, op, kind = 'reposition') {
       const n = Math.max(1, Math.ceil(dist(a, b) / 0.05));
       for (let k = 1; k <= n; k++) {
         const p = { x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n };
-        const cur = near.filter((t) => distPointRect(p, cover[t]) < r - EPS && !accessible(t, p));
+        const cur = near.filter((t) => distPointRect(p, cover[t]) < r - EPS && !accessible(t, p) && !accessOverlap(cover[t],p));
         for (const t of cur) if (!prev.includes(t)) cost += climbCost(t);
         if (prev.length && !cur.length && inEnemyER(p)) ok = false;
         prev = cur;
@@ -93,6 +104,16 @@ export function moveCtx(g, op, kind = 'reposition') {
     return { cost: Math.round(cost * 10) / 10, ok };
   }
   function segFree(a, b) {
+    const walls = hardWalls.filter(t => distSegmentRect(a,b,t) < r-EPS);
+    if (walls.length) {
+      if (walls.some(t => t.role === 'pillar' || !access.some(d => t.component === d.component &&
+        distPointRect(d,t)<=d.width/2+EPS && (accessOverlap(t,a) || accessOverlap(t,b) || accessEdgeCost([a,b],[d])>0)))) return false;
+      const n=Math.max(1,Math.ceil(dist(a,b)/.05));
+      for(let i=0;i<=n;i++) {
+        const p={x:a.x+(b.x-a.x)*i/n,y:a.y+(b.y-a.y)*i/n};
+        if(walls.some(t => distPointRect(p,t)<r-EPS && !accessOverlap(t,p))) return false;
+      }
+    }
     if (fly) return true;
     if ([a, b].some((p) => p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r)) return false;
     // (A move can pass through friendly operatives — never enemy ones — but can't end on any base: see free.)
@@ -118,11 +139,11 @@ export function moveCtx(g, op, kind = 'reposition') {
   }
   function extra(pts) {
     const wire = !wires.length || fly || op.acted?.mdNowhere ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
-    return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts);
+    return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts) + crossingCost(pts);
   }
   // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).
-  const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
-  return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, climbs, coverAt, climbCost, noClimb };
+  const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !hardWalls.some(t => distPointRect(p,t) < r-EPS && !accessOverlap(t,p)) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
+  return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, crossingCost, crossingEdgeCost, climbs, coverAt, climbCost, noClimb };
 }
 
 /** Shorten a path to maxLen, backing off until the end point is a legal place to stand. */
@@ -160,7 +181,7 @@ export function findPath(ctx, goal) {
   if (!ctx.free(goal)) return null;
   // Straight there, unless that climbs: then a way around may be cheaper.
   const straight = ctx.segFree(start, goal) ? { pts: [start, goal], len: dist(start, goal) + (ctx.extra?.([start, goal]) || 0) } : null;
-  if (straight && !ctx.climbs?.(straight.pts)) return straight;
+  if (straight && !ctx.climbs?.(straight.pts) && !ctx.crossingCost?.(straight.pts)) return straight;
   const around = gridPath(ctx, start, goal);
   return !around || (straight && straight.len <= around.len) ? straight : around;
 }
@@ -208,7 +229,7 @@ function gridPath(ctx, start, goal) {
         if (from.length && !to.length && ctx.inEnemyER({ x: nc * RES, y: nr * RES })) continue;
         for (const t of to) if (!from.includes(t)) climb += ctx.climbCost(t);
       }
-      const ng = gScore[cur.i] + cost * RES + climb;
+      const ng = gScore[cur.i] + cost * RES + climb + (ctx.crossingEdgeCost?.({x:cur.c*RES,y:cur.r*RES},{x:nc*RES,y:nr*RES}) || 0);
       if (ng < gScore[ni]) {
         gScore[ni] = ng; came[ni] = cur.i;
         heap.push({ i: ni, c: nc, r: nr, f: ng + h(nc, nr) });
@@ -232,7 +253,7 @@ function gridPath(ctx, start, goal) {
   while (i < raw.length - 1) {
     let j = raw.length - 1;
     // (a shortcut may not climb more than the route it replaces)
-    const ok = (j) => ctx.segFree(raw[i], raw[j]) && (!climbing || ctx.climbs([raw[i], raw[j]]) <= ctx.climbs(raw.slice(i, j + 1)));
+    const ok = (j) => ctx.segFree(raw[i], raw[j]) && (ctx.extra?.([raw[i], raw[j]]) || 0) <= (ctx.extra?.(raw.slice(i, j + 1)) || 0);
     while (j > i + 1 && !ok(j)) j--;
     pts.push(raw[j]);
     i = j;

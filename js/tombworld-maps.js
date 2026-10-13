@@ -53,6 +53,22 @@ export const TOMB_WORLD_MAPS = layouts.map((m, i) => ({
 /** Ground-level geometry: open hatchways and B2 holes leave actual gaps.
  * Lintels are omitted from this flat-board simulation, not treated as floor obstacles.
  */
+export function tombWorldAccessPoints(map) {
+  return map.runs.flatMap((r,i) => {
+    const opening = PARTS[r.id].opening;
+    return opening ? [{id:`access-${i}`,component:r.id,kind:opening.type === 'door' ? 'hatchway':'breach',
+      x:(r.x+r.x1)/2,y:(r.y+r.y1)/2,axis:r.y === r.y1 ? 'y':'x',width:opening.width,moveCost:2}] : [];
+  });
+}
+
+export function tombWorldAccessSvg(access, zh = true) {
+  return access.map(d => {
+    const horizontal = d.axis === 'y';
+    const label = `${d.kind === 'hatchway' ? zh ? '門':'Door' : zh ? '洞':'Breach'} +2″`;
+    return `<g class="tw-access" pointer-events="none"><title>${d.component} · ${label}</title><rect x="${d.x-(horizontal ? d.width/2:.16)}" y="${d.y-(horizontal ? .16:d.width/2)}" width="${horizontal ? d.width:.32}" height="${horizontal ? .32:d.width}"/><text x="${d.x+(horizontal ? 0:.45)}" y="${d.y+(horizontal ? -.4:.18)}" text-anchor="${horizontal ? 'middle':'start'}">${label}</text></g>`;
+  }).join('');
+}
+
 export function tombWorldTerrain(map) {
   const terrain = [], pillars = new Set();
   for (const r of map.runs) {
@@ -60,7 +76,7 @@ export function tombWorldTerrain(map) {
     const a = horizontal ? r.x : r.y, cross = horizontal ? r.y : r.x;
     const rect = (start, span, depth = c.thickness) => {
       if (span <= 0) return;
-      terrain.push({kind:'heavy',component:r.id,height:c.height,
+      terrain.push({kind:'heavy',twWall:true,component:r.id,height:c.height,
         x:horizontal ? start : Math.max(0,Math.min(28-depth,cross-depth/2)),y:horizontal ? Math.max(0,Math.min(24-depth,cross-depth/2)) : start,
         w:horizontal ? span : depth,h:horizontal ? depth : span});
     };
@@ -73,7 +89,7 @@ export function tombWorldTerrain(map) {
       const size=c.squareThickness, px=Math.max(0,Math.min(28-size,x-size/2)),py=Math.max(0,Math.min(24-size,y-size/2));
       const key=`${px},${py}`;
       if (pillars.has(key)) continue;
-      pillars.add(key);terrain.push({kind:'heavy',component:r.id,role:'pillar',height:c.height,x:px,y:py,w:size,h:size});
+      pillars.add(key);terrain.push({kind:'heavy',twWall:true,component:r.id,role:'pillar',height:c.height,x:px,y:py,w:size,h:size});
     }
   }
   for (const p of map.covers) {
@@ -83,12 +99,12 @@ export function tombWorldTerrain(map) {
   return terrain;
 }
 
-export function tombWorldMapSvg(map) {
+export function tombWorldMapSvg(map, zh = true) {
   const zones=map.deploy.map((z,i)=>`<rect x="${z.x0}" y="${z.y0}" width="${z.x1-z.x0}" height="${z.y1-z.y0}" fill="${i ? '#e59b69':'#75a8b7'}" opacity=".25"/><text x="${(z.x0+z.x1)/2}" y="${(z.y0+z.y1)/2}" class="tw-map-zone">${i ? 'B':'A'}</text>`).join('');
   const solids=tombWorldTerrain(map).map(t=>`<rect x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" class="${t.kind === 'light' ? 'tw-light':'tw-solid'}"/>`).join('');
   const labels=map.runs.map(r=>`<text x="${(r.x+r.x1)/2+.5}" y="${(r.y+r.y1)/2-.5}" class="tw-map-label">${r.id}</text>`).join('')+map.covers.map(c=>`<text x="${c.x}" y="${c.y+.2}" class="tw-map-label">${c.id}</text>`).join('');
   const pads=map.pads.map(p=>`<g class="tw-pad"><circle cx="${p.x}" cy="${p.y}" r="1.125"/><text x="${p.x}" y="${p.y+.22}">T</text></g>`).join('');
   const objectives=map.objectives.map((p,i)=>`<g class="tw-map-objective"><circle cx="${p.x}" cy="${p.y}" r="1.4"/><circle cx="${p.x}" cy="${p.y}" r=".4"/><text x="${p.x}" y="${p.y+.23}">${i+1}</text></g>`).join('');
   const grid=Array.from({length:6},(_,i)=>`<path d="M${(i+1)*4} 0V24"/>`).join('')+Array.from({length:5},(_,i)=>`<path d="M0 ${(i+1)*4}H28"/>`).join('');
-  return `<svg class="tw-map" viewBox="-.7 -.7 29.4 25.4" role="img" aria-label="Tomb World ${map.number}, 28 × 24 inches"><rect width="28" height="24" class="tw-map-mat"/>${zones}<g class="tw-map-grid">${grid}</g>${solids}${labels}${pads}${objectives}</svg>`;
+  return `<svg class="tw-map" viewBox="-.7 -.7 29.4 25.4" role="img" aria-label="Tomb World ${map.number}, 28 × 24 inches"><rect width="28" height="24" class="tw-map-mat"/>${zones}<g class="tw-map-grid">${grid}</g>${solids}${labels}${pads}${objectives}${tombWorldAccessSvg(tombWorldAccessPoints(map),zh)}</svg>`;
 }

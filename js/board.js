@@ -1,3 +1,5 @@
+import { tombWorldAccessSvg } from './tombworld-maps.js';
+import { accessPointsOf } from './tombworld-access.js';
 import { boardOf, DEPLOY, OBJ_R, CONTROL, controller, isInjured, opName, radius, team, tpl } from './game.js';
 import { getLang, tx } from './i18n.js';
 import { objBadges } from './missions.js';
@@ -103,6 +105,7 @@ export function renderBoard(g, ui) {
     s.push(`<g class="tlabel tl-${kind}" transform="translate(${f(cx)} ${f(cy)})" pointer-events="none"><rect x="-.24" y="-.24" width=".48" height=".48" rx=".12"/><text y=".15">${lab}</text></g>`);
   }
 
+  s.push(tombWorldAccessSvg(accessPointsOf(g), getLang() === 'zh'));
   for (const p of g.pads || []) s.push(`<g class="tw-pad" pointer-events="none"><title>${getLang() === 'zh' ? '傳送台 T（1AP）' : 'Teleport pad T (1AP)'}</title><circle cx="${p.x}" cy="${p.y}" r="1.125"/><text x="${p.x}" y="${p.y + .22}">T</text></g>`);
   for (const o of g.objectives) {
     const c = controller(g, o);

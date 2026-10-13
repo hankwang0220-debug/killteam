@@ -591,3 +591,8 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 .tw-map-objective circle:first-child { stroke-dasharray:.15 .12; }
 .tw-map-objective circle:nth-child(2) { fill:#efac65; }
 .tw-map-objective text { fill:#142126; font-size:.55px; text-anchor:middle; font-weight:bold; }
+
+.tw-access rect { fill:#173f41; fill-opacity:.75; stroke:#65f4e1; stroke-width:.09; stroke-dasharray:.15 .07; }
+.tw-access text { fill:#aaffec; font-size:.46px; font-weight:bold; paint-order:stroke; stroke:#102322; stroke-width:.15; }
+.tw-door-rules { border-left:3px solid #65f4e1; margin-top:20px; }
+.tw-door-rules h2 { margin:0 0 12px; font-size:1.1rem; }

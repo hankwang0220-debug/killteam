@@ -1,4 +1,5 @@
 import { TOMB_WORLD_MAPS, tombWorldTerrain } from './tombworld-maps.js';
+import { wallAllowsControl, hatchwayFightAccess } from './tombworld-access.js';
 import { DEATHWATCH_EQUIPMENT } from './data/deathwatch.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT } from './data/murderwing.js';
@@ -48,10 +49,13 @@ export const living = (g, side) => g.ops.filter((o) => !o.dead && (side == null 
 export const getOp = (g, uid) => g.ops.find((o) => o.uid === uid);
 export const activeOp = (g) => (g.active == null ? null : getOp(g, g.active));
 export const edgeDist = (a, b) => dist(a, b) - radius(a) - radius(b);
-export const inEngagement = (a, b) => edgeDist(a, b) <= ER + 0.01;
+export const inEngagement = (a, b, g) => {
+  const virtual = g?.hatchwayFight && !g.fight?.done && g.hatchwayFight.includes(a.uid) && g.hatchwayFight.includes(b.uid) && a.uid !== b.uid;
+  return !!virtual || (edgeDist(a, b) <= ER + 0.01 && (!g || wallAllowsControl(g,a,b)));
+};
 /** Living operatives hostile to op: the other player's and any NPOs (NPOs are hostile to everyone). */
 export const foes = (g, op) => g.ops.filter((o) => !o.dead && o.side !== op.side);
-export const engagedEnemies = (g, op) => foes(g, op).filter((e) => inEngagement(op, e));
+export const engagedEnemies = (g, op) => foes(g, op).filter((e) => inEngagement(op, e, g));
 /** The current mission's rules (standard if none). */
 export const mission = (g) => MISSIONS[g.mission] || MISSIONS.standard;
 export const isEngaged = (g, op) => engagedEnemies(g, op).length > 0;
@@ -2133,7 +2137,8 @@ export function availableActions(g, op) {
   const shootWhy = shootEngaged ? ENG : !attackAllowed(op, 'shoot') ? DONE : (shots.find((s) => !s.ok)?.why || DONE);
   add('shoot', hasRanged && !shootEngaged && attackAllowed(op, 'shoot') && shots.some((s) => s.ok), shootWhy);
   // Savage Assault / Stealth Attack: a free Fight (against the same enemy for Savage Assault).
-  add('fight', fightTargets(g, op).length > 0 && (attackAllowed(op, 'fight') || !!free.fight), !engaged ? { zh: '沒有交戰中的敵人', en: 'No enemy in engagement' } : DONE);
+  add('fight', fightTargets(g, op).length > 0 && (attackAllowed(op, 'fight') || !!free.fight), !engaged ? { zh: '沒有交戰敵人或合法門間近戰目標', en: 'No engaged enemy or legal hatchway fight target' } : DONE);
+  if (!engaged && g.map?.startsWith('tombworld-')) list.at(-1).name = {zh:'門間近戰',en:'Hatchway Fight'};
   if (tpl(op).optics) add('optics', !engaged && !count(op, 'optics'), engaged ? ENG : DONE);
   const NONE = { zh: '沒有可選的目標', en: 'No valid target' };
   const unique = (id, extra = true, extraWhy = null) => {
@@ -2325,7 +2330,9 @@ export function fightTargets(g, op) {
   if (op.mwAttackLockTP === g.tp) return [];
   if (op.mdPassLockTP === g.tp) return [];
   const only = op.acted?.free?.fight;
-  const list = engagedEnemies(g, op).filter((e) => !op.mdFocusTarget || e.uid === op.mdFocusTarget);
+  const engaged = engagedEnemies(g,op);
+  const candidates = engaged.length ? engaged : foes(g,op).filter(e => hatchwayFightAccess(g,op,e,radius(op),radius(e)));
+  const list = candidates.filter((e) => !op.mdFocusTarget || e.uid === op.mdFocusTarget);
   if (only === 'swipe') return list.filter((e) => !op.acted.swiped?.includes(e.uid)); // Swipe: each enemy once
   return typeof only === 'string' && only !== 'stealth' && only !== 'any' ? list.filter((e) => e.uid === only) : list;
 }
@@ -2448,7 +2455,7 @@ export function spend(g, op, id, ap = actionCost(g, op, id)) {
 export function doMove(g, op, kind, path) {
   if (isMurderwing(op) && (!path?.pts?.length || path.len > moveAllowance(g, op, kind) + 0.01)) return false;
   const ctx = moveCtx(g, op, kind);
-  path = wholeInchPath(op.breachMove ? { ...ctx, segFree: () => true, extra: () => 0 } : ctx, path, moveAllowance(g, op, kind), kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));
+  path = wholeInchPath(op.breachMove && !g.map?.startsWith('tombworld-') ? { ...ctx, segFree: () => true, extra: () => 0 } : ctx, path, moveAllowance(g, op, kind), kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));
   if (!path) return false;
   if (kind === 'fallBack' && !mwFallBack(g, op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
@@ -2652,7 +2659,7 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   }
   // Explosive (Bomb Squig): no valid target is picked — the squig itself is always the primary target (no cover, not obscured).
   if (weapon.rules.wkExplosive) return target === op && shootWeapon(g, op, weapon).ok ? { ok: true, cover: false, obscured: false } : { ok: false };
-  if (tpl(op).quickTrigger && isEngaged(g, op) && !inEngagement(op, target)) return { ok: false };
+  if (tpl(op).quickTrigger && isEngaged(g, op) && !inEngagement(op, target, g)) return { ok: false };
   if (target.dead || target.side === op.side) return { ok: false };
   if (weapon.rules.psychic && tpl(target).nullRodAura) return { ok: false }; // Null Rod: PSYCHIC weapons can't harm it
   if (!shootWeapon(g, op, weapon).ok) return { ok: false };
@@ -2665,7 +2672,7 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   const support = (ffOn(g, op, 'supportingFire') && edgeDist(op, target) <= 6) || (ffOn(g, op, 'rtSharpshot') && isRifle(weapon)); // (Sharpshot: Ratlings)
   const stalwart = g.stalwart?.by === op.uid && g.stalwart.target === target.uid; // Stalwart Defence (Hernkyn Yaegirs)
   if (g.stalwart?.by === op.uid && !stalwart) return { ok: false };
-  if (!TEAM_MAP[op.team].ruthless && !tpl(op).quickTrigger && !support && !stalwart && living(g, op.side).some((f) => inEngagement(f, target) && !(tpl(op).rqRuthless && tpl(f).rqRuthless))) return { ok: false }; // (Requisitioned Exaction Squad: Ruthless Efficiency among themselves)
+  if (!TEAM_MAP[op.team].ruthless && !tpl(op).quickTrigger && !support && !stalwart && living(g, op.side).some((f) => inEngagement(f, target, g) && !(tpl(op).rqRuthless && tpl(f).rqRuthless))) return { ok: false }; // (Requisitioned Exaction Squad: Ruthless Efficiency among themselves)
   // Long Arm of the Emperor's Law (Exaction firefight ploy): Range +3".
   if (!inRange(op, target, weapon, ffOn(g, op, 'longArm') ? 3 : 0)) return { ok: false };
   // Markerlights: after a Markerlight this activation, Shoot must pick that same target.
@@ -5826,6 +5833,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (weapon.rules.aimed) op.acted.aimedUsed = true; // (Aimed: no more than 3" of movement after it)
   // Unquestioning Loyalty (Brood Brothers): a bodyguard takes the shot instead (in cover / obscured only if the Leader was).
   target = loyalSwap(g, op, holySwap(g, target, weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
+  if (hatch) g.hatchwayFight = [op.uid,target.uid];
   uprising(g, op, target); // Uprising: the target gains a Crossfire token as soon as it's selected
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
@@ -5942,6 +5950,12 @@ const other = (k) => (k === 'A' ? 'D' : 'A');
 const left = (p) => p.c + p.n;
 
 export function startFight(g, op, weapon, target) {
+  const hatch = !isEngaged(g,op) && target && hatchwayFightAccess(g,op,target,radius(op),radius(target));
+  if (g.map?.startsWith('tombworld-') && !fightTargets(g,op).includes(target)) return false;
+  if (hatch) {
+    g.hatchwayFight = [op.uid,target.uid];
+    log(g,{zh:`${opName(op,'zh')} 經 ${hatch.component} 門口發動門間近戰（計入近戰動作）`,en:`${opName(op,'en')} starts a Hatchway Fight through ${hatch.component} (counts as a Fight)`},`side${op.side}`);
+  }
   wkActionStart(g, op, 'fight'); // Wrecka Krew: Tanked Up, Wrecka Boss
   scNoteAttack(g, op); // Scout Squad: Emboldened Aspirant
   mwActionStart(g);
@@ -5989,7 +6003,7 @@ export function startFight(g, op, weapon, target) {
   // Assist: another friendly operative within the enemy's control range improves the Hit stat by 1.
   // Brawler (Dôzr): enemies fighting it can't be assisted.
   // Devastating Onslaught (Legionary Butcher): enemies fighting it can't be assisted either.
-  const assist = (me, foe) => !tpl(foe).brawler && !tpl(foe).noAssistVs && !hasGift(g, foe, 'barbed') && living(g, me.side).some((f) => f !== me && edgeDist(f, foe) <= CONTROL + 0.01);
+  const assist = (me, foe) => !tpl(foe).brawler && !tpl(foe).noAssistVs && !hasGift(g, foe, 'barbed') && living(g, me.side).some((f) => f !== me && inEngagement(f, foe, g));
   const aAssist = assist(op, target), dAssist = assist(target, op);
   // Quicksilver Speed (Legionaries): against a Legionary that moved this TP, melee Hit is worsened by 1 (not with injured).
   const aHit = weapon.rules.fixedHit ? weapon.hit : clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) + (shokked(g, op) ? 1 : 0) - (aAssist ? 1 : 0)); // (Shokkwave)
@@ -6036,7 +6050,7 @@ export function startFight(g, op, weapon, target) {
     critBonus: tpl(o).ruststalker && living(g, o.side).some((p) => tpl(p).canticleDestruction && edgeDist(p, o) <= 3) ? 1 : 0,
   });
   // Repress (Exaction Squad shields): retaliating with it, the defender resolves the first die.
-  g.fight = { A: side(op, target, weapon, ar, aRoll, aHit), D: side(target, op, dWeapon, dr, dRoll, dHit), turn: dWeapon.rules.repress && !weapon.rules.repress ? 'D' : 'A', steps: [], done: false };
+  g.fight = { hatchway: hatch?.id || null, A: side(op, target, weapon, ar, aRoll, aHit), D: side(target, op, dWeapon, dr, dRoll, dHit), turn: dWeapon.rules.repress && !weapon.rules.repress ? 'D' : 'A', steps: [], done: false };
   if (op.mdFocusTarget === target.uid) op.mdFocusTarget = null;
   if (count(op, 'charge') && isMandrake(target) && withinShadow(g, target) && autoFF(g, target.side, 'mdBite')) g.fight.turn = 'D';
   g.fight.painBefore = painBefore;
@@ -6417,7 +6431,7 @@ function finishFight(g) {
     f.swipeNext = true;
   }
   // Savage Assault: if both are still standing, a free Fight against the same enemy.
-  if (f.savage && !a.dead && !d.dead && inEngagement(a, d)) {
+  if (f.savage && !a.dead && !d.dead && inEngagement(a, d, g)) {
     a.acted.free = { ...(a.acted.free || {}), fight: d.uid };
     f.savageNext = true;
     log(g, { zh: `${opName(a, 'zh')} 野蠻突擊：可再對 ${opName(d, 'zh')} 免費近戰一次`, en: `${opName(a, 'en')} Savage Assault: may fight ${opName(d, 'en')} again for free` }, `side${a.side}`);
@@ -6434,6 +6448,7 @@ function demolitionJob(g, op, target) {
 }
 
 export function endFight(g) {
+  g.hatchwayFight = null;
   if (g.fight) for (const [k, other] of [['A', 'D'], ['D', 'A']]) {
     mdFeast(g, fightOp(g, k), fightOp(g, other), g.fight[k].mdDamageDice || 0, autoFF);
   }
@@ -6475,7 +6490,7 @@ export function fightAutoChoice(g) {
 
 /** Resolve a whole fight automatically (AI vs AI, simulations). */
 export function resolveFight(g, op, weapon, target) {
-  startFight(g, op, weapon, target);
+  if (startFight(g, op, weapon, target) === false) return null;
   while (!g.fight.done) fightApply(g, fightAutoChoice(g));
   const f = g.fight;
   endFight(g);
