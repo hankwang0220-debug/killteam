@@ -122,7 +122,10 @@ export function moveCtx(g, op, kind = 'reposition') {
     return true;
   }
   /** The climbing cost of a polyline (0 for flying and terrain-ignoring moves). */
-  const climbs = (pts) => (noClimb ? 0 : climbWalk(pts).cost);
+  // Bound (Kinband strategy ploy): the first 2" of vertical distance of one climb up per activation doesn't count.
+  const boundOn = op.side < 2 && !!g.teams?.[op.side] && hasPloy(g, op.side, 'bound') && !op.acted?.boundUsed;
+  const climbRaw = (pts) => (noClimb ? 0 : climbWalk(pts).cost);
+  const climbs = (pts) => { const raw = climbRaw(pts); return boundOn ? Math.round((raw - Math.min(2, raw)) * 10) / 10 : raw; };
   // Razor wire (鐵絲網, Obstructing): crossing over it counts as 1" more.
   const wires = g.terrain.filter((t) => t.kind === 'wire');
   // Cryptogravitic Repulsion (Canoptek Circle ploy): an enemy moving into that team's matrix counts 1" more (once).
@@ -160,7 +163,7 @@ export function moveCtx(g, op, kind = 'reposition') {
   }
   // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).
   const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !hardWalls.some(t => distPointRect(p,t) < r-EPS && !accessOverlap(t,p)) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
-  return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, crossingCost, crossingEdgeCost, climbs, coverAt, climbCost, noClimb };
+  return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, crossingCost, crossingEdgeCost, climbs, climbRaw, coverAt, climbCost, noClimb };
 }
 
 /** Shorten a path to maxLen, backing off until the end point is a legal place to stand. */

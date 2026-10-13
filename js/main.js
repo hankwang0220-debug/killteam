@@ -14,6 +14,7 @@ import { pathfindersRosterError } from './data/pathfinders.js';
 import { angelsRosterError } from './data/angels.js';
 import { plagueRosterError } from './data/plague.js';
 import { kommandosRosterError } from './data/kommandos.js';
+import { kinbandRosterError } from './data/kinband.js';
 import { kmGrappleCheck, kmDoGrapple } from './kommandos.js';
 import { sfGambitLeft, sfChooseOrator, sfOrator, sfSermon } from './sanctifiers.js';
 import { wreckaOf } from './wrecka.js';
@@ -523,6 +524,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'angels') { const error = angelsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'plagueMarines') { const error = plagueRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'kommandos') { const error = kommandosRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'farstalkers') { const error = kinbandRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wreckaKrew') { // (and only one Glyphs)
     const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
     return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
@@ -1854,6 +1856,9 @@ const ABILITIES = {
   medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將殘廢時改為剩 1 生命，雙方下次啟動 APL -1。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation.'],
   multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
   droneController: () => ['無人機操控員・遙控操作', 'Drone Controller · Remote Pilot', '在場時友方無人機 Move +2"。遙控操作 1AP（不在交戰中）：一架友方無人機立刻免費做一個動作（移動不超過 2"，可做無人機規則限制的動作）；可重複使用，但同一架無人機每次啟動不能做兩次相同的動作。', 'While it is in the killzone, friendly drones get +2" Move. Remote Pilot 1AP (not engaged): a friendly drone performs one free action (moving no more than 2", even one its Drone rule restricts); repeatable, but the same drone can\'t take the same free action twice in an activation.'],
+  quickDraw: () => ['快拔', 'Quick Draw', '每回合一次：敵人射擊它（或是爆裂的次要目標）、且它準備中時，它可以搶先免費用雙持手槍（集中）射擊那名敵人（可改交戰指令）。自動使用。', 'Once per TP: when an enemy shoots it (or it is a Blast secondary target) and it is ready, it shoots that enemy first for free with its focused dual pistols (it can change to Engage). Automatic.'],
+  kfHound: () => ['採集', 'Gather', '1AP：免費衝刺一次，途中可免費撿起或放置標記（只需爭奪標記）；剩下的距離可以之後再用。', '1AP: a free Dash during which it can Pick Up or Place a Marker for free (the marker only has to be contested); any remaining distance can be used afterwards.'],
+  kfWarrior: () => ['準備好面對一切', 'Ready for Anything', '每回合一次，友方戰士啟動中可以額外使用生肉、穿甲彈或毒彈（不佔每回合一次的限制）。', 'Once per TP during a Warrior\'s activation, use Meat, Piercing Shot or Toxin Shot once more (it doesn\'t count towards their limit).'],
   kmGrapple: () => ['鉤爪', 'Grappling Hook', '1AP（視為重新定位，不在交戰中，不能和衝鋒或撤退同一次啟動）：選一個看得到的地形點，被移走後放回該點 1" 內、看得到該點的位置。', '1AP (a Reposition; not engaged; not with Charge or Fall Back): pick a visible point on terrain and be set up again within 1" of it, seeing it.'],
   sneaky: () => ['鬼祟搗蛋', 'Sneaky Zogger', '不能有交戰指令；在掩護中時，2" 外不能被選為有效目標（優先於其他規則）。', 'Can\'t have an Engage order; in cover it can\'t be selected as a valid target beyond 2" (taking precedence over other rules).'],
   kmBreacha: () => ['破門', 'Breach', '1AP（不在交戰中）：在控制範圍內的地形上放破口標記；標記 1" 內，厚度 1" 以下的地形部分視為可通行。', '1AP (not engaged): place a Breach marker on terrain in control range; within 1" of it, parts of that terrain no more than 1" thick are Accessible.'],
@@ -2286,10 +2291,10 @@ const dmgText = (w) => (w.rules.wkPulsa ? '-' : w.rules.wkDetonate ? 'D6+6/2D6+6
 function resultView(r, readonly = false) {
   const a = getOp(g, r.attacker), t = getOp(g, r.target);
   const ca = team(g, a.side).color, ct = team(g, t.side).color;
-  if (r.kind === 'sfDeclaim') { // Commanding Declamation (Sanctifier Confessor): the action was cancelled
-    return `<div class="${readonly ? 'noanim' : ''}"><h2>📣 ${L('號令宣告', 'Commanding Declamation')}</h2>
+  if (r.kind === 'sfDeclaim') { // an action cancelled: Commanding Declamation (Sanctifier Confessor), Quick Draw (Kroot Pistolier)
+    return `<div class="${readonly ? 'noanim' : ''}"><h2>📣 ${r.title ? L(r.title.zh, r.title.en) : L('號令宣告', 'Commanding Declamation')}</h2>
       <p><b style="color:${ca}">${nm(a)}</b> → <b style="color:${ct}">${nm(t)}</b></p>
-      <p>${L('這個動作被取消了，AP 不退還。', 'That action was cancelled; the AP is not refunded.')}</p>
+      <p>${r.text ? L(r.text.zh, r.text.en) : L('這個動作被取消了，AP 不退還。', 'That action was cancelled; the AP is not refunded.')}</p>
       ${readonly ? '' : '<button class="primary wide" data-act="closeresult">' + L('繼續', 'Continue') + '</button>'}</div>`;
   }
   if (r.kind === 'pulsa') { // Pulsa rokkit (Wrecka Krew): the marker's points and the D3 hits
@@ -2861,6 +2866,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'angels' && angelsRosterError(TEAM_MAP.angels, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'plagueMarines' && plagueRosterError(TEAM_MAP.plagueMarines, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'kommandos' && kommandosRosterError(TEAM_MAP.kommandos, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'farstalkers' && kinbandRosterError(TEAM_MAP.farstalkers, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
@@ -2992,7 +2998,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'kfGather') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

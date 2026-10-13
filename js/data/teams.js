@@ -211,6 +211,12 @@ const pistolsFocused = W('pistolsFocused', '雙持克魯特手槍（集中）', 
 // Salvo: also shoot a second valid target (not within control range of friendlies).
 const pistolsSalvo = W('pistolsSalvo', '雙持克魯特手槍（齊射）', 'Dual Kroot pistols (salvo)', 'ranged', 4, 3, 3, 5, { range: 8, salvo: true }, 'krootPistols');
 const scattergun = W('scattergun', '克魯特散彈槍', 'Kroot scattergun', 'ranged', 4, 3, 3, 3, { range: 6 });
+const dvorgite = W('dvorgite', '德沃吉特剝皮器', 'Dvorgite skinner', 'ranged', 5, 2, 3, 3, { range: 6, heavy: 'reposition', piercing: 2, torrent: 2 });
+const pulseWeaponKB = W('pulseWeaponKB', '脈衝武器', 'Pulse weapon', 'ranged', 4, 4, 4, 5);
+const kbLoadouts = { rifle: [krootRifleKB, ritualBlade], pulse: [pulseWeaponKB, ritualBlade] };
+const hgLoadouts = { tribalest: [londaxi, krootBlade], skinner: [dvorgite, krootBlade] };
+const warriorLoadoutsKB = { rifle: [krootRifle, krootBlade], scattergun: [scattergun, krootBlade] };
+const KF_SLOTS = ['bowHunter', 'coldBlood', 'cutSkin', 'hound', 'heavyGunner', 'longSight', 'pistolier', 'stalker', 'tracker', 'warrior'];
 const stalkerBlade = W('stalkerBlade', '潛獵者之刃', "Stalker's blade", 'melee', 4, 3, 3, 5, { balanced: true, rending: true });
 
 // ---- Death Korps ----
@@ -945,21 +951,26 @@ export const TEAMS = [
         desc: { zh: '本回合友方在本次啟動未移動、衝鋒或撤退時射擊，遠程武器獲得「平衡」與「嚴厲」（已有平衡則改為「無休」與「嚴厲」）。', en: 'This TP, a friendly operative shooting in an activation without Reposition, Charge or Fall Back has Balanced and Severe (Ceaseless and Severe if already Balanced).' } },
       { id: 'cutThroats', cp: 1, name: { zh: '割喉', en: 'Cut-throats' },
         desc: { zh: '本回合友方近戰武器 ATK +1（最多 5）。', en: 'This TP, friendly melee weapons get +1 Atk (max 5).' } },
+      { id: 'bound', cp: 1, name: { zh: '飛躍', en: 'Bound' },
+        desc: { zh: '每名友方特工每次啟動中，向上攀爬時可無視第一個 2" 的垂直距離（一次攀爬）。', en: 'During each friendly operative\'s activation, ignore the first 2" of vertical distance of one climb up.' } },
       { id: 'rogue', cp: 1, name: { zh: '遊俠', en: 'Rogue' },
         desc: { zh: '本回合友方被射擊時無視「飽和」；若能保留掩護豁免，可多保留 1 顆，或把 1 顆當成暴擊豁免。', en: 'This TP, friendly operatives being shot ignore Saturate; if they can retain cover saves, retain one more, or one as a critical success.' } },
     ],
+    // The Kill-broker and eleven selections: each once, except Hounds (two at most) and Warriors.
+    perCopyRoster: true,
+    replacements: Object.fromEntries([...KF_SLOTS].map((id) => [id, KF_SLOTS])),
     ops: [
-      op('killBroker', '獵殺掮客', 'Kroot Kill-broker', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, callTheKill: true }, [krootRifleKB, ritualBlade]),
+      op('killBroker', '獵殺掮客', 'Kroot Kill-broker', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, callTheKill: true, loadouts: kbLoadouts }, kbLoadouts.rifle),
       op('bowHunter', '弓獵者', 'Kroot Bow-hunter', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, energise: true }, [bowFused, bowGlide, bowVoltaic, krootBlade]),
       op('coldBlood', '冷血者', 'Kroot Cold-blood', { apl: 2, move: 6, save: 5, wounds: 9, base: 28, coldBlooded: true, hardyCrit: true }, [krootRifleCB, krootBlade]),
       op('cutSkin', '割膚者', 'Kroot Cut-skin', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, viciousDuellist: true, savageAssault: true }, [cutSkinBlades]),
-      op('hound', '克魯特獵犬', 'Kroot Hound', { apl: 2, move: 8, save: 5, wounds: 7, base: 28, badTempered: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition'] }, [rippingFangs], 2),
-      op('heavyGunner', '重火力手', 'Kroot Heavy Gunner', { apl: 2, move: 6, save: 5, wounds: 8, base: 28 }, [londaxi, krootBlade]),
+      op('hound', '克魯特獵犬', 'Kroot Hound', { apl: 2, move: 8, save: 5, wounds: 7, base: 28, badTempered: true, kfHound: true, actionsOnly: ['charge', 'dash', 'fallBack', 'fight', 'reposition', 'kfGather', 'pickUp'] }, [rippingFangs], 2),
+      op('heavyGunner', '重火力手', 'Kroot Heavy Gunner', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, loadouts: hgLoadouts }, hgLoadouts.tribalest),
       op('longSight', '遠視者', 'Kroot Long-sight', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, longSight: true }, [huntingConcealed, huntingMobile, huntingStationary, krootBlade]),
-      op('pistolier', '雙槍手', 'Kroot Pistolier', { apl: 2, move: 6, save: 5, wounds: 8, base: 28 }, [pistolsFocused, pistolsSalvo, krootBlade]),
+      op('pistolier', '雙槍手', 'Kroot Pistolier', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, quickDraw: true }, [pistolsFocused, pistolsSalvo, krootBlade]),
       op('stalker', '潛獵者', 'Kroot Stalker', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, concealCharge: true, stealthAttack: true }, [scattergun, stalkerBlade]),
       op('tracker', '追蹤者', 'Kroot Tracker', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, support: 'eyeAbove', pechra: true }, [krootRifle, krootBlade]),
-      op('warrior', '克魯特戰士', 'Kroot Warrior', { apl: 2, move: 6, save: 5, wounds: 8, base: 28 }, [krootRifle, krootBlade]),
+      op('warrior', '克魯特戰士', 'Kroot Warrior', { apl: 2, move: 6, save: 5, wounds: 8, base: 28, kfWarrior: true, loadouts: warriorLoadoutsKB }, warriorLoadoutsKB.rifle),
     ],
   },
   {
@@ -2411,6 +2422,7 @@ const FIREFIGHT = {
   ],
   farstalkers: [
     ff('slipAway', '溜走', 'Slip Away', '啟動中：本次撤退少花 1AP。', 'During an activation: Fall Back costs 1 less AP.'),
+    ff('poach', '盜獵', 'Poach', '啟動中：直到啟動結束，這名特工做「撿起標記」或需要控制標記的任務動作時，只要爭奪標記就行。', 'During an activation: until its end, the operative only needs to contest a marker to perform Pick Up Marker or mission actions that usually need it controlled.'),
     ff('vengeanceKinband', '為戰團復仇', 'Vengeance for the Kinband', '自動：友方被敵人打成殘廢時，之後友方攻擊那個敵人都「無情」（它殘廢前不能再用）。', 'Auto: when a friendly is incapacitated by an enemy, friendlies attacking that enemy have Relentless (not again until it falls).'),
     ff('savageAmbush', '野蠻伏擊', 'Savage Ambush', '自動：控制範圍內有地形、尚未行動的友方被近戰時，由它先出手。', 'Auto: a ready friendly with terrain in its control range that\'s fought against resolves the first die.'),
   ],

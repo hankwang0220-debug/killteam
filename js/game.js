@@ -12,6 +12,8 @@ import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
 import { ANGELS_EQUIPMENT } from './data/angels.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
+import { KINBAND_EQUIPMENT } from './data/kinband.js';
+import { kfSetup, kfActions, kfSelf, kfActivate, kfQuickDraw, kfShootStart, kfShootEnd, kfRules, kfGatherFree, registerKinbandActions } from './kinband.js';
 import { kmSetup, kmReady, kmWeapons, kmPloyBought, kmEndFirefight, kmKunnin, kmActions, kmSelf, registerKommandoActions } from './kommandos.js';
 import { pmSetup, pmRules, pmBells, pmVents, pmWeapons, pmPloyBought, pmReady, pmCloud, pmCurse } from './plague.js';
 import { adSetup, adTactics, adVeteran, adPloyBought, adHeroicFree, adHeroicUsed, adIronHalo, adRoll, adShootStart, adAuspexOn, adEnd, adTilting, adReliquaries } from './angels.js';
@@ -245,6 +247,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   adSetup(g, roster); // Angels of Death: roster limits
   pmSetup(g, roster); // Plague Marines: roster limits
   kmSetup(g, roster); // Kommandos: roster limits
+  kfSetup(g, roster); // Farstalker Kinband: roster limits
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -397,7 +400,7 @@ export function pickUpTargets(g, op) {
   const held = carriables(g).filter((x) => x.carriedBy === op.uid);
   const carried = held.length - (held.some((x) => x.kind === 'intel') ? 1 : 0);
   if (carried >= (m.carryCap?.(g, op) ?? 1)) return [];
-  return carriables(g).filter((x) => !x.carriedBy && canPickUpMarker(g, op, x) && inMarkerRange(op, x) && (controller(g, x) === op.side || (op.rtLarcenous && isRat(op)))); // (Larcenous: it only has to contest the marker)
+  return carriables(g).filter((x) => !x.carriedBy && canPickUpMarker(g, op, x) && inMarkerRange(op, x) && (controller(g, x) === op.side || (op.rtLarcenous && isRat(op)) || op.kfPoach)); // (Poach, Gather: Kinband; Larcenous: it only has to contest the marker)
 }
 /** A random Tac Op from the team's archetypes (any of them if none match). */
 export function tacOpsFor(teamId) {
@@ -891,7 +894,7 @@ export function activate(g, op) {
   wkActivate(g, op); // Wrecka Krew: Tanked Up ends, Stoopid, Engine Oil
   if (!g.counter && tpl(op).ruststalker && hasPloy(g, op.side, 'accelerant')) op.acted.accelerant = true;
   if (!g.counter) op.jam = false; // System Jam token removed when activated
-  if (!g.counter) op.rtLarcenous = false; // Larcenous (Ratlings) lasts until the end of the activation
+  if (!g.counter) op.rtLarcenous = false; op.kfPoach = false; // Larcenous (Ratlings) and Poach (Kinband) last until the end of the activation
   if (!g.counter) ncActivate(g, op); // Terrorchem Poison (Nemesis Claw): D3 damage when an operative with a token activates
   scActivate(g, op); // Scout Squad: Raw Physiology / Covert Position end, Guidance and Experience
   if (!g.counter) op.shieldingOn = false; // Shielding lasts until the start of its next activation
@@ -972,6 +975,7 @@ export function activate(g, op) {
   dwActivate(g, op);
   sfActivate(g, op); // Sanctifiers: the Sermon for this activation, Blaze token damage
   pfActivate(g, op); // Pathfinders: Point-Blank Fusillade snapshot, Pulse Accelerator and Photon Grenade tokens
+  kfActivate(g, op); // Farstalker Kinband: Meat, Trophy
 }
 
   // Archon effects are committed only when an action begins.
@@ -1020,7 +1024,7 @@ export function endActivation(g) {
   if (g.smoke?.length) { for (const s of g.smoke) if (s.left != null) s.left--; g.smoke = g.smoke.filter((s) => s.left == null || s.left > 0); }
   if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `${opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `${opName(op, 'en')} Slink into Darkness: now Concealed` }, `side${op.side}`); }
   if (op) {
-    op.ready = false; op.ap = 0; op.rtLarcenous = false; sfEnd(op); pfEnd(op); adEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
+    op.ready = false; op.ap = 0; op.rtLarcenous = false; op.kfPoach = false; sfEnd(op); pfEnd(op); adEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
     if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; op.ctlOnly = null; op.ctlMove = null; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
     // Lacerate Flesh (Goremonger firefight ploy): the tank goes down again at the end, or it takes D3.
@@ -1421,6 +1425,7 @@ export function actionCost(g, op, id) {
   if (/^tw(Open|Close)_/.test(id)) return 1;
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
+  if (kfGatherFree(op, id)) return 0; // Gather (Kroot Hound): a free Pick Up Marker
   if (id === 'fallBack' && tpl(op).fearless) return Math.max(1, ACTIONS.fallBack.ap - 1) + (whipped(g, op) ? 1 : 0); // Fearless on the Frontline (Shas'la): 1 less AP
   if (id === 'fallBack' && op.acted?.slip) return Math.max(1, actionCost(g, { ...op, acted: { ...op.acted, slip: false } }, id) - 1); // Slip Away
   if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
@@ -2204,6 +2209,7 @@ export function availableActions(g, op) {
   if (tpl(op).markerlight) { if (tpl(op).fearless) add('markerlight', !count(op, 'markerlight') && TARGET_ACTIONS.markerlight.targets(g, op).length > 0, count(op, 'markerlight') ? DONE : NONE); else unique('markerlight'); } // (Shas'la, Fearless on the Frontline: even when engaged)
   pfActions(g, op, add); // Pathfinders: Pulse Accelerator, Photon Grenade
   kmActions(g, op, add); // Kommandos: Breach, Grappling Hook, Smoke Grenade
+  kfActions(g, op, add); // Farstalker Kinband: Gather
   if (tpl(op).signal) unique('signal');
   if (tpl(op).signalAny) unique('signalAny');
   if (tpl(op).jamToken) unique('jamToken');
@@ -2401,6 +2407,7 @@ export function doSelfAction(g, op, id) {
   if (sfSelf(g, op, id)) return; // Sanctifiers: Trained Assassin, Wreathe in Fire
   if (pfSelf(g, op, id)) return; // Pathfinders: Pulse Accelerator
   if (kmSelf(g, op, id)) return; // Kommandos: Breach
+  if (kfSelf(g, op, id)) return; // Farstalker Kinband: Gather
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
@@ -2519,6 +2526,7 @@ export function doMove(g, op, kind, path) {
   if (kind === 'fallBack' && !mwFallBack(g, op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
   const dest = path?.pts?.at(-1);
+  if (hasPloy(g, op.side, 'bound') && !op.acted.boundUsed && ctx.climbRaw?.(path.pts) > 0) op.acted.boundUsed = true; // Bound (Kinband): the first 2" of one climb was free
   if (kind === 'charge' && isMandrake(op) && op.order === 'conceal' && hasPloy(g, op.side, 'mdBladeDark') && !withinShadow(g, op) && !withinShadow(g, { ...op, ...dest })) return false;
   if (kind === 'charge') wkActionStart(g, op, 'charge'); // Tanked Up (Wrecka Krew): at the start of the Charge
   if (kind === 'fallBack' && !mdFallBack(g, op, d6, d3)) return false;
@@ -2751,6 +2759,7 @@ export function effectiveRules(g, op, weapon, target) {
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
   pfRules(g, op, weapon, target, r); // Pathfinders: Pulse Accelerator
   pmRules(g, op, weapon, target, r); // Plague Marines: Plague Rounds
+  kfRules(g, op, weapon, target, r); // Farstalker Kinband: Piercing Shot, Toxin Shot
   if (target && ffOn(g, op, 'sfArdent')) r.relentless = true; // Ardent Eradication
   if (target && isSC(op) && ffOn(g, op, 'scEmboldened') && scEmbOk(g, op, target)) r.promote = 1; // Emboldened Aspirant: a normal success is retained as a critical one
   if (target && ffOn(g, op, 'wkKaboom') && g.shotTargets?.[0] === target.uid) r.severe = true; // Kaboom!: Severe against the primary target
@@ -4379,7 +4388,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4387,7 +4396,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4403,6 +4412,7 @@ registerRatlingActions();
 registerSanctifierActions();
 registerPathfinderActions();
 registerKommandoActions();
+registerKinbandActions();
 registerMandrakeActions();
 registerDwActions();
 registerCorsairActions();
@@ -4677,6 +4687,7 @@ const FF = {
     apply(g, op) { op.acted.free = { ...(op.acted.free || {}), charge: 'rampage' }; } },
   // ---- Farstalker Kinband ----
   slipAway: { kind: 'button', apply(g, op) { op.acted.slip = true; } },
+  poach: { kind: 'button', cond: (g, op) => (op.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, op) { op.kfPoach = true; } },
   vengeanceKinband: { kind: 'auto' },
   savageAmbush: { kind: 'auto' },
   autoFerric: { kind: 'auto' }, // (Battleclade)
@@ -5891,6 +5902,7 @@ export function forcedShot(g, op, weapon, targets, real = false) {
 export function* shootFlow(g, op, weapon, target) {
   if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
   pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
+  kfShootStart(g, op, weapon); // Piercing Shot / Toxin Shot (Farstalker Kinband)
   adShootStart(g, op, target, shotVisibility(g, op, target, weapon).obscured); // Auspex (Angels of Death)
   mwActionStart(g);
   wkActionStart(g, op, 'shoot'); // Wrecka Krew: Tanked Up, Wrecka Boss
@@ -5941,6 +5953,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (weapon.rules.aimed) op.acted.aimedUsed = true; // (Aimed: no more than 3" of movement after it)
   // Unquestioning Loyalty (Brood Brothers): a bodyguard takes the shot instead (in cover / obscured only if the Leader was).
   target = loyalSwap(g, op, pfSwap(g, sfSwap(g, holySwap(g, target, weapon), weapon), weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
+  if (kfQuickDraw(g, op, target)) { spend(g, op, 'shoot', ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot', title: { zh: '快拔', en: 'Quick Draw' }, text: { zh: '開火的特工被快拔搶先打倒，這次射擊取消。', en: 'The shooter was shot down by Quick Draw; the Shoot action is cancelled.' } }; } // Quick Draw (Kroot Pistolier)
   uprising(g, op, target); // Uprising: the target gains a Crossfire token as soon as it's selected
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
@@ -6017,6 +6030,7 @@ export function* shootFlow(g, op, weapon, target) {
   g.magnifyNow = null;
   op.shotTP = g.tp; // (Interstitial Command can't give a Shoot to one that already shot this turning point)
   pfShootEnd(g); // Target Analysis Optic ends with the action
+  kfShootEnd(op);
   // Deathmarked: a Deathmark's surviving primary target gains a token; Deathmarks shooting it have Seek.
   if (tpl(op).deathmark && !target.dead && !(target.dmk?.[op.side])) {
     (target.dmk ||= {})[op.side] = true;
