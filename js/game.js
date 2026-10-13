@@ -271,6 +271,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   const first = r0 > r1 ? 0 : 1;
   g.dep = { turn: first, batch: [], size: [0, 1].map((s) => Math.ceil(g.ops.filter((o) => o.side === s).length / 3)), done: false };
   g.dep.need = depNeed(g, first);
+  g.zonePick = { side: first, done: ai === first }; // (the roll-off winner chooses the drop zone; the computer keeps what it's given)
   log(g, { zh: `部署擲骰 ${r0} : ${r1} → ${teamZh(g, first)} 先部署；雙方輪流每次部署隊伍的 1/3（無條件進位）`, en: `Deployment roll ${r0} : ${r1} → ${team(g, first).name.en} sets up first; players alternate setting up a third of their team (rounded up)` }, 'tp');
   // Initiative cards (house rules): the loser of this roll-off gets the Re-roll card.
   g.initCards = [[], []];
@@ -459,6 +460,21 @@ export function deployOk(g, op, p) {
 // ---------- alternating deployment ----------
 const unplaced = (g, side) => g.ops.filter((o) => o.side === side && !o.dead && o.placed === false);
 /** How many operatives the side must set up in its current deployment step. */
+/** The side whose roll-off decides the drop zone: it picks which edge of the killzone it sets up on (before anything is placed). */
+export const zonePending = (g) => !!g.zonePick && !g.zonePick.done;
+export function chooseDropZone(g, side, swap) {
+  if (!zonePending(g) || g.zonePick.side !== side) return false;
+  if (swap) {
+    const z = deployZones(g);
+    g.deploy = [{ ...z[1] }, { ...z[0] }];
+    for (const o of g.ops) if (isEDM(o)) o.facing = facingIn(g, o.side);
+  }
+  g.zonePick.done = true;
+  log(g, { zh: `${teamZh(g, side)} 選擇降落區：${swap ? '換邊' : '維持原位'}`, en: `${team(g, side).name.en} chooses a drop zone: ${swap ? 'the other side' : 'as shown'}` }, `side${side}`);
+  return true;
+}
+/** Where a side's drop zone lies, for the picker: 'low' (left / top) or 'high'. */
+export const zoneEdge = (g, side) => { const a = g.axis === 'y' ? 'y' : 'x'; return deployZones(g)[side][a + '0'] < (a === 'x' ? boardOf(g).w : boardOf(g).h) / 2 ? 'low' : 'high'; };
 function depNeed(g, side) { return Math.min(g.dep.size[side], unplaced(g, side).length); }
 
 /** Can this operative be (re)placed now? Unplaced ones of the deploying side, or ones placed in this step. */

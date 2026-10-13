@@ -82,4 +82,16 @@ const game = (ai = null) => G.newGame({ teams: ['angels', 'kommandos'], ai, equi
   G.startStrategy(g);
   assert.equal(g.initLocked, true); assert.equal(g.initiative, 0); assert.equal(g.phase, 'strategy');
 }
+// Drop zone: the roll-off winner chooses which edge to set up on.
+{
+  const g = game();
+  assert(G.zonePending(g), 'two players: the winner chooses');
+  const s = g.zonePick.side, before = G.zoneEdge(g, s);
+  assert(!G.chooseDropZone(g, 1 - s, true), 'only the winner');
+  assert(G.chooseDropZone(g, s, true));
+  assert.notEqual(G.zoneEdge(g, s), before, 'swapped');
+  assert(!G.zonePending(g));
+  const a = game(0);
+  assert(a.zonePick.side !== 0 || !G.zonePending(a), 'the computer keeps its zone');
+}
 console.log('initiative ok');

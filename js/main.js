@@ -41,7 +41,7 @@ import {
   sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
   goreOf, SANGUAVITAE, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
   resourceLeft, resourceOptions, useResource,
-  readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, ffReady, nodePlace, nodeMove, animateBegin, animateMove, animateEnd, nodalChoose, nodesDone, nodesLeftToPlace, nodeList, placeNodes, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
+  readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, ffReady, zonePending, chooseDropZone, zoneEdge, nodePlace, nodeMove, animateBegin, animateMove, animateEnd, nodalChoose, nodesDone, nodesLeftToPlace, nodeList, placeNodes, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
 import { renderBoard, tokenLegend, roleGlyph, roleOf } from './board.js';
 import { distPointRect } from './geometry.js';
@@ -1102,6 +1102,11 @@ function omenPick() {
   return [0, 1].filter((s) => g.omen?.[s] && !isAI(s)).map((s) => `<label>${esc(tx(team(g, s).name))} ${L('預兆', 'Omen')}<select data-act="omen" data-side="${s}">${g.ops.filter((o) => !(o.side === s && tpl(o).omen)).map((o) => `<option value="${o.uid}" ${g.omen[s] === o.uid ? 'selected' : ''}>${nm(o)} (${o.side === s ? L('友方重擲 1', 'Friendly re-roll 1s') : L('敵方重擲 6', 'Enemy re-roll 6s')})</option>`).join('')}</select></label>`).join('');
 }
 function deployPanel() {
+  if (zonePending(g)) {
+    const s = g.zonePick.side, edge = (e, ax) => (ax === 'y' ? (e === 'low' ? L('上方', 'top') : L('下方', 'bottom')) : (e === 'low' ? L('左側', 'left') : L('右側', 'right'))), ax = g.axis === 'y' ? 'y' : 'x';
+    return `<section class="card"><h2>${L('選擇降落區', 'Choose a drop zone')}</h2><p class="hint">${L(`${tx(team(g, s).name)} 擲贏部署骰，可以選擇在棋盤的哪一側降落。`, `${tx(team(g, s).name)} won the roll-off and picks which edge to set up on.`)}</p>
+      <div class="row"><button data-act="zone" data-swap="0">${L(`在${edge(zoneEdge(g, s), ax)}`, `On the ${edge(zoneEdge(g, s), ax)}`)}</button><button data-act="zone" data-swap="1">${L(`在${edge(zoneEdge(g, 1 - s), ax)}`, `On the ${edge(zoneEdge(g, 1 - s), ax)}`)}</button></div></section>`;
+  }
   if (g.eqDeploy && !g.eqDeploy.done) {
     const d = g.eqDeploy, e = d.queues[d.turn][0], kind = e.item.kind;
     const name = {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache'),tripwire:L('絆線','Tripwire')}[kind] || kind;
@@ -2525,6 +2530,7 @@ function onBoardClick(evt) {
     ui.notice = L('超過 3" 或位置不合法。', 'More than 3", or an illegal spot.');
     return render();
   }
+  if (g.phase === 'deploy' && zonePending(g)) return;
   if (g.phase === 'deploy' && g.eqDeploy && !g.eqDeploy.done) {
     if (isAI(g.eqDeploy.turn)) return;
     if (placeEquipment(g, svgPoint(evt), !!ui.eqRotated)) { ui.eqRotated = false; return afterChange(); }
@@ -3006,6 +3012,7 @@ function handle(act, d) {
     case 'seekercancel': ui.seeker=null;ui.path=null;return render();
     case 'ployspass': ui.seeker=null;ui.path=null; if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
     case 'eqrotate': ui.eqRotated = !ui.eqRotated; return render();
+    case 'zone': if (zonePending(g)) chooseDropZone(g, g.zonePick.side, d.swap === '1'); return afterChange();
     case 'eqauto': if (g.eqDeploy && !g.eqDeploy.done && !isAI(g.eqDeploy.turn)) autoPlaceEquipment(g); return afterChange();
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
