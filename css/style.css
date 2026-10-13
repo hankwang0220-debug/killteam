@@ -42,12 +42,15 @@ button.big { padding: 12px 22px; font-size: 1.05rem; }
 button.wide { width: 100%; margin-top: 10px; }
 
 /* ---------- header ---------- */
+/* Three columns: brand + score on the left, the turn status exactly centred, buttons on the right. */
 .top {
-  display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+  display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(300px, 760px) minmax(max-content, 1fr);
+  align-items: center; gap: 12px; padding: 8px 16px;
   background: #0c0e11; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5;
 }
+.topleft { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .brand { font-weight: 700; letter-spacing: .04em; color: var(--brass); cursor: pointer; white-space: nowrap; }
-.topbtns { margin-left: auto; display: flex; gap: 6px; }
+.topbtns { justify-self: end; display: flex; gap: 6px; }
 .topbtns button { padding: 5px 10px; }
 .game-settings { position: relative; flex-shrink: 0; }
 .game-settings summary {
@@ -67,12 +70,30 @@ button.wide { width: 100%; margin-top: 10px; }
 
 .scorebar { display: flex; align-items: center; gap: 10px; flex: 0 1 auto; justify-content: flex-start; min-width: 0; }
 .turnstatus {
-  flex: 1 1 0; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center;
-  border-left: 4px solid var(--tc); background: var(--panel); padding: 4px 12px; border-radius: 6px;
+  min-width: 0; display: flex; align-items: stretch; overflow: hidden; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--tc) 70%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tc) 26%, var(--panel)) 0%, var(--panel) 70%);
+  box-shadow: 0 0 0 1px #0006 inset, 0 0 18px -6px var(--tc);
 }
-.tsnow, .tslast { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tsnow { font-size: .95rem; }
-.tslast { font-size: .78rem; color: var(--muted); }
+.turnstatus.flash { animation: tsflash 1.2s ease-out; }
+@keyframes tsflash {
+  0% { box-shadow: 0 0 0 2px var(--tc), 0 0 36px 4px var(--tc); transform: scale(1.02); }
+  100% { box-shadow: 0 0 0 1px #0006 inset, 0 0 18px -6px var(--tc); transform: none; }
+}
+.tsbadge {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  min-width: 72px; padding: 6px 10px; background: color-mix(in srgb, var(--tc) 55%, #000); color: #fff;
+}
+.tsicon { font-size: 1.3rem; line-height: 1; }
+.tsphase { font-weight: 700; font-size: .85rem; letter-spacing: .06em; }
+.tsbadge small { font-size: .7rem; opacity: .85; white-space: nowrap; }
+.tsbody { flex: 1; min-width: 0; padding: 6px 14px; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+.tswho, .tsdoing, .tslast { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tswho { font-size: 1.15rem; font-weight: 700; color: var(--text); }
+.tswho b { font-size: 1.25rem; }
+.tsdoing { font-size: .95rem; color: var(--text); }
+.tslast { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) { .turnstatus.flash { animation: none; } }
 .score {
   border-left: 4px solid var(--tc); background: var(--panel); padding: 3px 10px; border-radius: 6px; min-width: 0;
 }
@@ -425,10 +446,12 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
   .panel { max-height: none; }
   #board { max-height: none; }
   .picks { grid-template-columns: 1fr; }
-  .top { flex-wrap: wrap; padding: 6px 10px; }
+  .top { display: flex; flex-wrap: wrap; padding: 6px 10px; }
+  .topleft { display: contents; }
+  .topbtns { margin-left: auto; }
   .scorebar { order: 3; width: 100%; flex-basis: 100%; }
   .turnstatus { order: 4; flex-basis: 100%; }
-  .turnstatus .tsnow { white-space: normal; }
+  .tswho, .tsdoing { white-space: normal; }
   .brand span { display: none; }
 }
 #board .matrix { stroke-width: .79; stroke-opacity: .28; stroke-linecap: round; }

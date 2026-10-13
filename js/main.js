@@ -364,9 +364,11 @@ function topBar(extra = '', status = '') {
       <div class="settings-menu" role="group" aria-label="${L('遊戲設定', 'Game settings')}">${replayBtn}${tools}</div>
     </details>`;
   return `<header class="top">
-    <div class="brand" data-act="home">⚔ <span>${L('殺戮小隊 戰術模擬', 'Kill Team Tactics')}</span></div>
-    ${extra}
-    ${status}
+    <div class="topleft">
+      <div class="brand" data-act="home">⚔ <span>${L('殺戮小隊 戰術模擬', 'Kill Team Tactics')}</span></div>
+      ${extra}
+    </div>
+    ${status || '<div></div>'}
     <div class="topbtns">
       ${ui.screen === 'game' ? settings : tools}
     </div>
@@ -706,10 +708,15 @@ function replayView() {
     // Replay: the status field describes this step.
     const stepText = [...stepNotes(R.rep, R.i), ...snap.msgs.map((e) => e.msg)].map((m) => esc(tx(m)));
     const turnTeam = view.turn != null && view.turn !== NPO ? team(view, view.turn) : null;
-    const status = `<div class="turnstatus" style="--tc:${turnTeam ? turnTeam.color : 'var(--line)'}">
-      <div class="tsnow">📜 ${L(`第 ${R.i + 1} / ${n} 步`, `Step ${R.i + 1} / ${n}`)}${turnTeam && view.phase === 'firefight' ? ` · <b style="color:${turnTeam.color}">${esc(tx(turnTeam.name))}</b> ${L('的回合', '— turn')}` : ''}</div>
-      ${stepText.length ? `<div class="tslast" title="${stepText.join(' / ')}">${stepText.join(' / ')}</div>` : ''}
-    </div>`;
+    const showTurn = turnTeam && view.phase === 'firefight';
+    const status = statusBox({
+      color: showTurn ? turnTeam.color : null,
+      icon: '📜', phase: L('複盤', 'Replay'), tp: L(`第 ${R.i + 1}/${n} 步`, `Step ${R.i + 1}/${n}`),
+      who: showTurn ? `<b style="color:${turnTeam.color}">${esc(tx(turnTeam.name))}</b> ${L('的回合', '— turn')}` : '',
+      doing: stepText[0] || L('（狀態更新）', '(state update)'),
+      last: stepText.slice(1).join(' / '),
+      key: 'replay',
+    });
     return `${topBar(scoreBar(), status)}
     <main class="game">
       <div class="boardwrap"><div class="boardbox">${renderBoard(view, { sel: ui.sel, trails: trailsAt(R.rep, R.i) })}${measureBar()}</div>${tokenLegend()}</div>
@@ -846,9 +853,34 @@ function turnStatus() {
   }
   const last = g.log[g.log.length - 1];
   const t = teamOf(side);
-  return `<div class="turnstatus" style="--tc:${t ? t.color : 'var(--line)'}">
-    <div class="tsnow">${side != null ? `${who(side)} ${L('的回合', '— turn')} · ` : ''}${doing}</div>
-    ${last ? `<div class="tslast" title="${esc(tx(last.msg))}">${L('剛剛', 'Last')}：${esc(tx(last.msg))}</div>` : ''}
+  const fighting = g.fight && !g.fight.done;
+  const badge = g.phase === 'deploy' ? ['📍', L('部署', 'Deploy')]
+    : g.phase === 'initiative' ? ['🎲', L('先攻', 'Initiative')]
+      : g.phase === 'strategy' ? ['🧭', L('策略', 'Strategy')]
+        : g.phase === 'gameover' ? ['🏁', L('結束', 'Game over')]
+          : fighting ? ['🗡', L('近戰', 'Fight')]
+            : g.counter ? ['↩', L('反擊', 'Counteract')] : ['⚔', L('交火', 'Firefight')];
+  return statusBox({
+    color: t ? t.color : null,
+    icon: badge[0], phase: badge[1], tp: g.phase === 'deploy' || g.phase === 'gameover' ? '' : `TP ${g.tp}/${MAX_TP}`,
+    who: side != null ? `${who(side)} ${L('的回合', '— turn')}` : '',
+    doing,
+    last: last ? `${L('剛剛', 'Last')}：${esc(tx(last.msg))}` : '',
+    key: `${g.phase}|${g.tp}|${side}|${fighting}|${!!g.counter}`,
+  });
+}
+
+let lastStatusKey = null;
+/** The centred status card; it flashes once when the turn or phase changes. */
+function statusBox({ color, icon, phase, tp, who, doing, last, key }) {
+  const flash = key !== lastStatusKey && lastStatusKey !== null;
+  lastStatusKey = key;
+  return `<div class="turnstatus ${color ? 'has-team' : ''} ${flash ? 'flash' : ''}" style="--tc:${color || 'var(--brass)'}" role="status" aria-live="polite">
+    <div class="tsbadge"><span class="tsicon">${icon}</span><span class="tsphase">${phase}</span>${tp ? `<small>${tp}</small>` : ''}</div>
+    <div class="tsbody">
+      ${who ? `<div class="tswho">${who}</div><div class="tsdoing">${doing}</div>` : `<div class="tswho">${doing}</div>`}
+      ${last ? `<div class="tslast" title="${last.replace(/<[^>]+>/g, '')}">${last}</div>` : ''}
+    </div>
   </div>`;
 }
 
