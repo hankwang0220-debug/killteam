@@ -11,7 +11,7 @@ import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation
 import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
-  ACTIONS, activate, activeOp, canPlace, placeOp, placeEquipment, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
+  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
@@ -1080,6 +1080,18 @@ function strategyPanel() {
 /** Farstalker Kinband choices while picking ploys: Call the Kill and up to three order changes. */
 function gambitView(side) {
   let html = '';
+  const archeo=living(g,side).find(o=>tpl(o).omniscanner);
+  if(archeo && archeo.seekerTP!==g.tp){
+    const options=seekerOptions(g,archeo), selection=ui.seeker;
+    html+=`<div class="gambit"><h4>${L('尋覓神聖秘藏（Seeker of Divine Arcana）','Seeker of Divine Arcana')} · 0CP</h4>
+      <p class="hint small">${L('立即變更指令及／或執行一個免費行動。未攜帶標記時，移動終點須在降落區（無法到達則盡量靠近），或在目標／任務標記控制範圍。','Change order and/or perform one free action. Without a carried marker, end in your drop zone (or as close as possible), or within control range of an objective/mission marker.')}</p>
+      <select data-act="seekerorder"><option value="engage" ${(selection?.order||archeo.order)==='engage'?'selected':''}>${L('交戰','Engage')}</option><option value="conceal" ${(selection?.order||archeo.order)==='conceal'?'selected':''}>${L('隱蔽','Conceal')}</option></select>
+      <button data-act="seeker" data-id="">${L('只變更指令','Change order only')}</button>
+      ${options.map(a=>`<button data-act="seeker" data-id="${a.id}">${a.id==='seekerPlace'?L('放置標記（Place Marker）','Place Marker'):esc(bi(ACTIONS[a.id]?.name || {zh:a.id,en:a.id}))} · 0AP</button>`).join('')}
+      ${selection?.action==='omniscanner'?TARGET_ACTIONS.omniscanner.targets(g,archeo).map(t=>`<button data-act="seekertarget" data-uid="${t.uid}">${nm(t)}</button>`).join(''):''}
+      ${['reposition','fallBack'].includes(selection?.action)?`<p>${L('點棋盤選移動終點','Tap the board to choose the destination')}</p><button data-act="seekerconfirm" ${ui.path?.ok?'':'disabled'}>${L('確認免費移動','Confirm free move')}</button><p class="hint">${ui.path?.why||''}</p>`:''}
+      ${selection?.action?`<button data-act="seekercancel">${L('取消選擇','Cancel selection')}</button>`:''}</div>`;
+  }
   const kb = living(g, side).find((o) => tpl(o).callTheKill);
   if (kb) {
     const cur = g.mark?.[side];
@@ -2253,6 +2265,14 @@ function svgPoint(evt) {
 }
 
 function onBoardClick(evt) {
+  if(g.phase==='strategy' && ['reposition','fallBack'].includes(ui.seeker?.action)){
+    const o=getOp(g,ui.seeker.uid),ctx=moveCtx(g,o,ui.seeker.action),p=svgPoint(evt),full=findPath(ctx,p);
+    const path=full&&wholeInchPath(ctx,full,moveAllowance(g,o,ui.seeker.action),q=>!ctx.inEnemyER(q));
+    const exact=path&&Math.hypot(path.pts.at(-1).x-p.x,path.pts.at(-1).y-p.y)<.05;
+    const ok=!!exact&&seekerMoveCheck(g,o,ui.seeker.action,path);
+    ui.path=path?{...path,ok,r:radius(o),why:ok?'':L('終點不符合此能力限制，或移動距離不足。','Endpoint violates this ability or exceeds movement.')}:null;
+    return render();
+  }
   if (g.phase === 'deploy' && g.eqDeploy && !g.eqDeploy.done) {
     if (isAI(g.eqDeploy.turn)) return;
     if (placeEquipment(g, svgPoint(evt), !!ui.eqRotated)) { ui.eqRotated = false; return afterChange(); }
@@ -2497,6 +2517,7 @@ modalRoot.addEventListener('click', (e) => {
   if (b) handle(b.dataset.act, b.dataset, e);
 });
 app.addEventListener('change', (e) => {
+  if(e.target.dataset.act==='seekerorder'){ui.seeker={...(ui.seeker||{}),order:e.target.value};return;}
   if (e.target.dataset.act === 'terrainRanges') { ui.setup.terrainRanges = e.target.value; try { localStorage.setItem('kt.terrainRanges', e.target.value); } catch { /* optional preference */ } return render(); }
   if (e.target.dataset.act === 'roster') {
     const r = ((ui.setup.roster ||= [{}, {}])[+e.target.dataset.side]), id = e.target.dataset.id;
@@ -2653,7 +2674,17 @@ function handle(act, d) {
     }
     case 'initlock': if (g.phase === 'initiative') lockInitRoll(g); return afterChange();
     case 'initpick': if (g.phase === 'initiative' && g.initiative == null && !isAI(g.initDecider)) setInitiative(g, +d.side); return afterChange();
-    case 'ployspass': if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
+    case 'seeker': {
+      const o=living(g,ployChooser(g)).find(o=>tpl(o).omniscanner);if(!o||isAI(o.side))return;
+      const order=ui.seeker?.order||o.order;
+      ui.seeker={uid:o.uid,order,action:d.id};ui.path=null;
+      if(!d.id || !['omniscanner','reposition','fallBack'].includes(d.id)){useSeeker(g,o,order,d.id||null);ui.seeker=null;return afterChange();}
+      return render();
+    }
+    case 'seekertarget': if(ui.seeker){useSeeker(g,getOp(g,ui.seeker.uid),ui.seeker.order,'omniscanner',getOp(g,d.uid));ui.seeker=null;} return afterChange();
+    case 'seekerconfirm': if(ui.seeker && ui.path?.ok){useSeeker(g,getOp(g,ui.seeker.uid),ui.seeker.order,ui.seeker.action,null,ui.path);ui.seeker=null;ui.path=null;} return afterChange();
+    case 'seekercancel': ui.seeker=null;ui.path=null;return render();
+    case 'ployspass': ui.seeker=null;ui.path=null; if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
     case 'eqrotate': ui.eqRotated = !ui.eqRotated; return render();
     case 'eqauto': if (g.eqDeploy && !g.eqDeploy.done && !isAI(g.eqDeploy.turn)) autoPlaceEquipment(g); return afterChange();
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
