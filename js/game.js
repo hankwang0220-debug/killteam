@@ -246,7 +246,16 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   // Warrant of Trade — Coordinate (Elucidian Starstriders): +1CP at the end of the Select Operatives step (automatic).
   for (const s of [0, 1]) if (TEAM_MAP[teams[s]].starstriders) { g.cp[s] += 1; useWarrant(g, s, 'coordinate'); }
   // Universal equipment, set up before the battle (the computer takes its usual kit).
+  const equipmentStart = { terrain: g.terrain.length, markers: g.markers.length };
   for (const s of [0, 1]) setupEquipment(g, s, equip[s] || (ai === s ? AI_EQUIP : []));
+  const terrainItems = g.terrain.splice(equipmentStart.terrain);
+  const markerItems = g.markers.splice(equipmentStart.markers);
+  g.eqDeploy = { turn: first, queues: [0, 1].map(side => [
+    ...terrainItems.filter(t => t.equip === side).map(item => ({ type: 'terrain', item })),
+    ...markerItems.filter(m => m.owner === side).map(item => ({ type: 'marker', item })),
+  ]), done: false };
+  g.eqDeploy.done = !g.eqDeploy.queues.some(q => q.length);
+  if (!g.eqDeploy.done && !g.eqDeploy.queues[first].length) g.eqDeploy.turn = 1 - first;
   for (const s of [0, 1]) setupMinefield(g, s); // Hernkyn Yaegir Ironbraek
   // Regular Dosage (Blooded Corpseman): another friendly starts with a stimm — the Fortified stimm on the Ogryn (or the Chieftain).
   for (const side of [0, 1]) {
@@ -407,6 +416,7 @@ function depNeed(g, side) { return Math.min(g.dep.size[side], unplaced(g, side).
 
 /** Can this operative be (re)placed now? Unplaced ones of the deploying side, or ones placed in this step. */
 export function canPlace(g, op) {
+  if (g.eqDeploy && !g.eqDeploy.done) return false;
   const d = g.dep;
   if (!d || d.done || g.phase !== 'deploy' || op.side !== d.turn) return false;
   return d.batch.includes(op.uid) || (op.placed === false && d.batch.length < d.need);
@@ -422,6 +432,7 @@ export function placeOp(g, op, p) {
 
 /** Finish this deployment step; play passes to the other side while it still has operatives to set up. */
 export function finishDeployStep(g) {
+  if (g.eqDeploy && !g.eqDeploy.done) return false;
   const d = g.dep;
   if (!d || d.done || d.batch.length < d.need) return false;
   const side = d.turn;
@@ -438,6 +449,7 @@ export function finishDeployStep(g) {
 
 /** Set up the rest of the current step automatically (the computer, or the "auto" button). */
 export function autoDeployStep(g) {
+  if (g.eqDeploy && !g.eqDeploy.done) return;
   const d = g.dep;
   if (!d || d.done) return;
   const ops = unplaced(g, d.turn).slice(0, d.need - d.batch.length);
@@ -498,6 +510,7 @@ export function log(g, msg, cls = '') {
 
 // ---------- turning points ----------
 export function startBattle(g) {
+  if (g.eqDeploy && !g.eqDeploy.done) return false;
   // Anyone not set up yet (e.g. automatic games) is placed automatically.
   for (const side of [0, 1]) {
     const rest = unplaced(g, side);
@@ -524,6 +537,7 @@ function startTP(g) {
   if (g.tp === 1) for (const s of [0, 1]) if (living(g, s).some((o) => tpl(o).wellSupplied)) g.cp[s] += 1;
   g.counter = false;
   g.stratStep = 0;
+  g.stratTurn = null; g.stratPasses = 0; g.stratOpportunities = [0, 0];
   g.actCount = [0, 0, 0];
   for (const s of [0, 1]) gainBlood(g, s, { zh: '策略階段', en: 'Strategy phase' }); // Blooded: a token each Ready step
   // Strategic Oversight (Phobos Commsman): D6 4+ for 1 more CP, if it isn't within enemy control range.
@@ -650,13 +664,26 @@ export function startStrategy(g) {
 }
 
 /** The side choosing strategy ploys: the initiative player first, then the other player. */
-export const ployChooser = (g) => (g.stratStep ? 1 - g.initiative : g.initiative);
+export const ployChooser = (g) => g.stratTurn ?? (g.stratStep ? 1 - g.initiative : g.initiative);
 
 /** The current chooser is done with ploys; after both sides the Firefight phase begins. */
 export function finishPloys(g) {
+  if (g.phase !== 'strategy') return false;
   const side = ployChooser(g);
-  log(g, { zh: `${teamZh(g, side)} 完成計謀選擇`, en: `${team(g, side).name.en} is done choosing ploys` }, `side${side}`);
-  if (!g.ploys[side].length && living(g, side).some((o) => tpl(o).cunning)) { g.cp[side]++; log(g, { zh: '狡詐：首先放棄策略計謀，+1CP', en: 'Cunning: passed at first opportunity, +1CP' }, `side${side}`); }
+  log(g, { zh: `${teamZh(g, side)} 跳過（0CP）`, en: `${team(g, side).name.en} passes (0CP)` }, `side${side}`);
+  g.stratOpportunities ||= [0, 0];
+  if (!g.stratOpportunities[side] && !g.ploys[side].length && living(g, side).some((o) => tpl(o).cunning)) { g.cp[side]++; log(g, { zh: '狡詐：首先放棄策略計謀，+1CP', en: 'Cunning: passed at first opportunity, +1CP' }, `side${side}`); }
+  g.stratOpportunities[side]++;
+  g.stratPasses = (g.stratPasses || 0) + 1;
+  g.stratTurn = 1 - side;
+  if (g.stratPasses >= 2) {
+    for (const s of [g.initiative, 1 - g.initiative]) finalizeStrategy(g, s);
+    startFirefight(g);
+  }
+  return true;
+}
+
+function finalizeStrategy(g, side) {
   corsairStrategy(g, side);
   dwStrategy(g, side);
   handOutGuardOrder(g, side);
@@ -671,8 +698,6 @@ export function finishPloys(g) {
   cultStrategyEnd(g, side); // Chaos Cult: Mutation
   starstridersStrategyEnd(g, side); // Elucidian Starstriders: Stake Claim
   insidiantsStrategyEnd(g, side); // Celestian Insidiants: Zealous Ultimatum, Suspect & Eliminate
-  if (g.stratStep) startFirefight(g);
-  else g.stratStep = 1;
 }
 
 /** An operative whose Doctrine Warfare makes this ploy free (once per battle each), if any. */
@@ -716,11 +741,12 @@ export const ployTaken = (g, side, ploy) => (ploy.id === 'mdCreeping' && g.tp ==
   || (ploy.id === 'plunderers' && g.tp === 1);
 
 export function buyPloy(g, side, ploy) {
+  if (g.phase !== 'strategy' || !ploy) return false;
   if (ploy.id === 'mdCreeping' && g.tp === 1) return false;
   const cost = ployCost(g, side, ploy);
   if (side !== ployChooser(g) || g.cp[side] < cost || ployTaken(g, side, ploy)) return false;
   if (g.ployBlocked?.[side]?.[ploy.id] === g.tp) return false; // (Absolute Authority: not again this TP)
-  if (absoluteAuthority(g, side, ploy, cost)) return true; // (Inquisition: cancelled, nothing spent)
+  if (absoluteAuthority(g, side, ploy, cost)) { advanceStrategy(g, side); return true; } // (Inquisition: cancelled, nothing spent)
   if (dwCommandFree(g, side, 'strategy')) dwConsumeCommand(g, side, 'strategy');
   g.cp[side] -= cost;
   g.ploys[side].push(ploy.id);
@@ -738,7 +764,13 @@ export function buyPloy(g, side, ploy) {
   if (free) (g.freePloys[side] ||= []).push(ploy.id);
   const note = free ? { zh: `（${opName(free, 'zh')} 教條戰：0CP）`, en: ` (${opName(free, 'en')} Doctrine Warfare: 0CP)` } : { zh: '', en: '' };
   log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}（${ploy.name.en}）」${note.zh}`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"${note.en}` }, `side${side}`);
+  advanceStrategy(g, side);
   return true;
+}
+
+function advanceStrategy(g, side) {
+  g.stratOpportunities ||= [0, 0]; g.stratOpportunities[side]++;
+  g.stratPasses = 0; g.stratTurn = 1 - side;
 }
 
 export function startFirefight(g) {
@@ -4204,7 +4236,53 @@ function clearSpot(g, p, r = 0.5) {
   }
   return p;
 }
-/** Set up the chosen equipment for a side (called from newGame). */
+/** Place one equipment item, then hand deployment to the other player. */
+export function equipmentPlacement(g, p, rotated = false) {
+  const d = g.eqDeploy, entry = d && !d.done && d.queues[d.turn][0];
+  if (!entry || g.phase !== 'deploy') return null;
+  const side = d.turn, source = entry.item;
+  if (entry.type === 'terrain') {
+    const w = rotated ? source.h : source.w, h = rotated ? source.w : source.h;
+    const t = { ...source, x: p.x - w / 2, y: p.y - h / 2, w, h };
+    if (t.x < 0 || t.y < 0 || t.x + w > BOARD.w || t.y + h > BOARD.h) return null;
+    const corners = [{ x:t.x,y:t.y }, { x:t.x+w,y:t.y }, { x:t.x,y:t.y+h }, { x:t.x+w,y:t.y+h }];
+    const z = deployZones(g)[side];
+    if (t.kind === 'heavy' ? corners.some(c => distPointRect(c, {x:z.x0,y:z.y0 ?? 0,w:z.x1-z.x0,h:(z.y1 ?? BOARD.h)-(z.y0 ?? 0)}) > 4)
+      : corners.some(c => territoryOf(g,c) !== side)) return null;
+    const gap = (a,b) => Math.hypot(Math.max(0,a.x-b.x-b.w,b.x-a.x-a.w),Math.max(0,a.y-b.y-b.h,b.y-a.y-a.h));
+    if (g.terrain.some(o => gap(t,o) <= (o.equip != null ? 2 : 0))) return null;
+    if ((g.accessPoints || []).some(a => distPointRect(a,t) <= 2)) return null;
+    if ([...g.objectives,...g.markers].some(m => distPointRect(m,t) < .4)) return null;
+    return { type:'terrain', item:t };
+  }
+  if (p.x < .4 || p.y < .4 || p.x > BOARD.w-.4 || p.y > BOARD.h-.4 || territoryOf(g,p) !== side) return null;
+  if (g.terrain.some(t => distPointRect(p,t) < .4) || [...g.objectives,...g.markers].some(m => dist(p,m) < .8)) return null;
+  return { type:'marker', item:{ ...source, x:p.x,y:p.y,id:g.markers.reduce((max,m)=>Math.max(max,typeof m.id === 'number' ? m.id : -1),-1)+1 } };
+}
+
+export function placeEquipment(g, p, rotated = false) {
+  const entry = equipmentPlacement(g,p,rotated);
+  if (!entry) return false;
+  const d = g.eqDeploy, side = d.turn;
+  (entry.type === 'terrain' ? g.terrain : g.markers).push(entry.item);
+  d.queues[side].shift();
+  log(g,{zh:`${teamZh(g,side)} 部署${entry.type === 'terrain' ? ({heavy:'重掩體',light:'輕掩體',wire:'鐵絲網'}[entry.item.kind]) : (EQUIPMENT[{comms:'comms',mine:'mines',ammo:'ammo'}[entry.item.kind]]?.name.zh || entry.item.kind)}`,en:`${team(g,side).name.en} sets up ${entry.item.kind}`},`side${side}`);
+  d.done = !d.queues.some(q=>q.length);
+  d.turn = d.queues[1-side].length ? 1-side : side;
+  if (d.done) log(g,{zh:'雙方裝備部署完成，開始輪流部署單位',en:'Equipment set up; begin operative deployment'},'tp');
+  return true;
+}
+
+export function autoPlaceEquipment(g) {
+  const d = g.eqDeploy, entry = d && !d.done && d.queues[d.turn][0];
+  if (!entry) return false;
+  const p = entry.type === 'terrain' ? {x:entry.item.x+entry.item.w/2,y:entry.item.y+entry.item.h/2} : entry.item;
+  if (placeEquipment(g,p)) return true;
+  for (let y=.5;y<BOARD.h;y+=.5) for(let x=.5;x<BOARD.w;x+=.5) for(const rotated of [false,true]) if(placeEquipment(g,{x,y},rotated)) return true;
+  return false;
+}
+
+/** Prepare the chosen equipment for a side (called from newGame). */
 function setupEquipment(g, side, ids) {
   (g.equip ||= [[], []])[side] = ids.filter((id) => EQUIPMENT[id] && (!ARCHON_EQUIPMENT[id] || g.teams[side] === 'handOfArchon') && (!CORSAIR_EQUIPMENT[id] || g.teams[side] === 'corsairVoidscarred') && (!DEATHWATCH_EQUIPMENT[id] || g.teams[side] === 'deathwatch') && (!MANDRAKES_EQUIPMENT[id] || g.teams[side] === 'mandrakes') && (!MURDERWING_EQUIPMENT[id] || g.teams[side] === 'murderwing') && (!WRECKA_EQUIPMENT[id] || g.teams[side] === 'wreckaKrew')).slice(0, living(g, side).some((o) => tpl(o).dwCommand) ? 5 : 4);
   (g.eqUses ||= [{}, {}])[side] = { frag: 0, krak: 0, stun: 0, smoke: 0 };

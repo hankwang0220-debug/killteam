@@ -11,7 +11,7 @@ import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation
 import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
-  ACTIONS, activate, activeOp, canPlace, placeOp, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
+  ACTIONS, activate, activeOp, canPlace, placeOp, placeEquipment, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
@@ -831,7 +831,8 @@ function turnStatus() {
   let side = null, doing = '';
   if (g.phase === 'deploy') {
     const d = g.dep;
-    if (d && !d.done) { side = d.turn; doing = L(`部署中（這一批 ${d.batch.length}/${d.need}）`, `setting up (${d.batch.length}/${d.need} this step)`); }
+    if (g.eqDeploy && !g.eqDeploy.done) { side = g.eqDeploy.turn; doing = L('輪流部署通用裝備', 'Alternating equipment deployment'); }
+    else if (d && !d.done) { side = d.turn; doing = L(`部署中（這一批 ${d.batch.length}/${d.need}）`, `setting up (${d.batch.length}/${d.need} this step)`); }
     else doing = L('雙方部署完成，準備開戰', 'Both teams set up — ready to begin');
   } else if (g.phase === 'initiative') {
     doing = L(`第 ${g.tp} 回合・先攻階段：決定先攻`, `TP ${g.tp} · Initiative phase`);
@@ -1004,6 +1005,15 @@ function omenPick() {
   return [0, 1].filter((s) => g.omen?.[s] && !isAI(s)).map((s) => `<label>${esc(tx(team(g, s).name))} ${L('預兆', 'Omen')}<select data-act="omen" data-side="${s}">${g.ops.filter((o) => !(o.side === s && tpl(o).omen)).map((o) => `<option value="${o.uid}" ${g.omen[s] === o.uid ? 'selected' : ''}>${nm(o)} (${o.side === s ? L('友方重擲 1', 'Friendly re-roll 1s') : L('敵方重擲 6', 'Enemy re-roll 6s')})</option>`).join('')}</select></label>`).join('');
 }
 function deployPanel() {
+  if (g.eqDeploy && !g.eqDeploy.done) {
+    const d = g.eqDeploy, e = d.queues[d.turn][0], kind = e.item.kind;
+    const name = {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache')}[kind] || kind;
+    return `<section class="card"><h2>${L('通用裝備部署', 'Equipment deployment')}</h2><h3>${esc(bi(team(g,d.turn).name))} · ${name}</h3>
+      <p class="hint">${L('雙方輪流放置一件裝備，全部完成後才部署特工。點棋盤放置目前裝備；裝備地形需符合半區、降落區與間距限制。', 'Alternate placing one equipment item; deploy operatives afterwards. Tap the board to place the current item within its legal area and spacing.')}</p>
+      <p>${L('剩餘', 'Remaining')}：P1 ${d.queues[0].length} / P2 ${d.queues[1].length}</p>
+      ${ui.notice ? `<p class="bad">${esc(ui.notice)}</p>` : ''}
+      ${isAI(d.turn) ? `<p>${L('電腦部署中…','Computer setting up…')}</p>` : `${e.type === 'terrain' ? `<button data-act="eqrotate">${L('旋轉 90°','Rotate 90°')} ${ui.eqRotated ? '↔' : '↕'}</button>` : ''}<button data-act="eqauto">${L('自動放置這件裝備','Auto-place this item')}</button>`}</section>`;
+  }
   const d = g.dep;
   const count = (s) => {
     const all = g.ops.filter((o) => o.side === s);
@@ -1042,7 +1052,7 @@ function strategyPanel() {
   // One side chooses at a time: the initiative player first, then the other player.
   const summary = (s) => {
     const t = team(g, s);
-    const state = s === cur ? L('選擇中…', 'choosing…') : s === first ? L('已完成', 'done') : L('等待中', 'waiting');
+    const state = s === cur ? L('選擇中…', 'choosing…') : L('等待中', 'waiting');
     return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))}${g.ai === s ? ' 🤖' : ''} · CP ${g.cp[s]} <small>${state}</small></h3>
       <p class="hint">${chosen(s)}</p></div>`;
   };
@@ -1056,7 +1066,7 @@ function strategyPanel() {
         return `<button class="ploy ${on ? 'on' : ''}" data-act="ploy" data-side="${cur}" data-ploy="${p.id}" ${on || ployTaken(g, cur, p) || g.cp[cur] < cost ? 'disabled' : ''}>
           <b>${esc(bi(p.name))}</b> <span class="cp">${cost < p.cp ? `<s>${p.cp}</s> ` : ''}${cost}CP</span><small>${esc(tx(p.desc))}</small></button>`;
       }).join('')}</div>${gambitView(cur)}
-      <button class="primary wide" data-act="ploysdone">${g.stratStep ? L('完成，進入交戰階段 ▶', 'Done — Start Firefight ▶') : L(`完成，換 ${esc(bi(team(g, 1 - cur).name))} ▶`, `Done — ${esc(bi(team(g, 1 - cur).name))}'s turn ▶`)}</button>`;
+      <button class="ploy" data-act="ployspass"><b>${L('跳過', 'Pass')}</b><span class="cp">0CP</span><small>${L('對方使用計謀後，你仍可再選。雙方連續跳過才進入交火階段。', 'You may choose again after the opponent uses a ploy. Two consecutive passes start the Firefight phase.')}</small></button>`;
   const ini = team(g, first);
   return `<section class="card">
     <h2>${L(`第 ${g.tp} 回合・策略階段`, `TP ${g.tp} · Strategy Phase`)}</h2>
@@ -2177,6 +2187,10 @@ function scheduleAI() {
   }
   // Deployment: the computer sets up its step on its own.
   if (g.phase === 'deploy') {
+    if (g.eqDeploy && !g.eqDeploy.done) {
+      if (isAI(g.eqDeploy.turn)) aiTimer = setTimeout(() => { autoPlaceEquipment(g); afterChange(); }, 900);
+      return;
+    }
     if (g.dep && !g.dep.done && isAI(g.dep.turn)) aiTimer = setTimeout(() => { autoDeployStep(g); finishDeployStep(g); afterChange(); }, 900);
     return;
   }
@@ -2220,8 +2234,9 @@ function afterChange() {
   const a = activeOp(g);
   if (a && !ui.result && !g.fight && !isAI(g.turn) && ((a.ap <= 0 && !freePending(a) && !ui.undo.length) || a.dead)) { endActivation(g); ui.sel = null; ui.undo = []; }
   if (g.phase === 'strategy' && g.ai === ployChooser(g)) {
+    const side = g.ai;
     aiStrategy(g, g.ai);
-    finishPloys(g);
+    if (g.phase === 'strategy' && ployChooser(g) === side) finishPloys(g);
   }
   recordStep(g, ui.result);
   if (g.phase === 'gameover') archiveGame(g, [totalVP(g, 0), totalVP(g, 1)]);
@@ -2238,6 +2253,12 @@ function svgPoint(evt) {
 }
 
 function onBoardClick(evt) {
+  if (g.phase === 'deploy' && g.eqDeploy && !g.eqDeploy.done) {
+    if (isAI(g.eqDeploy.turn)) return;
+    if (placeEquipment(g, svgPoint(evt), !!ui.eqRotated)) { ui.eqRotated = false; return afterChange(); }
+    ui.notice = L('這個位置不符合裝備部署限制，請換位置或使用自動放置。','Illegal equipment position. Choose another position or auto-place.');
+    return render();
+  }
   ui.peek = null; // (a datacard opened from the lists beside the board closes when the board is used)
   const opEl = evt.target.closest('[data-uid]');
   const p = svgPoint(evt);
@@ -2632,7 +2653,9 @@ function handle(act, d) {
     }
     case 'initlock': if (g.phase === 'initiative') lockInitRoll(g); return afterChange();
     case 'initpick': if (g.phase === 'initiative' && g.initiative == null && !isAI(g.initDecider)) setInitiative(g, +d.side); return afterChange();
-    case 'ploysdone': if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
+    case 'ployspass': if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
+    case 'eqrotate': ui.eqRotated = !ui.eqRotated; return render();
+    case 'eqauto': if (g.eqDeploy && !g.eqDeploy.done && !isAI(g.eqDeploy.turn)) autoPlaceEquipment(g); return afterChange();
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
     case 'closeinspect': if (ui.peek) ui.peek = null; else ui.sel = null; return render();

@@ -20,7 +20,7 @@ function ensureReplay(g) {
   if (!g.replay) {
     g.replay = {
       base: {
-        teams: g.teams, ai: g.ai, terrain: g.terrain, objectives: g.objectives, mission: g.mission, deploy: g.deploy,
+        teams: g.teams, ai: g.ai, terrain: JSON.parse(JSON.stringify(g.terrain)), objectives: g.objectives, mission: g.mission, deploy: g.deploy,
         ops: g.ops.map(baseOp),
       },
       snaps: [],
@@ -41,6 +41,7 @@ let lastResult = null;
  * or progress in a fight. `result` is the shooting dice dialog currently shown, if any.
  */
 const stateOf = (g) => ({
+  terrain: g.terrain.map(t => ({ ...t })),
   o: encodeOps(g), tp: g.tp, phase: g.phase, turn: g.turn, active: g.active, initiative: g.initiative,
   counter: !!g.counter, cp: [...g.cp], vp: [...g.vp], kills: [...g.kills], ploys: g.ploys.map((p) => [...p]),
   ...(g.markers?.length ? { mk: g.markers.map((m) => [r2(m.x), r2(m.y), m.carriedBy || 0, m.kind]) } : {}),
@@ -82,7 +83,7 @@ export function rewindRecorder(g, snaps, seq) {
 export function viewAt(rep, i) {
   const s = rep.snaps[i], b = rep.base;
   return {
-    teams: b.teams, ai: b.ai, terrain: b.terrain, objectives: b.objectives, mission: b.mission, deploy: b.deploy,
+    teams: b.teams, ai: b.ai, terrain: s.terrain || b.terrain, objectives: b.objectives, mission: b.mission, deploy: b.deploy,
     tp: s.tp, phase: s.phase, turn: s.turn, active: s.active, initiative: s.initiative, counter: s.counter,
     cp: s.cp, vp: s.vp, kills: s.kills, ploys: s.ploys || [[], [], []], log: [], fight: s.fight || null,
     winner: null,

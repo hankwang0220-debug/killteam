@@ -17,7 +17,7 @@ import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
 
 export function aiStrategy(g, side) {
   for (const p of team(g, side).ploys) {
-    if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6) buyPloy(g, side, p);
+    if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
   // Call the Kill / Bring it Down!: mark the enemy with the most wounds.
   if ((team(g, side).justiceMark || living(g, side).some((o) => tpl(o).callTheKill || tpl(o).watchmaster)) && !g.mark?.[side]) {
