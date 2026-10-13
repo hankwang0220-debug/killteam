@@ -3,6 +3,8 @@ import { DEATHWATCH_TEAM } from './deathwatch.js';
 import { MANDRAKES_TEAM } from './mandrakes.js';
 import { MURDERWING_TEAM } from './murderwing.js';
 import { WRECKA_TEAM } from './wrecka.js';
+import { NIGHTLORDS_TEAM } from './nightlords.js';
+import { SCOUTS_TEAM } from './scouts.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2129,6 +2131,8 @@ TEAMS.push(DEATHWATCH_TEAM);
 TEAMS.push(MANDRAKES_TEAM);
 TEAMS.push(MURDERWING_TEAM);
 TEAMS.push(WRECKA_TEAM);
+TEAMS.push(NIGHTLORDS_TEAM);
+TEAMS.push(SCOUTS_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the
@@ -2506,6 +2510,7 @@ export const RULE_LABELS = {
   wkExplosive: { zh: '爆炸物（交戰中也能用；目標固定是自己，沒有掩護、不會被遮擋）', en: 'Explosive (usable while engaged; it is always its own primary target, no cover, not obscured)' },
   wkDetonate: { zh: '引爆（第一次造成傷害時，對目標與它 1" 內所有特工各造成 D6+6，暴擊 2D6+6，然後動作結束；不能減免）', en: 'Detonate (the first time it would inflict damage: D6+6 to the target and every operative within 1" of it, 2D6+6 on a crit, then the action ends; cannot be reduced)' },
   wkPulsa: { zh: '脈衝（不選目標：在目標位置放脈衝標記，1 點＋每顆成功 1 點（最多 +3）；完全在範圍內的特工各受 D3）', en: 'Pulsa (no target: the Pulsa marker goes where the target is with 1 point + 1 per success (max +3); D3 to each operative wholly within)' },
+  terrorchem: { zh: '恐懼毒（暴擊傷害後目標得毒標記，每次啟動受 D3）', en: 'Terrorchem (critical damage gives the target a token; D3 each time it activates)' },
   wkSmash: { zh: '粉碎（每次打擊可把敵人撞退 1"，自己跟上 1"）', en: 'Smash (each strike can knock the enemy back 1" and follow 1")' },
 };
 

@@ -1,7 +1,7 @@
 import {
   activate, activeOp, actionCost, availableActions, missionActionsFor, deployZones, weaponsFor, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, setSkills, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
-  foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid, canPickUpMarker, pickUpTargets,
+  foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid, canPickUpMarker, pickUpTargets, doOptics,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
   isMounted, sprintCheck, doSprint, doTurn, enterFromReserve,
   goreOf, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
@@ -11,11 +11,13 @@ import { isMandrake, doShadowPassage, shadowPassageCheck } from './mandrakes.js'
 import { isArchon, painOptions, usePain } from './archon.js';
 import { isDeathwatch, dwAmmoAvailable, dwAmmoWeapon } from './deathwatch.js';
 import { breakTarget } from './wrecka.js';
+import { scAiStrategy } from './scouts.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
 
 export function aiStrategy(g, side) {
+  scAiStrategy(g, side); // Scout Squad: Tactical Manoeuvre and Diversion gambits
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
@@ -405,6 +407,29 @@ export function aiStep(g) {
     }
     // Break Stuff: tear down the enemy's equipment terrain.
     if (can.wkBreak && breakTarget(g, op)?.equip === 1 - op.side) { doSelfAction(g, op, 'wkBreak'); return null; }
+  }
+  if (op.team === 'scoutSquad') {
+    // Tracker: Track Enemy on the toughest enemy not tracked yet this TP; Sniper: Optics before a shot.
+    if (can.scTrack && op.ap >= 2) {
+      const t = TARGET_ACTIONS.scTrack.targets(g, op).filter((e) => e.scTracked?.tp !== g.tp).sort((a, b) => b.wounds - a.wounds)[0];
+      if (t) { doTargetAction(g, op, 'scTrack', t); return null; }
+    }
+    if (can.optics && op.ap >= 2 && shootOptions(g, op).length) { doOptics(g, op); return null; }
+  }
+  if (op.team === 'nemesisClaw') {
+    // Premonition: a Prescience point for 1CP; Poison Objective on a held objective marker.
+    if (can.ncPremonition) { doSelfAction(g, op, 'ncPremonition'); return null; }
+    if (can.ncPoison) { doSelfAction(g, op, 'ncPoison'); return null; }
+    // Disconcerting Mimicry while it still has AP for something else: -1 APL on a strong ready enemy, a Dash that pulls an enemy off an
+    // objective marker, or an order change on an expended Engage-order enemy (it can't counteract any more).
+    if (op.ap >= 2) {
+      const pick = (id, filter, sort) => (can[id] ? TARGET_ACTIONS[id].targets(g, op).filter(filter).sort(sort)[0] : null);
+      const onObj = (t) => (g.objectives || []).some((m) => dist(t, m) <= 2);
+      const choice = [['ncMimicDash', pick('ncMimicDash', onObj, (a, b) => b.wounds - a.wounds)],
+        ['ncMimicApl', pick('ncMimicApl', (t) => t.ready && tpl(t).apl >= 3, (a, b) => tpl(b).apl - tpl(a).apl)],
+        ['ncMimicOrder', pick('ncMimicOrder', (t) => !t.ready && t.order === 'engage', (a, b) => b.wounds - a.wounds)]].find(([, t]) => t);
+      if (choice) { doTargetAction(g, op, choice[0], choice[1]); return null; }
+    }
   }
   if (isMandrake(op)) {
     const soul = can.mdSoulHeal && op.maxW - op.wounds >= 4 ? 'mdSoulHeal' : can.mdSoulApl ? 'mdSoulApl' : null;

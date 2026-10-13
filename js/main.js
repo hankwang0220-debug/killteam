@@ -2,6 +2,10 @@ import { DEATHWATCH_EQUIPMENT, deathwatchRosterError } from './data/deathwatch.j
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT, murderwingRosterError } from './data/murderwing.js';
 import { WRECKA_EQUIPMENT, wreckaRosterError } from './data/wrecka.js';
+import { NIGHTLORDS_EQUIPMENT, nightlordsRosterError } from './data/nightlords.js';
+import { prescienceOf, canForeboding, ncForeboding } from './nightlords.js';
+import { SCOUTS_EQUIPMENT, scoutsRosterError, FORWARD_SCOUTING, cleanScouting, DEFAULT_SCOUTING } from './data/scouts.js';
+import { scGambitsLeft, scDiversionTargets, scTactical, scDiversion } from './scouts.js';
 import { wreckaOf } from './wrecka.js';
 import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
 import { dwEquipmentLimit, dwScrambleTargets, dwScramble } from './deathwatch.js';
@@ -413,12 +417,12 @@ function setupView() {
     <div class="picklist">${TEAMS.map((t) => `<button class="teampick ${s.teams[side] === t.id ? 'on' : ''}" style="--tc:${t.color}" data-act="pick" data-side="${side}" data-team="${t.id}">
       <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
     ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>` : ''}
+    ${unitPick(side)}
     ${roster(TEAM_MAP[s.teams[side]], side)}
-    ${rosterPick(side)}
-    ${loadoutPick(side)}
     ${tacticsPick(side)}
     ${tacOpPick(side)}
     ${equipPick(side)}
+    ${scoutingPick(side)}
   </div>`;
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
   return `${topBar()}
@@ -438,6 +442,13 @@ function setupView() {
 
 /** Primary + secondary Chapter Tactic for teams that have them (Angels of Death). */
 const setupTactics = (side) => ui.setup.tactics[side] || TEAM_MAP[ui.setup.teams[side]].defaultTactics;
+
+/** Step 1 after choosing a team: which operatives take the field and with which weapons (before tactics and equipment). */
+function unitPick(side) {
+  const body = rosterPick(side) + loadoutPick(side);
+  return body ? `<div class="unitpick"><h4>${L('① 選擇上場單位與武器', '① Choose your operatives and weapons')}</h4>
+    <p class="hint small">${L('先選好上場的特工和武器，再選戰術與裝備。', 'Pick who takes the field and their weapons first, then tactics and equipment.')}</p>${body}</div>` : '';
+}
 
 function rosterPick(side) {
   const t = TEAM_MAP[ui.setup.teams[side]], cur = ui.setup.roster?.[side] || {};
@@ -487,6 +498,8 @@ function inquisitionRosterWarning(t, cur) {
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
 function rosterWarning(t, cur, side) {
   if (t.id === 'murderwing') { const error = murderwingRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'nemesisClaw') { const error = nightlordsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wreckaKrew') { // (and only one Glyphs)
     const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
     return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
@@ -527,13 +540,27 @@ function loadoutPick(side) {
   return t.ops.filter((o) => o.loadouts && picked.has(o.id)).map((o) => `<label>${esc(bi(o.name))}<select data-act="loadout" data-side="${side}" data-id="${o.id}">${Object.entries(o.loadouts).map(([id, ws]) => `<option value="${id}" ${(cur[o.id] || Object.keys(o.loadouts)[0]) === id ? 'selected' : ''}>${ws.map((w) => esc(tx(w.name))).join(' + ')}${o.loadoutExtra?.[id] ? ` + ${esc(tx(o.loadoutExtra[id]))}` : ''}</option>`).join('')}</select></label>`).join('');
 }
 
+/** Scout Squad: Forward Scouting — up to six options (each up to its own maximum), resolved when deployment ends. */
+function scoutingPick(side) {
+  if (ui.setup.teams[side] !== 'scoutSquad' || (side === 1 && ui.setup.ai === 1)) return '';
+  const cur = cleanScouting(ui.setup.scouting?.[side] ?? DEFAULT_SCOUTING);
+  return `<div class="tactics"><h4>${L(`前進偵察（最多 6 個，已選 ${cur.length}）`, `Forward Scouting (up to 6, ${cur.length} chosen)`)}</h4>
+    ${FORWARD_SCOUTING.map((o) => {
+    const n = cur.filter((x) => x === o.id).length;
+    return `<div class="scoutopt small"><button data-act="scoutopt" data-side="${side}" data-id="${o.id}" data-d="-1" ${n ? '' : 'disabled'}>−</button><b>${n}/${o.max}</b>
+      <button data-act="scoutopt" data-side="${side}" data-id="${o.id}" data-d="1" ${n >= o.max || cur.length >= 6 ? 'disabled' : ''}>＋</button>
+      <span><b>${esc(tx(o.name))}</b><span class="hint"> — ${esc(tx(o.desc))}</span></span></div>`;
+  }).join('')}
+    <p class="hint small">${L('佈署完成後依序自動執行；戰術機動與誘餌在策略階段使用。', 'Resolved automatically once deployment ends; Tactical Manoeuvre and Diversion are used in the Strategy phase.')}</p></div>`;
+}
+
 /** Universal equipment: up to 4 options (the computer takes its usual kit). */
 function equipPick(side) {
   if (side === 1 && ui.setup.ai === 1) return '';
   const cur = ui.setup.equip?.[side] || [];
   const limit = dwEquipmentLimit(TEAM_MAP[ui.setup.teams[side]], ui.setup.roster?.[side]);
   return `<div class="tactics"><h4>${L(`通用裝備（最多 ${limit} 項，已選 ${cur.length}）`, `Universal equipment (up to ${limit}, ${cur.length} chosen)`)}</h4>
-    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'wreckaKrew' ? Object.keys(WRECKA_EQUIPMENT) : [])].map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
+    ${[...EQUIP_IDS, ...(ui.setup.teams[side] === 'handOfArchon' ? Object.keys(ARCHON_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'corsairVoidscarred' ? Object.keys(CORSAIR_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'deathwatch' ? Object.keys(DEATHWATCH_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'mandrakes' ? Object.keys(MANDRAKES_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'murderwing' ? Object.keys(MURDERWING_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'wreckaKrew' ? Object.keys(WRECKA_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'nemesisClaw' ? Object.keys(NIGHTLORDS_EQUIPMENT) : []), ...(ui.setup.teams[side] === 'scoutSquad' ? Object.keys(SCOUTS_EQUIPMENT) : [])].map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
 }
 
@@ -597,13 +624,28 @@ function roster(t, side) {
     }
     selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
   }
+  // Teams with a choice of operatives: show who is actually taking the field (each pick once per copy), and their weapons.
+  if (t.replacements && t.id !== 'deathwatch' && !t.packages && t.id !== 'mandrakes' && t.id !== 'murderwing') {
+    const cur = ui.setup.roster?.[side] || {}, counts = new Map();
+    for (const slot of t.ops.filter((o) => o.count)) {
+      const pick = cur[slot.id];
+      for (let k = 0; k < slot.count; k++) {
+        const id = (Array.isArray(pick) ? pick[k] : pick) || slot.id;
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
+    }
+    selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
+  }
+  const loadouts = ui.setup.loadouts?.[side] || {};
+  const weaponsOf = (o) => (o.loadouts ? o.loadouts[loadouts[o.id]] || Object.values(o.loadouts)[0] : o.weapons) || [];
   return `<div class="roster">
     ${teamInfo(t)}
     <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
     ${t.firefight?.length ? `<p class="rule small"><b>${L('交戰計謀', 'Firefight ploys')}</b>：${t.firefight.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
     ${t.techniques?.length ? `<p class="rule small"><b>${L('方陣技法', 'Aspect Techniques')}</b>：${t.techniques.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
     ${selected.map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
-      <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>`).join('')}
+      <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>
+      <div class="wlist">${weaponsOf(o).map((w) => esc(tx(w.name))).join(' · ')}</div>`).join('')}
   </div>`;
 }
 
@@ -814,7 +856,7 @@ function scoreBar() {
     return `<div class="score ${isTurn ? 'turn' : ''}" style="--tc:${t.color}">
       <div class="sname">${esc(tx(t.name))}${g.ai === side ? ' 🤖' : ''}${lang() === 'zh' ? `<small>${esc(t.name.en)}</small>` : ''}</div>
       <div class="snums"><span title="Victory Points">VP <b>${totalVP(g, side)}</b></span><span title="Command Points">CP <b>${g.cp[side]}</b></span>
-      <span title="${L('存活', 'Alive')}">👤 ${living(g, side).length}</span>${t.id === 'wreckaKrew' ? `<span title="${L('破壞點數', 'Wrecka points')}">💥 <b>${wreckaOf(g, side)}</b></span>` : ''}</div>
+      <span title="${L('存活', 'Alive')}">👤 ${living(g, side).length}</span>${t.id === 'wreckaKrew' ? `<span title="${L('破壞點數', 'Wrecka points')}">💥 <b>${wreckaOf(g, side)}</b></span>` : ''}${t.id === 'nemesisClaw' ? `<span title="${L('預知點數', 'Prescience points')}">🔮 <b>${prescienceOf(g, side)}</b></span>` : ''}</div>
     </div>`;
   };
   const tpTxt = g.phase === 'deploy' ? L('部署', 'Deploy') : g.phase === 'gameover' ? L('結束', 'End') : `TP ${g.tp}/${MAX_TP}`;
@@ -1091,6 +1133,17 @@ function gambitView(side) {
       ${selection?.action==='omniscanner'?TARGET_ACTIONS.omniscanner.targets(g,archeo).map(t=>`<button data-act="seekertarget" data-uid="${t.uid}">${nm(t)}</button>`).join(''):''}
       ${['reposition','fallBack'].includes(selection?.action)?`<p>${L('點棋盤選移動終點','Tap the board to choose the destination')}</p><button data-act="seekerconfirm" ${ui.path?.ok?'':'disabled'}>${L('確認免費移動','Confirm free move')}</button><p class="hint">${ui.path?.why||''}</p>`:''}
       ${selection?.action?`<button data-act="seekercancel">${L('取消選擇','Cancel selection')}</button>`:''}</div>`;
+  }
+  // Scout Squad: Tactical Manoeuvre (twice per battle) and Diversion (once per battle) — strategic gambits.
+  if (g.teams[side] === 'scoutSquad' && !isAI(side)) {
+    if ((g.scGambit?.[side]?.tactical || 0) > 0) html += `<div class="gambit"><h4>${L(`戰術機動（剩 ${g.scGambit[side].tactical} 次）`, `Tactical Manoeuvre (${g.scGambit[side].tactical} left)`)}</h4>
+      <p class="hint small">${L('選一名友方：到它下次啟動結束 APL +1。每回合一次。', 'Pick a friendly: +1 APL until the end of its next activation. Once per TP.')}</p>
+      <select data-act="sctactical" data-side="${side}" ${scGambitsLeft(g, side, 'tactical') ? '' : 'disabled'}><option value="">${L(scGambitsLeft(g, side, 'tactical') ? '（選特工）' : '（本回合已用）', scGambitsLeft(g, side, 'tactical') ? '(choose an operative)' : '(used this TP)')}</option>
+        ${living(g, side).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
+    if ((g.scGambit?.[side]?.diversion || 0) > 0) html += `<div class="gambit"><h4>${L('誘餌（整場一次）', 'Diversion (once per battle)')}</h4>
+      <p class="hint small">${L('選戰場邊緣 6" 內的一名敵人：到它下次啟動結束 APL -1。', 'Pick an enemy within 6" of a killzone edge: -1 APL until the end of its next activation.')}</p>
+      <select data-act="scdiversion" data-side="${side}"><option value="">${L('（選敵人）', '(choose an enemy)')}</option>
+        ${scDiversionTargets(g, side).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></div>`;
   }
   const kb = living(g, side).find((o) => tpl(o).callTheKill);
   if (kb) {
@@ -1444,6 +1497,7 @@ function firefightPanel() {
         : L(`${nm(by)} 行動完畢，可以接著啟動它選定的一名友方（也可以略過）。`, `${nm(by)} is expended: you may activate one of the friendlies it selected next (or skip).`)}</p>`
       : `<p class="hint">${L('選擇一名「準備中」的操作員啟動（點擊棋子或下方名單）。', 'Choose a ready operative to activate (tap it on the board or below).')}</p>`;
     if (g.teams[g.turn] === 'handOfArchon') html += `<button data-act="painskip">${L('惡劣傲慢：跳過啟動機會（1CP）', 'Heinous Arrogance: skip activation opportunity (1CP)')}</button>`;
+    if (canForeboding(g, g.turn)) html += `<button data-act="foreboding">${L('預感：花 1 點預知點數跳過這次啟動（每回合一次）', 'Foreboding: spend 1 Prescience point to skip this activation (once per TP)')}</button>`;
     if (canBribe(g, g.turn)) html += `<button data-act="bribe">${L('貿易許可證「賄賂」：跳過這次啟動（整場一次）', 'Warrant of Trade — Bribe: skip this activation (once per battle)')}</button>`;
     html += `<div class="readylist">${ready.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`;
     const sel = ui.sel && getOp(g, ui.sel);
@@ -1653,6 +1707,14 @@ function datacard(op, extra = '') {
   const t = tpl(op);
   const tm = team(g, op.side);
   const flags = [];
+  if (op.terrorchem?.some(Boolean)) flags.push(`<span class="flag inj">☣ ${L('恐懼毒標記（每次啟動受 D3 傷害）', 'Terrorchem token (D3 damage each activation)')}</span>`);
+  if (op.ncTrophy) flags.push(`<span class="flag">${L('血腥戰利品標記', 'Grisly Trophy token')}</span>`);
+  if (op.ncFlayTP === g.tp) flags.push(`<span class="flag inj">${L('被活剝：本回合不能控制標記或做任務動作', 'Flayed: cannot control markers or perform mission actions this TP')}</span>`);
+  if (op.scTracked?.tp === g.tp) flags.push(`<span class="flag inj">🎯 ${L('被追蹤：被友方射擊時搜尋（輕型）', 'Tracked: shot with Seek Light')}</span>`);
+  if (op.scTarget?.some(Boolean)) flags.push(`<span class="flag inj">⊕ ${L('目標標記：被偵察小隊攻擊時可重擲一顆攻擊骰', 'Target token: Scout Squad can re-roll one attack die against it')}</span>`);
+  if (op.scRaw) flags.push(`<span class="flag">${L('原生體魄：Move +1"、不受重傷影響', 'Raw Physiology: +1" Move, ignores injury')}</span>`);
+  if (op.scCovert) flags.push(`<span class="flag">${L('隱蔽陣地', 'Covert Position')}</span>`);
+  if (t.ncVisionary) flags.push(`<span class="flag mk">${L(`預知點數 ${prescienceOf(g, op.side)}`, `Prescience ${prescienceOf(g, op.side)}`)}</span>`);
   if (t.mwLord) flags.push(`<span class="flag mk">${L(`詛咒點數 ${op.damnation || 1}/6`, `Damnation ${op.damnation || 1}/6`)}</span>`);
   if (op.mwBoostTP === g.tp) flags.push(`<span class="flag">${L('本回合已噴射', 'Boosted this TP')}</span>`);
   if (op.mwAttackLockTP === g.tp) flags.push(`<span class="flag inj">${L('黑暗之翼：本回合不能攻擊', 'Wings of Darkness: attacks locked this TP')}</span>`);
@@ -1741,6 +1803,21 @@ const ABILITIES = {
   veteranLeadership: () => ['老兵領導', 'Veteran Leadership', '在場時策略階段可選兩種戰技。', 'While it\'s in the killzone, pick two Skills at Arms.'],
   tacticalCommand: () => ['戰術指揮', 'Tactical Command', '0AP：一名友方直到下回合多一種戰技。', '0AP: a friendly gains one more Skill at Arms until next TP.'],
   medikit0: () => ['快速急救', 'Quick Medikit', '醫療包只要 0AP。', 'Its Medikit costs 0AP.'],
+  // ---- Scout Squad ----
+  scSergeant: () => ['引導與經驗', 'Guidance and Experience', '每次啟動一次（自動）：另一名友方偵察小隊特工到它下次啟動結束 APL +1。有阿斯塔特規則：射擊兩次（至少一次用霰彈槍、爆彈手槍或爆彈槍）或近戰兩次，任何指令都能反擊。', 'Once per activation (automatic): another friendly Scout Squad operative gets +1 APL until the end of its next activation. Astartes: two Shoots (an Astartes shotgun, bolt pistol or boltgun for at least one) or two Fights, and it can counteract under either order.'],
+  scGrapnel: () => ['鉤爪發射器・鉤爪突襲', 'Grapnel Launcher · Grapnel Assault', '向上攀爬時垂直距離視為 2"。衝鋒中若攀爬、落下、跳躍或底盤移到高處地形下，本次啟動近戰武器「致命 3+」。', 'Climbing up counts as 2". A Charge that climbs, drops, jumps or goes under Vantage terrain gives its melee weapons Lethal 3+ for the activation.'],
+  scTracker: () => ['追蹤敵人', 'Track Enemy', '1AP（不在交戰中）：選 8" 內一名敵人，本回合友方偵察小隊特工射擊它時，遠程武器「搜尋（輕型）」。', '1AP (not engaged): select an enemy within 8"; this TP friendly Scout Squad operatives shooting it have Seek Light on their ranged weapons.'],
+  scSniper: () => ['狙擊手協同', 'Sniper Synergy', '正受到光學瞄準效果時，鳥卜儀掃描範圍內的目標被它射擊，遠程武器再加「搜尋（輕型）」。', 'While Optics is active, targets inside an Auspex Scan are shot with Seek Light on its ranged weapons.'],
+  // ---- Nemesis Claw ----
+  ncVisionary: () => ['預知', 'Prescience', '策略階段準備步驟獲得 D3 預知點數（回合結束棄掉；預見者殘廢就不能獲得或使用）。預感：輪到你啟動時花 1 點跳過那次啟動；預兆：一顆普通傷害骰打中它時花 1 點無視（各每回合一次）。「預感」動作 1AP（每回合一次、不在交戰中）：花 1 點換 1CP。', 'Ready step: D3 Prescience points (discarded at the end of the TP; none gained or spent if the Visionary is incapacitated). Foreboding: skip one of your activations for 1 point; Portent: ignore one Normal Dmg die on it for 1 point (each once per TP). Premonition (1AP, once per TP, not engaged): 1 point for 1CP.'],
+  ncFearmonger: () => ['恐懼毒', 'Terrorchem', '恐懼毒瓶與污染刀：暴擊造成傷害（含毀滅）時，目標獲得恐懼毒標記，之後每次啟動受 D3 傷害。毒化目標點（1AP）：控制的目標點放毒，第一個爭奪它的敵人得標記並受 2D3 傷害。', 'Terrorchem vial and tainted blade: critical damage (Devastating too) gives the target a token — D3 damage whenever it activates. Poison Objective (1AP): a controlled objective marker is poisoned; the first enemy to contest it gains a token and takes 2D3.'],
+  ncScreecher: () => ['尖嚎', 'Screecher', '3" 內的敵人射擊、近戰或反擊時不能重擲攻擊骰。', 'Enemies within 3" shooting, fighting or retaliating can\'t re-roll their attack dice.'],
+  ncAppetite: () => ['殘虐胃口', 'Appetite for Cruelty', '對受傷的敵人近戰時，閃電爪「致命 4+」。', 'Fighting a wounded enemy: its lightning claws have Lethal 4+.'],
+  ncFlay: () => ['活剝', 'Flay Them Alive', '每回合一次：在控制範圍內使敵人殘廢時，選它或死者 6" 內另一名看得到的敵人：本回合不能控制標記、撿起標記或執行任務動作。', 'Once per TP, incapacitating an enemy in its control range: another enemy visible within 6" of it or the victim can\'t control markers, Pick Up or perform mission actions this TP.'],
+  ncTyrant: () => ['剝皮坑暴君', 'Tyrant of the Skinning Pits', '近戰或反擊時，3 以上的普通與暴擊傷害少 1。', 'Fighting or retaliating, Normal and Critical Dmg of 3+ deals 1 less to it.'],
+  ncMimicry: () => ['變聲模仿', 'Disconcerting Mimicry', '1AP（不在交戰中）：6" 內一名敵人 APL -1、改變指令、或免費衝刺（位置由我方指定）——每種整場只能選一次，各是一個動作。', '1AP (not engaged): an enemy within 6" gets -1 APL, a changed order or a free Dash (you pick the spot) — each option once per battle, each its own action.'],
+  ncIconBearer: () => ['掌旗手', 'Icon Bearer', '控制標記時 APL 視為 +1。', 'Counts as +1 APL when determining control of a marker.'],
+  ncCruel: () => ['殘忍折磨者', 'Cruel Tormenter', '攻擊、近戰或反擊重傷或生命 7 以下的敵人時，武器「致命 5+」。', 'Against an injured enemy or one with a Wounds stat of 7 or less (shooting, fighting or retaliating): Lethal 5+.'],
   // ---- Wrecka Krew ----
   wreckaBoss: () => ['破壞頭目', 'Wrecka Boss', '每次射擊或近戰（守衛除外）得 1 破壞點數。', 'Each Shoot or Fight (not Guard) gains 1 Wrecka point.'],
   stoopid: () => ['笨蛋', 'Stoopid', '交戰階段一律是交戰指令；只能衝鋒、衝刺、近戰、重新定位、射擊，只能用資料卡上的武器。', 'Always an Engage order in the Firefight phase; only Charge, Dash, Fight, Reposition and Shoot, with its datacard weapons only.'],
@@ -1752,7 +1829,7 @@ const ABILITIES = {
   blastPadding: () => ['防爆護甲', 'Blast Padding', '被爆炸／洪流武器射擊時可重擲一顆防禦骰；不受範圍毀滅波及。', 'Re-rolls one defence die against Blast / Torrent; not hit by x" Devastating unless it\'s the target.'],
   meltaMine: () => ['熱熔地雷', 'Melta Mine', '1AP（整場一次）：放下熱熔地雷並免費衝刺；其他特工第一次進入它的控制範圍受 2D6+3 傷害。', '1AP (once): place the Melta Mine and Dash for free; the first other operative within its control range takes 2D6+3.'],
   battleComms: () => ['戰場通訊', 'Battle Comms', '1AP（每次啟動最多兩次）：另一名友方下次 APL +1（最多 3）。', '1AP (up to twice per activation): another friendly +1 APL next activation (max 3).'],
-  adaptive: () => ['應變裝備', 'Adaptive Equipment', '每回合士兵們可各用一次震撼彈與煙霧彈（不算裝備次數）。', 'Each TP, Troopers can use a stun and a smoke grenade once each (not from equipment).'],
+  adaptive: () => ['應變裝備', 'Adaptive Equipment', '每回合隊上一名這類特工可用一次震撼彈、一名可用一次煙霧彈（不算裝備次數）。', 'Each TP, one such operative can use a stun grenade and one a smoke grenade, once each (not from equipment).'],
   mark: (v) => [{ khorne: '恐虐印記', nurgle: '納垢印記', slaanesh: '色孽印記', tzeentch: '奸奇印記', undivided: '混沌不分印記' }[v], { khorne: 'Mark of Khorne', nurgle: 'Mark of Nurgle', slaanesh: 'Mark of Slaanesh', tzeentch: 'Mark of Tzeentch', undivided: 'Undivided' }[v], { khorne: '近戰武器「重創」。', nurgle: '受到 3 以上普通傷害時擲 D6，5+ -1。', slaanesh: 'Move +1"。', tzeentch: '遠程武器「重創」。', undivided: '攻擊 6" 內的敵人時武器「無休」。' }[v], { khorne: 'Melee weapons have Severe.', nurgle: 'Normal Dmg of 3+: on a 5+, 1 less.', slaanesh: '+1" Move.', tzeentch: 'Ranged weapons have Severe.', undivided: 'Ceaseless against enemies within 6".' }[v]],
   daemonicAura: () => ['惡魔光環', 'Daemonic Aura', '控制範圍內的敵人撤退時擲 D6，3+ 就不能撤退。', 'An enemy falling back from its control range: on a D6 3+ it can\'t.'],
   soulGorge: () => ['靈魂吞噬', 'Soul Gorge', '近戰後若使敵人殘廢或造成暴擊傷害，回復 D3+1。', 'After a fight in which it incapacitated the enemy or inflicted Critical Dmg, regains D3+1.'],
@@ -2557,6 +2634,10 @@ app.addEventListener('change', (e) => {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && !isAI(side)) { setReboot(g, side, +e.target.value); render(); } // (secret: no log line until both are revealed)
   }
+  if ((e.target.dataset.act === 'sctactical' || e.target.dataset.act === 'scdiversion') && g?.phase === 'strategy' && e.target.value) {
+    const side = +e.target.dataset.side;
+    if (side === ployChooser(g) && !isAI(side)) { (e.target.dataset.act === 'sctactical' ? scTactical : scDiversion)(g, side, e.target.value); afterChange(); }
+  }
   if (e.target.dataset.act === 'envoy' && g?.phase === 'strategy' && e.target.value) {
     const side = +e.target.dataset.side;
     if (side === ployChooser(g) && !isAI(side)) { setEnvoy(g, side, getOp(g, e.target.value)); afterChange(); }
@@ -2644,13 +2725,21 @@ function handle(act, d) {
     case 'start':
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'murderwing' && murderwingRosterError(TEAM_MAP.murderwing, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'wreckaKrew' && wreckaRosterError(TEAM_MAP.wreckaKrew, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'nemesisClaw' && nightlordsRosterError(TEAM_MAP.nemesisClaw, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
-      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)) });
+      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'scoutopt': {
+      const s = +d.side, cur = cleanScouting(ui.setup.scouting?.[s] ?? DEFAULT_SCOUTING);
+      if (+d.d > 0) cur.push(d.id); else { const i = cur.lastIndexOf(d.id); if (i >= 0) cur.splice(i, 1); }
+      (ui.setup.scouting ||= [undefined, undefined])[s] = cleanScouting(cur);
+      return render();
+    }
     case 'equip': {
       const s = +d.side, cur = ((ui.setup.equip ||= [[], []])[s] ||= []);
       const i = cur.indexOf(d.id);
@@ -2717,6 +2806,7 @@ function handle(act, d) {
     case 'resource': undoable(() => useResource(g, op, d.id)); return afterChange(); // Hernkyn Yaegirs
     case 'painskip': skipArchonActivation(g, g.turn); return afterChange();
     case 'bribe': if (!isAI(g.turn)) undoable(() => bribeSkip(g, g.turn)); return afterChange();
+    case 'foreboding': if (!isAI(g.turn)) undoable(() => ncForeboding(g, g.turn)); return afterChange();
     case 'painreroll': { const s = ui.flow?.step; if (s) { const which = s.stage === 'attack' ? 'a' : 'd'; archonReroll(g, getOp(g, which === 'a' ? s.seq.op : s.seq.target), s.seq, which, +d.value); } return render(); }
     case 'painfight': archonFightReroll(g, d.k, +d.value); return render();
     case 'rerolldie': {
@@ -2761,7 +2851,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

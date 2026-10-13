@@ -692,6 +692,7 @@ export function objBadges(g, o, lang) {
   if (o.data) b.push(zh ? `資料 ${o.data}` : `Data ${o.data}`);
   if (o.inertTP === g.tp) b.push(zh ? '失效' : 'inert');
   if (o.lootTP === g.tp) b.push(zh ? '已掠奪' : 'looted');
+  for (const s of [0, 1]) if (o.terrorchem?.[s]) b.push({ text: zh ? '毒' : 'poison', side: s }); // Poison Objective (Nemesis Claw)
   for (const s of [0, 1]) if (o.devices?.[s]) b.push({ text: zh ? '裝置' : 'device', side: s }); // (Plant Devices tac op)
   return b;
 }
@@ -728,6 +729,8 @@ export const TAC_OPS = {
     desc: { zh: '揭露：第一次有敵人殘廢時。每有敵人殘廢，在它的位置放下我方情報標記；友方可以撿起，每名友方最多帶 2 個情報標記（或 1 個情報加 1 個其他標記）。每回合結束（第 2 回合起）：有友方帶著情報標記 +1 VP；戰鬥結束時每帶著一個情報標記 +1 VP。', en: 'Reveal: the first time an enemy is incapacitated. Whenever an enemy is incapacitated, place your Intelligence marker where it was; friendlies can pick them up, carrying up to two (or one and one other marker). Each TP end from TP2: +1VP if any friendly carries one; +1VP per Intelligence marker carried at the end of the battle.' } },
 };
 const tacOf = (g, side) => (g.tacOps?.[side] ? g.tacOps[side] : null);
+/** Reveal a side's Tac Op (Scout Squad's Spy). */
+export const revealTacOp = (g, side) => reveal(g, side);
 function reveal(g, side) {
   const t = tacOf(g, side);
   if (!t || t.revealed) return;

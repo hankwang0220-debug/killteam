@@ -546,3 +546,10 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 /* Hernkyn Yaegirs: Resourceful points panel, Minefield markers */
 .respanel { margin: 8px 0; padding: 6px 8px; border-left: 3px solid #b8742a; background: rgba(184, 116, 42, .08); }
 .respanel h4 { margin: 0 0 4px; }
+.unitpick { border: 1px solid var(--brass); border-radius: 10px; padding: 8px 10px; margin: 8px 0; background: rgba(255,255,255,.03); }
+.unitpick h4 { margin: 0 0 4px; font-size: .95rem; }
+.unitpick label { display: block; margin: 4px 0; }
+.wlist { font-size: .74rem; opacity: .7; margin: -2px 0 6px; }
+.scoutopt { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.scoutopt button { padding: 2px 9px; min-width: 28px; }
+.scoutopt b { min-width: 2.2em; text-align: center; }

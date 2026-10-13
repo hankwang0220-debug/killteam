@@ -1,7 +1,9 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v12';
+const CACHE = 'killteam-v14';
 const ASSETS = [
   'js/wrecka.js', 'js/data/wrecka.js',
+  'js/nightlords.js', 'js/data/nightlords.js',
+  'js/scouts.js', 'js/data/scouts.js',
   'js/murderwing.js', 'js/data/murderwing.js',
   'js/mandrakes.js', 'js/data/mandrakes.js',
   './', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'css/style.css',
