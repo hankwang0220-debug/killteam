@@ -79,8 +79,11 @@ export function kmKunnin(g, f, k, me, op) {
 // ---------- actions: Breach, Grappling Hook, Smoke Grenade ----------
 const nearTerrain = (g, op) => g.terrain.filter((t) => (t.kind === 'heavy' || t.kind === 'light') && distPointRect(op, t) - radius(op) <= 1.01);
 export function kmActions(g, op, add) {
-  if (!isKM(op)) return;
   const eng = isEngaged(g, op), ENG = { zh: '處於交戰中', en: 'Engaged' };
+  // Breaching Charge (universal equipment): once per battle any friendly can Breach.
+  const charge = op.side < 2 && g.equip?.[op.side]?.includes('breachingCharge') && !g.eqUses?.[op.side]?.breachCharge;
+  if (charge && !tpl(op).kmBreacha) add('kmBreach', !eng && nearTerrain(g, op).length > 0 && !op.acted.kmBreach, eng ? ENG : { zh: '控制範圍內沒有地形', en: 'No terrain in control range' });
+  if (!isKM(op)) return;
   if (tpl(op).kmBreacha) add('kmBreach', !eng && nearTerrain(g, op).length > 0 && !op.acted.kmBreach, eng ? ENG : { zh: '控制範圍內沒有地形', en: 'No terrain in control range' });
   if (tpl(op).kmGrapple) {
     const blocked = op.acted.kmGrapple || op.acted.reposition || op.acted.charge || op.acted.fallBack;
@@ -94,6 +97,7 @@ export function kmSelf(g, op, id) {
   if (!t) return true;
   spend(g, op, id);
   op.acted.kmBreach = 1;
+  if (!tpl(op).kmBreacha) (g.eqUses[op.side] ||= {}).breachCharge = 1; // Breaching Charge used
   const p = { x: Math.max(t.x, Math.min(t.x + t.w, op.x)), y: Math.max(t.y, Math.min(t.y + t.h, op.y)) };
   (g.markers ||= []).push({ id: g.markers.length, kind: 'breach', owner: op.side, x: p.x, y: p.y, rect: { x: t.x, y: t.y, w: t.w, h: t.h }, carriedBy: null });
   note(g, op.side, `${opName(op, 'zh')} 破門：在地形上放破口標記（1" 內厚度 1" 以下的部分可以穿過）`, `${opName(op, 'en')} Breach: a Breach marker on the terrain (parts no more than 1" thick can be crossed within 1")`);

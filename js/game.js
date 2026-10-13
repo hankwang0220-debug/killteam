@@ -146,6 +146,7 @@ export function moveAllowance(g, op, kind) {
   let d = moveStat(g, op);
   if (tpl(op).blinkPack && op.blinkOn && kind !== 'dash') return op.counter ? 2 : 7;
   if (kind === 'dash') d = tpl(op).blademaster && op.acted?.charge ? Math.min(3, op.acted.chargeRemaining || 0) : 3;
+  if (kind === 'reposition' && op.mvb) d = Math.max(0, d - 2); // Move With Barricade
   if (kind === 'reposition' && hasOrder(g, op, 'moveMove')) d += 1; // Move! Move! Move!
   if (kind === 'reposition' && skillOn(g, op, 'strikeFast')) d += 1; // Strike Fast (Kasrkin)
   if (kind === 'reposition' && isES(op) && hasPloy(g, op.side, 'quickMarch') && !op.counter) d += 1; // Quick March (Elucidian Starstriders)
@@ -1042,7 +1043,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side // Ba
 
 export function endActivation(g) {
   const op = activeOp(g);
-  g.ccManip = null; g.nodalOpen = null;
+  g.ccManip = null; g.nodalOpen = null; if (op) op.mvb = false;
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
@@ -1461,7 +1462,7 @@ export function actionCost(g, op, id) {
   // Kauyon: a Concealed operative's Markerlight is free.
   if (id === 'markerlight' && op.order === 'conceal' && artOfWar(g, op, 'kauyon')) return 0;
   // Free actions from Dakka Dash, Savage Assault and Stealth Attack.
-  if (['dash', 'shoot', 'charge', 'fight'].includes(id) && op.acted?.free?.[id]) return 0;
+  if (['dash', 'shoot', 'charge', 'fight', 'reposition'].includes(id) && op.acted?.free?.[id]) return 0;
   if (id === 'fight' && count(op, 'fight') === 1 && accelerant(op)) return 0; // Accelerant Agents: one Fight is free
   if (id === 'fight' && count(op, 'fight') === 1 && op.acted?.fury) return 0; // Fury (Goremonger Sanguavitae): the second Fight is free
   // Acute Focus (Malocator): once per activation, Pick Up, Veriscant or a mission action costs 1 less.
@@ -2238,6 +2239,7 @@ export function availableActions(g, op) {
   if (tpl(op).markerlight) { if (tpl(op).fearless) add('markerlight', !count(op, 'markerlight') && TARGET_ACTIONS.markerlight.targets(g, op).length > 0, count(op, 'markerlight') ? DONE : NONE); else unique('markerlight'); } // (Shas'la, Fearless on the Frontline: even when engaged)
   pfActions(g, op, add); // Pathfinders: Pulse Accelerator, Photon Grenade
   kmActions(g, op, add); // Kommandos: Breach, Grappling Hook, Smoke Grenade
+  mvbActions(g, op, add); // Portable Barricade: Move With Barricade
   kfActions(g, op, add); // Farstalker Kinband: Gather
   dkActions(g, op, add); // Death Korps: the Sapper's mine
   if (tpl(op).signal) unique('signal');
@@ -2436,6 +2438,7 @@ export function doSelfAction(g, op, id) {
   if (ncSelf(g, op, id)) return;
   if (sfSelf(g, op, id)) return; // Sanctifiers: Trained Assassin, Wreathe in Fire
   if (pfSelf(g, op, id)) return; // Pathfinders: Pulse Accelerator
+  if (mvbSelf(g, op, id)) return; // Portable Barricade: Move With Barricade
   if (kmSelf(g, op, id)) return; // Kommandos: Breach
   if (kfSelf(g, op, id)) return; // Farstalker Kinband: Gather
   if (dkSelf(g, op, id)) return; // Death Korps: the Sapper's mine
@@ -2563,6 +2566,7 @@ export function doMove(g, op, kind, path) {
   if (kind === 'fallBack' && !mdFallBack(g, op, d6, d3)) return false;
   const seenBefore = foes(g, op).filter((t) => visibility(g, op, t).visible).map((t) => t.uid);
   const movedFrom = { x: op.x, y: op.y }; // (Preternatural Evasion, Drakolithe)
+  const mvbFrom = kind === 'reposition' && op.mvb ? { x: op.x, y: op.y, t: portableOf(g, op) } : null;
   if (kind === 'fallBack' && (chainSnare(g, op) || ncSnare(g, op))) return false; // Chain Snare (Hand of the Archon / Nemesis Claw)
   // Cut Them Down (Chaos Cult Blessed Blade): falling back from its control range, D3+1 damage first (2D3+2 with two of them).
   if (kind === 'fallBack') {
@@ -2609,6 +2613,7 @@ export function doMove(g, op, kind, path) {
   const ncFirst = kind === 'charge' && startOfActivation(op); // (We Have Come For You: the Charge is its first action)
   const ratConceal = kind === 'charge' && op.order === 'conceal'; // (Ratling Hunter: a Charge made with a Conceal order)
   op.x = end.x; op.y = end.y;
+  if (mvbFrom) mvbMoved(g, op, mvbFrom, mvbFrom.t);
   spend(g, op, kind);
   mwMoved(g, op, kind, path, movedFrom, mwPursuers);
   const rec = g.recent?.[op.side];
@@ -4050,6 +4055,37 @@ export function nodeMove(g, side, uid, p) {
   log(g, { zh: `${teamZh(g, side)} 方尖碑節點移動 ${dist(from, p).toFixed(1)}"`, en: `${team(g, side).name.en} moves an obelisk node ${dist(from, p).toFixed(1)}"` }, `side${side}`);
   return true;
 }
+// ---------- Universal equipment: Portable Barricade, Breaching Charge ----------
+const portableOf = (g, op) => op.side < 2 && g.terrain.find((t) => t.portable && t.equip === op.side && distPointRect(op, t) - radius(op) <= 1.01);
+/** Move With Barricade: 1AP, then a free Reposition of up to Move -2" that carries the barricade along. */
+export function mvbActions(g, op, add) {
+  if (!g.equip?.[op.side]?.includes('portableBarricade') || op.side > 1) return;
+  const eng = isEngaged(g, op);
+  add('mvBarricade', !eng && !!portableOf(g, op) && !op.acted.mvBarricade && !op.acted.fallBack && !op.acted.charge, eng ? { zh: '處於交戰中', en: 'Engaged' } : { zh: '沒有連著路障（1" 內）', en: 'Not connected to a portable barricade (within 1")' });
+}
+export function mvbSelf(g, op, id) {
+  if (id !== 'mvBarricade') return false;
+  const t = portableOf(g, op);
+  if (!t) return true;
+  spend(g, op, id);
+  op.acted.mvBarricade = 1; op.mvb = true;
+  op.acted.free = { ...(op.acted.free || {}), reposition: true };
+  log(g, { zh: `${opName(op, 'zh')} 隨路障移動：免費重新定位（最多 Move -2"），路障跟著走`, en: `${opName(op, 'en')} Move With Barricade: a free Reposition (Move -2" at most), the barricade moves along` }, `side${op.side}`);
+  return true;
+}
+/** After a Reposition that carried a barricade: it moves the same way (it stays where it is if that spot is blocked). */
+export function mvbMoved(g, op, from, t) {
+  op.mvb = false;
+  if (!t) return;
+  const dx = op.x - from.x, dy = op.y - from.y, moved = { ...t, x: t.x + dx, y: t.y + dy };
+  const b = boardOf(g);
+  if (moved.x < 0 || moved.y < 0 || moved.x + moved.w > b.w || moved.y + moved.h > b.h) return;
+  if (g.terrain.some((o) => o !== t && distRectRect(moved, o) < 0.1)) return;
+  t.x = moved.x; t.y = moved.y;
+}
+const distRectRect = (a, b) => Math.hypot(Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w)), Math.max(0, a.y - (b.y + b.h), b.y - (a.y + a.h)));
+/** Protective: in cover with a friendly portable barricade at hand, the Save is improved by 1. */
+const protectiveBonus = (g, target) => (target.side < 2 && g.terrain.some((t) => t.protective && t.equip === target.side && distPointRect(target, t) - radius(target) <= 1.01) ? 1 : 0);
 // ---------- Canoptek Circle: Nodal Response, Animate Obelisk Nodes, faction equipment ----------
 const ccEquip = (g, side, id) => !!g.equip?.[side]?.includes(id);
 /** Awakened Obelisk Nodes: after revealing it, D3 uses of Animate Obelisk Nodes cost 0CP. */
@@ -4521,6 +4557,8 @@ export const EQUIPMENT = {
   lightBarricades: { name: { zh: '輕掩體 ×2', en: 'Light Barricades ×2' }, desc: { zh: '兩道輕型地形，放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Two pieces of Light terrain wholly within your half (more than 2" from other equipment terrain and access points).' } },
   heavyBarricade: { name: { zh: '重掩體', en: 'Heavy Barricade' }, desc: { zh: '一道重型地形，只能放在距離降落區 4" 內（離其他裝備地形與訪問點 2" 以外）。', en: 'A piece of Heavy terrain wholly within 4" of your drop zone (more than 2" from other equipment terrain and access points).' } },
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
+  portableBarricade: { name: { zh: '可攜式路障', en: 'Portable Barricade' }, desc: { zh: '一道輕型、防護、可攜式地形（腳是微小且暴露）：放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。防護：處於它的掩護中時，防禦者的 Save 屬性 -1（最低 2+）。連著它的特工可執行「隨路障移動」（1AP）：免費重新定位，但最多 Move -2"，路障隨之移動。', en: 'A Light, Protective, Portable terrain feature, set up wholly within your territory (more than 2" from other equipment terrain and access points). Protective: an operative in cover from it improves its Save by 1 (to 2+). A connected operative can perform Move With Barricade (1AP): a free Reposition of up to its Move -2", the barricade moving with it.' } },
+  breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
 Object.assign(EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
@@ -4548,6 +4586,7 @@ registerSanctifierActions();
 registerPathfinderActions();
 registerKommandoActions();
 registerKinbandActions();
+ACTIONS.mvBarricade = { ap: 1, name: { zh: '隨路障移動', en: 'Move With Barricade' } };
 registerDeathKorpsActions();
 registerMandrakeActions();
 registerDwActions();
@@ -4682,6 +4721,7 @@ function setupEquipment(g, side, ids) {
     if (id === 'explosive') Object.assign(g.eqUses[side], { frag: 1, krak: 1 });
     if (id === 'lightBarricades') { wall(ownPoint(g, side, 10.5, 0.25), 3, 'light', inHalf); wall(ownPoint(g, side, 10.5, 0.75), 3, 'light', inHalf); }
     if (id === 'heavyBarricade') wall(ownPoint(g, side, 9, 0.5), 3.5, 'heavy', near4);
+    if (id === 'portableBarricade') { const n = g.terrain.length; wall(ownPoint(g, side, 10.5, 0.5), 2, 'light', inHalf); if (g.terrain.length > n) Object.assign(g.terrain.at(-1), { portable: true, protective: true }); }
     if (id === 'razorWire') wall(ownPoint(g, side, 12.5, 0.5), 4, 'wire', inHalf, 0.3);
   }
   rtTripwires(g, side); // Ratling Bomber: Tripwire markers (set up with the equipment)
@@ -5802,7 +5842,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
     // Gong Knell (Deathknell): +1 Save when shot until its next activation.
     // Aggressor Imperative (Hunter Clade): the Save is worsened by 1.
-    const save = Math.min(6, Math.max(2, tpl(target).save - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target) - sfConversion(g, op, target)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
+    const save = Math.min(6, Math.max(2, tpl(target).save - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target) - sfConversion(g, op, target) - (coverN + coverC > 0 ? protectiveBonus(g, target) : 0)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
   // Only a shared terrain feature forces a cover/obscuring choice. Independent features stack.
