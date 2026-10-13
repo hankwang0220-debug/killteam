@@ -27,7 +27,7 @@ import {
   giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
   ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor,
-  EQUIPMENT, EQUIPMENT_LIMIT, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
+  EQUIPMENT, EQUIPMENT_LIMIT, equipmentLimitFor, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, missionActionsFor, foes,
   sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
@@ -584,7 +584,7 @@ function equipPick(side) {
   if (side === 1 && ui.setup.ai === 1) return '';
   const cur = cleanEquipment(ui.setup.teams[side], ui.setup.equip?.[side]);
   ((ui.setup.equip ||= [[], []])[side]) = cur;
-  const limit = EQUIPMENT_LIMIT;
+  const limit = equipmentLimitFor(ui.setup.teams[side]);
   return `<div class="tactics"><h4>${L(`裝備（陣營＋通用合計最多 ${limit} 項，已選 ${cur.length}）`, `Equipment (faction + universal: ${limit} total, ${cur.length} chosen)`)}</h4>
     ${equipmentOptionsFor(ui.setup.teams[side]).map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
@@ -2850,7 +2850,7 @@ function handle(act, d) {
     case 'equip': {
       const s = +d.side, cur = ((ui.setup.equip ||= [[], []])[s] ||= []);
       const i = cur.indexOf(d.id);
-      if (i >= 0) cur.splice(i, 1); else if (cur.length < EQUIPMENT_LIMIT && equipmentOptionsFor(ui.setup.teams[s]).includes(d.id)) cur.push(d.id);
+      if (i >= 0) cur.splice(i, 1); else if (cur.length < equipmentLimitFor(ui.setup.teams[s]) && equipmentOptionsFor(ui.setup.teams[s]).includes(d.id)) cur.push(d.id);
       return render();
     }
     case 'depauto': autoDeployStep(g); return afterChange();

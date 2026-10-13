@@ -4336,6 +4336,8 @@ export const EQUIPMENT = {
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
 Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
+/** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
+export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
 const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
@@ -4343,9 +4345,9 @@ const FACTION_EQUIPMENT = {
   nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
-export function cleanEquipment(teamId, ids = []) {
+export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
   const allowed = new Set(equipmentOptionsFor(teamId));
-  return [...new Set((Array.isArray(ids) ? ids : []).filter(id => allowed.has(id)))].slice(0, EQUIPMENT_LIMIT);
+  return [...new Set((Array.isArray(ids) ? ids : []).filter(id => allowed.has(id)))].slice(0, limit);
 }
 
 registerMurderwingActions();

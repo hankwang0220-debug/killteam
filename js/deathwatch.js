@@ -1,6 +1,6 @@
 import { DW_AMMO, deathwatchRosterError } from './data/deathwatch.js';
 import { TEAM_MAP } from './data/teams.js';
-import { tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, EQUIPMENT_LIMIT } from './game.js';
+import { tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, equipmentLimitFor } from './game.js';
 import { MISSION_ACTIONS } from './missions.js';
 export { DW_AMMO };
 export const isDeathwatch = (o) => o?.team === 'deathwatch';
@@ -13,7 +13,7 @@ export function dwSetup(g, roster) {
   }
 }
 // All teams share the user's combined four-option equipment cap.
-export function dwEquipmentLimit() { return EQUIPMENT_LIMIT; }
+export function dwEquipmentLimit(t) { return equipmentLimitFor(t?.id); }
 export const dwCommandFree = (g, side, kind) => g.teams[side] === 'deathwatch' && !g.dwCommand?.[side]?.[kind] && living(g, side).some((o) => tpl(o).dwCommand && o.placed !== false);
 export function dwConsumeCommand(g, side, kind) {
   ((g.dwCommand ||= [{}, {}])[side])[kind] = true;

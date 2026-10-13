@@ -170,7 +170,7 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
 // Equipment: faction and universal options share the four-option limit; Stolen Goods and Well Stocked.
 {
   const { dwEquipmentLimit } = await import('../js/deathwatch.js');
-  assert.equal(dwEquipmentLimit(T, {}), 4);
+  assert.equal(dwEquipmentLimit(T, {}), 5, 'Munitorum Contacts');
   const g = arena({ equip: ['ammo'], roster: {}, loadouts: {} });
   const nAmmo = [...g.eqDeploy.queues[0]].filter((e) => e.item.kind === 'ammo').length;
   assert.equal(nAmmo, 2, 'Stashmaster: a second Ammo Cache');
