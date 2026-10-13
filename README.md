@@ -94,7 +94,7 @@ Death Korps, Farstalker Kinband, Kommandos, Plague Marines, Angels of Death, Tau
 
 Canoptek Circle: obelisk nodes are placed (turning point 1) and moved (up to 3" each, later turning points) by hand in the Strategy phase (an "Auto" button keeps the old automatic placement); Nodal Response (use or change a strategy ploy), Animate Obelisk Nodes (6" of node moves instead of an activation) and the equipment Nanoscarab Caskets, Phase Shifter, Matrix Manipulator (automatic) and Awakened Obelisk Nodes.
 
-Setup: the roll-off winner now chooses which edge of the killzone is their drop zone before equipment and operatives are placed (the computer keeps its zone). Universal equipment gained the Portable Barricade (Light, Protective; Move With Barricade carries it, but it still gives cover when not connected) and the Breaching Charge (once per battle any friendly can Breach for 1AP). Run `tests/universal.mjs`.
+Setup: the roll-off winner now chooses which edge of the killzone is their drop zone before equipment and operatives are placed (the computer keeps its zone). Universal equipment gained the Portable Barricade (Light, Protective; Move With Barricade carries it, but it still gives cover when not connected) and the Breaching Charge (once per battle any friendly can Breach for 1AP). Approved Ops missions also have a Primary Op (Crit / Tac / Kill, picked in secret after the Tac Ops and revealed at the end): its VP count 1.5x rounded up; for Kill Op it is (kill-grade VP + 1 for the higher grade) x1.5. Run `tests/universal.mjs`.
 
 ## Adding a team
 

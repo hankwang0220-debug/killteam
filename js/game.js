@@ -190,7 +190,7 @@ function makeTerrain() {
 const OBJECTIVES = [{ x: 15, y: 11 }, { x: 10, y: 4.5 }, { x: 20, y: 4.5 }, { x: 10, y: 17.5 }, { x: 20, y: 17.5 }];
 
 // ---------- setup ----------
-export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [], dkFree = [] }) {
+export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], primaryOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [], dkFree = [] }) {
   const m = MISSIONS[missionId] || MISSIONS.standard;
   const map = m.terrain ? null : TOMB_WORLD_MAPS.find((v) => v.id === mapId);
   const g = {
@@ -288,6 +288,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   log(g, { zh: `任務：${m.name.zh}`, en: `Mission: ${m.name.en}` }, 'tp');
   // Approved Ops missions: each player has a secret Tac Op (picked at setup, or at random from its archetypes).
   if (m.approved) g.tacOps = [0, 1].map((s) => ({ id: tacOps[s] && TAC_OPS[tacOps[s]] ? tacOps[s] : randomTacOp(teams[s]), revealed: false }));
+  if (m.approved) g.primaryOps = [0, 1].map((s) => (PRIMARY_OPS.includes(primaryOps[s]) ? primaryOps[s] : PRIMARY_OPS[Math.floor(Math.random() * 3)])); // chosen in secret after the Tac Ops, revealed at the end
   m.setup?.(g);
   // Warrant of Trade — Coordinate (Elucidian Starstriders): +1CP at the end of the Select Operatives step (automatic).
   for (const s of [0, 1]) if (TEAM_MAP[teams[s]].starstriders) { g.cp[s] += 1; useWarrant(g, s, 'coordinate'); }
@@ -1275,8 +1276,15 @@ export function killOpVP(g, side) {
   const bonus = g.phase === 'gameover' && grade > killGrade(g, 1 - side) ? 1 : 0;
   return grade + bonus;
 }
+/** Primary Op: chosen after the Tac Ops and revealed when the battle ends — the VP from that op count 1.5x (rounded up). */
+export const PRIMARY_OPS = ['crit', 'tac', 'kill'];
+export function primaryBase(g, side) {
+  const p = g.primaryOps?.[side];
+  return p === 'kill' ? killOpVP(g, side) : p ? (g.vpBy?.[side]?.[p] || 0) : 0;
+}
+export const primaryBonus = (g, side) => (g.primaryOps && g.phase === 'gameover' ? Math.ceil(primaryBase(g, side) * 1.5) - primaryBase(g, side) : 0);
 // Missions can replace the kill op with their own VP (mission(g).killOp === false).
-export const totalVP = (g, side) => g.vp[side] + (mission(g).killOp === false ? 0 : killOpVP(g, side));
+export const totalVP = (g, side) => g.vp[side] + (mission(g).killOp === false ? 0 : killOpVP(g, side)) + primaryBonus(g, side);
 
 function checkWipe(g) {
   if (living(g, 0).length && living(g, 1).length) return false;
@@ -1292,6 +1300,7 @@ function gameOver(g) {
   for (const o of g.ops) if (o.frenzy && !o.dead) frenzyDie(g, o); // Frenzy: they fall when the battle ends
   mission(g).onBattleEnd?.(g);
   tacOnBattleEnd(g);
+  if (g.primaryOps) for (const s of [0, 1]) log(g, { zh: `${teamZh(g, s)} 的主要任務是「${{ crit: "核心任務", tac: "戰術行動", kill: "Kill Op" }[g.primaryOps[s]]}」：${primaryBase(g, s)} 分 ×1.5 → +${primaryBonus(g, s)}`, en: `${team(g, s).name.en}'s Primary Op was ${{ crit: "Crit Op", tac: "Tac Op", kill: "Kill Op" }[g.primaryOps[s]]}: ${primaryBase(g, s)}VP x1.5 → +${primaryBonus(g, s)}` }, "tp");
   const a = totalVP(g, 0), b = totalVP(g, 1);
   g.winner = a > b ? 0 : b > a ? 1 : null;
   log(g, { zh: `遊戲結束！總分 ${a} : ${b}`, en: `Game over! Final score ${a} : ${b}` }, 'tp');

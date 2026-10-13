@@ -46,3 +46,15 @@ const can = (g, o, id) => G.availableActions(g, o).find((a) => a.id === id)?.ok;
   assert(!can(g, o2, 'kmBreach'), 'only once per battle');
 }
 console.log('universal ok');
+// Primary Op: x1.5 rounded up, only counted (and revealed) when the battle ends.
+{
+  const g = G.newGame({ teams: ['angels', 'kommandos'], ai: null, mission: 'secure', primaryOps: ['crit', 'tac'] });
+  assert.deepEqual(g.primaryOps, ['crit', 'tac']);
+  g.vpBy = [{ crit: 3, tac: 1 }, { crit: 2, tac: 3 }]; g.vp = [4, 5];
+  assert.equal(G.primaryBonus(g, 0), 0, 'hidden until the end');
+  g.phase = 'gameover';
+  assert.equal(G.primaryBonus(g, 0), 2, 'ceil(3 x 1.5) - 3');
+  assert.equal(G.primaryBonus(g, 1), 2, 'ceil(4.5) - 3');
+  g.primaryOps = ['kill', 'kill']; g.kills = [3, 0];
+  assert.equal(G.primaryBonus(g, 0), Math.ceil(G.killOpVP(g, 0) * 1.5) - G.killOpVP(g, 0));
+}

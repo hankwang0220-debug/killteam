@@ -34,7 +34,7 @@ import {
   radius, resolveShoot, setOrder, shootCheck, visibility, hasPloy, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
   giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
-  ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor,
+  ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor, PRIMARY_OPS, primaryBonus, primaryBase,
   EQUIPMENT, EQUIPMENT_LIMIT, equipmentLimitFor, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, missionActionsFor, foes,
@@ -436,6 +436,7 @@ function setupView() {
     ${roster(TEAM_MAP[s.teams[side]], side)}
     ${tacticsPick(side)}
     ${tacOpPick(side)}
+    ${primaryPick(side)}
     ${equipPick(side)}
     ${scoutingPick(side)}
     ${ratFreePick(side)}
@@ -615,6 +616,17 @@ function equipPick(side) {
   return `<div class="tactics"><h4>${L(`裝備（陣營＋通用合計最多 ${limit} 項，已選 ${cur.length}）`, `Equipment (faction + universal: ${limit} total, ${cur.length} chosen)`)}</h4>
     ${equipmentOptionsFor(ui.setup.teams[side]).map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
+}
+
+/** Primary Op (after the Tac Ops): its VP count 1.5x at the end; kept secret until then. */
+function primaryPick(side) {
+  const ms = MISSIONS[ui.setup.mission];
+  if (!ms?.approved || (side === 1 && ui.setup.ai === 1)) return '';
+  const cur = PRIMARY_OPS.includes(ui.setup.primaryOps?.[side]) ? ui.setup.primaryOps[side] : 'crit';
+  const name = { crit: L('核心任務（Crit Op）', 'Crit Op'), tac: L('戰術行動（Tac Op）', 'Tac Op'), kill: L('Kill Op（擊殺）', 'Kill Op') };
+  return `<div class="tactics"><h4>${L('主要任務（Primary Op，結算時才公布）', 'Primary Op (revealed at the end)')}</h4>
+    <select data-act="primaryop" data-side="${side}">${PRIMARY_OPS.map((id) => `<option value="${id}" ${id === cur ? 'selected' : ''}>${name[id]}</option>`).join('')}</select>
+    <p class="hint small">${L('選定任務的得分 ×1.5（無條件進位）；選 Kill Op 則是（擊殺等級分＋較高者 1 分）×1.5。', 'The VP scored from the chosen op x1.5 (rounded up); for Kill Op, (grade VP + 1 for the higher grade) x1.5.')}</p></div>`;
 }
 
 /** Tac Op for Approved Ops missions (secret from the opponent; the computer picks its own at random). */
@@ -1413,11 +1425,11 @@ function gameOverPanel() {
   }
   // Approved Ops: Crit Op and Tac Op VP in their own columns.
   const by = (s, k) => (m.approved ? `<td>${g.vpBy?.[s]?.[k] || 0}</td>` : '');
-  const line = (s) => `<tr><td style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</td><td>${g.kills[s]}</td><td>${killGrade(g, s)}</td>${by(s, 'crit')}${by(s, 'tac')}<td>${killOpVP(g, s)}</td><td><b>${totalVP(g, s)}</b></td></tr>`;
+  const line = (s) => `<tr><td style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</td><td>${g.kills[s]}</td><td>${killGrade(g, s)}</td>${by(s, 'crit')}${by(s, 'tac')}<td>${killOpVP(g, s)}</td>${m.approved ? `<td>${{ crit: L('核心', 'Crit'), tac: L('戰術', 'Tac'), kill: 'Kill' }[g.primaryOps?.[s]] || ''} +${primaryBonus(g, s)}</td>` : ''}<td><b>${totalVP(g, s)}</b></td></tr>`;
   return `<section class="card">
     <h2>${w == null ? L('平手！', 'Draw!') : L(`${esc(bi(team(g, w).name))} 獲勝！`, `${esc(bi(team(g, w).name))} wins!`)}</h2>
     ${m.approved ? `<p class="hint">${esc(tx(m.name))}</p>` : ''}
-    <table class="final"><tr><th></th><th>${L('擊殺數', 'Kills')}</th><th>${L('擊殺等級', 'Grade')}</th>${m.approved ? `<th>${L('核心任務', 'Crit Op')}</th><th>${L('戰術行動', 'Tac Op')}</th>` : ''}<th>Kill Op</th><th>${L('總分', 'Total')}</th></tr>${line(0)}${line(1)}</table>
+    <table class="final"><tr><th></th><th>${L('擊殺數', 'Kills')}</th><th>${L('擊殺等級', 'Grade')}</th>${m.approved ? `<th>${L('核心任務', 'Crit Op')}</th><th>${L('戰術行動', 'Tac Op')}</th>` : ''}<th>Kill Op</th>${m.approved ? `<th>${L('主要任務加成', 'Primary')}</th>` : ''}<th>${L('總分', 'Total')}</th></tr>${line(0)}${line(1)}</table>
     <p class="hint small">${L('擊殺任務：每升一個擊殺等級得 1 VP；結束時擊殺等級較高者再得 1 VP。', 'Kill Op: 1VP per kill grade reached; +1VP at the end for the higher kill grade.')}</p>
     <button class="wide" data-act="replay">📜 ${L('觀看本場複盤', 'Watch the replay')}</button>
     <button class="primary wide" data-act="setup">${L('再來一場', 'Play Again')}</button>
@@ -2817,6 +2829,7 @@ app.addEventListener('change', (e) => {
   if (e.target.dataset.act === 'darkness') { const o = activeOp(g); if (o?.darknessTargets?.includes(e.target.value) && !o.orderSet) o.acted.darknessTarget = e.target.value; return afterChange(); }
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
   if (e.target.dataset.act === 'mission') { ui.setup.mission = e.target.value; render(); }
+  if (e.target.dataset.act === 'primaryop') { (ui.setup.primaryOps ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if (e.target.dataset.act === 'tacop') { (ui.setup.tacOps ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if ((e.target.dataset.act === 'claimobj' || e.target.dataset.act === 'claimkind') && g?.phase === 'strategy') {
     const side = +e.target.dataset.side;
@@ -2949,7 +2962,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
-      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      g = newGame({ primaryOps: ui.setup.primaryOps || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
