@@ -1,5 +1,6 @@
 import { DW_AMMO, deathwatchRosterError } from './data/deathwatch.js';
 import { TEAM_MAP } from './data/teams.js';
+import { spAfterAction } from './spectres.js';
 import { tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, equipmentLimitFor } from './game.js';
 import { MISSION_ACTIONS } from './missions.js';
 export { DW_AMMO };
@@ -152,6 +153,7 @@ export function dwDigital(g, o, target) {
   }
 }
 export function dwAfterAction(g, actor) {
+  spAfterAction(g, actor); // Elite Fieldcraft (Spectre Squad): interrupts after an enemy's action
   if (g.dwInterrupt || actor.counter || g.phase !== 'firefight' || actor.acted.dwGuardInterrupted) return;
   g.dwInterrupt = true;
   try {

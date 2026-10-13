@@ -11,6 +11,8 @@ import { ratlingsRosterError, ratFreeCount, cleanRatFree, DEFAULT_RAT_FREE, RATL
 import { rtGambitLeft, rtDesignate, slingshotCheck, doSlingshot } from './ratlings.js';
 import { SANCTIFIERS_EQUIPMENT, sanctifiersRosterError } from './data/sanctifiers.js';
 import { ravenersRosterError } from './data/raveners.js';
+import { spectresRosterError } from './data/spectres.js';
+import { spPatienceOk, spPatience, spStarshellOk, spStarshell } from './spectres.js';
 import { pathfindersRosterError } from './data/pathfinders.js';
 import { angelsRosterError } from './data/angels.js';
 import { plagueRosterError } from './data/plague.js';
@@ -540,6 +542,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'spectres') { const error = spectresRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'raveners') { const error = ravenersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'tauPathfinders') { const error = pathfindersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'angels') { const error = angelsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -1251,6 +1254,7 @@ function gambitView(side) {
       <p class="hint small">${L('秘密選一個：該任務的得分 ×1.5（無條件進位），遊戲結束才公布；選 Kill Op 則是（擊殺等級分＋較高者 1 分）×1.5。', 'Choose one in secret: its VP x1.5 (rounded up), revealed at the end; for Kill Op, (grade VP + 1 for the higher grade) x1.5.')}</p>
       <div class="row">${PRIMARY_OPS.map((id) => `<button data-act="primaryop" data-side="${side}" data-id="${id}">${name[id]}</button>`).join('')}</div></div>`;
   }
+  if (g.teams[side] === 'spectres' && !isAI(side) && spStarshellOk(g, side)) html += `<div class="gambit"><h4>${L('照明彈（策略謀略）', 'Starshell Flare (strategic gambit)')}</h4><button data-act="spstarshell" data-side="${side}">${L('投擲：一名友方魅影免費震撼手雷（自動選目標）', 'Throw: a friendly Spectre makes a free Stun Grenade (target picked automatically)')}</button></div>`;
   if (g.teams[side] === 'raveners' && !isAI(side) && (rvMarkerLeft(g, side) || rvLinkOk(g, side))) { // Raveners: the next Tunnel marker, Synaptic Link
     html += `<div class="gambit"><h4>${L('隧道與突觸連結（策略謀略）', 'Tunnel and Synaptic Link (strategic gambits)')}</h4>`;
     if (rvMarkerLeft(g, side)) html += `<p class="hint small">${L(`放下隧道標記 ${rvTunnel(g, side).length}：落在上一個標記 5" 內。按下後點擊戰場。`, `Place Tunnel marker ${rvTunnel(g, side).length}: within 5" of the last one. Press, then tap the board.`)}</p>
@@ -1624,6 +1628,7 @@ function firefightPanel() {
         ? L(`${nm(by)} 行動完畢，必須接著啟動另一名同類特工，再換對手。`, `${nm(by)} is expended: another operative of the same kind must activate before the opponent.`)
         : L(`${nm(by)} 行動完畢，可以接著啟動它選定的一名友方（也可以略過）。`, `${nm(by)} is expended: you may activate one of the friendlies it selected next (or skip).`)}</p>`
       : `<p class="hint">${L('選擇一名「準備中」的操作員啟動（點擊棋子或下方名單）。', 'Choose a ready operative to activate (tap it on the board or below).')}</p>`;
+    if (!isAI(g.turn) && spPatienceOk(g, g.turn)) html += `<button data-act="sppatience">${L('耐心：跳過這次啟動（每回合一次）', 'Patience: skip this activation (once per TP)')}</button>`;
     if (g.teams[g.turn] === 'handOfArchon') html += `<button data-act="painskip">${L('惡劣傲慢：跳過啟動機會（1CP）', 'Heinous Arrogance: skip activation opportunity (1CP)')}</button>`;
     if (canForeboding(g, g.turn)) html += `<button data-act="foreboding">${L('預感：花 1 點預知點數跳過這次啟動（每回合一次）', 'Foreboding: spend 1 Prescience point to skip this activation (once per TP)')}</button>`;
     if (!g.animating && !isAI(g.turn) && TEAM_MAP[g.teams[g.turn]]?.obeliskNodes && ffReady(g, g.turn, 'animateNodes')) html += `<button data-act="animate">${L('驅動方尖碑節點（跳過這次啟動）', 'Animate Obelisk Nodes (instead of activating)')}</button>`;
@@ -1946,6 +1951,16 @@ const ABILITIES = {
   kfWarrior: () => ['準備好面對一切', 'Ready for Anything', '每回合一次，友方戰士啟動中可以額外使用生肉、穿甲彈或毒彈（不佔每回合一次的限制）。', 'Once per TP during a Warrior\'s activation, use Meat, Piercing Shot or Toxin Shot once more (it doesn\'t count towards their limit).'],
   kmGrapple: () => ['鉤爪', 'Grappling Hook', '1AP（視為重新定位，不在交戰中，不能和衝鋒或撤退同一次啟動）：選一個看得到的地形點，被移走後放回該點 1" 內、看得到該點的位置。', '1AP (a Reposition; not engaged; not with Charge or Fall Back): pick a visible point on terrain and be set up again within 1" of it, seeing it.'],
   sneaky: () => ['鬼祟搗蛋', 'Sneaky Zogger', '不能有交戰指令；在掩護中時，2" 外不能被選為有效目標（優先於其他規則）。', 'Can\'t have an Engage order; in cover it can\'t be selected as a valid target beyond 2" (taking precedence over other rules).'],
+  spSergeant: () => ['下達任務', 'Issue Mission', '0AP：選一名視線內、已行動的友方魅影（信標除外、本回合沒打斷過）：本回合它即使已行動也能用野戰技巧打斷，但不能反應。', '0AP: pick an expended friendly SPECTRE in sight that hasn\'t interrupted this TP: it can interrupt with Elite Fieldcraft even though expended, but can\'t counteract.'],
+  spBeacon: () => ['通訊中繼信標', 'Vox-relay Beacon', '部署時可放在己方領地任何地方（離標記與裝備地形 2" 外）。消耗品，只能做「信號」（1AP，6" 內友方魅影下次啟動 APL +1）；不能反應、反擊、協助，不能爭奪標記，敵人可以無視它的控制範圍。', 'Pre-Deploy anywhere in your territory (more than 2" from markers and equipment terrain). Expendable: only Signal (1AP, a friendly SPECTRE within 6" gets +1 APL); can\'t counteract, retaliate or assist, can\'t contest markers, enemies can ignore its control range.'],
+  spGrenadier: () => ['擲彈兵・熱熔地雷', 'Grenadier · Melta Mine', '自己的破片、穿甲、煙霧手雷（不算進裝備次數），破片與穿甲命中 +1。攜帶熱熔地雷：「放置熱熔地雷」後免費衝刺，其他特工第一次進入它的控制範圍時受 2D6+3 傷害並中斷行動。', 'Its own frag, krak and smoke grenades (not from the team\'s uses), frag and krak Hit +1. Carries the Melta Mine: Place Melta Mine then a free Dash; the first other operative within its control range takes 2D6+3 and its action ends.'],
+  spGuide: () => ['預備戰場・偵察地形', 'Prepared Killzone · Scout Terrain', '多選一個裝備（只能是彈藥箱或裝備地形）。偵察地形：己方領地與它 3" 內的地形對友方魅影視為已偵察（攀爬折扣等細節在 2D 版本簡化）。', 'One extra equipment option (an Ammo Cache or equipment terrain). Scout Terrain: terrain in your territory or within 3" of it is scouted (climb and hatch discounts are simplified in 2D).'],
+  spHeavy: () => ['武器小組', 'Weapons Team', '啟動時若有裝填手在它控制範圍內，飛彈發射器改為「重型（僅衝刺）」。', 'On activation with a Loader in its control range, its missile launcher has Heavy (Dash only).'],
+  spLoader: () => ['武器協助・裝填武器', 'Weapon Assist · Load Weapon', '控制範圍內的友方魅影射擊時可重擲一顆攻擊骰。裝填武器（1AP）：控制範圍內、3" 內沒有敵人的友方免費射擊（自動選最佳目標與武器）。', 'A friendly SPECTRE in its control range shooting can re-roll one attack die. Load Weapon (1AP): a friendly in its control range with no enemy within 3" makes a free Shoot (best target and weapon picked automatically).'],
+  spStubGunner: () => ['壓制火力', 'Suppressive Fire', '它有 Engage 指令、沒被其他敵人交戰、本回合沒衝鋒時，3" 內看得到的敵人武器 Atk -1（最低 1）。', 'With an Engage order, not engaged with any other enemy and not having Charged this TP: weapons of enemies visible within 3" get -1 Atk (min 1).'],
+  spTrooper: () => ['冷靜', 'Cool-Headed', '每回合一次，一名擁有此規則的友方可以 0 點野戰點用菁英野戰技巧打斷。', 'Once per TP, one friendly with this rule can interrupt with Elite Fieldcraft for 0 points.'],
+  spVox: () => ['通訊兵・信號', 'Vox-operator · Signal', '在場上且沒被交戰時，野戰點 +1（每回合共 2 點）。信號（1AP）：視線內的另一名友方魅影下次啟動 APL +1。', 'In the killzone and not engaged: +1 Fieldcraft point (2 per TP). Signal (1AP): another friendly SPECTRE in sight gets +1 APL for its next activation.'],
+  spCloak: () => ['偽裝斗篷', 'Camo Cloaks', '被射擊時，掩護豁免多保留一個，或把一個掩護豁免當成暴擊。', 'When shot, retain one more cover save, or one cover save as a critical.'],
   rvRavener: () => ['鑽地・掠食本能', 'Burrow · Predatory Instincts', '鑽地（1AP）：在你的隧道上就移出戰場（地下，不能做其他動作）；在地下就放回隧道上（可以在敵人控制範圍內，本次啟動 Move -2"）。攜帶標記時不能鑽地。啟動時可近戰兩次；任何指令下都能反應，反應中可免費鑽地一次。', 'Burrow (1AP): on your TUNNEL it goes underground (it can only Burrow while there); underground it is set up on the tunnel (even in enemy control range, Move -2" this activation). Not while carrying a marker. Two Fights per activation; it can counteract with any order, with one free Burrow.'],
   rvPrime: () => ['神經掠食冠・突觸連結', 'Neuropredatory Crest · Synaptic Link', '3" 內的敵人不能重擲攻擊／防禦骰、撿標記與任務行動多 1AP；爭奪標記時敵方 APL 總和視為少 1。突觸連結（策略謀略）：擲 D6，不小於 2 倍回合數 +1CP，小於回合數則首領受那麼多傷害。', 'Enemies within 3" can\'t re-roll and pay +1AP to Pick Up / mission actions; at a marker their APL total counts 1 lower. Synaptic Link (strategic gambit): roll a D6 — twice the turning point or more: +1CP; less than it: the Prime takes that damage.'],
   rvFelltalon: () => ['毒猛撲', 'Toxic Lunge', '1AP：選 2" 內看得到的一名敵人（有交戰敵人就只能選他們）；在地下時改選你隧道上的敵人。造成 D3+2 傷害並給毒素標記。地下也能做。', '1AP: an enemy visible within 2" (only engaged ones if any); underground, an enemy on your TUNNEL. D3+2 damage and a Poison token. Can be done underground.'],
@@ -2993,6 +3008,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'spectres' && spectresRosterError(TEAM_MAP.spectres, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'raveners' && ravenersRosterError(TEAM_MAP.raveners, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'tauPathfinders' && pathfindersRosterError(TEAM_MAP.tauPathfinders, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'angels' && angelsRosterError(TEAM_MAP.angels, ui.setup.roster?.[side])) return render();
@@ -3102,6 +3118,8 @@ function handle(act, d) {
     case 'bleed': undoable(() => useBleed(g, op, bleedTargets(g, op)[0])); return afterChange();
     case 'favour': undoable(() => useFavour(g, op)); return afterChange();
     case 'resource': undoable(() => useResource(g, op, d.id)); return afterChange(); // Hernkyn Yaegirs
+    case 'sppatience': spPatience(g, g.turn); return afterChange();
+    case 'spstarshell': spStarshell(g, +d.side); return afterChange();
     case 'painskip': skipArchonActivation(g, g.turn); return afterChange();
     case 'bribe': if (!isAI(g.turn)) undoable(() => bribeSkip(g, g.turn)); return afterChange();
     case 'foreboding': if (!isAI(g.turn)) undoable(() => ncForeboding(g, g.turn)); return afterChange();

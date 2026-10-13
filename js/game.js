@@ -16,6 +16,8 @@ import { KINBAND_EQUIPMENT } from './data/kinband.js';
 import { CANOPTEK_EQUIPMENT } from './data/canoptek.js';
 import { DEATHKORPS_EQUIPMENT } from './data/deathkorps.js';
 import { RAVENERS_EQUIPMENT } from './data/raveners.js';
+import { SPECTRES_EQUIPMENT } from './data/spectres.js';
+import { isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
 import { rvSensesOk, rvUseSenses, isRV, rvSetup, rvStart, rvActivate, rvEnd, rvActions, rvSelf, rvRules, rvShot, rvDefence, rvNoReroll, rvCrestExtra, rvCrestControl, rvLurkCover, rvChroma, rvCarapace, rvCrush, rvAcidBlood, rvHorror, rvDeath, rvPloyBought, rvAmbush, rvPoisonHit, rvPlaceAuto, rvEndBattle, rvFreeBurrow, registerRavenerActions } from './raveners.js';
 import { dkSetup, dkFreeHas, dkAdaptiveFree, dkBeadsOn, dkBeadsTarget, dkLeadership, dkLifeShame, dkVeteranActivate, dkDeath, dkPloyBought, dkGasApl, dkReady, dkWeapons, dkActions, dkSelf, registerDeathKorpsActions, hasOrder } from './deathkorps.js';
 import { kfSetup, kfActions, kfSelf, kfActivate, kfQuickDraw, kfShootStart, kfShootEnd, kfRules, kfGatherFree, registerKinbandActions } from './kinband.js';
@@ -67,6 +69,7 @@ export const getOp = (g, uid) => g.ops.find((o) => o.uid === uid);
 export const activeOp = (g) => (g.active == null ? null : getOp(g, g.active));
 export const edgeDist = (a, b) => dist(a, b) - radius(a) - radius(b);
 export const inEngagement = (a, b, g) => {
+  if (tpl(a)?.spBeacon || tpl(b)?.spBeacon) return false; // (the Vox-relay Beacon's control range can be ignored)
   const virtual = g?.hatchwayFight && !g.fight?.done && g.hatchwayFight.includes(a.uid) && g.hatchwayFight.includes(b.uid) && a.uid !== b.uid;
   return !!virtual || (edgeDist(a, b) <= ER + 0.01 && (!g || wallAllowsControl(g,a,b)));
 };
@@ -257,6 +260,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   kfSetup(g, roster); // Farstalker Kinband: roster limits
   dkSetup(g, roster, dkFree); // Death Korps: roster limits, the Trooper slots traded for free ploys
   rvSetup(g, roster); // Raveners: roster limits, the Tunnel
+  spSetup(g, roster); // Spectre Squad: roster limits, Fieldcraft points
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -459,6 +463,7 @@ export function doMissionAction(g, op, id) {
 }
 
 export function deployOk(g, op, p) {
+  if (tpl(op).spBeacon) return spBeaconOk(g, op, p); // Pre-Deploy (Spectre Vox-relay Beacon): anywhere in the territory
   const z = deployZones(g)[op.side], r = radius(op);
   if (p.x - r < z.x0 || p.x + r > z.x1 || p.y - r < z.y0 || p.y + r > z.y1) return false;
   if (g.terrain.some((t) => distPointRect(p, t) < r)) return false;
@@ -541,7 +546,7 @@ export function autoDeploy(g, side) {
   for (const o of placeAuto(g, side, ops)) o.placed = true;
 }
 
-export function placeAuto(g, side, ops) { return rvPlaceAuto(g, side, ops, placeAutoBase); } // (Raveners: all but the first two go underground)
+export function placeAuto(g, side, ops) { return rvPlaceAuto(g, side, ops, (g2, s2, o2) => spPlaceAuto(g2, s2, o2, placeAutoBase)); } // (Raveners: all but the first two go underground)
 function placeAutoBase(g, side, ops) {
   const result = [];
   const z = deployZones(g)[side];
@@ -653,6 +658,7 @@ function startTP(g) {
   kmReady(g); // Kommandos: the Harpoon is ready again
   dkReady(g); // Death Korps: the Gas marker goes
   sfReady(g); // Sanctifiers: a new Orator when needed, Ecclesiarchy Texts
+  spReady(g); // Spectre Squad: Fieldcraft points
   mission(g).onReady?.(g); // the Ready step
 }
 
@@ -852,6 +858,7 @@ export function buyPloy(g, side, ploy) {
   pfPloyBought(g, side, ploy); // Pathfinders: Recon Sweep
   dkPloyBought(g, side, ploy); // Death Korps: Regroup
   rvPloyBought(g, side, ploy); // Raveners: Writhe Out of Sight
+  spPloyBought(g, side, ploy); // Spectre Squad: Disappear
   adPloyBought(g, side, ploy); // Angels of Death: Adaptive Tactics
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
@@ -1020,6 +1027,7 @@ export function activate(g, op) {
   ccManipActivate(g, op); // Canoptek Circle: Matrix Manipulator
   dkVeteranActivate(g, op); // Death Korps: the Veteran receives an order
   rvActivate(g, op); // Raveners: Poison tokens, Metamorphic Flesh
+  spActivate(g, op); // Spectre Squad: Ambushing Volley, Weapons Team
 }
 
   // Archon effects are committed only when an action begins.
@@ -1056,11 +1064,11 @@ export function setOrder(g, op, order) {
 /** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
 export const counterCandidates = (g, side) => (g.netcounter?.side === side // Battleclade: NETWORK COUNTERACT (Canoptek Control: just the one picked)
   ? (g.netcounter.kind === 'control' ? living(g, side).filter((o) => g.netcounter.only.includes(o.uid)) : netCands(g, side))
-  : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o) || tpl(o).rvAnyCounter || (isGM(o) && ffReady(g, side, 'gorethirst') && ffArmed(g, side, 'gorethirst'))) && !o.counteracted && !dwBlocked(g, o) && o.dwReGuardTP !== g.tp));
+  : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o) || tpl(o).rvAnyCounter || (isGM(o) && ffReady(g, side, 'gorethirst') && ffArmed(g, side, 'gorethirst'))) && !o.counteracted && !tpl(o).spBeacon && !dwBlocked(g, o) && o.dwReGuardTP !== g.tp));
 
 export function endActivation(g) {
   const op = activeOp(g);
-  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); }
+  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
@@ -1230,7 +1238,7 @@ export function controller(g, obj) {
   if (irr) return irr.side;
   const sum = [0, 0, 0], shriek = [false, false, false], nuncio = [false, false, false], present = [false, false, false], simu = [false, false, false];
   for (const o of living(g)) {
-    if (o.brutalDisplayTP === g.tp || o.ncFlayTP === g.tp) continue; // (Flay Them Alive: Nemesis Claw)
+    if (o.brutalDisplayTP === g.tp || o.ncFlayTP === g.tp || tpl(o).spBeacon) continue; // (the Vox-relay Beacon can't contest) // (Flay Them Alive: Nemesis Claw)
     // Drones count as 1 APL lower for objective control, the Icon Bearer as 1 higher; NEMESIS NPOs use their Control stat.
     // Ravage Destiny (Warpcoven): the target counts 1 lower. Frenzy (Fellgor): APL 1, whatever else applies.
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
@@ -1260,6 +1268,7 @@ export function controller(g, obj) {
 
 function endTP(g) {
   log(g, { zh: `第 ${g.tp} 回合結束`, en: `End of Turning Point ${g.tp}` }, 'tp');
+  spTPEnd(g); // Spectre Squad: the Fieldcraft points are discarded
   mission(g).onTPEnd?.(g);
   tacOnTPEnd(g); // Tac Op scoring (before damage this TP is forgotten)
   kmEndFirefight(g); // Krump 'Em! (Kommandos): a free Fight at the end of the Firefight phase
@@ -1495,7 +1504,7 @@ export function actionCost(g, op, id) {
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
   if (kfGatherFree(op, id)) return 0; // Gather (Kroot Hound): a free Pick Up Marker
   if (id === 'rvBurrow' && rvFreeBurrow(g, op)) return 0; // a counteracting RAVENER's free Burrow
-  if (id === 'fallBack' && op.acted?.rvSlither) return Math.max(1, ACTIONS.fallBack.ap - 1); // Slithering Evasion
+  if (id === 'fallBack' && (op.acted?.rvSlither || op.acted?.spDodge)) return Math.max(1, ACTIONS.fallBack.ap - 1); // Slithering Evasion
   if (id === 'fallBack' && tpl(op).fearless) return Math.max(1, ACTIONS.fallBack.ap - 1) + (whipped(g, op) ? 1 : 0); // Fearless on the Frontline (Shas'la): 1 less AP
   if (id === 'fallBack' && op.acted?.slip) return Math.max(1, actionCost(g, { ...op, acted: { ...op.acted, slip: false } }, id) - 1); // Slip Away
   if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
@@ -1593,9 +1602,9 @@ export const TARGET_ACTIONS = {
   },
   // Smoke grenade: placed on an operative visible within 6" (friend or foe).
   eqSmoke: {
-    targets: (g, op) => (eqLeft(g, op.side, 'smoke') || adaptiveOk(g, op, 'smoke') ? g.ops.filter((t) => !t.dead && t.x > -50 && edgeDist(op, t) <= 6 && (t === op || visibility(g, op, t).visible)) : []),
+    targets: (g, op) => (eqLeft(g, op.side, 'smoke') || adaptiveOk(g, op, 'smoke') || tpl(op).spGrenadier ? g.ops.filter((t) => !t.dead && t.x > -50 && edgeDist(op, t) <= 6 && (t === op || visibility(g, op, t).visible)) : []),
     apply(g, op, t) {
-      if (adaptiveOk(g, op, 'smoke')) ((g.adaptive ||= [{}, {}])[op.side]).smoke = g.tp; else g.eqUses[op.side].smoke--;
+      if (tpl(op).spGrenadier) { /* Spectre Grenadier: its own smoke grenades (not from the team's uses) */ } else if (adaptiveOk(g, op, 'smoke')) ((g.adaptive ||= [{}, {}])[op.side]).smoke = g.tp; else g.eqUses[op.side].smoke--;
       (g.smoke ||= []).push({ x: t.x, y: t.y, side: op.side, tp: g.tp, left: null });
       return { zh: `煙霧彈：在 ${opName(t, 'zh')} 處放出煙霧`, en: `Smoke Grenade: smoke on ${opName(t, 'en')}` };
     },
@@ -2246,7 +2255,7 @@ export function availableActions(g, op) {
   const caprice = free.dash === 'capricious' || free.dash === 'fade' || free.dash === 'murder'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
   add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
-  const noCharge = conceal && !(tpl(op).rvTremor && op.acted.rvBurrow) && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
+  const noCharge = conceal && !(tpl(op).rvTremor && op.acted.rvBurrow) && !op.acted.spSilent && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
   const rampage = free.charge === 'rampage' || free.charge === 'woe' || free.charge === 'bloodlust' || free.charge === 'murder'; // (murder: Proclivity for Murder) // Ruthless Rampage / The Woe / Obsessive Bloodlust: a free Charge even after one
   add('charge', !chargeEngaged && !noCharge && (rampage || (!heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'))), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
@@ -2283,6 +2292,7 @@ export function availableActions(g, op) {
   mvbActions(g, op, add); // Portable Barricade: Move With Barricade
   kfActions(g, op, add); // Farstalker Kinband: Gather
   dkActions(g, op, add); // Death Korps: the Sapper's mine
+  spActions(g, op, add); // Spectre Squad: Issue Mission, Signal, Load Weapon, Advanced Camouflage
   rvActions(g, op, add); // Raveners: Burrow, Toxic Lunge, Distend Dorsal Sac
   if (tpl(op).signal) unique('signal');
   if (tpl(op).signalAny) unique('signalAny');
@@ -2365,7 +2375,7 @@ export function availableActions(g, op) {
   // Universal equipment: grenades (not beasts or machines) and the Ammo Cache.
   if (!tpl(op).actionsOnly && op.side < 2) {
     if (eqLeft(g, op.side, 'stun') || adaptiveOk(g, op, 'stun')) unique('eqStun', !conceal, CONC);
-    if (eqLeft(g, op.side, 'smoke') || adaptiveOk(g, op, 'smoke')) unique('eqSmoke');
+    if (eqLeft(g, op.side, 'smoke') || adaptiveOk(g, op, 'smoke') || tpl(op).spGrenadier) unique('eqSmoke');
   }
   // Kasrkin / Legionary unique actions.
   if (tpl(op).battleComms) add('battleComms', !engaged && count(op, 'battleComms') < 2 && TARGET_ACTIONS.battleComms.targets(g, op).length > 0, engaged ? ENG : count(op, 'battleComms') >= 2 ? DONE : NONE);
@@ -2484,6 +2494,7 @@ export function doSelfAction(g, op, id) {
   if (kmSelf(g, op, id)) return; // Kommandos: Breach
   if (kfSelf(g, op, id)) return; // Farstalker Kinband: Gather
   if (dkSelf(g, op, id)) return; // Death Korps: the Sapper's mine
+  if (spSelf(g, op, id)) return; // Spectre Squad: Advanced Camouflage
   if (rvSelf(g, op, id)) return; // Raveners: Burrow (underground), Distend Dorsal Sac
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
@@ -2725,6 +2736,7 @@ export function doMove(g, op, kind, path) {
   corsairAfterAction(g, op, true);
   dwAfterAction(g, op);
   if (kind === 'fallBack') op.fellBackTP = g.tp; // (Instinctive Behaviour: Raveners)
+  if (kind === 'charge') op.chargedTP = g.tp; // (Suppressive Fire: Spectre Squad)
   rvAmbush(g, op, movedFrom); // Subterranean Ambush (Raveners): a Tremorscythe lunges from the tunnel
   return true;
 }
@@ -2760,17 +2772,18 @@ export const mlLevel = (g, op, weapon, target) =>
   (TEAM_MAP[op.team].markerlights && !weapon.rules.noMarkerlight && target ? (target.ml || 0) + pfTaoBonus(g, op, target) : 0);
 
 // Optics, Multi-dimensional Vision, Long-sight (hunting rifle) and 3+ Markerlight tokens: the target can't be obscured.
+const spTvidLive = (g, op, target) => g.spTvidOn === op.uid || spTvid(g, op, target); // Tvid-feed Triangulation (Spectre Squad)
 const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, target, {
   noObscure: (op.archonMark?.tp === g.tp && op.archonMark.uid === target.uid) || !!op.optics || !!tpl(op).multiVision || mlLevel(g, op, weapon, target) >= 3 || adAuspexOn(op, target)
     || (!!op.longSightOn && weapon.group === 'huntingRifle') || spotOn(g, op, target)
-    || !!tpl(op).incursor || auspexOn(g, op, target) || !!tpl(op).incorporealSight || !!weapon.rules.hypersense || dwAuspexOn(g, op, target) || (!!tpl(op).panVisor && edgeDist(op, target) <= 6), ...extra, // Multi-spectrum Array, Auspex Scan, Incorporeal Sight
+    || spTvidLive(g, op, target) || !!tpl(op).incursor || auspexOn(g, op, target) || !!tpl(op).incorporealSight || !!weapon.rules.hypersense || dwAuspexOn(g, op, target) || (!!tpl(op).panVisor && edgeDist(op, target) <= 6), ...extra, // Multi-spectrum Array, Auspex Scan, Incorporeal Sight
 });
 
 /** Is target a valid target for op with this weapon (visible, and not a Concealed operative in cover)? */
 function validTarget(g, op, target, weapon) {
   const v = shotVisibility(g, op, target, weapon);
   if ((target.mdGlyph || target.scCovert || rtShifty(g, target) || tpl(target).sneaky) && target.order === 'conceal' && visibility(g, op, target).cover && edgeDist(op, target) > 2) return null; // (Covert Position: Scout Squad)
-  if (!v.visible) return null;
+  if (!v.visible || spCamoHidden(g, op, target)) return null; // (Advanced Camouflage: Spectre Squad)
   if (weapon.rules?.psychic && isCI(target) && target.side !== op.side) return null; // (Psychic ranged weapons can't damage Insidiants)
   if (target.reserve) return null; // (an Exodite rider still in reserve isn't in the killzone)
   if (target.order === 'conceal') {
@@ -2838,6 +2851,7 @@ export function effectiveRules(g, op, weapon, target) {
   scRules(g, op, weapon, target, r); // Scout Squad: Trip Alarm, Track Enemy, Designate Target, Ambush, Grapnel Assault
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
+  spRules(g, op, weapon, target, r); // Spectre Squad: Ambushing Volley, Hidden Engagement, Weapon Assist, Suppressive Fire
   rvRules(g, op, weapon, target, r); // Raveners: Instinctive Behaviour, Death From Below, Distend Dorsal Sac
   pfRules(g, op, weapon, target, r); // Pathfinders: Pulse Accelerator
   pmRules(g, op, weapon, target, r); // Plague Marines: Plague Rounds
@@ -4607,15 +4621,15 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
+Object.assign(EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
-export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
+export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
 const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
+  spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4633,6 +4647,7 @@ registerPathfinderActions();
 registerKommandoActions();
 registerKinbandActions();
 registerRavenerActions();
+registerSpectreActions();
 ACTIONS.mvBarricade = { ap: 1, name: { zh: '隨路障移動', en: 'Move With Barricade' } };
 registerDeathKorpsActions();
 registerMandrakeActions();
@@ -4659,6 +4674,7 @@ export function weaponsFor(g, op) {
   ws = pmWeapons(g, op, ws); // Blight Grenades equipment (Plague Marines)
   ws = kmWeapons(g, op, ws); // Choppas, Collapsible Stocks, Dynamite, Harpoon (Kommandos equipment)
   ws = dkWeapons(g, op, ws); // Hand Axes (Death Korps equipment)
+  ws = spWeapons(g, op, ws); // Spectre Squad: Weapons Team, Sniper Overwatch
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -4732,6 +4748,7 @@ export function autoPlaceEquipment(g) {
 /** Prepare the chosen equipment for a side (called from newGame). */
 function setupEquipment(g, side, ids) {
   (g.equip ||= [[], []])[side] = cleanEquipment(g.teams[side], ids);
+  spTrimEquipment(g, side); // Spectre Squad: a fifth option only with a Guide, and only an Ammo Cache / terrain
   (g.eqUses ||= [{}, {}])[side] = { frag: 0, krak: 0, stun: 0, smoke: 0 };
   const along = g.axis === 'y' ? 'y' : 'x';
   // Where each kind may go: light cover and razor wire wholly within your territory (half); heavy cover wholly
@@ -4964,6 +4981,11 @@ const FF = {
   gloryMartyrs: { kind: 'auto' },
   faithFury: { kind: 'attack', fight: true },
   shieldFlare: { kind: 'auto' },
+  spFieldcraft: { kind: 'auto' },
+  spReact: { kind: 'auto' },
+  spPrepared: { kind: 'auto' },
+  spDodge: { kind: 'button', cond: (g, o) => (isSP(o) ? null : { zh: '只有魅影', en: 'SPECTRE SQUAD only' }), apply(g, o) { o.acted.spDodge = true; return { zh: '閃躲：本次啟動撤退少 1AP', en: 'Dodge: Fall Back for 1 less AP this activation' }; } },
+  spSilent: { kind: 'button', cond: (g, o) => (!isSP(o) ? { zh: '只有魅影', en: 'SPECTRE SQUAD only' } : o.order !== 'conceal' ? { zh: '需要隱蔽指令', en: 'Needs a Conceal order' } : foes(g, o).some((e) => e.side < 2 && e.x > -50 && visibility(g, e, o).visible && !visibility(g, e, o).cover) ? { zh: '是敵人的有效目標', en: 'Valid target for the enemy' } : null), apply(g, o) { o.acted.spSilent = true; return { zh: '無聲殺手：隱蔽指令也能衝鋒；第一次擊打 +3 傷害，但不能結算其他成功', en: 'Silent Killers: it can Charge with a Conceal order; its first strike deals +3 damage but no other success resolves' }; } },
   rvSlither: { kind: 'button', cond: (g, o) => (isRV(o) ? null : { zh: '只有蛇蟲', en: 'RAVENERs only' }), apply(g, o) { o.acted.rvSlither = true; return { zh: '滑溜閃避：撤退少 1AP，且可以在交戰中衝鋒', en: 'Slithering Evasion: Fall Back for 1 less AP and Charge while engaged' }; } },
   rvFrenzy: { kind: 'auto' },
   rvHorror: { kind: 'auto' },
@@ -5867,7 +5889,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // A Concealed target in cover can't be shot at all, so any target here that's in cover gets the cover save.
     const base = useCover && !saturated ? 1 : 0;
     let coverN = base, coverC = 0;
-    if (base && (hasTactic(g, target, 'stealthy') || rogue || tpl(target).cultAgent)) {
+    if (base && (hasTactic(g, target, 'stealthy') || rogue || tpl(target).cultAgent || tpl(target).spCloak)) { // (Camo Cloaks: Spectre Squad)
       // Stealthy: one more cover save, or one as a critical; Camo Cloak with the Stealthy tactic gets both.
       if (camo && g.tactics?.[target.side]?.includes('stealthy')) coverC = 1;
       else if (crits > 0) { coverN--; coverC = 1; } else coverN++;
@@ -6145,6 +6167,7 @@ export function forcedShot(g, op, weapon, targets, real = false) {
 
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
 export function* shootFlow(g, op, weapon, target) {
+  g.spTvidOn = spTvid(g, op, target) ? op.uid : null; if (g.spTvidOn) spTvidUsed(g, op); // Tvid-feed Triangulation (Spectre Squad)
   if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
   pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
   kfShootStart(g, op, weapon); // Piercing Shot / Toxin Shot (Farstalker Kinband)
@@ -6453,6 +6476,7 @@ export function startFight(g, op, weapon, target) {
   for (const [k, o, foe] of [['A', op, target], ['D', target, op]]) if (souldrained(g, o, foe)) g.fight[k].drain = true;
   if (tpl(target).viciousReflexes) g.fight.turn = 'D'; // Vicious Reflexes (Shrivetalon): it resolves first when retaliating
   if (rvHorror(g, target)) g.fight.turn = 'D'; // Subterranean Horror (Raveners)
+  if (isSP(target) && target.side < 2 && (target.ready || target.order === 'conceal') && !target.acted?.spInterrupted && autoFF(g, target.side, 'spPrepared')) g.fight.D.doubleBlock = true; // Prepared Defence (Spectre Squad)
   if (rtLieInWait(g, target)) g.fight.turn = 'D'; // Lie in Wait (Ratling Hardbit): it resolves the first dice when retaliating beside terrain
   // Survival Instincts (Ratlings firefight ploy, automatic): a small Ratling fighting — normal blocks may stop a critical, critical blocks stop two.
   for (const [k, o] of [['A', op], ['D', target]]) if (isSmall(o) && o.side < 2 && ffReady(g, o.side, 'rtSurvival') && ffArmed(g, o.side, 'rtSurvival')) g.fight[k].si = true;
@@ -6634,6 +6658,7 @@ export function fightApply(g, optId) {
     if (!shrug) { const a2 = daemonShell(foeOp, amount); amount = a2 < amount ? a2 : asNormal ? nurgleVigour(g, foeOp, amount) : amount; }
     const res = shrug ? { dmg: 0, rolls: [] } : resolveDice(foeOp, [amount], g); // Disgustingly Resilient
     if (!shrug) res.dmg += rvCrush(fightWeapon(g, k), foeOp); // Crush (Raveners Wrecker)
+    if (!shrug && meOp.acted?.spSilent && !me.silentUsed) { me.silentUsed = true; res.dmg += 3; me.silentDiscard = true; } // Silent Killers (Spectre Squad)
     // Shock: the first crit strike in the sequence also discards an unresolved enemy normal (else a crit).
     let shocked = null;
     if (opt.die === 'c' && me.shock) {
@@ -6672,6 +6697,7 @@ export function fightApply(g, optId) {
     if (foeOp.convictionNow) { foeOp.convictionNow = false; f.A.c = f.A.n = f.D.c = f.D.n = 0; } // Outright Conviction: every remaining die is discarded
     // Gaining a Frenzy token discards all remaining attack dice of the fight.
     if (g.frenzyNow === foeOp.uid) { f.A.c = f.A.n = f.D.c = f.D.n = 0; g.frenzyNow = null; }
+    if (me.silentDiscard) { me.c = 0; me.n = 0; me.silentDiscard = false; } // (Silent Killers: no other success resolves)
     poisonOnHit(g, meOp, foeOp, { poison: me.poison }, res.dmg);
     ncFightToken(g, meOp, fightWeapon(g, k), foeOp, opt.die === 'c', res.dmg); // Terrorchem (Nemesis Claw)
     sfFightBlaze(g, meOp, fightWeapon(g, k), foeOp, opt.die === 'c', res.dmg); // Blaze (Sanctifiers)
@@ -6745,7 +6771,7 @@ export function fightApply(g, optId) {
       if (!me.siPaid) me.si = false;
     }
     // Shield (Endurant's shield bash): each block cancels two unresolved successes.
-    if (fightWeapon(g, k).rules.shield || tpl(fightOp(g, k)).rtBruteShield || (me.siPaid && opt.die === 'c')) { // (Brute shield: Bullgryn; Survival Instincts: Ratlings)
+    if (fightWeapon(g, k).rules.shield || tpl(fightOp(g, k)).rtBruteShield || (me.siPaid && opt.die === 'c') || me.doubleBlock) { // (Brute shield: Bullgryn; Survival Instincts: Ratlings; Prepared Defence: Spectre Squad)
       const can = (t) => foe[t] > 0 && !(opt.die === 'n' && t === 'c' && !me.dueller); // a normal can only block a normal
       const t2 = can(opt.target) ? opt.target : can(opt.target === 'c' ? 'n' : 'c') ? (opt.target === 'c' ? 'n' : 'c') : null;
       if (t2) foe[t2]--;

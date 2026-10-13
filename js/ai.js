@@ -18,6 +18,7 @@ import { sfAiStrategy } from './sanctifiers.js';
 import { kmGrappleAI, kmDoGrapple } from './kommandos.js';
 import { dkAiStrategy, dkMine } from './deathkorps.js';
 import { rvAiStrategy, rvAiUnderground, rvAiBurrow } from './raveners.js';
+import { spAiStrategy } from './spectres.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -28,6 +29,7 @@ export function aiStrategy(g, side) {
   sfAiStrategy(g, side); // Sanctifiers: a new orator after the Confessor falls
   dkAiStrategy(g, side); // Death Korps: Chronometer, Gas Bombardment
   rvAiStrategy(g, side); // Raveners: the next Tunnel marker, Synaptic Link
+  spAiStrategy(g, side); // Spectre Squad: Starshell Flare
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
