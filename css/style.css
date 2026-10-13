@@ -205,6 +205,7 @@ button.wide { width: 100%; margin-top: 10px; }
 .boardwrap { min-width: 0; display: flex; align-items: flex-start; justify-content: center; }
 #board { width: 100%; height: auto; max-height: calc(100vh - 90px); background: #0c0e11; border-radius: 10px; user-select: none; touch-action: manipulation; }
 #board .mat { fill: var(--mat); }
+#board .cover-range { fill: none; stroke: #9edbd2; stroke-width: .055; stroke-dasharray: .22 .16; opacity: .75; pointer-events: none; }
 #board .heavy { fill: var(--heavy); stroke: var(--heavy-s); stroke-width: .06; }
 #board .light { stroke: var(--light-s); stroke-width: .04; }
 #board .wire { fill: none; stroke: #b9b2a0; stroke-width: .07; stroke-dasharray: .18 .1; }

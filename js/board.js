@@ -47,6 +47,7 @@ export function tokenLegend() {
   <div class="token-legend terrain-legend" aria-label="${getLang() === 'zh' ? '掩體圖例' : 'Cover legend'}">${[
     ['heavy', getLang() === 'zh' ? '重' : 'H', getLang() === 'zh' ? '重掩體：可擋住視線，提供掩護與遮蔽' : 'Heavy cover: can block sight; gives cover and obscuring'],
     ['light', getLang() === 'zh' ? '輕' : 'L', getLang() === 'zh' ? '輕掩體：不擋視線，只提供掩護' : 'Light cover: doesn\'t block sight, gives cover only'],
+    ['range', '1″', getLang() === 'zh' ? '虛線：距地形邊緣 1 吋的參考線；掩護需符合射線規則，鐵絲網效果依穿越判定' : 'Dashed line: 1 inch from terrain as a distance guide; cover requires valid cover lines, razor wire applies when crossed'],
     ['wire', getLang() === 'zh' ? '網' : 'W', getLang() === 'zh' ? '鐵絲網：穿越多算 1"' : 'Razor wire: crossing it costs 1" more'],
   ].map(([k, lab, txt]) => `<span class="token-key"><svg viewBox="-.5 -.5 1 1" aria-hidden="true" class="terrain-key"><rect class="${k}" x="-.46" y="-.3" width=".92" height=".6" ${k === 'light' ? 'fill="url(#hatchKey)"' : ''}/><g class="tlabel tl-${k}"><rect x="-.24" y="-.24" width=".48" height=".48" rx=".12"/><text y=".15">${lab}</text></g></svg>${txt}</span>`).join('')}
     <svg width="0" height="0" style="position:absolute"><defs><pattern id="hatchKey" width="0.2" height="0.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.2" height="0.2" fill="var(--light-t)"/><line x1="0" y1="0" x2="0" y2="0.2" stroke="var(--light-s)" stroke-width="0.08"/></pattern></defs></svg></div>
@@ -75,6 +76,15 @@ export function renderBoard(g, ui) {
     const y0 = z.y0 ?? 0, y1 = z.y1 ?? BOARD.h;
     s.push(`<rect x="${z.x0}" y="${y0}" width="${z.x1 - z.x0}" height="${y1 - y0}" fill="${team(g, side).color}" opacity="${g.phase === 'deploy' ? 0.16 : 0.07}" pointer-events="none"/>`);
   });
+
+  // One SVG unit is one inch. Rounded corners preserve the true 1" distance
+  // from the rectangular footprint, including diagonally around its corners.
+  s.push(`<defs><clipPath id="cover-range-clip"><rect width="${BOARD.w}" height="${BOARD.h}"/></clipPath></defs>`);
+  s.push('<g class="cover-ranges" clip-path="url(#cover-range-clip)" pointer-events="none" aria-hidden="true">');
+  for (const t of g.terrain) {
+    s.push(`<rect class="cover-range" x="${f(t.x - 1)}" y="${f(t.y - 1)}" width="${f(t.w + 2)}" height="${f(t.h + 2)}" rx="1" ry="1"/>`);
+  }
+  s.push('</g>');
 
   for (const t of g.terrain) {
     if (t.kind === 'heavy') s.push(`<rect class="heavy" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="0.08"/>`);
