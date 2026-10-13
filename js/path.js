@@ -42,7 +42,7 @@ export function moveCtx(g, op, kind = 'reposition') {
   // A base can't end on Heavy or Light terrain, but a move can climb over it (see climbWalk).
   const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
   const hardWalls = cover.filter(t => t.twWall);
-  const access = accessPointsOf(g);
+  const access = accessPointsOf(g).filter(d=>d.state === 'open');
   const crossingCost = (pts) => accessCrossingCost(pts, access);
   const crossingEdgeCost = (a,b) => accessEdgeCost([a,b], access);
   // Accessible openings allow the base's centre to pass; a wider base may clip

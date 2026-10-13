@@ -596,3 +596,6 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 .tw-access text { fill:#aaffec; font-size:.46px; font-weight:bold; paint-order:stroke; stroke:#102322; stroke-width:.15; }
 .tw-door-rules { border-left:3px solid #65f4e1; margin-top:20px; }
 .tw-door-rules h2 { margin:0 0 12px; font-size:1.1rem; }
+
+.tw-access-closed rect { fill:#663327; fill-opacity:1; stroke:#ffad7a; stroke-dasharray:none; }
+.tw-access-closed text { fill:#ffc799; }

@@ -1,3 +1,4 @@
+import { accessPointsOf } from './tombworld-access.js';
 import {
   activate, activeOp, actionCost, availableActions, missionActionsFor, deployZones, weaponsFor, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, setSkills, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
@@ -109,8 +110,12 @@ function pathToward(g, op, kind, goal) {
   const max = moveAllowance(g, op, kind);
   // Try the goal itself, then points around it.
   const tries = [goal];
+  const closed=accessPointsOf(g).filter(d=>d.kind === 'hatchway' && d.state === 'closed').sort((a,b)=>dist(op,a)+dist(a,goal)-dist(op,b)-dist(b,goal));
+  const doorSpots=closed.flatMap(d=>[-1,1].map(sign=>({x:d.x,y:d.y,[d.axis]:d[d.axis]+sign*(radius(op)+.2)})));
+  if(closed.length && !findPath(ctx,goal)) tries.unshift(...doorSpots);
   for (let ring = 1.4; ring <= 4; ring += 1.3)
     for (let a = 0; a < 12; a++) tries.push({ x: goal.x + Math.cos(a * Math.PI / 6) * ring, y: goal.y + Math.sin(a * Math.PI / 6) * ring });
+  tries.push(...doorSpots);
   const endOk = (q) => !ctx.inEnemyER(q);
   for (const p of tries) {
     const path = findPath(ctx, p);
@@ -527,7 +532,7 @@ export function aiStep(g) {
   if (can.dwThrallUse && engagedEnemies(g, op).length && missionActionsFor(g, op.side).some((id) => !can[id])) { doSelfAction(g, op, 'dwThrallUse'); return null; }
   for (const id of ['soulHeal', 'soulChannel', 'wardingShield', 'tormentGrenade', 'drugHeal']) if (can[id]) { const t = TARGET_ACTIONS[id].targets(g, op)[0]; if (t) { doTargetAction(g, op, id, t); return null; } }
   // Mission actions and markers first: they score.
-  for (const id of missionActionsFor(g, op.side)) if (can[id]) { doMissionAction(g, op, id); return null; }
+  for (const id of missionActionsFor(g, op.side)) if (can[id] && !id.startsWith('twClose_')) { doMissionAction(g, op, id); return null; }
   if (can.pickUp && pickUpTargets(g, op).some((m) => !(m.kind === 'banner' && m.owner === op.side))) { doPickUp(g, op); return null; } // (never its own planted Banner)
   if (can.dakkaDash && shootOptions(g, op).length) { doDakkaDash(g, op); return null; }
   if (can.spot) {

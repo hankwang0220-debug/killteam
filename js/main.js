@@ -444,7 +444,7 @@ function setupView() {
       <p class="hint small">${esc(tx(ms.desc))}${ms.source ? ` <i>（${esc(ms.source)}）</i>` : ''}</p></section>
     <section class="card missionpick"><h3>${L('地圖', 'Map')}</h3>
       <select data-act="map" ${ms.terrain ? 'disabled' : ''}><option value="default" ${s.map === 'default' ? 'selected' : ''}>${L('原有地圖', 'Default map')}</option>${TOMB_WORLD_MAPS.map(m => `<option value="${m.id}" ${s.map === m.id && !ms.terrain ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
-      ${ms.terrain ? `<p class="hint">${L('此任務使用專屬地圖。', 'This mission uses its own map.')}</p>` : s.map !== 'default' ? `<p class="hint">28″ × 24″ · ${L('圖卡排列的平面近似；艙門預設開啟，A1 保持完整。', 'Flat approximation of the map card; hatchways start open, A1 remains intact.')}</p>${tombWorldMapSvg(TOMB_WORLD_MAPS.find(m => m.id === s.map) || TOMB_WORLD_MAPS[0],getLang() === 'zh')}` : ''}
+      ${ms.terrain ? `<p class="hint">${L('此任務使用專屬地圖。', 'This mission uses its own map.')}</p>` : s.map !== 'default' ? `<p class="hint">28″ × 24″ · ${L('圖卡排列的平面近似；艙門預設關閉，開門／關門各 1AP，A1 保持完整。', 'Flat approximation of the map card; hatchways start closed; opening/closing costs 1AP, A1 remains intact.')}</p>${tombWorldMapSvg(TOMB_WORLD_MAPS.find(m => m.id === s.map) || TOMB_WORLD_MAPS[0],getLang() === 'zh')}` : ''}
     </section>
     <div class="picks">${pick(0)}${pick(1)}</div>
     <div class="setupbar"><button class="ghost" data-act="home">${L('返回', 'Back')}</button>

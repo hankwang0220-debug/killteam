@@ -41,6 +41,7 @@ let lastResult = null;
  * or progress in a fight. `result` is the shooting dice dialog currently shown, if any.
  */
 const stateOf = (g) => ({
+  hatches: g.hatches ? {...g.hatches} : undefined,
   terrain: g.terrain.map(t => ({ ...t })),
   o: encodeOps(g), tp: g.tp, phase: g.phase, turn: g.turn, active: g.active, initiative: g.initiative,
   counter: !!g.counter, cp: [...g.cp], vp: [...g.vp], kills: [...g.kills], ploys: g.ploys.map((p) => [...p]),
@@ -83,6 +84,7 @@ export function rewindRecorder(g, snaps, seq) {
 export function viewAt(rep, i) {
   const s = rep.snaps[i], b = rep.base;
   return {
+    hatches: s.hatches,
     board: b.board, map: b.map, pads: b.pads, axis: b.axis, teams: b.teams, ai: b.ai, terrain: s.terrain || b.terrain, objectives: b.objectives, mission: b.mission, deploy: b.deploy,
     tp: s.tp, phase: s.phase, turn: s.turn, active: s.active, initiative: s.initiative, counter: s.counter,
     cp: s.cp, vp: s.vp, kills: s.kills, ploys: s.ploys || [[], [], []], log: [], fight: s.fight || null,

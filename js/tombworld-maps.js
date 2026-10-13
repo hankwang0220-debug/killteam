@@ -64,12 +64,18 @@ export function tombWorldAccessPoints(map) {
 export function tombWorldAccessSvg(access, zh = true) {
   return access.map(d => {
     const horizontal = d.axis === 'y';
-    const label = `${d.kind === 'hatchway' ? zh ? '門':'Door' : zh ? '洞':'Breach'} +2″`;
-    return `<g class="tw-access" pointer-events="none"><title>${d.component} · ${label}</title><rect x="${d.x-(horizontal ? d.width/2:.16)}" y="${d.y-(horizontal ? .16:d.width/2)}" width="${horizontal ? d.width:.32}" height="${horizontal ? .32:d.width}"/><text x="${d.x+(horizontal ? 0:.45)}" y="${d.y+(horizontal ? -.4:.18)}" text-anchor="${horizontal ? 'middle':'start'}">${label}</text></g>`;
+    const closed = d.kind === 'hatchway' && d.state !== 'open';
+    const label = d.kind === 'hatchway' ? `${zh ? '門':'Door'}${Number(d.id.split('-')[1])+1} ${closed ? zh ? '關':'closed' : zh ? '開 +2″':'open +2″'}` : `${zh ? '洞':'Breach'} +2″`;
+    return `<g class="tw-access ${closed ? 'tw-access-closed':'tw-access-open'}" pointer-events="none"><title>${d.component} · ${label}${d.kind === 'hatchway' ? ' · 1AP' : ''}</title><rect x="${d.x-(horizontal ? d.width/2:.16)}" y="${d.y-(horizontal ? .16:d.width/2)}" width="${horizontal ? d.width:.32}" height="${horizontal ? .32:d.width}"/><text x="${d.x+(horizontal ? 0:.45)}" y="${d.y+(horizontal ? -.4:.18)}" text-anchor="${horizontal ? 'middle':'start'}">${label}</text></g>`;
   }).join('');
 }
 
-export function tombWorldTerrain(map) {
+export const initialHatches = (map) => Object.fromEntries(tombWorldAccessPoints(map).filter(d=>d.kind === 'hatchway').map(d=>[d.id,'closed']));
+export const hatchLeaf = (d) => ({kind:'heavy',twWall:true,role:'hatch',hatchId:d.id,component:d.component,height:2,
+  x:d.x-(d.axis === 'x' ? .125:d.width/2),y:d.y-(d.axis === 'x' ? d.width/2:.125),
+  w:d.axis === 'x' ? .25:d.width,h:d.axis === 'x' ? d.width:.25});
+
+export function tombWorldTerrain(map, hatches = initialHatches(map)) {
   const terrain = [], pillars = new Set();
   for (const r of map.runs) {
     const c = PARTS[r.id], horizontal = r.y === r.y1, length = Math.hypot(r.x1-r.x,r.y1-r.y);
@@ -96,6 +102,7 @@ export function tombWorldTerrain(map) {
     const c=PARTS[p.id], w=p.rotation ? c.width:c.length,h=p.rotation ? c.length:c.width;
     terrain.push({kind:'light',component:p.id,height:c.height,x:p.x-w/2,y:p.y-h/2,w,h});
   }
+  for(const d of tombWorldAccessPoints(map)) if(d.kind === 'hatchway' && hatches[d.id] !== 'open') terrain.push(hatchLeaf(d));
   return terrain;
 }
 
@@ -106,5 +113,5 @@ export function tombWorldMapSvg(map, zh = true) {
   const pads=map.pads.map(p=>`<g class="tw-pad"><circle cx="${p.x}" cy="${p.y}" r="1.125"/><text x="${p.x}" y="${p.y+.22}">T</text></g>`).join('');
   const objectives=map.objectives.map((p,i)=>`<g class="tw-map-objective"><circle cx="${p.x}" cy="${p.y}" r="1.4"/><circle cx="${p.x}" cy="${p.y}" r=".4"/><text x="${p.x}" y="${p.y+.23}">${i+1}</text></g>`).join('');
   const grid=Array.from({length:6},(_,i)=>`<path d="M${(i+1)*4} 0V24"/>`).join('')+Array.from({length:5},(_,i)=>`<path d="M0 ${(i+1)*4}H28"/>`).join('');
-  return `<svg class="tw-map" viewBox="-.7 -.7 29.4 25.4" role="img" aria-label="Tomb World ${map.number}, 28 × 24 inches"><rect width="28" height="24" class="tw-map-mat"/>${zones}<g class="tw-map-grid">${grid}</g>${solids}${labels}${pads}${objectives}${tombWorldAccessSvg(tombWorldAccessPoints(map),zh)}</svg>`;
+  return `<svg class="tw-map" viewBox="-.7 -.7 29.4 25.4" role="img" aria-label="Tomb World ${map.number}, 28 × 24 inches"><rect width="28" height="24" class="tw-map-mat"/>${zones}<g class="tw-map-grid">${grid}</g>${solids}${labels}${pads}${objectives}${tombWorldAccessSvg(tombWorldAccessPoints(map).map(d=>({...d,state:d.kind === 'hatchway' ? 'closed':'open'})),zh)}</svg>`;
 }

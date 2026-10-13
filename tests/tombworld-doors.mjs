@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import * as G from '../js/game.js';
-import { accessPointsOf, accessCrossingCost, hatchwayFightAccess } from '../js/tombworld-access.js';
+import { accessPointsOf, accessCrossingCost, hatchwayFightAccess, setHatchState } from '../js/tombworld-access.js';
 import { moveCtx, findPath, wholeInchPath } from '../js/path.js';
 import { renderBoard } from '../js/board.js';
 import { tombWorldMapSvg, TOMB_WORLD_MAPS } from '../js/tombworld-maps.js';
@@ -9,7 +9,7 @@ import { aiStep, aiStrategy } from '../js/ai.js';
 const make = () => G.newGame({teams:['angels','kommandos'],ai:null,equip:[[],[]],mission:'secure',map:'tombworld-1'});
 const g=make(), a=g.ops[0], b=g.ops.find(o=>o.side === 1);
 const door=accessPointsOf(g).find(d=>d.component === 'A3' && d.x === 12);
-assert(door);assert.equal(door.moveCost,2);
+assert(door);assert.equal(door.moveCost,2);setHatchState(g,door.id,'open');
 const line=(xs)=>xs.map(x=>({x,y:8}));
 assert.equal(accessCrossingCost(line([10,14]),[door]),2);
 assert.equal(accessCrossingCost(line([14,10]),[door]),2);
@@ -58,7 +58,7 @@ assert(!G.fightTargets(g,a).includes(b));assert(!moveCtx(g,a).inEnemyER(a));
 const apBefore=a.ap;
 assert.equal(G.resolveFight(g,a,G.tpl(a).weapons.find(w=>w.type==='melee'),b),null);
 assert.equal(a.ap,apBefore,'an invalid wall-separated fight cannot spend AP');
-assert(renderBoard(g,{}).includes('門 +2″'));assert(tombWorldMapSvg(TOMB_WORLD_MAPS[0]).includes('門 +2″'));
+assert(renderBoard(g,{}).includes('開 +2″'));assert(tombWorldMapSvg(TOMB_WORLD_MAPS[0]).includes('關'));
 console.log('Tomb World access: crossing costs, split/repeated paths, all move types, Accessible base transit, FLY restrictions, Hatchway Fight conditions/AP/control range and map labels passed.');
 
 let seed=81297;

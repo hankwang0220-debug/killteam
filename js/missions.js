@@ -7,6 +7,8 @@ import {
 } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { moveCtx } from './path.js';
+import { TOMB_WORLD_MAPS, tombWorldAccessPoints } from './tombworld-maps.js';
+import { accessPointsOf, hatchActionId, nearHatch, accessRect, setHatchState } from './tombworld-access.js';
 
 const wall = (x, y, w, h) => ({ kind: 'heavy', x, y, w, h });
 const block = (x, y, w, h) => ({ kind: 'heavy', x, y, w, h });
@@ -303,6 +305,23 @@ export function tombWorldTeleportDestination(g, op) {
 }
 
 export const MISSION_ACTIONS = {
+  ...Object.fromEntries([...new Set(TOMB_WORLD_MAPS.flatMap(m=>tombWorldAccessPoints(m).filter(d=>d.kind === 'hatchway').flatMap(d=>[`twOpen_${d.id}`,`twClose_${d.id}`])))].map(id=>[id,{
+    ap:1,name:{zh:id.startsWith('twOpen_') ? '開門':'關門',en:id.startsWith('twOpen_') ? 'Open hatch':'Close hatch'},
+    cond(g,op) {
+      const d=accessPointsOf(g).find(d=>d.kind === 'hatchway' && hatchActionId(d) === id);
+      if(!d || !nearHatch(g,op,d,radius(op))) return {zh:'門口須在底座 1 吋內',en:'Door must be within 1 inch of the base'};
+      if(isEngaged(g,op)) return {zh:'交戰中不能開關門',en:'Cannot operate a hatch while engaged'};
+      if(d.state === 'open' && living(g).some(o=>o.uid !== op.uid && (distPointRect(o,accessRect(d)) < radius(o)-.001 || o.side !== op.side && nearHatch(g,o,d,radius(o))))) return {zh:'門口被底座占用或在敵人控制範圍內，不能關門',en:'Cannot close an occupied hatch or one within enemy control range'};
+      if(d.state === 'open' && distPointRect(op,accessRect(d)) < radius(op)-.001) return {zh:'自己的底座占用門口，不能關門',en:'Your base occupies the hatch'};
+      return null;
+    },
+    apply(g,op) {
+      const d=accessPointsOf(g).find(d=>d.kind === 'hatchway' && hatchActionId(d) === id);
+      if(!d) return;
+      const opening=id.startsWith('twOpen_');setHatchState(g,d.id,opening ? 'open':'closed');
+      return {zh:`花費 1AP ${opening ? '開啟':'關閉'} ${d.component} 門 ${Number(d.id.split('-')[1])+1}`,en:`spends 1AP to ${opening ? 'open':'close'} ${d.component} hatch ${Number(d.id.split('-')[1])+1}`};
+    },
+  }])),
   twTeleport: {
     ap: 1, name: { zh: '傳送台：傳送', en: 'Teleport pad: Teleport' },
     cond: (g, op) => tombWorldTeleportDestination(g, op) ? null : { zh: '需整個底座在傳送台內、未交戰，且另一端有合法落點', en: 'Requires the whole base on a pad, not engaged, and a clear destination pad' },

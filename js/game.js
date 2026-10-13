@@ -1,5 +1,5 @@
-import { TOMB_WORLD_MAPS, tombWorldTerrain } from './tombworld-maps.js';
-import { wallAllowsControl, hatchwayFightAccess } from './tombworld-access.js';
+import { TOMB_WORLD_MAPS, tombWorldTerrain, initialHatches } from './tombworld-maps.js';
+import { wallAllowsControl, hatchwayFightAccess, accessPointsOf, hatchActionId, nearHatch } from './tombworld-access.js';
 import { DEATHWATCH_EQUIPMENT } from './data/deathwatch.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT } from './data/murderwing.js';
@@ -182,6 +182,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
     v: 1, teams: [...teams, 'npo'], ai, tp: 0, phase: 'deploy', cp: [2, 2, 0], vp: [0, 0, 0], kills: [0, 0, 0], ploys: [[], [], []],
     initiative: 0, turn: 0, active: null, log: [], mission: m.id,
     map: map?.id || 'default', board: map ? { ...map.board } : { ...BOARD }, pads: map ? map.pads.map((p) => ({ ...p })) : [],
+    hatches: map ? initialHatches(map) : {},
     terrain: (map ? tombWorldTerrain(map) : m.terrain || makeTerrain()).map((t) => ({ ...t })),
     objectives: (map?.objectives || m.objectives || OBJECTIVES).map((o, i) => ({ ...o, id: i })),
     markers: [], // mission markers that can be carried: {id, kind, x, y, carriedBy}
@@ -389,7 +390,7 @@ export function tacOpsFor(teamId) {
 }
 const randomTacOp = (teamId) => { const ids = tacOpsFor(teamId); return ids[Math.floor(Math.random() * ids.length)]; };
 /** Mission actions this side can perform: the mission's, plus its Tac Op's (Clear, Retrieve). */
-export const missionActionsFor = (g, side) => [...(g.pads?.length ? ['twTeleport'] : []), ...(mission(g).actions || []), ...(side < 2 ? TAC_OPS[g.tacOps?.[side]?.id]?.actions || [] : [])];
+export const missionActionsFor = (g, side) => [...accessPointsOf(g).filter(d=>d.kind === 'hatchway').map(hatchActionId), ...(g.pads?.length ? ['twTeleport'] : []), ...(mission(g).actions || []), ...(side < 2 ? TAC_OPS[g.tacOps?.[side]?.id]?.actions || [] : [])];
 /** Is any operative of this side contesting the marker (within control range of it)? */
 export const contests = (g, side, m) => living(g, side).some((o) => inMarkerRange(o, m));
 /** Score VP from a mission source ('crit' / 'tac'), with a log line. */
@@ -414,6 +415,7 @@ function dropMarkers(g, op) {
   for (const m of carriables(g)) if (m.carriedBy === op.uid) { m.carriedBy = null; m.x = op.x; m.y = op.y; }
 }
 export function doMissionAction(g, op, id) {
+  if (/^tw(Open|Close)_/.test(id) && (g.phase !== 'firefight' || g.active !== op.uid || op.dead || !availableActions(g,op).some(a=>a.id === id && a.ok))) return false;
   spend(g, op, id);
   if (tpl(op).gotIt) op.acted.gotItUsed = true;
   const msg = MISSION_ACTIONS[id].apply(g, op);
@@ -1379,6 +1381,7 @@ Object.assign(ACTIONS, {
 });
 
 export function actionCost(g, op, id) {
+  if (/^tw(Open|Close)_/.test(id)) return 1;
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
   if (id === 'fallBack' && op.acted?.slip) return Math.max(1, actionCost(g, { ...op, acted: { ...op.acted, slip: false } }, id) - 1); // Slip Away
@@ -2282,8 +2285,11 @@ export function availableActions(g, op) {
   // Mission actions and Pick Up Marker (player operatives only).
   if (op.side !== NPO && op.homeSide == null && !op.unleashed && op.brutalDisplayTP !== g.tp && op.ncFlayTP !== g.tp) { // (Unleash Daemon: no Pick Up or mission actions)
     for (const id of missionActionsFor(g, op.side)) {
+      const hatch=/^tw(Open|Close)_/.test(id) && accessPointsOf(g).find(d=>hatchActionId(d) === id);
+      if(hatch && !nearHatch(g,op,hatch,radius(op))) continue;
       const why = MISSION_ACTIONS[id].cond(g, op);
       add(id, !why && !count(op, id), why || DONE);
+      if(hatch) list.at(-1).name={zh:`${hatch.state === 'open' ? '關門':'開門'} ${hatch.component}（${Number(hatch.id.split('-')[1])+1}）`,en:`${hatch.state === 'open' ? 'Close':'Open'} ${hatch.component} door ${Number(hatch.id.split('-')[1])+1}`};
     }
     if (carriables(g).some((m) => canPickUpMarker(g, op, m))) {
       const n = pickUpTargets(g, op).length;
@@ -5833,7 +5839,6 @@ export function* shootFlow(g, op, weapon, target) {
   if (weapon.rules.aimed) op.acted.aimedUsed = true; // (Aimed: no more than 3" of movement after it)
   // Unquestioning Loyalty (Brood Brothers): a bodyguard takes the shot instead (in cover / obscured only if the Leader was).
   target = loyalSwap(g, op, holySwap(g, target, weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
-  if (hatch) g.hatchwayFight = [op.uid,target.uid];
   uprising(g, op, target); // Uprising: the target gains a Crossfire token as soon as it's selected
   g.magnifyNow = relay ? op.uid : null; // Magnify: Ceaseless until the end of the action
   if (relay) log(g, { zh: `${opName(op, 'zh')} 放大：借 ${opName(relay, 'zh')} 的視角射擊（無休）`, en: `${opName(op, 'en')} Magnify: shoots through ${opName(relay, 'en')} (Ceaseless)` }, `side${op.side}`);
@@ -5968,6 +5973,7 @@ export function startFight(g, op, weapon, target) {
   }
   // Unquestioning Loyalty (Brood Brothers): a bodyguard is fought instead (treated as within control range).
   target = loyalSwap(g, op, holySwap(g, target, weapon), weapon); // (Holy Defender: Celestian Insidiant Abjuror)
+  if (hatch) g.hatchwayFight = [op.uid,target.uid];
   uprising(g, op, target);
   const free = op.acted.free?.fight; // Savage Assault (an enemy uid), Stealth Attack ('stealth') or Swipe ('swipe')
   if (free === 'swipe') weapon = tpl(op).weapons.find((w) => w.rules.swipe); // the free Fight must use the swipe profile
