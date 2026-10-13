@@ -270,6 +270,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   let r0, r1;
   do { r0 = d6(); r1 = d6(); } while (r0 === r1);
   const first = r0 > r1 ? 0 : 1;
+  g.setupFirst = first; // the set-up roll-off winner (initiative before the battle)
   g.dep = { turn: first, batch: [], size: [0, 1].map((s) => Math.ceil(g.ops.filter((o) => o.side === s).length / 3)), done: false };
   g.dep.need = depNeed(g, first);
   g.zonePick = { side: first, done: ai === first }; // (the roll-off winner chooses the drop zone; the computer keeps what it's given)
@@ -599,9 +600,10 @@ function startTP(g) {
   g.phase = 'initiative'; // the Initiative phase comes first; startStrategy moves on
   // Roll-off (house rules): the higher roll decides who has initiative, after any initiative cards are used.
   let a, b;
-  do { a = d6(); b = d6(); } while (a === b && g.tp === 1); // (TP1 ties are rolled again; later ones: see initWinner)
+  a = d6(); b = d6(); // (ties don't re-roll: see initWinner)
   g.initRoll = [a, b];
   g.initRolled = [a, b];
+  g.prevInitiative = g.initiative;
   g.initiative = null;
   g.initDecider = null;
   g.initLocked = false;
@@ -662,7 +664,8 @@ const INIT_AWARD = [null, 'pm1', 'pm2', 'pm3']; // by turning point (the Re-roll
 export function initWinner(g, roll = g.initRoll) {
   const [a, b] = roll;
   if (a !== b) return a > b ? 0 : 1;
-  return g.initTies ? 1 - g.lastDecider : g.initFirstLoser;
+  // A tie is won by the player without initiative at the moment (TP1: the one who didn't have it at set-up); the loser gets the card.
+  return 1 - (g.tp === 1 ? g.setupFirst : g.prevInitiative);
 }
 /** Use an initiative card: 'reroll' (own die), or ±N with die (0/1) and sign (+1/-1). */
 export function useInitCard(g, side, id, die = side, sign = 1) {
@@ -682,12 +685,6 @@ export function useInitCard(g, side, id, die = side, sign = 1) {
 export function lockInitRoll(g) {
   if (g.initLocked) return;
   g.initLocked = true;
-  // TP1: a tie (even after cards) is rolled again; the loser decides the first tie in a later turning point.
-  if (g.tp === 1 && g.initRoll[0] === g.initRoll[1]) {
-    const was = g.initRoll.join(' : ');
-    do { g.initRoll = [d6(), d6()]; } while (g.initRoll[0] === g.initRoll[1]);
-    log(g, { zh: `第 1 回合主動權平手（${was}），重擲 → ${g.initRoll.join(' : ')}`, en: `Turning point 1 initiative tie (${was}), rolled again → ${g.initRoll.join(' : ')}` }, 'tp');
-  }
   const [a, b] = g.initRoll, tie = a === b;
   const d = initWinner(g);
   if (g.tp === 1) g.initFirstLoser = 1 - d;

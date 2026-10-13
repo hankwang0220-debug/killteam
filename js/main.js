@@ -432,14 +432,12 @@ function setupView() {
     <div class="picklist">${TEAMS.map((t) => `<button class="teampick ${s.teams[side] === t.id ? 'on' : ''}" style="--tc:${t.color}" data-act="pick" data-side="${side}" data-team="${t.id}">
       <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
     ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>` : ''}
-    ${unitPick(side)}
+    ${side === 1 && s.ai === 1 ? '' : unitPick(side)}
     ${roster(TEAM_MAP[s.teams[side]], side)}
-    ${tacticsPick(side)}
+    ${side === 1 && s.ai === 1 ? '' : tacticsPick(side)}
     ${tacOpPick(side)}
     ${equipPick(side)}
-    ${scoutingPick(side)}
-    ${ratFreePick(side)}
-    ${dkFreePick(side)}
+    ${side === 1 && s.ai === 1 ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side)}
   </div>`;
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
   return `${topBar()}
@@ -455,10 +453,27 @@ function setupView() {
       <select data-act="map" ${ms.terrain ? 'disabled' : ''}><option value="default" ${s.map === 'default' ? 'selected' : ''}>${L('原有地圖', 'Default map')}</option>${TOMB_WORLD_MAPS.map(m => `<option value="${m.id}" ${s.map === m.id && !ms.terrain ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
       ${ms.terrain ? `<p class="hint">${L('此任務使用專屬地圖。', 'This mission uses its own map.')}</p>` : s.map !== 'default' ? `<p class="hint">28″ × 24″ · ${L('圖卡排列的平面近似；艙門預設關閉，開門／關門各 1AP，A1 保持完整。', 'Flat approximation of the map card; hatchways start closed; opening/closing costs 1AP, A1 remains intact.')}</p>${tombWorldMapSvg(TOMB_WORLD_MAPS.find(m => m.id === s.map) || TOMB_WORLD_MAPS[0],getLang() === 'zh')}` : ''}
     </section>
+    ${aiReveal()}
     <div class="picks">${pick(0)}${pick(1)}</div>
     <div class="setupbar"><button class="ghost" data-act="home">${L('返回', 'Back')}</button>
     <button class="primary big" data-act="start">${L('開始部署', 'Start Deployment')}</button></div>
   </main>`;
+}
+
+/** Against the computer it announces its operatives, weapons, tactics and equipment first (the Tac Op and Primary Op stay secret). */
+function aiReveal() {
+  const s = ui.setup;
+  if (s.ai !== 1) return '';
+  let t;
+  try {
+    t = newGame({ roster: s.roster || [], loadouts: s.loadouts || [], teams: [...s.teams], ai: 1, mission: s.mission, map: s.map, equip: [[], undefined], tactics: [0, 1].map((x) => (TEAM_MAP[s.teams[x]].tactics ? setupTactics(x) : null)) });
+  } catch (e) { return ''; }
+  const ops = t.ops.filter((o) => o.side === 1).map((o) => `<li>${esc(opName(o, lang()))} <small>${weaponsFor(t, o).map((w) => esc(tx(w.name))).join(' · ')}</small></li>`).join('');
+  const eq = (t.equip?.[1] || []).map((id) => esc(tx(EQUIPMENT[id].name))).join('、') || L('（無）', '(none)');
+  const tac = (t.tactics?.[1] || []).map((id, i) => `${i ? '、' : ''}${esc(tx(team(t, 1).tactics.find((x) => x.id === id).name))}`).join('');
+  return `<section class="card missionpick"><h3>🤖 ${L('電腦已公布的隊伍', 'The computer has announced its team')}</h3>
+    <p class="hint small">${L('電腦先公布特工、武器與裝備，你再選自己的。（戰術行動與主要任務仍保密。）', 'The computer shows its operatives, weapons and equipment first; then you choose yours. (Its Tac Op and Primary Op stay secret.)')}</p>
+    <ul class="small">${ops}</ul><p class="small"><b>${L('裝備', 'Equipment')}：</b>${eq}</p>${tac ? `<p class="small"><b>${L('戰團戰術', 'Chapter Tactics')}：</b>${tac}</p>` : ''}</section>`;
 }
 
 /** Primary + secondary Chapter Tactic for teams that have them (Angels of Death). */
