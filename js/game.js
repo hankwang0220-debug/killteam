@@ -10,6 +10,8 @@ import { RATLINGS_EQUIPMENT } from './data/ratlings.js';
 import { SANCTIFIERS_EQUIPMENT } from './data/sanctifiers.js';
 import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
 import { ANGELS_EQUIPMENT } from './data/angels.js';
+import { PLAGUE_EQUIPMENT } from './data/plague.js';
+import { pmSetup, pmRules, pmBells, pmVents, pmWeapons, pmPloyBought, pmReady, pmCloud, pmCurse } from './plague.js';
 import { adSetup, adTactics, adVeteran, adPloyBought, adHeroicFree, adHeroicUsed, adIronHalo, adRoll, adShootStart, adAuspexOn, adEnd, adTilting, adReliquaries } from './angels.js';
 import { isPulse, pfSetup, pfActivate, pfEnd, pfRules, pfGravHit, pfShield, pfTaoBonus, pfShootStart, pfShootEnd, pfMarkerTargets, pfMarkerlight, pfSwap, pfPointBlank, pfPloyBought, pfWorthy, pfActions, pfSelf, registerPathfinderActions } from './pathfinders.js';
 import { isSF, sfSetup, sfSermon, sfOrator, sfNearOrator, sfReady, sfActivate, sfEnd, sfRules, sfConversion, sfNullApl, sfShootBlaze, sfFightBlaze, sfRoll, sfSymbols, sfSwap, sfPloyBought, sfMiracleMoves, sfDeath, sfDeclaim, sfActions, sfSelf, registerSanctifierActions } from './sanctifiers.js';
@@ -73,10 +75,10 @@ export const rollCount = () => rolls;
 export const d6 = () => { rolls++; return 1 + Math.floor(Math.random() * 6); };
 export const d3 = () => { rolls++; return 1 + Math.floor(Math.random() * 3); };
 /** Injured stat changes apply (And They Shall Know No Fear ignores them). */
-export const injuredPenalty = (g, op) => isInjured(op) && !op.acted?.mwIgnoreInjury && !op.scRaw && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat // (Raging Heat of the Dying Flame)
+export const injuredPenalty = (g, op) => isInjured(op) && !pmBells(g, op) && !op.acted?.mwIgnoreInjury && !op.scRaw && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat // (Raging Heat of the Dying Flame)
   && !(markOf(op) === 'nurgle' && hasPloy(g, op.side, 'implacable')); // Implacable (Legionaries)
 /** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
-export const hasTactic = (g, op, id) => !!adTactics(g, op.side)?.includes(id) || adVeteran(g, op, id) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).weavewerke || !!tpl(op).wastelandStalker)); // (Wasteland Stalker: Ruststalkers)
+export const hasTactic = (g, op, id) => !!adTactics(g, op.side)?.includes(id) || adVeteran(g, op, id) || (id === 'hardy' && !!tpl(op).repulsive) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).weavewerke || !!tpl(op).wastelandStalker)); // (Repulsive Fortitude: Plague Marine Warrior) // (Wasteland Stalker: Ruststalkers)
 
 /** Art of War option (Mont'ka / Kauyon) in effect for this operative; the Blooded veteran gets either. */
 export const artOfWar = (g, op, id) => hasPloy(g, op.side, id)
@@ -239,6 +241,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   sfSetup(g, roster); // Sanctifiers: roster check, the Orator and Declamation state
   pfSetup(g, roster); // Pathfinders: roster limits
   adSetup(g, roster); // Angels of Death: roster limits
+  pmSetup(g, roster); // Plague Marines: roster limits
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -601,6 +604,7 @@ function startTP(g) {
   wkReady(g); // Wrecka Krew: Pulsa markers lose a point, Demolition markers go
   ncReady(g); // Nemesis Claw: D3 Prescience points
   scReady(g); // Scout Squad: Trip Alarm markers go in the third turning point
+  pmReady(g); // Plague Marines: the Clouds of Flies go
   sfReady(g); // Sanctifiers: a new Orator when needed, Ecclesiarchy Texts
   mission(g).onReady?.(g); // the Ready step
 }
@@ -797,6 +801,7 @@ export function buyPloy(g, side, ploy) {
   wkPloyBought(g, side, ploy, cost); // Wrecka Krew: Glyphs used, Amped Up heals
   scPloyBought(g, side, ploy); // Scout Squad: Adaptable Training, Stealth Relocation
   sfPloyBought(g, side, ploy); // Sanctifiers: Rally the Flock
+  pmPloyBought(g, side, ploy); // Plague Marines: Cloud of Flies, Nurglings
   pfPloyBought(g, side, ploy); // Pathfinders: Recon Sweep
   adPloyBought(g, side, ploy); // Angels of Death: Adaptive Tactics
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
@@ -950,10 +955,11 @@ export function activate(g, op) {
     for (const k of ['augment', 'reinforce']) if (g[k]?.[op.side]?.by === op.uid) g[k][op.side] = null; // Augment Weapon / Reinforce Metal
     if (g.pechra?.[op.side]?.by === op.uid) g.pechra[op.side] = null; // the Tracker's Pech'ra marker
     // (Once per turning point, so switching to another operative before acting doesn't repeat it.)
-    if (op.poison && op.poisonTP !== g.tp) {
+    const hadPoison = !!op.poison, vents = op.poisonTP !== g.tp ? pmVents(g, op) : { dmg: 1 }; // (Poison Vents: Plague Marines equipment)
+    if (hadPoison && op.poisonTP !== g.tp) {
       op.poisonTP = g.tp;
-      log(g, { zh: `${opName(op, 'zh')} 中毒，啟動時受到 1 傷害`, en: `${opName(op, 'en')} is poisoned and takes 1 damage on activation` }, `side${op.side}`);
-      applyDamage(g, op, op, 1);
+      log(g, { zh: `${opName(op, 'zh')} 中毒，啟動時受到 ${vents.dmg} 傷害`, en: `${opName(op, 'en')} is poisoned and takes ${vents.dmg} damage on activation` }, `side${op.side}`);
+      applyDamage(g, op, op, vents.dmg);
     }
   }
   archonActivate(g, op);
@@ -2735,6 +2741,7 @@ export function effectiveRules(g, op, weapon, target) {
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
   pfRules(g, op, weapon, target, r); // Pathfinders: Pulse Accelerator
+  pmRules(g, op, weapon, target, r); // Plague Marines: Plague Rounds
   if (target && ffOn(g, op, 'sfArdent')) r.relentless = true; // Ardent Eradication
   if (target && isSC(op) && ffOn(g, op, 'scEmboldened') && scEmbOk(g, op, target)) r.promote = 1; // Emboldened Aspirant: a normal success is retained as a critical one
   if (target && ffOn(g, op, 'wkKaboom') && g.shotTargets?.[0] === target.uid) r.severe = true; // Kaboom!: Severe against the primary target
@@ -4363,7 +4370,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4371,7 +4378,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4407,6 +4414,7 @@ export function weaponsFor(g, op) {
   ws = [...ws, ...assetsFor(g, op)]; // Privateer Support Assets (Elucidian Starstriders)
   ws = ncWeapons(g, op, ws); // Preysight (Nemesis Claw): Range 6" and Seek Light versions
   ws = scWeapons(g, op, ws); // Combat Blades equipment (Scout Squad)
+  ws = pmWeapons(g, op, ws); // Blight Grenades equipment (Plague Marines)
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -4510,6 +4518,7 @@ function setupEquipment(g, side, ids) {
     if (id === 'ammo') g.markers.push({ id: g.markers.length, kind: 'ammo', owner: side, ...clearSpot(g, ownPoint(g, side, 7.5, 0.5)), carriedBy: null });
     if (id === 'ammo' && living(g, side).some((o) => tpl(o).wellStocked)) g.markers.push({ id: g.markers.length, kind: 'ammo', owner: side, ...clearSpot(g, ownPoint(g, side, 7.5, 0.5)), carriedBy: null }); // Well Stocked (Ratling Stashmaster): one more Ammo Cache
     if (id === 'utility') Object.assign(g.eqUses[side], { stun: 1, smoke: 1 });
+    if (id === 'pmBlight') g.eqUses[side].blight = 2; // Blight Grenades (Plague Marines): twice in the battle
     if (id === 'explosive') Object.assign(g.eqUses[side], { frag: 1, krak: 1 });
     if (id === 'lightBarricades') { wall(ownPoint(g, side, 10.5, 0.25), 3, 'light', inHalf); wall(ownPoint(g, side, 10.5, 0.75), 3, 'light', inHalf); }
     if (id === 'heavyBarricade') wall(ownPoint(g, side, 9, 0.5), 3.5, 'heavy', near4);
@@ -5159,7 +5168,7 @@ function dutyFree(g, side, holder, which) {
 export function commandReroll(g, side, holder, which, index) {
   if (!canCommandReroll(g, side, holder, which)) return false;
   const pool = holder[which === 'a' ? 'a' : 'd'], die = pool.dice[index];
-  if (!die || die.auto) return false;
+  if (!die || die.auto || die.locked) return false; // (locked: a 3 hit by Curse of Rot)
   const free = dutyFree(g, side, holder, which);
   if (free) holder.dutyUsed = true; else g.cp[side]--;
   (holder.rerolled ||= {})[which] = true;
@@ -5175,7 +5184,7 @@ export function commandReroll(g, side, holder, which, index) {
 export function aiRerollChoice(g, side, holder, which) {
   if (!canCommandReroll(g, side, holder, which) || g.cp[side] < 1) return -1;
   const pool = holder[which === 'a' ? 'a' : 'd'];
-  const misses = pool.dice.map((d, i) => [d, i]).filter(([d]) => !d.auto && d.res === 'miss');
+  const misses = pool.dice.map((d, i) => [d, i]).filter(([d]) => !d.auto && !d.locked && d.res === 'miss');
   if (!misses.length) return -1;
   if (which === 'a') return misses.length * 2 >= pool.dice.length ? misses[0][1] : -1;
   // Defence: worth it when more successful attack dice than defence successes are left.
@@ -5713,6 +5722,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (tpl(target).aspect === 'da' && d.dice.filter((x) => x.res === 'miss').length >= 2 && autoFF(g, target.side, 'avUnstinting', target)) {
     const m = d.dice.find((x) => x.res === 'miss'); m.res = 'norm'; m.indo = true; d.norms++; // (the other fail is the one discarded)
   }
+  pmCurse(g, op, target, d, tally); // Curse of Rot (Plague Marines): the shooter's ploy hits the 3s in the enemy's defence dice
   seq.d = d; seq.save = save; seq.defDice = defDice; seq.coverN = coverN; seq.coverC = coverC;
   yield { stage: 'defence', seq };
   // Fickle Fates (Legionaries): a ready Tzeentch operative that retains a critical save retains one fail as a normal save.
@@ -5912,6 +5922,7 @@ export function* shootFlow(g, op, weapon, target) {
   const relay = weapon.rules.detonate || weapon.rules.wkExplosive ? null : magnifyRelay(g, op, target, weapon);
   // (Mounted Exodite riders get no cover from Light terrain.)
   let vis = weapon.rules.detonate || weapon.rules.wkExplosive ? { visible: true, cover: false, obscured: false } : shotVisibility(g, relay || op, target, weapon, isMounted(target) ? { ignoreLight: true } : undefined);
+  if (pmCloud(g, op, target)) vis = { ...vis, obscured: true }; // Cloud of Flies (Plague Marines)
   // Fated Shot (Leystalker upgrade, once per TP): its long rifle's target can't be obscured.
   if (vis.obscured && weapon.group === 'edRifle' && hasUp(op, 'fated') && op.fatedTP !== g.tp) { op.fatedTP = g.tp; vis = { ...vis, obscured: false }; log(g, { zh: '命定一擊：目標不能被遮蔽', en: 'Fated Shot: the target cannot be obscured' }, `side${op.side}`); }
   if (weapon.rules.aimed) op.acted.aimedUsed = true; // (Aimed: no more than 3" of movement after it)
@@ -6126,6 +6137,7 @@ export function startFight(g, op, weapon, target) {
   claimBoost(g, op, target, aRoll); claimBoost(g, target, op, dRoll); // Stake Claim (Elucidian Starstriders)
   wkRoll(g, op, aRoll, target, tally); wkRoll(g, target, dRoll, op, tally); // Wrecka Rampage (fighting or retaliating)
   sfRoll(g, op, aRoll, tally); sfRoll(g, target, dRoll, tally); // Purity Seals (Sanctifiers)
+  pmCurse(g, op, target, dRoll, tally); pmCurse(g, target, op, aRoll, tally); // Curse of Rot (Plague Marines)
   adRoll(g, op, aRoll, tally); adRoll(g, target, dRoll, tally); // Purity Seals (Angels of Death)
   spend(g, op, 'fight');
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons

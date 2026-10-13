@@ -182,6 +182,8 @@ const flail = W('flail', '腐化連枷', 'Flail of Corruption', 'melee', 5, 3, 4
 const corruptedStaff = W('corruptedStaff', '腐化法杖', 'Corrupted staff', 'melee', 4, 3, 3, 4, { psychic: true, severe: true, shock: true, stun: true, poison: true });
 const plagueKnife5 = W('plagueKnife5', '瘟疫匕首', 'Plague knife', 'melee', 5, 3, 3, 4, { severe: true, poison: true });
 const fistsPM = W('fistsPM', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
+const boltgunW = W('boltgunW', '爆彈槍', 'Boltgun', 'ranged', 4, 3, 3, 4, { toxic: true });
+const plagueKnife4 = W('plagueKnife4', '瘟疫匕首', 'Plague knife', 'melee', 4, 3, 3, 4, { severe: true, poison: true });
 
 // ---- Farstalker Kinband ----
 const krootRifle = W('krootRifle', '克魯特步槍', 'Kroot rifle', 'ranged', 4, 4, 3, 4);
@@ -877,7 +879,13 @@ export const TEAMS = [
         desc: { zh: '本回合敵人若中毒且在友方 3" 內可見，或在掌旗手 3" 內可見：Move -2"、武器命中變差 1（不與重傷累加）。掌旗手在敵方領域時 0CP。', en: 'This TP, an enemy that is poisoned and visible within 3" of a friendly operative, or visible within 3" of the Icon Bearer, gets -2" Move and worsens its weapons\' Hit by 1 (not cumulative with injured). 0CP while the Icon Bearer is in enemy territory.' } },
       { id: 'lumbering', cp: 1, name: { zh: '笨重死神', en: 'Lumbering Death' },
         desc: { zh: '本回合友方在本次啟動移動不超過 3" 時射擊或近戰，以及反擊時，武器獲得「無休」。', en: 'This TP, friendly weapons have Ceaseless when shooting or fighting in an activation in which the operative moved no more than 3", and when retaliating.' } },
+      { id: 'cloudFlies', cp: 1, name: { zh: '蒼蠅雲', en: 'Cloud of Flies' },
+        desc: { zh: '在戰場放一個蒼蠅雲標記（自動放在最前線的友方身上）：敵人射擊離標記超過 3"、且完全在標記 1" 內的友方瘟疫戰士時，該友方被遮蔽。下個策略階段的準備步驟移除。', en: 'Place a Cloud of Flies marker (automatically on the front-most friendly): when an operative shoots a friendly PLAGUE MARINE more than 3" from the marker and wholly within 1" of it, that friendly is obscured. Removed in the Ready step of the next Strategy phase.' } },
+      { id: 'nurglings', cp: 1, name: { zh: '寧古蘭', en: 'Nurglings' },
+        desc: { zh: '選友方瘟疫戰士 3" 內的一名敵人（或 7" 內且有你的中毒標記的敵人）：到它下次啟動結束 APL -1。（自動選 APL 最高的）', en: 'Pick an enemy within 3" of a friendly PLAGUE MARINE (or within 7" with one of your Poison tokens): -1 APL until the end of its next activation. (The highest APL is chosen automatically.)' } },
     ],
+    // The Champion plus five of the six others (each once).
+    replacements: Object.fromEntries(['bombardier', 'fighter', 'heavyGunner', 'icon', 'caster'].map((id) => [id, ['bombardier', 'fighter', 'heavyGunner', 'icon', 'caster', 'warrior']])),
     ops: [
       op('champion', '瘟疫戰士冠軍', 'Plague Marine Champion', { apl: 3, move: 5, save: 3, wounds: 15, base: 32, blessing: true }, [plasmaPistolStd, plasmaPistolSup, plagueSword]),
       op('bombardier', '瘟疫戰士轟炸兵', 'Plague Marine Bombardier', { apl: 3, move: 5, save: 3, wounds: 14, base: 32 }, [boltgunPM, blightGrenade, krakGrenadePM, fistsPM]),
@@ -885,6 +893,7 @@ export const TEAMS = [
       op('heavyGunner', '瘟疫戰士重火力手', 'Plague Marine Heavy Gunner', { apl: 3, move: 5, save: 3, wounds: 14, base: 32 }, [boltPistolPM, plagueSpewer, fistsPM]),
       op('icon', '瘟疫戰士掌旗手', 'Plague Marine Icon Bearer', { apl: 3, move: 5, save: 3, wounds: 14, base: 32, iconBearer: true }, [boltPistolPM, plagueKnife5]),
       op('caster', '惡毒瘟疫術士', 'Malignant Plaguecaster', { apl: 3, move: 5, save: 3, wounds: 14, base: 32, miasma: true, vitality: true }, [entropy, plagueWind, corruptedStaff]),
+      op('warrior', '瘟疫戰士', 'Plague Marine Warrior', { apl: 3, move: 5, save: 3, wounds: 14, base: 32, repulsive: true }, [boltgunW, plagueKnife4], 0),
     ],
   },
   {
@@ -2426,6 +2435,7 @@ const FIREFIGHT = {
     ff('sickeningResilience', '令人作嘔的堅韌', 'Sickening Resilience', '自動：受到重傷時，本次行動中「令人作嘔的韌性」不用擲骰，3 以上的傷害一律 -1（最低 2）。', 'Auto: when badly hit, for the rest of the activation Disgustingly Resilient takes 1 off every 3+ damage (min 2) without rolling.'),
     ff('virulentPoison', '劇毒瘟疫', 'Virulent Poison', '啟動中：3" 內或 7" 內看得到的一名敵人中毒。', 'During an activation: an enemy within 3", or visible within 7", is poisoned.'),
     ff('poisonousDemise', '劇毒之死', 'Poisonous Demise', '自動：友方殘廢時，3" 內看得到的敵人中毒（已中毒的受 1 傷害）。', 'Auto: when a friendly falls, enemies visible within 3" are poisoned (1 damage if they already were).'),
+    ff('curseOfRot', '腐朽詛咒', 'Curse of Rot', '自動：友方瘟疫戰士射擊或近戰 3" 內（有中毒標記則 7" 內）的敵人，對手擲完攻擊或防禦骰後：對手每擲出一個 3，那名敵人受 1 傷害，這個 3 不能保留為成功也不能重擲。', 'Auto: when a friendly PLAGUE MARINE shoots or fights an enemy within 3" (7" if it has a Poison token), after the opponent rolls their dice: for each 3 they roll, that enemy takes 1 damage; the 3 can\'t be retained and can\'t be re-rolled.'),
   ],
   wyrmblade: [
     ff('slink', '遁入黑暗', 'Slink into Darkness', '啟動中：啟動結束時從交戰改回隱蔽（每名整場一次）。', 'During an activation: switch from Engage back to Conceal when it ends (once per operative per battle).'),
