@@ -756,6 +756,10 @@ export function aiStep(g) {
     const t = TARGET_ACTIONS.canoptekControl.targets(g, op).filter((o) => atkScore(o) > 0).sort((a, b) => atkScore(b) - atkScore(a))[0];
     if (t) { doTargetAction(g, op, 'canoptekControl', t); return null; }
   }
+  if (can.remotePilot) { // Pathfinder Drone Controller: a drone that can attack (or has markers to place) takes a free action
+    const t = TARGET_ACTIONS.remotePilot.targets(g, op).filter((o) => !(op.acted.pilotDone?.[o.uid]?.length) && atkScore(o) > 0).sort((a, b) => atkScore(b) - atkScore(a))[0];
+    if (t) { doTargetAction(g, op, 'remotePilot', t); return null; }
+  }
   if (can.nanoscarab) {
     const t = TARGET_ACTIONS.nanoscarab.targets(g, op).filter((o) => o.maxW - o.wounds >= 4).sort((a, b) => (b.maxW - b.wounds) - (a.maxW - a.wounds))[0];
     if (t) { doTargetAction(g, op, 'nanoscarab', t); return null; }

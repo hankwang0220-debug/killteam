@@ -338,7 +338,7 @@ function shortName(o) {
 // ---------- operative role icons ----------
 const LEADER_NAME = /sergeant|leader|boss|nob\b|captain|commander|exarch|archon|felarch|shas'ui|chieftain|watchmaster|champion|despotek|technomancer|geomancer|theyn|sorcerer|superior|patriarch|primus|magus|proctor|kill broker|technoarcheologist|alpha|kommando boss|veteran sergeant|brother-sergeant|cryptek|tyrant|keeper|kâhl|kahl|herald|lord/i;
 const SUPPORT_KEYS = ['signal', 'signalAny', 'support', 'jam', 'jamToken', 'markerlight', 'panScan', 'systemJam', 'pulse', 'auspex', 'battleComms', 'tacticalCommand',
-  'canoptekControl', 'networkOverride', 'overcharge', 'datacoronal', 'omniscanner', 'eyeAbove', 'pechra', 'veriscant', 'interstitial', 'confidant', 'tactician'];
+  'canoptekControl', 'remotePilot', 'networkOverride', 'overcharge', 'datacoronal', 'omniscanner', 'eyeAbove', 'pechra', 'veriscant', 'interstitial', 'confidant', 'tactician'];
 export const ROLE_ICON = { leader: '★', medic: '✚', psyker: '✦', support: '◎', heavy: '◆', melee: '⚔', ranged: '⌖' };
 /** The role icon as SVG shapes (drawn, not a font glyph, so it reads the same everywhere), centred on 0,0 with half-size s. */
 export function roleGlyph(role, s = 0.22) {

@@ -1038,6 +1038,11 @@ export function endActivation(g) {
   // activation; otherwise the opponent activates as normal.
   if (net && wasCounter) {
     const back = net.resume && getOp(g, net.resume);
+    // Remote Pilot: note which free actions the drone took, so it can't repeat one this activation.
+    if (net.pilotOf && back && !back.dead) {
+      const dr = getOp(g, net.only[0]), done = ((back.acted.pilotDone ||= {})[net.only[0]] ||= []);
+      if (dr) for (const k of Object.keys(dr.acted || {})) if (!['unseen', 'free', 'movedDist', 'accelerant'].includes(k) && !done.includes(k)) done.push(k);
+    }
     if (back && !back.dead) { g.active = back.uid; g.turn = back.side; g.counter = net.resumeCounter; return; }
     handOff(g, net.side); return;
   }
@@ -1367,6 +1372,7 @@ export const ACTIONS = {
   speakDeeds: { ap: 1, name: { zh: '宣揚她的事蹟', en: 'Speak of Her Deeds' } },
   geomantic: { ap: 1, name: { zh: '地占擾動', en: 'Geomantic Disturbance' } },
   canoptekControl: { ap: 1, name: { zh: '冥工控制', en: 'Canoptek Control' } },
+  remotePilot: { ap: 1, name: { zh: '遙控操作', en: 'Remote Pilot' } },
   molecularBreach: { ap: 1, name: { zh: '分子穿越', en: 'Molecular Breach' } },
   overcharge: { ap: 1, name: { zh: '超載', en: 'Overcharge' } },
   cranialOverload: { ap: 1, name: { zh: '顱腦過載', en: 'Cranial Overload' } },
@@ -1827,6 +1833,18 @@ export const TARGET_ACTIONS = {
       return { zh: `冥工控制：${opName(t, 'zh')} 立刻免費執行一個 1AP 動作（移動不超過 2"）`, en: `Canoptek Control: ${opName(t, 'en')} performs a free 1AP action now (moving no more than 2")` };
     },
   },
+  // Remote Pilot (Pathfinder Drone Controller): a friendly DRONE performs one free action (moving no more than 2") — even one its Drone
+  // rule restricts — then the Controller's activation continues. A drone can't repeat the same free action in one activation.
+  remotePilot: {
+    targets: (g, op) => living(g, op.side).filter((t) => t !== op && isDrone(t) && sameTeam(t, op) && !t.reserve),
+    apply(g, op, t) {
+      const done = (op.acted.pilotDone ||= {})[t.uid] || [];
+      const all = ['reposition', 'dash', 'charge', 'fallBack', 'shoot', 'fight', 'markerlight', 'pickUp', ...missionActionsFor(g, op.side)];
+      g.netcounter = { side: op.side, only: [t.uid], resume: op.uid, resumeCounter: !!g.counter, kind: 'control', onlyActions: all.filter((a) => !done.includes(a)), ctlMove: 2, pilotOf: op.uid };
+      g.active = null; g.counter = true; g.turn = op.side;
+      return { zh: `遙控操作：${opName(t, 'zh')} 立刻免費執行一個動作（移動不超過 2"），之後繼續本次啟動`, en: `Remote Pilot: ${opName(t, 'en')} performs a free action now (moving no more than 2"), then this activation continues` };
+    },
+  },
   // Molecular Breach (Geomancer, SUPPORT): the friendly's next move is a teleport within its Move (3" for a Dash).
   molecularBreach: {
     targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && !t.breachMove && (t === op || visibility(g, op, t).visible)
@@ -2188,6 +2206,7 @@ export function availableActions(g, op) {
   if (tpl(op).knux) add('knuxSmash', engaged && !count(op, 'knuxSmash'), !engaged ? { zh: '控制範圍內沒有敵人', en: 'No enemy in control range' } : DONE);
   if (tpl(op).systemJam) unique('systemJam', !conceal, CONC);
   if (tpl(op).medikit) unique('medikit');
+  if (tpl(op).droneController) add('remotePilot', !engaged && !op.counter && TARGET_ACTIONS.remotePilot.targets(g, op).length > 0, engaged ? ENG : op.counter ? { zh: '反擊時不能執行', en: 'Not while counteracting' } : NONE); // Remote Pilot (Pathfinder Drone Controller): repeatable
   if (tpl(op).veriscant) unique('veriscant');
   // Elucidian Starstriders.
   if (TEAM_MAP[op.team].starstriders) {
