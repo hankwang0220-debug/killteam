@@ -41,7 +41,7 @@ import {
   sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
   goreOf, SANGUAVITAE, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
   resourceLeft, resourceOptions, useResource,
-  readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
+  readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, ffReady, nodePlace, nodeMove, animateBegin, animateMove, animateEnd, nodalChoose, nodesDone, nodesLeftToPlace, nodeList, placeNodes, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
 import { renderBoard, tokenLegend, roleGlyph, roleOf } from './board.js';
 import { distPointRect } from './geometry.js';
@@ -1219,6 +1219,21 @@ function gambitView(side) {
       ${dkGambitOk(g, side, 'chrono') ? `<button data-act="dkgambit" data-side="${side}" data-id="chrono">${L('懷錶：友方免費衝刺（整場一次）', 'Chronometer: free Dashes (once per battle)')}</button>` : ''}
       ${dkGambitOk(g, side, 'gas') ? `<button data-act="dkgambit" data-side="${side}" data-id="gas">${L('毒氣轟炸：放毒氣標記（整場一次）', 'Gas Bombardment: place the Gas marker (once per battle)')}</button>` : ''}</div>`;
   }
+  if (team(g, side).obeliskNodes && !isAI(side)) { // Canoptek Circle: the obelisk nodes are placed / moved by hand
+    const left = nodesLeftToPlace(g, side), done = g.nodeTP?.[side] === g.tp, mode = ui.nodeMode?.side === side ? ui.nodeMode : null;
+    html += `<div class="gambit"><h4>${L('方尖碑節點（策略謀略）', 'Obelisk nodes (strategic gambit)')}</h4>`;
+    if (g.tp === 1) {
+      html += left > 0
+        ? `<p class="hint small">${L(`第一回合：在己方領域內放置 3 個節點（還差 ${left} 個）。按下後點擊戰場。`, `First turning point: place your three nodes wholly in your territory (${left} to go). Tap the board after pressing the button.`)}</p>
+           <div class="row"><button class="${mode ? 'on' : ''}" data-act="nodemode" data-side="${side}" data-m="place">${mode ? L('取消放置', 'Cancel') : L('放置節點', 'Place nodes')}</button><button data-act="nodeauto" data-side="${side}">${L('自動放置', 'Auto place')}</button></div>`
+        : `<p class="hint small">${L('3 個節點都放好了。', 'All three nodes are placed.')}</p>`;
+    } else {
+      html += done ? `<p class="hint small">${L('本回合節點已處理完。', 'The nodes are settled for this turning point.')}</p>`
+        : `<p class="hint small">${L('每個節點可水平移動最多 3"：按「移動節點」，點一個節點再點目的地。不想移動就按「完成」。', 'Each node can move up to 3" horizontally: press Move nodes, tap a node, then its destination. Press Done to skip.')}</p>
+           <div class="row"><button class="${mode ? 'on' : ''}" data-act="nodemode" data-side="${side}" data-m="move">${mode ? L('取消移動', 'Cancel') : L('移動節點', 'Move nodes')}</button><button data-act="nodesdone" data-side="${side}">${L('完成', 'Done')}</button></div>`;
+    }
+    html += '</div>';
+  }
   const kb = living(g, side).find((o) => tpl(o).callTheKill);
   if (kb) {
     const cur = g.mark?.[side];
@@ -1572,6 +1587,8 @@ function firefightPanel() {
       : `<p class="hint">${L('選擇一名「準備中」的操作員啟動（點擊棋子或下方名單）。', 'Choose a ready operative to activate (tap it on the board or below).')}</p>`;
     if (g.teams[g.turn] === 'handOfArchon') html += `<button data-act="painskip">${L('惡劣傲慢：跳過啟動機會（1CP）', 'Heinous Arrogance: skip activation opportunity (1CP)')}</button>`;
     if (canForeboding(g, g.turn)) html += `<button data-act="foreboding">${L('預感：花 1 點預知點數跳過這次啟動（每回合一次）', 'Foreboding: spend 1 Prescience point to skip this activation (once per TP)')}</button>`;
+    if (!g.animating && !isAI(g.turn) && TEAM_MAP[g.teams[g.turn]]?.obeliskNodes && ffReady(g, g.turn, 'animateNodes')) html += `<button data-act="animate">${L('驅動方尖碑節點（跳過這次啟動）', 'Animate Obelisk Nodes (instead of activating)')}</button>`;
+    if (g.animating) html += `<p class="hint">${L(`驅動中：點節點再點目的地，還剩 ${g.animating.left}"。`, `Animating: tap a node, then its destination — ${g.animating.left}" left.`)}</p><button class="primary" data-act="animateend">${L('完成', 'Done')}</button>`;
     if (canBribe(g, g.turn)) html += `<button data-act="bribe">${L('貿易許可證「賄賂」：跳過這次啟動（整場一次）', 'Warrant of Trade — Bribe: skip this activation (once per battle)')}</button>`;
     html += `<div class="readylist">${ready.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`;
     const sel = ui.sel && getOp(g, ui.sel);
@@ -1623,6 +1640,10 @@ function firefightPanel() {
         const p = ffDef(g, op.side, b.id);
         return `<button data-act="ffuse" data-id="${b.id}" ${b.ok ? '' : 'disabled'} title="${esc(tx(p.desc))}${b.why ? ` — ${esc(tx(b.why))}` : ''}">${esc(tx(p.name))} <span class="cp">${b.cp}CP</span></button>`;
       }).join('')}</div></div>`;
+    }
+    if (g.nodalOpen === op.side) {
+      const used = g.ploys[op.side].filter((id) => team(g, op.side).ploys.some((p) => p.id === id));
+      html += `<div class="ffploys"><h4>${L('節點回應', 'Nodal Response')}</h4><div class="row"><select id="nodalNew">${team(g, op.side).ploys.map((p) => `<option value="${p.id}">${esc(tx(p.name))} (${p.cp}CP)</option>`).join('')}</select><select id="nodalOld"><option value="">${L('— 現在使用 —', '— use now —')}</option>${used.map((id) => `<option value="${id}">${L('改掉：', 'Change: ')}${esc(tx(team(g, op.side).ploys.find((p) => p.id === id).name))}</option>`).join('')}</select><button data-act="nodal">${L('確定', 'Confirm')}</button></div></div>`;
     }
     if (op.ap <= 0 && !freePending(op)) html += `<p class="hint small">${L('AP 已用完：可以回復上一動作，或結束啟動。', 'Out of AP: undo the last action or end the activation.')}</p>`;
   }
@@ -2477,6 +2498,33 @@ function onBoardClick(evt) {
     ui.path=path?{...path,ok,r:radius(o),why:ok?'':L('終點不符合此能力限制，或移動距離不足。','Endpoint violates this ability or exceeds movement.')}:null;
     return render();
   }
+  if (g.animating && !isAI(g.animating.side)) { // Animate Obelisk Nodes: tap a node, then where it goes
+    const side = g.animating.side, p = svgPoint(evt);
+    if (ui.animUid == null) {
+      const n = nodeList(g, side).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+      if (n && Math.hypot(n.x - p.x, n.y - p.y) <= 2) { ui.animUid = n.id; ui.notice = L(`再點目的地（還剩 ${g.animating.left}"）。`, `Now tap the destination (${g.animating.left}" left).`); }
+      return render();
+    }
+    if (animateMove(g, side, ui.animUid, p)) { ui.animUid = null; return afterChange(); }
+    ui.notice = L('超過剩餘距離或位置不合法。', 'Beyond the distance left, or an illegal spot.');
+    return render();
+  }
+  if (g.phase === 'strategy' && ui.nodeMode && !isAI(ui.nodeMode.side)) { // Canoptek Circle: placing or moving an obelisk node
+    const side = ui.nodeMode.side, p = svgPoint(evt);
+    if (ui.nodeMode.kind === 'place') {
+      if (nodePlace(g, side, p)) { if (!nodesLeftToPlace(g, side)) ui.nodeMode = null; return afterChange(); }
+      ui.notice = L('節點要完全放在己方領域內、不能壓在地形或標記上。', 'A node goes wholly within your territory, clear of terrain and markers.');
+      return render();
+    }
+    if (ui.nodeMode.uid == null) {
+      const n = nodeList(g, side).filter((m) => m.movedTP !== g.tp).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+      if (n && Math.hypot(n.x - p.x, n.y - p.y) <= 2) { ui.nodeMode.uid = n.id; ui.notice = L('再點目的地（最多 3"）。', 'Now tap the destination (3" at most).'); }
+      return render();
+    }
+    if (nodeMove(g, side, ui.nodeMode.uid, p)) { ui.nodeMode.uid = null; return afterChange(); }
+    ui.notice = L('超過 3" 或位置不合法。', 'More than 3", or an illegal spot.');
+    return render();
+  }
   if (g.phase === 'deploy' && g.eqDeploy && !g.eqDeploy.done) {
     if (isAI(g.eqDeploy.turn)) return;
     if (placeEquipment(g, svgPoint(evt), !!ui.eqRotated)) { ui.eqRotated = false; return afterChange(); }
@@ -2899,6 +2947,9 @@ function handle(act, d) {
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'nodemode': ui.nodeMode = ui.nodeMode?.side === +d.side && ui.nodeMode.kind === d.m ? null : { side: +d.side, kind: d.m, uid: null }; return render();
+    case 'nodeauto': placeNodes(g, +d.side); ui.nodeMode = null; return afterChange();
+    case 'nodesdone': nodesDone(g, +d.side); ui.nodeMode = null; return afterChange();
     case 'dkfree': {
       const s = +d.side, n = dkFreeCount(TEAM_MAP.deathKorps, ui.setup.roster?.[s] || {}), cur = cleanDkFree(ui.setup.dkFree?.[s] ?? DEFAULT_DK_FREE, n);
       const i = cur.indexOf(d.id);
@@ -3016,6 +3067,9 @@ function handle(act, d) {
       return afterChange();
     }
     case 'unroll': ui.pending = null; ffClearPending(g); proxyMode(); return render();
+    case 'animate': undoable(() => animateBegin(g, g.turn)); ui.animUid = null; return afterChange();
+    case 'animateend': undoable(() => animateEnd(g, g.animating.side)); ui.animUid = null; return afterChange();
+    case 'nodal': undoable(() => nodalChoose(g, op.side, document.getElementById('nodalNew').value, document.getElementById('nodalOld').value || null)); return afterChange();
     case 'ffuse': undoable(() => useFFButton(g, op, d.id)); return afterChange();
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack

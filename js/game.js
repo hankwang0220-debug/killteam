@@ -13,6 +13,7 @@ import { ANGELS_EQUIPMENT } from './data/angels.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
+import { CANOPTEK_EQUIPMENT } from './data/canoptek.js';
 import { DEATHKORPS_EQUIPMENT } from './data/deathkorps.js';
 import { dkSetup, dkFreeHas, dkAdaptiveFree, dkBeadsOn, dkBeadsTarget, dkLeadership, dkLifeShame, dkVeteranActivate, dkDeath, dkPloyBought, dkGasApl, dkReady, dkWeapons, dkActions, dkSelf, registerDeathKorpsActions, hasOrder } from './deathkorps.js';
 import { kfSetup, kfActions, kfSelf, kfActivate, kfQuickDraw, kfShootStart, kfShootEnd, kfRules, kfGatherFree, registerKinbandActions } from './kinband.js';
@@ -983,6 +984,7 @@ export function activate(g, op) {
   sfActivate(g, op); // Sanctifiers: the Sermon for this activation, Blaze token damage
   pfActivate(g, op); // Pathfinders: Point-Blank Fusillade snapshot, Pulse Accelerator and Photon Grenade tokens
   kfActivate(g, op); // Farstalker Kinband: Meat, Trophy
+  ccManipActivate(g, op); // Canoptek Circle: Matrix Manipulator
   dkVeteranActivate(g, op); // Death Korps: the Veteran receives an order
 }
 
@@ -1024,6 +1026,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side // Ba
 
 export function endActivation(g) {
   const op = activeOp(g);
+  g.ccManip = null; g.nodalOpen = null;
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
@@ -2996,6 +2999,7 @@ export function effectiveRules(g, op, weapon, target) {
   if (target && TEAM_MAP[target.team]?.marksOfChaos && hasPloy(g, target.side, 'implacable') && r.piercing === 1) { delete r.piercing; r.piercingCrits = Math.max(r.piercingCrits || 0, 1); } // Implacable
   // ---- Universal equipment ----
   if (weapon.type === 'ranged' && op.ammoTP === g.tp && !weapon.rules.equipGrenade) r.balanced = true; // Ammo Cache: re-roll one attack die
+  if (target && g.ccPhase === target.uid) { if (r.piercing) r.piercing = Math.max(0, r.piercing - 1); if (r.piercing === 0) delete r.piercing; }
   if (target && g.smoke?.length && inSmoke(g, target) && edgeDist(op, target) > 2) { if (r.piercing === 2) r.piercing = 1; if (r.piercingCrits === 2) r.piercingCrits = 1; } // smoke
   // ---- Firefight ploys ----
   if (ffOn(g, op, 'combinedArms') || ffOn(g, op, 'engageToAcquire')) r.relentless = true; // re-roll any attack dice
@@ -3984,7 +3988,8 @@ const isCC = (op) => !!TEAM_MAP[op.team]?.obeliskNodes;
 const nodesOf = (g, side) => (g.markers || []).filter((m) => m.kind === 'obeliskNode' && m.owner === side);
 /** The matrix: the lines between this side's obelisk nodes that are within 6" of each other. */
 function matrixSegs(g, side) {
-  const n = nodesOf(g, side), segs = [];
+  const n = nodesOf(g, side).slice(), segs = [];
+  if (g.ccManip?.side === side) { const geo = g.ops.find((o) => o.uid === g.ccManip.uid && !o.dead); if (geo) n.push(geo); }
   for (let i = 0; i < n.length; i++) for (let j = i + 1; j < n.length; j++) if (dist(n[i], n[j]) <= 6) segs.push([n[i], n[j]]);
   return segs;
 }
@@ -4003,9 +4008,111 @@ const matrixBetween = (g, side, from, to) => matrixSegs(g, side).some(([a, b]) =
 const matrixCovers = (g, side, shooter, target) => inMatrix(g, side, target) || (!!shooter && matrixBetween(g, side, shooter, target));
 const souldrained = (g, o, foe) => o.side < 2 && foe.side < 2 && TEAM_MAP[g.teams[1 - o.side]]?.obeliskNodes && hasPloy(g, 1 - o.side, 'souldrain')
   && !isCC(o) && (inMatrix(g, 1 - o.side, o) || (isCC(foe) && inMatrix(g, foe.side, foe)));
+/** Manual set-up: the next obelisk node goes where the player taps (wholly in the territory, first turning point). */
+export function nodePlace(g, side, p) {
+  if (!TEAM_MAP[g.teams[side]].obeliskNodes || g.tp !== 1 || g.phase !== 'strategy' || nodesOf(g, side).length >= 3) return false;
+  const b = boardOf(g);
+  if (p.x < 0.5 || p.y < 0.5 || p.x > b.w - 0.5 || p.y > b.h - 0.5) return false;
+  if (territoryOf(g, { x: p.x - 0.4, y: p.y - 0.4 }) !== side || territoryOf(g, { x: p.x + 0.4, y: p.y + 0.4 }) !== side) return false; // wholly within the territory
+  if (g.terrain.some((t) => distPointRect(p, t) < 0.5) || [...g.objectives, ...g.markers].some((m) => dist(m, p) < 0.8)) return false;
+  g.markers.push({ id: g.markers.length, kind: 'obeliskNode', owner: side, x: p.x, y: p.y, carriedBy: null });
+  if (nodesOf(g, side).length === 3) {
+    (g.nodeTP ||= [0, 0])[side] = g.tp;
+    log(g, { zh: `${teamZh(g, side)} 放置 3 個方尖碑節點`, en: `${team(g, side).name.en} sets up its three obelisk nodes` }, `side${side}`);
+  }
+  return true;
+}
+/** Manual move: one obelisk node up to 3" (turning points after the first), once each. */
+export function nodeMove(g, side, uid, p) {
+  const n = nodesOf(g, side).find((m) => m.id === uid);
+  if (!n || g.tp < 2 || g.phase !== 'strategy' || n.movedTP === g.tp) return false;
+  const b = boardOf(g);
+  if (p.x < 0.5 || p.y < 0.5 || p.x > b.w - 0.5 || p.y > b.h - 0.5 || dist(n, p) > 3 + 0.01) return false;
+  if (g.terrain.some((t) => distPointRect(p, t) < 0.5)) return false;
+  const from = { x: n.x, y: n.y };
+  n.x = p.x; n.y = p.y; n.movedTP = g.tp;
+  log(g, { zh: `${teamZh(g, side)} 方尖碑節點移動 ${dist(from, p).toFixed(1)}"`, en: `${team(g, side).name.en} moves an obelisk node ${dist(from, p).toFixed(1)}"` }, `side${side}`);
+  return true;
+}
+// ---------- Canoptek Circle: Nodal Response, Animate Obelisk Nodes, faction equipment ----------
+const ccEquip = (g, side, id) => !!g.equip?.[side]?.includes(id);
+/** Awakened Obelisk Nodes: after revealing it, D3 uses of Animate Obelisk Nodes cost 0CP. */
+const ccAwakenedFree = (g, side, id) => id === 'animateNodes' && (g.awakened?.[side] || 0) > 0;
+/** Phase Shifter: once per TP, the first shot at the Geomancer has Piercing worsened by 1. */
+function ccPhaseStart(g, op, target) {
+  g.ccPhase = null;
+  if (!target || target.side > 1 || !tpl(target).ccLeader || !ccEquip(g, target.side, 'ccPhase') || g.ccPhaseTP?.[target.side] === g.tp) return;
+  (g.ccPhaseTP ||= [0, 0])[target.side] = g.tp; g.ccPhase = target.uid;
+  log(g, { zh: '相位轉換器：這次射擊的穿甲 -1', en: 'Phase Shifter: Piercing is worsened by 1 for this shot' }, `side${target.side}`);
+}
+/** Matrix Manipulator: once per battle, in an activation, the Geomancer counts as a fourth node until it ends (used when it would add a line to the matrix). */
+function ccManipActivate(g, op) {
+  if (!g.counter && isCC(op) && op.side < 2 && ccEquip(g, op.side, 'ccCaskets') && op.wounds < op.maxW) { const h = Math.min(op.maxW - op.wounds, d3()); op.wounds += h; log(g, { zh: `納米甲蟲匣：${opName(op, 'zh')} 回復 ${h} 生命`, en: `Nanoscarab Caskets: ${opName(op, 'en')} regains ${h} wounds` }, `side${op.side}`); }
+  g.ccManip = null;
+  if (g.counter || !isCC(op) || op.side > 1 || !ccEquip(g, op.side, 'ccManip') || g.ccManipUsed?.[op.side] || inMatrix(g, op.side, op)) return;
+  const geo = living(g, op.side).find((o) => tpl(o).ccLeader);
+  if (!geo) return;
+  g.ccManip = { side: op.side, uid: geo.uid };
+  if (!inMatrix(g, op.side, op)) { g.ccManip = null; return; }
+  (g.ccManipUsed ||= [false, false])[op.side] = true;
+  log(g, { zh: '矩陣操縱器：地占術士視為第四個方尖碑節點，直到這次啟動結束', en: 'Matrix Manipulator: the Geomancer counts as a fourth obelisk node until the end of this activation' }, `side${op.side}`);
+}
+/** Reveal Awakened Obelisk Nodes (when the equipment is first used): rolls one D3. */
+function ccRevealAwakened(g, side) {
+  if (!ccEquip(g, side, 'ccAwakened') || g.awakened?.[side] != null) return;
+  (g.awakened ||= [null, null])[side] = d3();
+  log(g, { zh: `覺醒方尖碑節點：可以 0CP 使用「驅動方尖碑節點」${g.awakened[side]} 次`, en: `Awakened Obelisk Nodes: Animate Obelisk Nodes is free ${g.awakened[side]} time(s)` }, `side${side}`);
+}
+/** Animate Obelisk Nodes: instead of activating, move nodes up to 6" in all (each distance rounded up). */
+export function animateBegin(g, side) {
+  if (g.phase !== 'firefight' || g.turn !== side || g.active || g.counter || g.animating || !TEAM_MAP[g.teams[side]].obeliskNodes || !nodesOf(g, side).length) return false;
+  ccRevealAwakened(g, side);
+  if (!ffReady(g, side, 'animateNodes')) return false;
+  const free = ccAwakenedFree(g, side, 'animateNodes');
+  if (free) g.awakened[side]--;
+  g.ccFree = free; spendFF(g, side, 'animateNodes'); g.ccFree = false;
+  g.animating = { side, left: 6 };
+  return true;
+}
+export function animateMove(g, side, uid, p) {
+  const a = g.animating, n = a && a.side === side && nodesOf(g, side).find((m) => m.id === uid);
+  if (!n) return false;
+  const b = boardOf(g), d = Math.ceil(dist(n, p) - 1e-6);
+  if (p.x < 0.5 || p.y < 0.5 || p.x > b.w - 0.5 || p.y > b.h - 0.5 || d > a.left || g.terrain.some((t) => distPointRect(p, t) < 0.5)) return false;
+  n.x = p.x; n.y = p.y; a.left -= d;
+  return true;
+}
+export function animateEnd(g, side) {
+  if (!g.animating || g.animating.side !== side) return false;
+  log(g, { zh: `${teamZh(g, side)} 驅動方尖碑節點（用掉 ${6 - g.animating.left}"）`, en: `${team(g, side).name.en} animates its obelisk nodes (${6 - g.animating.left}" used)` }, `side${side}`);
+  g.animating = null;
+  handOff(g, side);
+  return true;
+}
+/** Nodal Response (opened by the firefight button): use a strategy ploy now, or change one already used this TP (extra CP only if dearer). */
+export function nodalChoose(g, side, newId, oldId = null) {
+  if (g.nodalOpen !== side) return false;
+  const ploy = team(g, side).ploys.find((p) => p.id === newId), old = oldId && team(g, side).ploys.find((p) => p.id === oldId);
+  if (!ploy || (oldId && (!old || !g.ploys[side].includes(oldId)))) return false;
+  if (!old && ployTaken(g, side, ploy)) return false;
+  if (old && ployTaken({ ...g, ploys: g.ploys.map((l, i) => (i === side ? l.filter((x) => x !== oldId) : l)) }, side, ploy)) return false;
+  const cost = old ? Math.max(0, ployCost(g, side, ploy) - old.cp) : ployCost(g, side, ploy);
+  if (g.cp[side] < cost) return false;
+  g.cp[side] -= cost;
+  if (old) g.ploys[side][g.ploys[side].indexOf(oldId)] = newId; else g.ploys[side].push(newId);
+  pmPloyBought(g, side, ploy); kmPloyBought(g, side, ploy); pfPloyBought(g, side, ploy); dkPloyBought(g, side, ploy); adPloyBought(g, side, ploy);
+  g.nodalOpen = null;
+  log(g, { zh: `${teamZh(g, side)} 節點回應：${old ? `「${old.name.zh}」改為` : '使用'}「${ploy.name.zh}」`, en: `${team(g, side).name.en} Nodal Response: ${old ? `${old.name.en} becomes ` : 'uses '}${ploy.name.en}` }, `side${side}`);
+  return true;
+}
+/** The player is done with the nodes this turning point (moved as far as they wished). */
+export function nodesDone(g, side) { (g.nodeTP ||= [0, 0])[side] = g.tp; }
+export const nodesLeftToPlace = (g, side) => (g.tp === 1 ? 3 - nodesOf(g, side).length : 0);
+export const nodeList = (g, side) => nodesOf(g, side);
 /** Nodes: set up in the first Strategy phase (in your territory), then moved up to 3" each turning point after. */
-function placeNodes(g, side) {
+export function placeNodes(g, side) {
   if (!TEAM_MAP[g.teams[side]].obeliskNodes || g.nodeTP?.[side] === g.tp) return;
+  if (g.tp > 1 && isComputer(g, side)) { /* the computer moves its nodes below */ } else if (g.tp > 1) return; // (a player moves them by hand)
   (g.nodeTP ||= [0, 0])[side] = g.tp;
   const mine = living(g, side);
   if (!mine.length) return;
@@ -4015,11 +4122,11 @@ function placeNodes(g, side) {
   const c = { x: mine.reduce((s, o) => s + o.x, 0) / mine.length, y: mine.reduce((s, o) => s + o.y, 0) / mine.length };
   const clampPerp = (v) => Math.max(1, Math.min(size[perp] - 1, v));
   const nodes = nodesOf(g, side);
-  if (!nodes.length) {
+  if (g.tp === 1 && nodes.length < 3) {
     // In a line across the killzone, 5" apart, as far forward as our territory allows.
     const front = low ? Math.min(c[along] + 2, mid - 1) : Math.max(c[along] - 2, mid + 1);
     const centre = clampPerp(Math.max(6, Math.min(size[perp] - 6, c[perp])));
-    for (const off of [-5, 0, 5]) g.markers.push({ id: g.markers.length, kind: 'obeliskNode', owner: side, [along]: front, [perp]: clampPerp(centre + off), carriedBy: null });
+    for (const off of [-5, 0, 5].slice(nodes.length)) g.markers.push({ id: g.markers.length, kind: 'obeliskNode', owner: side, [along]: front, [perp]: clampPerp(centre + off), carriedBy: null });
     log(g, { zh: `${teamZh(g, side)} 放置 3 個方尖碑節點`, en: `${team(g, side).name.en} sets up its three obelisk nodes` }, `side${side}`);
     return;
   }
@@ -4400,7 +4507,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
+Object.assign(EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4408,7 +4515,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
+  canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4609,7 +4716,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => (g.ccFree || ccAwakenedFree(g, side, id)) && id === 'animateNodes' ? 0 : scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id, target = g.dwAuspexTarget) => ffBaseCost(g, side, id, target) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id, target = g.dwAuspexTarget) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id, target) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -4754,6 +4861,8 @@ const FF = {
   gloryMartyrs: { kind: 'auto' },
   faithFury: { kind: 'attack', fight: true },
   shieldFlare: { kind: 'auto' },
+  nodalResponse: { kind: 'button', cond: (g, o) => o.side < 2 && g.nodalOpen != null ? { zh: '已開啟', en: 'Already open' } : null, apply(g, o) { g.nodalOpen = o.side; } },
+  animateNodes: { kind: 'node' },
   // ---- Blades of Khaine (firefight ploys, then Aspect Techniques) ----
   bladewind: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.fightsAllowed = 2; } },
   starfall: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.starfall = true; } },
@@ -5928,6 +6037,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
   pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
   kfShootStart(g, op, weapon); // Piercing Shot / Toxin Shot (Farstalker Kinband)
+  ccPhaseStart(g, op, target); // Phase Shifter (Canoptek Circle)
   adShootStart(g, op, target, shotVisibility(g, op, target, weapon).obscured); // Auspex (Angels of Death)
   mwActionStart(g);
   wkActionStart(g, op, 'shoot'); // Wrecka Krew: Tanked Up, Wrecka Boss
@@ -6056,6 +6166,7 @@ export function* shootFlow(g, op, weapon, target) {
   op.shotTP = g.tp; // (Interstitial Command can't give a Shoot to one that already shot this turning point)
   pfShootEnd(g); // Target Analysis Optic ends with the action
   kfShootEnd(op);
+  g.ccPhase = null;
   // Deathmarked: a Deathmark's surviving primary target gains a token; Deathmarks shooting it have Seek.
   if (tpl(op).deathmark && !target.dead && !(target.dmk?.[op.side])) {
     (target.dmk ||= {})[op.side] = true;

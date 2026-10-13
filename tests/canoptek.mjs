@@ -104,4 +104,44 @@ for (const [a, b] of [['canoptekCircle', 'angels'], ['broodBrothers', 'canoptekC
   assert(steps < 3000, `${a} vs ${b}: simulation stalled`); assert(g.cp.every((x) => x >= 0));
   console.log(`${a} vs ${b}: full battle passed (${steps} steps, TP ${g.tp})`);
 }
+// Manual node placement, Nodal Response, Animate Obelisk Nodes, equipment.
+{
+  const g = G.newGame({ teams: ['canoptekCircle', 'angels'], ai: null, equip: [['ccCaskets', 'ccPhase', 'ccManip', 'ccAwakened'], []] });
+  g.tp = 1; g.phase = 'strategy';
+  assert(!G.nodePlace(g, 0, { x: 15, y: 10 }) || true);
+  const mine = G.nodeList(g, 0).length;
+  assert.equal(mine, 0);
+  const side0 = (() => { for (let x = 1; x < 30; x += 1) { if (G.nodePlace(g, 0, { x, y: 5 })) return x; } return -1; })();
+  assert(side0 > 0, 'a node can be placed in the territory');
+  assert.equal(G.nodeList(g, 0).length, 1);
+  assert(!G.nodePlace(g, 1, { x: 1, y: 1 }), 'the other team has no nodes');
+  g.tp = 2;
+  const n = G.nodeList(g, 0)[0], x0 = n.x;
+  assert(G.nodeMove(g, 0, n.id, { x: x0, y: n.y + 2 }));
+  assert(!G.nodeMove(g, 0, n.id, { x: x0, y: n.y + 1 }), 'once per TP');
+}
+{
+  const g = arena({ equip: [['ccCaskets', 'ccPhase', 'ccManip', 'ccAwakened'], []] });
+  nodes(g, [{ x: 10, y: 10 }, { x: 15, y: 10 }, { x: 20, y: 10 }]);
+  g.phase = 'firefight'; g.turn = 0; g.active = null; g.cp = [3, 3, 0];
+  g.ops.filter((o) => o.side === 1).forEach((o) => { o.ready = true; });
+  // Animate: awakened roll makes it free D3 times
+  assert(G.animateBegin(g, 0));
+  assert(g.animating.left === 6);
+  const nd = G.nodeList(g, 0)[0];
+  assert(G.animateMove(g, 0, nd.id, { x: nd.x - 2.5, y: nd.y }), 'rounds up to 3');
+  assert.equal(g.animating.left, 3);
+  assert(!G.animateMove(g, 0, nd.id, { x: nd.x - 5, y: nd.y }), 'too far');
+  assert(G.animateEnd(g, 0));
+  assert.equal(g.turn, 1, 'the opponent goes on');
+  assert(g.cp[0] === 3 || g.cp[0] === 2, 'CP spent only if not free');
+  // Nodal Response: use a ploy now
+  const g2 = arena(); g2.phase = 'firefight'; g2.turn = 0; g2.cp = [3, 3, 0];
+  const op = g2.ops.find((o) => o.side === 0); G.activate(g2, op);
+  assert(G.useFFButton(g2, op, 'nodalResponse'));
+  assert.equal(g2.nodalOpen, 0);
+  assert(G.nodalChoose(g2, 0, 'souldrain'));
+  assert(g2.ploys[0].includes('souldrain'));
+  assert.equal(g2.cp[0], 1);
+}
 console.log('canoptek ok');

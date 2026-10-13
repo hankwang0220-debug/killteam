@@ -2554,6 +2554,8 @@ const FIREFIGHT = {
   canoptekCircle: [
     ff('sacrificialThrall', '犧牲奴僕', 'Sacrificial Thrall', '自動：地占術士被選為射擊或近戰目標時，改由它 3" 內看得到的另一名冥工機械承受（爆炸、洪流無效）。', 'Auto: when the Geomancer is picked as a Shoot or Fight target, another Canoptek visible within 3" of it becomes the target instead (not vs Blast/Torrent).'),
     ff('shieldFlare', '護盾閃焰', 'Shield Flare', '自動：攻擊骰對友方造成普通傷害時，若矩陣擋在中間或友方在矩陣內，無視這次傷害。', 'Auto: when an attack die inflicts Normal Dmg on a friendly with your matrix in the way or while it\'s within it, ignore that damage.'),
+    ff('nodalResponse', '節點回應', 'Nodal Response', '友方冥工之環特工啟動中、行動前或後使用：改變本回合已用的一個策略計謀（只補差額 CP），或現在使用一個策略計謀（照常付 CP）。', 'During a friendly Canoptek Circle activation, before or after an action: change one strategy ploy used this turning point (pay only extra CP), or use a strategy ploy now (pay its CP).'),
+    ff('animateNodes', '驅動方尖碑節點', 'Animate Obelisk Nodes', '輪到你啟動或反應時，改為移動任意數量方尖碑節點，合計最多 6"（每段距離進位到整吋）。之後對手照常行動。', 'When it is your turn to activate or counteract: move any number of obelisk nodes up to 6" combined instead (each distance rounded up), then your opponent activates as normal.'),
   ],
   broodBrothers: [
     ff('unquestioningLoyalty', '無條件忠誠', 'Unquestioning Loyalty', '自動：友方領袖被選為射擊或近戰目標時，改由它 3" 內看得到的另一名友方兵員（非領袖）承受（爆炸、洪流無效；老兵時 0CP）。', 'Auto: when a friendly Leader is picked as a Shoot or Fight target, another friendly Broodguard (not a Leader) visible within 3" of it becomes the target instead (not vs Blast/Torrent; 0CP for the Veteran).'),
