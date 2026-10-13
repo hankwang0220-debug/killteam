@@ -1,3 +1,4 @@
+import { tombWorldView } from './tombworld.js';
 import { DEATHWATCH_EQUIPMENT, deathwatchRosterError } from './data/deathwatch.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT, murderwingRosterError } from './data/murderwing.js';
@@ -117,6 +118,7 @@ function render() {
   if (ui.screen === 'game') noteTurn();
   if (ui.screen === 'home') app.innerHTML = homeView();
   else if (ui.screen === 'setup') app.innerHTML = setupView();
+  else if (ui.screen === 'tombworld') app.innerHTML = topBar() + tombWorldView(ui.tombWorldStates);
   else if (ui.screen === 'replay') app.innerHTML = replayView();
   else app.innerHTML = gameView();
   drawMeasure();
@@ -397,6 +399,7 @@ function homeView() {
         <button class="primary big" data-act="setup">${L('新遊戲', 'New Game')}</button>
         ${saved && saved.phase !== 'gameover' ? `<button class="big" data-act="resume">${L('繼續上一場', 'Resume')}</button>` : ''}
         <button class="big ghost" data-act="help">${L('規則速查', 'Quick Rules')}</button>
+        <button class="big ghost" data-act="tombworld">${L('墓穴世界地形', 'Tomb World Terrain')}</button>
       </div>
     </section>
     ${historyView()}
@@ -2751,6 +2754,12 @@ function handle(act, d) {
   const op = g && activeOp(g);
   switch (act) {
     case 'home': ui.screen = 'home'; return render();
+    case 'tombworld': ui.screen = 'tombworld'; return render();
+    case 'twstate': {
+      const states = (ui.tombWorldStates ||= {});
+      states[d.id] = d.id === 'A1' ? states[d.id] === 'breached' ? 'intact' : 'breached' : states[d.id] === 'open' ? 'closed' : 'open';
+      return render();
+    }
     case 'help': ui.help = true; return render();
     case 'closehelp': ui.help = false; return render();
     case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); return render();

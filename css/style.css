@@ -553,3 +553,27 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 .scoutopt { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .scoutopt button { padding: 2px 9px; min-width: 28px; }
 .scoutopt b { min-width: 2.2em; text-align: center; }
+
+/* Tomb World component preparation: vertical heights are separate from footprints. */
+.tw-catalogue { max-width: 1280px; margin: 0 auto; padding: 24px 18px; }
+.tw-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.tw-heading h1 { margin: 0; }
+.tw-components { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 16px; margin-top: 20px; }
+.tw-component h3 { margin: 0 0 10px; }
+.tw-component h3 small { font-weight: normal; opacity: .65; }
+.tw-dimensions { font-size: .88rem; }
+.tw-views { display: grid; gap: 10px; }
+.tw-views figure { margin: 0; background: #111a1c; border: 1px solid #334446; border-radius: 8px; padding: 10px; }
+.tw-views figcaption { font-size: .75rem; color: #b7c9c7; margin-bottom: 8px; }
+.tw-preview { display: block; width: 100%; }
+.tw-top { height: 66px; }
+.tw-front { height: 115px; }
+.tw-solid { fill: #485b61; stroke: #b5cbcb; stroke-width: .035; }
+.tw-lintel { fill: #647b80; }
+.tw-pillar { fill: #6c7f85; stroke: #d1ded9; }
+.tw-door { fill: #345f4b; stroke: #b3d59e; }
+.tw-light { fill: #70694c; stroke: #d5c69a; }
+.tw-opening { fill: none; stroke: #87dbb0; stroke-dasharray: .12 .08; stroke-width: .04; }
+.tw-breach-guide { fill: none; stroke: #edb05d; stroke-dasharray: .12 .08; stroke-width: .04; }
+.tw-state { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tw-state span { font-size: .8rem; color: #bdcec7; }
