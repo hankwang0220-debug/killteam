@@ -65,7 +65,14 @@ button.wide { width: 100%; margin-top: 10px; }
 .topbtns .settings-menu button { text-align: left; padding: 10px 12px; }
 .settings-menu button:hover { background: var(--panel2); }
 
-.scorebar { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center; min-width: 0; }
+.scorebar { display: flex; align-items: center; gap: 10px; flex: 0 1 auto; justify-content: flex-start; min-width: 0; }
+.turnstatus {
+  flex: 1 1 0; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center;
+  border-left: 4px solid var(--tc); background: var(--panel); padding: 4px 12px; border-radius: 6px;
+}
+.tsnow, .tslast { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tsnow { font-size: .95rem; }
+.tslast { font-size: .78rem; color: var(--muted); }
 .score {
   border-left: 4px solid var(--tc); background: var(--panel); padding: 3px 10px; border-radius: 6px; min-width: 0;
 }
@@ -420,6 +427,8 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
   .picks { grid-template-columns: 1fr; }
   .top { flex-wrap: wrap; padding: 6px 10px; }
   .scorebar { order: 3; width: 100%; flex-basis: 100%; }
+  .turnstatus { order: 4; flex-basis: 100%; }
+  .turnstatus .tsnow { white-space: normal; }
   .brand span { display: none; }
 }
 #board .matrix { stroke-width: .79; stroke-opacity: .28; stroke-linecap: round; }

@@ -348,7 +348,8 @@ const endDrag = (e) => {
 app.addEventListener('pointerup', endDrag);
 app.addEventListener('pointercancel', endDrag);
 
-function topBar(extra = '') {
+/** extra: the score bar (shown on the left); status: the turn status field (centre). */
+function topBar(extra = '', status = '') {
   const replayBtn = ui.screen === 'game' && g?.replay?.snaps.length
     ? `<button class="ghost" data-act="replay">📜 ${L('複盤', 'Replay')}</button>` : '';
   const tools = `<button class="ghost" data-act="help">${L('規則', 'Rules')}</button>
@@ -365,6 +366,7 @@ function topBar(extra = '') {
   return `<header class="top">
     <div class="brand" data-act="home">⚔ <span>${L('殺戮小隊 戰術模擬', 'Kill Team Tactics')}</span></div>
     ${extra}
+    ${status}
     <div class="topbtns">
       ${ui.screen === 'game' ? settings : tools}
     </div>
@@ -598,7 +600,7 @@ function roster(t, side) {
 
 // ---------- game ----------
 function gameView() {
-  return `${topBar(scoreBar())}
+  return `${topBar(scoreBar(), turnStatus())}
   <main class="game">
     <div class="boardwrap">${opRoster(0)}<div class="boardcol"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}${turnBanner()}${endBanner()}</div>${tokenLegend()}</div>${opRoster(1)}</div>
     <aside class="panel">${panelView()}${logView()}</aside>
@@ -701,7 +703,14 @@ function replayView() {
     const dice = snap.result ? `<div class="rdice">${resultView(snap.result, true)}</div>`
       : snap.fight ? `<div class="rdice">${fightView(true)}</div>` : '';
     const sel = ui.sel && view.ops.find((o) => o.uid === ui.sel && !o.dead);
-    return `${topBar(scoreBar())}
+    // Replay: the status field describes this step.
+    const stepText = [...stepNotes(R.rep, R.i), ...snap.msgs.map((e) => e.msg)].map((m) => esc(tx(m)));
+    const turnTeam = view.turn != null && view.turn !== NPO ? team(view, view.turn) : null;
+    const status = `<div class="turnstatus" style="--tc:${turnTeam ? turnTeam.color : 'var(--line)'}">
+      <div class="tsnow">📜 ${L(`第 ${R.i + 1} / ${n} 步`, `Step ${R.i + 1} / ${n}`)}${turnTeam && view.phase === 'firefight' ? ` · <b style="color:${turnTeam.color}">${esc(tx(turnTeam.name))}</b> ${L('的回合', '— turn')}` : ''}</div>
+      ${stepText.length ? `<div class="tslast" title="${stepText.join(' / ')}">${stepText.join(' / ')}</div>` : ''}
+    </div>`;
+    return `${topBar(scoreBar(), status)}
     <main class="game">
       <div class="boardwrap"><div class="boardbox">${renderBoard(view, { sel: ui.sel, trails: trailsAt(R.rep, R.i) })}${measureBar()}</div>${tokenLegend()}</div>
       <aside class="panel">
@@ -796,6 +805,51 @@ function scoreBar() {
   };
   const tpTxt = g.phase === 'deploy' ? L('部署', 'Deploy') : g.phase === 'gameover' ? L('結束', 'End') : `TP ${g.tp}/${MAX_TP}`;
   return `<div class="scorebar">${scoreBox(0)}<div class="tp">${tpTxt}</div>${scoreBox(1)}</div>`;
+}
+
+/** Top-bar status: whose turn it is, what is happening now, and the latest thing that happened. */
+function turnStatus() {
+  const teamOf = (s) => (s === NPO || s == null ? null : team(g, s));
+  const who = (s) => {
+    const t = teamOf(s);
+    return t ? `<b style="color:${t.color}">${esc(tx(t.name))}</b>${isAI(s) ? ' 🤖' : ''}` : `<b>${L('非玩家單位', 'NPO')}</b>`;
+  };
+  let side = null, doing = '';
+  if (g.phase === 'deploy') {
+    const d = g.dep;
+    if (d && !d.done) { side = d.turn; doing = L(`部署中（這一批 ${d.batch.length}/${d.need}）`, `setting up (${d.batch.length}/${d.need} this step)`); }
+    else doing = L('雙方部署完成，準備開戰', 'Both teams set up — ready to begin');
+  } else if (g.phase === 'initiative') {
+    doing = L(`第 ${g.tp} 回合・先攻階段：決定先攻`, `TP ${g.tp} · Initiative phase`);
+  } else if (g.phase === 'strategy') {
+    side = ployChooser(g);
+    doing = L(`第 ${g.tp} 回合・策略階段`, `TP ${g.tp} · Strategy phase`);
+  } else if (g.phase === 'gameover') {
+    doing = g.winner == null ? L('遊戲結束：平手', 'Game over: draw') : L(`遊戲結束：${tx(team(g, g.winner).name)} 獲勝`, `Game over: ${tx(team(g, g.winner).name)} wins`);
+  } else if (g.fight && !g.fight.done) {
+    side = fightChooser(g);
+    doing = L(`近戰：${nm(fightOp(g, 'A'))} 對 ${nm(fightOp(g, 'D'))}，選擇打擊或格擋`,
+      `Fight: ${nm(fightOp(g, 'A'))} vs ${nm(fightOp(g, 'D'))} — strike or block`);
+  } else {
+    side = g.turn;
+    const op = activeOp(g);
+    if (op) {
+      const act = ui.mode?.action && ACTIONS[ui.mode.action] ? tx(ACTIONS[ui.mode.action].name)
+        : ui.mode?.kind === 'shoot' ? L('射擊：選擇目標', 'Shoot: choosing a target')
+          : ui.mode?.kind === 'fight' ? L('近戰：選擇目標', 'Fight: choosing a target') : '';
+      doing = `${nm(op)} ${op.counter ? L('反擊中', 'is counteracting') : L('啟動中', 'is activated')}${act ? ` · ${esc(act)}` : ''}`;
+    } else if (g.counter) {
+      doing = L('反擊機會：選一名特工或略過', 'May counteract: pick an operative or pass');
+    } else {
+      doing = isAI(side) ? L('電腦思考中…', 'Computer is thinking…') : L('選擇一名特工啟動', 'Choose an operative to activate');
+    }
+  }
+  const last = g.log[g.log.length - 1];
+  const t = teamOf(side);
+  return `<div class="turnstatus" style="--tc:${t ? t.color : 'var(--line)'}">
+    <div class="tsnow">${side != null ? `${who(side)} ${L('的回合', '— turn')} · ` : ''}${doing}</div>
+    ${last ? `<div class="tslast" title="${esc(tx(last.msg))}">${L('剛剛', 'Last')}：${esc(tx(last.msg))}</div>` : ''}
+  </div>`;
 }
 
 function boardUi() {
