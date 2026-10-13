@@ -17,6 +17,7 @@ import { rtAiStrategy, rtSlingshotAI, doSlingshot } from './ratlings.js';
 import { sfAiStrategy } from './sanctifiers.js';
 import { kmGrappleAI, kmDoGrapple } from './kommandos.js';
 import { dkAiStrategy, dkMine } from './deathkorps.js';
+import { rvAiStrategy, rvAiUnderground, rvAiBurrow } from './raveners.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -26,6 +27,7 @@ export function aiStrategy(g, side) {
   rtAiStrategy(g, side); // Ratlings: Target Designation
   sfAiStrategy(g, side); // Sanctifiers: a new orator after the Confessor falls
   dkAiStrategy(g, side); // Death Korps: Chronometer, Gas Bombardment
+  rvAiStrategy(g, side); // Raveners: the next Tunnel marker, Synaptic Link
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
@@ -388,6 +390,8 @@ export function aiStep(g) {
   if (op.dead) { endActivation(g); return null; }
   if (isArchon(op)) { const opts = painOptions(g, op); const id = opts.includes('painHeal') && op.maxW - op.wounds >= 3 ? 'painHeal' : opts.includes('darkAnimus') ? 'darkAnimus' : null; if (id) { usePain(g, op, id); return null; } }
   if (aiButtonPloys(g, op)) return null;
+  if (op.underground) { rvAiUnderground(g, op); return null; } // Raveners underground: emerge on the tunnel, or wait
+  if (rvAiBurrow(g, op)) return null; // a hurt Ravener on the tunnel burrows away
   // Exodite riders in reserve come in along the killzone edge nearest to where they want to go.
   if (op.reserve) {
     const goal = pickGoal(g, op) || foes(g, op)[0] || { x: 15, y: 11 };

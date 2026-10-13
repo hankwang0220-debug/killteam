@@ -15,6 +15,8 @@ import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
 import { CANOPTEK_EQUIPMENT } from './data/canoptek.js';
 import { DEATHKORPS_EQUIPMENT } from './data/deathkorps.js';
+import { RAVENERS_EQUIPMENT } from './data/raveners.js';
+import { rvSensesOk, rvUseSenses, isRV, rvSetup, rvStart, rvActivate, rvEnd, rvActions, rvSelf, rvRules, rvShot, rvDefence, rvNoReroll, rvCrestExtra, rvCrestControl, rvLurkCover, rvChroma, rvCarapace, rvCrush, rvAcidBlood, rvHorror, rvDeath, rvPloyBought, rvAmbush, rvPoisonHit, rvPlaceAuto, rvEndBattle, rvFreeBurrow, registerRavenerActions } from './raveners.js';
 import { dkSetup, dkFreeHas, dkAdaptiveFree, dkBeadsOn, dkBeadsTarget, dkLeadership, dkLifeShame, dkVeteranActivate, dkDeath, dkPloyBought, dkGasApl, dkReady, dkWeapons, dkActions, dkSelf, registerDeathKorpsActions, hasOrder } from './deathkorps.js';
 import { kfSetup, kfActions, kfSelf, kfActivate, kfQuickDraw, kfShootStart, kfShootEnd, kfRules, kfGatherFree, registerKinbandActions } from './kinband.js';
 import { kmSetup, kmReady, kmWeapons, kmPloyBought, kmEndFirefight, kmKunnin, kmActions, kmSelf, registerKommandoActions } from './kommandos.js';
@@ -111,6 +113,7 @@ export function moveStat(g, op) {
   let m = statPenalty(g, op) && !tpl(op).engenderedFocus && !(isArchon(op) && op.drug === 'hypex' && !contagion(g, op)) ? Math.max(Math.min(base, 4), base - 2) : base;
   if (artOfWar(g, op, 'montka')) m += 1;
   if (op.shieldingOn) m -= 2; // Shielding (Trench Sweeper)
+  if (op.rvSlow) m -= 2; // Burrow: -2" Move until the end of the activation (Raveners)
   if (nullFielded(g, op)) m -= 2; // Null Field (Celestian Insidiant Censor)
   if (hasGift(g, op, 'fleet')) m += 1; // Fleet (Chaos Cult Accursed Gift)
   if (op.wailsUntil === g.tp && !isMounted(op)) m -= 2; // Wails of the World (Exodite Stonesinger)
@@ -253,6 +256,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   kmSetup(g, roster); // Kommandos: roster limits
   kfSetup(g, roster); // Farstalker Kinband: roster limits
   dkSetup(g, roster, dkFree); // Death Korps: roster limits, the Trooper slots traded for free ploys
+  rvSetup(g, roster); // Raveners: roster limits, the Tunnel
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -531,12 +535,14 @@ export function autoDeployStep(g) {
 
 /** Place every operative of a side automatically (rearranging them). */
 export function autoDeploy(g, side) {
+  for (const o of g.ops) if (o.side === side && o.underground) { o.underground = false; o.reserve = false; } // (Raveners underground are set up again)
   const ops = g.ops.filter((o) => o.side === side && !o.reserve); // (Exodite riders in reserve aren't set up)
   for (const o of ops) { o.x = -99; o.y = -99; o.placed = false; }
   for (const o of placeAuto(g, side, ops)) o.placed = true;
 }
 
-export function placeAuto(g, side, ops) {
+export function placeAuto(g, side, ops) { return rvPlaceAuto(g, side, ops, placeAutoBase); } // (Raveners: all but the first two go underground)
+function placeAutoBase(g, side, ops) {
   const result = [];
   const z = deployZones(g)[side];
   const cands = [];
@@ -592,6 +598,7 @@ export function startBattle(g) {
   if (unplaced(g, 0).length || unplaced(g, 1).length) return false;
   if (g.dep) g.dep.done = true;
   scResolve(g); // Scout Squad: Forward Scouting options (end of the Set Up Operatives step)
+  rvStart(g); // Raveners: Tunnel marker 0
   startTP(g);
 }
 
@@ -705,6 +712,7 @@ export function lockInitRoll(g) {
 export function aiInitCards(g) {
   const s = g.ai;
   if (s == null || s > 1 || g.initLocked) return;
+  if (initWinner(g) !== s && rvSensesOk(g, s)) rvUseSenses(g, s); // Heightened Senses (Raveners)
   const cards = g.initCards[s];
   if (!cards.length || initWinner(g) === s) return;
   for (const id of ['pm1', 'pm2', 'pm3'].filter((c) => cards.includes(c))) {
@@ -716,6 +724,7 @@ export function aiInitCards(g) {
   }
   if (cards.includes('reroll') && g.initRoll[s] <= 3) useInitCard(g, s, 'reroll');
 }
+export { rvSensesOk, rvUseSenses };
 
 /** The roll-off winner's choice: who has initiative this turning point. Then each player gains CP. */
 export function setInitiative(g, side) {
@@ -842,6 +851,7 @@ export function buyPloy(g, side, ploy) {
   kmPloyBought(g, side, ploy); // Kommandos: Sssshhhh!
   pfPloyBought(g, side, ploy); // Pathfinders: Recon Sweep
   dkPloyBought(g, side, ploy); // Death Korps: Regroup
+  rvPloyBought(g, side, ploy); // Raveners: Writhe Out of Sight
   adPloyBought(g, side, ploy); // Angels of Death: Adaptive Tactics
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
@@ -1009,6 +1019,7 @@ export function activate(g, op) {
   kfActivate(g, op); // Farstalker Kinband: Meat, Trophy
   ccManipActivate(g, op); // Canoptek Circle: Matrix Manipulator
   dkVeteranActivate(g, op); // Death Korps: the Veteran receives an order
+  rvActivate(g, op); // Raveners: Poison tokens, Metamorphic Flesh
 }
 
   // Archon effects are committed only when an action begins.
@@ -1045,11 +1056,11 @@ export function setOrder(g, op, order) {
 /** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
 export const counterCandidates = (g, side) => (g.netcounter?.side === side // Battleclade: NETWORK COUNTERACT (Canoptek Control: just the one picked)
   ? (g.netcounter.kind === 'control' ? living(g, side).filter((o) => g.netcounter.only.includes(o.uid)) : netCands(g, side))
-  : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o) || (isGM(o) && ffReady(g, side, 'gorethirst') && ffArmed(g, side, 'gorethirst'))) && !o.counteracted && !dwBlocked(g, o) && o.dwReGuardTP !== g.tp));
+  : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o) || tpl(o).rvAnyCounter || (isGM(o) && ffReady(g, side, 'gorethirst') && ffArmed(g, side, 'gorethirst'))) && !o.counteracted && !dwBlocked(g, o) && o.dwReGuardTP !== g.tp));
 
 export function endActivation(g) {
   const op = activeOp(g);
-  g.ccManip = null; g.nodalOpen = null; if (op) op.mvb = false;
+  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
@@ -1158,6 +1169,7 @@ export function endActivation(g) {
 /** Play passes on after `cur` finished an activation. */
 export function handOff(g, cur) {
   const other = 1 - cur;
+  if (g.rvSkip === other) { g.rvSkip = null; if (hasReady(g, cur)) { passTurn(g, cur); return; } } // Subterranean Ambush used the Ravener player's activation
   if (hasReady(g, other)) { passTurn(g, other); return; }
   if (!hasReady(g, cur)) { endTP(g); return; }
   // The opponent has no ready operatives: between activations they may counteract.
@@ -1232,6 +1244,7 @@ export function controller(g, obj) {
   for (let s = 0; s < 3; s++) if (shriek[s]) sum[s] = Math.max(0, sum[s] - 1);
   // Simulacrum Nullificatus (Insidiant Reliquarius): likewise 1 lower if one is within 3" of it.
   for (let s = 0; s < 3; s++) if (simu[s]) sum[s] = Math.max(0, sum[s] - 1);
+  rvCrestControl(g, obj, sum); // Neuropredatory Crest (Raveners): 1 lower near the Prime
   // Prioritised Acquisition (Battleclade ploy): +1 to the total while contesting the chosen marker.
   for (const s of [0, 1]) if (sum[s] > 0 && g.acquisition?.[s]?.tp === g.tp && g.acquisition[s].id === obj.id && !obj.kind) sum[s]++;
   // Cult Icon (Brood Brother Iconward): +1 to the total for a marker within 4" of it that a friendly contests.
@@ -1316,6 +1329,7 @@ function gameOver(g) {
   for (const o of g.ops) if (o.frenzy && !o.dead) frenzyDie(g, o); // Frenzy: they fall when the battle ends
   mission(g).onBattleEnd?.(g);
   tacOnBattleEnd(g);
+  rvEndBattle(g); // Raveners still underground are incapacitated
   if (g.primaryOps) for (const s of [0, 1]) log(g, { zh: `${teamZh(g, s)} 的主要任務是「${{ crit: "核心任務", tac: "戰術行動", kill: "Kill Op" }[g.primaryOps[s]]}」：${primaryBase(g, s)} 分 ×1.5 → +${primaryBonus(g, s)}`, en: `${team(g, s).name.en}'s Primary Op was ${{ crit: "Crit Op", tac: "Tac Op", kill: "Kill Op" }[g.primaryOps[s]]}: ${primaryBase(g, s)}VP x1.5 → +${primaryBonus(g, s)}` }, "tp");
   const a = totalVP(g, 0), b = totalVP(g, 1);
   g.winner = a > b ? 0 : b > a ? 1 : null;
@@ -1480,6 +1494,8 @@ export function actionCost(g, op, id) {
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
   if (kfGatherFree(op, id)) return 0; // Gather (Kroot Hound): a free Pick Up Marker
+  if (id === 'rvBurrow' && rvFreeBurrow(g, op)) return 0; // a counteracting RAVENER's free Burrow
+  if (id === 'fallBack' && op.acted?.rvSlither) return Math.max(1, ACTIONS.fallBack.ap - 1); // Slithering Evasion
   if (id === 'fallBack' && tpl(op).fearless) return Math.max(1, ACTIONS.fallBack.ap - 1) + (whipped(g, op) ? 1 : 0); // Fearless on the Frontline (Shas'la): 1 less AP
   if (id === 'fallBack' && op.acted?.slip) return Math.max(1, actionCost(g, { ...op, acted: { ...op.acted, slip: false } }, id) - 1); // Slip Away
   if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
@@ -1504,7 +1520,7 @@ export function actionCost(g, op, id) {
     // Nuncio-aquila (Proctor-exactant): +1AP within 3" of it.
     // Energy Cells (crit op): picking up an objective marker costs extra in TP2-3, and that can't be reduced.
     const extra = id === 'pickUp' && pickUpTargets(g, op).some((m) => g.objectives.includes(m)) ? mission(g).pickUpExtra?.(g) || 0 : 0;
-    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) + (nuncioNear(g, op) ? 1 : 0) + (grislyNear(g, op) ? 1 : 0) + (intimidated(g, op) ? 1 : 0) - gotIt - acute) + extra; // (+ Grisly Mark)
+    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) + (nuncioNear(g, op) ? 1 : 0) + (grislyNear(g, op) ? 1 : 0) + rvCrestExtra(g, op) + (intimidated(g, op) ? 1 : 0) - gotIt - acute) + extra; // (+ Grisly Mark)
   }
   if (op.brutalDisplayTP === g.tp && (id === 'pickUp' || MISSION_ACTIONS[id])) return Infinity;
   return ACTIONS[id].ap;
@@ -2224,13 +2240,13 @@ export function availableActions(g, op) {
   const heavyBlocks = (k) => (op.warpMoveLockTP === g.tp && k !== 'dash') || rapidLock || (!!count(op, 'heavy') && op.acted.heavy !== k);
   const free = op.acted.free || {};
   // Mobile: may Charge while within control range of an enemy.
-  const chargeEngaged = engaged && !hasTactic(g, op, 'mobile');
+  const chargeEngaged = engaged && !hasTactic(g, op, 'mobile') && !op.acted.rvSlither; // (Slithering Evasion: Charge from engagement)
   add('reposition', !engaged && !heavyBlocks('reposition') && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : heavyBlocks('reposition') ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
   const bladeDash = tpl(op).blademaster && count(op, 'charge') && (op.acted.chargeRemaining || 0) > 0;
   const caprice = free.dash === 'capricious' || free.dash === 'fade' || free.dash === 'murder'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
   add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
-  const noCharge = conceal && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
+  const noCharge = conceal && !(tpl(op).rvTremor && op.acted.rvBurrow) && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
   const rampage = free.charge === 'rampage' || free.charge === 'woe' || free.charge === 'bloodlust' || free.charge === 'murder'; // (murder: Proclivity for Murder) // Ruthless Rampage / The Woe / Obsessive Bloodlust: a free Charge even after one
   add('charge', !chargeEngaged && !noCharge && (rampage || (!heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'))), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
@@ -2267,6 +2283,7 @@ export function availableActions(g, op) {
   mvbActions(g, op, add); // Portable Barricade: Move With Barricade
   kfActions(g, op, add); // Farstalker Kinband: Gather
   dkActions(g, op, add); // Death Korps: the Sapper's mine
+  rvActions(g, op, add); // Raveners: Burrow, Toxic Lunge, Distend Dorsal Sac
   if (tpl(op).signal) unique('signal');
   if (tpl(op).signalAny) unique('signalAny');
   if (tpl(op).jamToken) unique('jamToken');
@@ -2422,7 +2439,7 @@ export function availableActions(g, op) {
   rtActions(g, op, add); // Ratlings: Slingshot
   sfActions(g, op, add); // Sanctifiers: Sanctification Orb, Wreathe in Fire, Trained Assassin
   // Exodite Dragon Masters: a rider in reserve only enters (see enterFromReserve); riders move by Sprint and Turn only.
-  if (op.reserve) return [];
+  if (op.reserve) return op.underground ? list.filter((a) => a.id === 'rvBurrow' || a.id === 'rvLunge') : []; // (underground Raveners can only Burrow, or Toxic Lunge)
   if (isMounted(op)) {
     for (let i = list.length - 1; i >= 0; i--) if (['reposition', 'dash', 'charge', 'fallBack'].includes(list[i].id)) list.splice(i, 1);
     const left = Math.min(9 - (op.acted.sprintFwd || 0), 12 - (op.movedTP || 0));
@@ -2467,6 +2484,7 @@ export function doSelfAction(g, op, id) {
   if (kmSelf(g, op, id)) return; // Kommandos: Breach
   if (kfSelf(g, op, id)) return; // Farstalker Kinband: Gather
   if (dkSelf(g, op, id)) return; // Death Korps: the Sapper's mine
+  if (rvSelf(g, op, id)) return; // Raveners: Burrow (underground), Distend Dorsal Sac
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
@@ -2706,6 +2724,8 @@ export function doMove(g, op, kind, path) {
   if (kind === 'reposition') slicingAttack(g, op, seenBefore, path);
   corsairAfterAction(g, op, true);
   dwAfterAction(g, op);
+  if (kind === 'fallBack') op.fellBackTP = g.tp; // (Instinctive Behaviour: Raveners)
+  rvAmbush(g, op, movedFrom); // Subterranean Ambush (Raveners): a Tremorscythe lunges from the tunnel
   return true;
 }
 
@@ -2728,7 +2748,7 @@ export function visibility(g, from, to, opts = {}) {
     v.obscured = true;
     v.defenceOptions = v.defenceOptions.map(o => ({ ...o, obscured: true }));
   }
-  return v;
+  return rvLurkCover(g, from, to, v, opts); // Tunnel Lurkers (Raveners)
 }
 
 export function inRange(op, target, weapon, extra = 0) {
@@ -2818,6 +2838,7 @@ export function effectiveRules(g, op, weapon, target) {
   scRules(g, op, weapon, target, r); // Scout Squad: Trip Alarm, Track Enemy, Designate Target, Ambush, Grapnel Assault
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
+  rvRules(g, op, weapon, target, r); // Raveners: Instinctive Behaviour, Death From Below, Distend Dorsal Sac
   pfRules(g, op, weapon, target, r); // Pathfinders: Pulse Accelerator
   pmRules(g, op, weapon, target, r); // Plague Marines: Plague Rounds
   kfRules(g, op, weapon, target, r); // Farstalker Kinband: Piercing Shot, Toxin Shot
@@ -4586,7 +4607,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
+Object.assign(EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4594,7 +4615,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
+  raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4611,6 +4632,7 @@ registerSanctifierActions();
 registerPathfinderActions();
 registerKommandoActions();
 registerKinbandActions();
+registerRavenerActions();
 ACTIONS.mvBarricade = { ap: 1, name: { zh: '隨路障移動', en: 'Move With Barricade' } };
 registerDeathKorpsActions();
 registerMandrakeActions();
@@ -4942,6 +4964,10 @@ const FF = {
   gloryMartyrs: { kind: 'auto' },
   faithFury: { kind: 'attack', fight: true },
   shieldFlare: { kind: 'auto' },
+  rvSlither: { kind: 'button', cond: (g, o) => (isRV(o) ? null : { zh: '只有蛇蟲', en: 'RAVENERs only' }), apply(g, o) { o.acted.rvSlither = true; return { zh: '滑溜閃避：撤退少 1AP，且可以在交戰中衝鋒', en: 'Slithering Evasion: Fall Back for 1 less AP and Charge while engaged' }; } },
+  rvFrenzy: { kind: 'auto' },
+  rvHorror: { kind: 'auto' },
+  rvStrike: { kind: 'auto' },
   nodalResponse: { kind: 'button', cond: (g, o) => o.side < 2 && g.nodalOpen != null ? { zh: '已開啟', en: 'Already open' } : null, apply(g, o) { g.nodalOpen = o.side; } },
   animateNodes: { kind: 'node' },
   // ---- Blades of Khaine (firefight ploys, then Aspect Techniques) ----
@@ -5387,7 +5413,7 @@ function expectedDamage(ac, an, n, save, critOn, cN, cC, dn, dc) {
 export const isComputer = (g, side) => side === NPO || side === g.ai;
 /** A player operative near an objective can't re-roll (Sickening Emissions). */
 const noRerollHere = (g, op) => (!!mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o)))
-  || voxbroken(g, op) || hexorcised(g, op); // Voxbreak (Phobos), Hexorcise (Inquisition)
+  || voxbroken(g, op) || hexorcised(g, op) || rvNoReroll(g, op); // Voxbreak (Phobos), Hexorcise (Inquisition), Neuropredatory Crest (Raveners)
 
 /** Can `side` spend 1CP to re-roll one die of this pool? Each roll of dice can be re-rolled once. */
 export function canCommandReroll(g, side, holder, which) {
@@ -5663,6 +5689,7 @@ function killOff(g, src, target) {
     }
     sfDeath(g, src, target); // Sanctifiers: Redeemed Through Fire, Imperial Cult Devotion
     dkDeath(g, src, target); // In Death, Atonement (Death Korps)
+    rvDeath(g, src, target); // Death Frenzy (Raveners)
     wkBoom(g, target); // Boom! (Wrecka Bomb Squig): it may explode before it's removed
     if (g.pechra?.[target.side]?.by === target.uid) g.pechra[target.side] = null;
     if (g.pan?.[target.side]?.by === target.uid) g.pan[target.side] = null; // Pan Spectral Scan marker
@@ -5809,7 +5836,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // (Anti-PSYKER, Novitiate Condemnor: +1 to both Dmg against a psyker.)
   const tox = (rules.toxic && poisonedAtStart?.has(target.uid) ? 1 : 0) + (rules.closeAssault && weapon.rules.shotgun ? 1 : 0) + (rules.antiPsykerOn ? 1 : 0);
   // Xenotech Shielding (Archivist): Normal and Critical Dmg of 4+ deal 1 less.
-  const shield = (d) => ((tpl(target).xenotech || sfSermon(g, target)) && d >= 4 ? d - 1 : d); // (Sermon: Sanctifiers)
+  const shield = (d) => rvCarapace(target, (tpl(target).xenotech || sfSermon(g, target)) && d >= 4 ? d - 1 : d); // (Sermon: Sanctifiers; Reinforced Carapace: Raveners)
   const tough = (d) => ((tpl(target).tough || bulwark(g, target)) && d >= 3 ? d - 1 : d); // Tough (Thug) / Bulwark Imperative: Normal Dmg of 3+ deals 1 less
   const refined = isArchon(op) && op.acted.refinedSequence && ['haSplinterRifle', 'haSplinterPistol', 'haCannonF', 'haCannonS', 'haShardcarbine', 'haStinger'].includes(weapon.id) ? 1 : 0;
   const mdBonus = mdRangedBonus(g, op, target);
@@ -5850,6 +5877,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     coverN += skulk;
     if (isMandrake(target) && withinShadow(g, target) && hasPloy(g, target.side, 'mdShroud')) coverN++;
     if (base && tpl(target).camo1) coverN++; // Camo Cloak (Blooded Sharpshooter): one more cover save
+    if (base && rvChroma(g, target)) coverN++; // Chromatospore Camouflage (Raveners): one more cover save
     if (base && scCamoExtra(g, target)) coverN++; // Camo Cloak equipment (Scout Squad, not Snipers): one more cover save
     // Reckless Determination (Fellgor ploy): an expended friendly without cover saves retains one die as a normal success.
     if (!base && !target.ready && TEAM_MAP[target.team].frenzy && hasPloy(g, target.side, 'recklessDetermination')) coverN++;
@@ -5943,6 +5971,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
       || (base > 0 && TEAM_MAP[target.team].skillAtArms && hasPloy(g, target.side, 'engageFromCover')), // Engage From Cover (Kasrkin)
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
   archonDefence(g, target, op, defRules);
+  rvDefence(g, target, defRules); // Whipcord Emergence (Raveners)
   corsairDefence(g, target, weapon, defRules);
   dwDefence(g, target, defRules);
   if (isMurderwing(target) && target.mwBoostTP === g.tp && hasPloy(g, target.side, 'mwNightmare')) defRules.balanced = true;
@@ -6008,6 +6037,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const dmg = res.dmg + devDmg; // (reported with the Devastating damage dealt earlier)
   let killed = target.dead || applyDamage(g, op, target, res.dmg);
   sfShootBlaze(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); // Blaze (Sanctifiers)
+  rvPoisonHit(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); rvShot(op, weapon); // Poison (Raveners)
   // Excess attack dice are excluded once the enemy's remaining wounds have been inflicted.
   if (res.dmg > 0) {
     let leftW = before - devDmg, damaging = 0;
@@ -6422,6 +6452,7 @@ export function startFight(g, op, weapon, target) {
   // Souldrain (Canoptek Circle ploy): an enemy within the matrix, or fighting a Canoptek Circle operative within it.
   for (const [k, o, foe] of [['A', op, target], ['D', target, op]]) if (souldrained(g, o, foe)) g.fight[k].drain = true;
   if (tpl(target).viciousReflexes) g.fight.turn = 'D'; // Vicious Reflexes (Shrivetalon): it resolves first when retaliating
+  if (rvHorror(g, target)) g.fight.turn = 'D'; // Subterranean Horror (Raveners)
   if (rtLieInWait(g, target)) g.fight.turn = 'D'; // Lie in Wait (Ratling Hardbit): it resolves the first dice when retaliating beside terrain
   // Survival Instincts (Ratlings firefight ploy, automatic): a small Ratling fighting — normal blocks may stop a critical, critical blocks stop two.
   for (const [k, o] of [['A', op], ['D', target]]) if (isSmall(o) && o.side < 2 && ffReady(g, o.side, 'rtSurvival') && ffArmed(g, o.side, 'rtSurvival')) g.fight[k].si = true;
@@ -6593,6 +6624,7 @@ export function fightApply(g, optId) {
     // Holy Resilience (Celestian Insidiants ploy): an inspiring friendly takes 1 less from Normal and Critical Dmg of 4+.
     if (amount >= 4 && foeOp.inspiring && isCI(foeOp) && hasPloy(g, foeOp.side, 'holyResilience')) amount--;
     if (amount >= 4 && sfSermon(g, foeOp)) amount--; // the Ministorum Sermon (Sanctifiers): Normal and Critical Dmg of 4+ deals 1 less
+    amount = rvCarapace(foeOp, amount); // Reinforced Carapace (Raveners Wrecker)
     // Gory Tenacity (Goremongers ploy): the opponent's first strike on it this sequence is halved (rounding up, minimum 2).
     if (amount > 2 && !foe.tenacityUsed && isGM(foeOp) && foeOp.side < 2 && hasPloy(g, foeOp.side, 'goryTenacity')) { foe.tenacityUsed = true; amount = Math.max(2, Math.ceil(amount / 2)); }
     if (!shrug && opt.die === 'n' && amount >= 2 && tpl(foeOp).automata && autoFF(g, foeOp.side, 'allIsDust')) amount = 1; // All Is Dust (Rubric Marines)
@@ -6601,6 +6633,7 @@ export function fightApply(g, optId) {
     // Unleash Daemon (4+ deals 1 less), else Disgusting Vigour (Nurgle, Normal Dmg 3+: 5+ = 1 less) — never more than 1 off.
     if (!shrug) { const a2 = daemonShell(foeOp, amount); amount = a2 < amount ? a2 : asNormal ? nurgleVigour(g, foeOp, amount) : amount; }
     const res = shrug ? { dmg: 0, rolls: [] } : resolveDice(foeOp, [amount], g); // Disgustingly Resilient
+    if (!shrug) res.dmg += rvCrush(fightWeapon(g, k), foeOp); // Crush (Raveners Wrecker)
     // Shock: the first crit strike in the sequence also discards an unresolved enemy normal (else a crit).
     let shocked = null;
     if (opt.die === 'c' && me.shock) {
@@ -6642,6 +6675,8 @@ export function fightApply(g, optId) {
     poisonOnHit(g, meOp, foeOp, { poison: me.poison }, res.dmg);
     ncFightToken(g, meOp, fightWeapon(g, k), foeOp, opt.die === 'c', res.dmg); // Terrorchem (Nemesis Claw)
     sfFightBlaze(g, meOp, fightWeapon(g, k), foeOp, opt.die === 'c', res.dmg); // Blaze (Sanctifiers)
+    rvPoisonHit(g, meOp, fightWeapon(g, k), foeOp, opt.die === 'c' && res.dmg > 0); // Poison (Raveners)
+    rvAcidBlood(g, foeOp, meOp, res.dmg); // Acid Blood (Raveners)
     if (fightWeapon(g, k).rules.wkSmash && !killed) wkSmash(g, meOp, foeOp); // Smash (Krusha): knock the enemy back 1" and follow
     // Headtaker (Gorehorn): a kill heals D3 (no Frenzy token) and adds D3 to the skullcleaver's Critical Dmg (max 8).
     if (killed && fightWeapon(g, k).rules.headtaker) {

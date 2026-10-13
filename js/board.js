@@ -128,6 +128,12 @@ export function renderBoard(g, ui) {
       s.push(`<line x1="${f(nodes[i].x)}" y1="${f(nodes[i].y)}" x2="${f(nodes[j].x)}" y2="${f(nodes[j].y)}" class="matrix" stroke="${team(g, side).color}" pointer-events="none"/>`);
     }
   }
+  // Tunnel (Raveners): numbered markers and the 2"-wide strips between consecutive ones.
+  for (const side of [0, 1]) {
+    const t = g.rv?.tunnel?.[side] || [];
+    for (let i = 0; i < t.length - 1; i++) s.push(`<line x1="${f(t[i].x)}" y1="${f(t[i].y)}" x2="${f(t[i + 1].x)}" y2="${f(t[i + 1].y)}" stroke="${team(g, side).color}" stroke-width="2" stroke-linecap="round" opacity="0.28" pointer-events="none"/>`);
+    t.forEach((m, i) => s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.9" fill="${team(g, side).color}" fill-opacity="0.35" stroke="${team(g, side).color}" stroke-width="0.12" stroke-dasharray="0.3 0.2" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y + 0.3)}" text-anchor="middle" font-size="0.9" fill="#fff" pointer-events="none">${i}</text>`));
+  }
   // Mission markers on the ground (carried ones are drawn on their carrier).
   for (const m of g.markers || []) {
     if (m.carriedBy) continue;

@@ -7,6 +7,7 @@ import { NIGHTLORDS_TEAM } from './nightlords.js';
 import { SCOUTS_TEAM } from './scouts.js';
 import { RATLINGS_TEAM } from './ratlings.js';
 import { SANCTIFIERS_TEAM } from './sanctifiers.js';
+import { RAVENERS_TEAM } from './raveners.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2259,6 +2260,7 @@ TEAMS.push(NIGHTLORDS_TEAM);
 TEAMS.push(SCOUTS_TEAM);
 TEAMS.push(RATLINGS_TEAM);
 TEAMS.push(SANCTIFIERS_TEAM);
+TEAMS.push(RAVENERS_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the
@@ -2636,6 +2638,9 @@ export const RULE_LABELS = {
   repress: { zh: '鎮壓（反擊時先結算）', en: 'Repress (resolves first when retaliating)' },
   devSplash: { zh: '毀滅也波及目標周圍', en: 'Devastating also hits operatives within' },
   blaze: { zh: '烈焰（暴擊傷害後目標獲得烈焰標記）', en: 'Blaze (critical damage gives the target a Blaze token)' },
+  rvPoison: { zh: '毒素（暴擊傷害後目標獲得你的毒素標記，啟動時受 D3 傷害）', en: 'Poison (critical damage gives the target your Poison token: D3 damage when it activates)' },
+  crush: { zh: '碾壓（每次攻擊擲骰比大小，贏的差距加傷害，最多 3）', en: 'Crush (roll-off on each strike: the difference adds damage, max 3)' },
+  rvVenom: { zh: '毒液彈', en: 'Venom bolt' },
   wreathed: { zh: '烈焰纏身（交戰中也能射擊自己周圍）', en: 'Wreathed (shoots around itself, even engaged)' },
   twinTorrent: { zh: '雙重洪流（兩個不同目標）', en: 'Twin Torrent (two different targets)' },
   rapid: { zh: '快速射擊', en: 'Rapid Fire' },
