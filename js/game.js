@@ -288,7 +288,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   log(g, { zh: `任務：${m.name.zh}`, en: `Mission: ${m.name.en}` }, 'tp');
   // Approved Ops missions: each player has a secret Tac Op (picked at setup, or at random from its archetypes).
   if (m.approved) g.tacOps = [0, 1].map((s) => ({ id: tacOps[s] && TAC_OPS[tacOps[s]] ? tacOps[s] : randomTacOp(teams[s]), revealed: false }));
-  if (m.approved) g.primaryOps = [0, 1].map((s) => (PRIMARY_OPS.includes(primaryOps[s]) ? primaryOps[s] : PRIMARY_OPS[Math.floor(Math.random() * 3)])); // chosen in secret after the Tac Ops, revealed at the end
+  if (m.approved) g.primaryOps = [0, 1].map((s) => (PRIMARY_OPS.includes(primaryOps[s]) ? primaryOps[s] : null)); // each chooses in secret in the first Strategy phase, revealed at the end
   m.setup?.(g);
   // Warrant of Trade — Coordinate (Elucidian Starstriders): +1CP at the end of the Select Operatives step (automatic).
   for (const s of [0, 1]) if (TEAM_MAP[teams[s]].starstriders) { g.cp[s] += 1; useWarrant(g, s, 'coordinate'); }
@@ -423,6 +423,7 @@ export const missionActionsFor = (g, side) => [...accessPointsOf(g).filter(d=>d.
 export const contests = (g, side, m) => living(g, side).some((o) => inMarkerRange(o, m));
 /** Score VP from a mission source ('crit' / 'tac'), with a log line. */
 export function addVP(g, side, n, kind, msg) {
+  if (kind === 'crit' || kind === 'tac') n = Math.min(n, 6 - (g.vpBy?.[side]?.[kind] || 0)); // each op is worth 6VP at most (not counting the Primary Op bonus)
   if (n <= 0) return;
   g.vp[side] += n;
   ((g.vpBy ||= [{}, {}])[side])[kind] = (g.vpBy[side][kind] || 0) + n;
@@ -477,7 +478,12 @@ export function chooseDropZone(g, side, swap) {
 }
 /** Where a side's drop zone lies, for the picker: 'low' (left / top) or 'high'. */
 export const zoneEdge = (g, side) => { const a = g.axis === 'y' ? 'y' : 'x'; return deployZones(g)[side][a + '0'] < (a === 'x' ? boardOf(g).w : boardOf(g).h) / 2 ? 'low' : 'high'; };
-function depNeed(g, side) { return Math.min(g.dep.size[side], unplaced(g, side).length); }
+/** Deployment groups: the team split into three as evenly as possible, bigger groups first (10 operatives: 4-3-3; 7: 3-2-2). */
+function depNeed(g, side) {
+  const n = g.ops.filter((o) => o.side === side).length, step = g.dep.step?.[side] || 0;
+  if (step >= 3) return unplaced(g, side).length;
+  return Math.min(Math.max(1, Math.floor(n / 3) + (step < n % 3 ? 1 : 0)), unplaced(g, side).length);
+}
 
 /** Can this operative be (re)placed now? Unplaced ones of the deploying side, or ones placed in this step. */
 export function canPlace(g, op) {
@@ -500,6 +506,7 @@ export function finishDeployStep(g) {
   if (g.eqDeploy && !g.eqDeploy.done) return false;
   const d = g.dep;
   if (!d || d.done || d.batch.length < d.need) return false;
+  (d.step ||= [0, 0])[d.turn]++;
   const side = d.turn;
   log(g, { zh: `${teamZh(g, side)} 部署了 ${d.batch.length} 名特工`, en: `${team(g, side).name.en} set up ${d.batch.length} operative(s)` }, `side${side}`);
   const other = 1 - side;
@@ -749,6 +756,7 @@ export function finishPloys(g) {
   g.stratPasses = (g.stratPasses || 0) + 1;
   g.stratTurn = 1 - side;
   if (g.stratPasses >= 2) {
+    fillPrimary(g);
     for (const s of [g.initiative, 1 - g.initiative]) finalizeStrategy(g, s);
     startFirefight(g);
   }
@@ -1278,6 +1286,17 @@ export function killOpVP(g, side) {
 }
 /** Primary Op: chosen after the Tac Ops and revealed when the battle ends — the VP from that op count 1.5x (rounded up). */
 export const PRIMARY_OPS = ['crit', 'tac', 'kill'];
+/** The Primary Op is chosen in secret in the first Strategy phase (after deployment) — Approved Ops missions only. */
+export const primaryPending = (g, side) => !!g.primaryOps && g.tp === 1 && g.phase === 'strategy' && !g.primaryOps[side];
+export function choosePrimary(g, side, id) {
+  if (!primaryPending(g, side) || !PRIMARY_OPS.includes(id)) return false;
+  g.primaryOps[side] = id; // (not logged: it stays hidden until the battle ends)
+  return true;
+}
+/** Whoever hasn't chosen by the end of the first Strategy phase (the computer, or a player who skipped it) gets a random one. */
+function fillPrimary(g) {
+  if (g.primaryOps) for (const s of [0, 1]) if (!g.primaryOps[s]) g.primaryOps[s] = PRIMARY_OPS[Math.floor(Math.random() * 3)];
+}
 export function primaryBase(g, side) {
   const p = g.primaryOps?.[side];
   return p === 'kill' ? killOpVP(g, side) : p ? (g.vpBy?.[side]?.[p] || 0) : 0;

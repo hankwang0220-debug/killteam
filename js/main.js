@@ -34,7 +34,7 @@ import {
   radius, resolveShoot, setOrder, shootCheck, visibility, hasPloy, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
   giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
-  ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor, PRIMARY_OPS, primaryBonus, primaryBase,
+  ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor, PRIMARY_OPS, primaryBonus, primaryBase, primaryPending, choosePrimary,
   EQUIPMENT, EQUIPMENT_LIMIT, equipmentLimitFor, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, missionActionsFor, foes,
@@ -436,7 +436,6 @@ function setupView() {
     ${roster(TEAM_MAP[s.teams[side]], side)}
     ${tacticsPick(side)}
     ${tacOpPick(side)}
-    ${primaryPick(side)}
     ${equipPick(side)}
     ${scoutingPick(side)}
     ${ratFreePick(side)}
@@ -616,17 +615,6 @@ function equipPick(side) {
   return `<div class="tactics"><h4>${L(`裝備（陣營＋通用合計最多 ${limit} 項，已選 ${cur.length}）`, `Equipment (faction + universal: ${limit} total, ${cur.length} chosen)`)}</h4>
     ${equipmentOptionsFor(ui.setup.teams[side]).map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
     <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
-}
-
-/** Primary Op (after the Tac Ops): its VP count 1.5x at the end; kept secret until then. */
-function primaryPick(side) {
-  const ms = MISSIONS[ui.setup.mission];
-  if (!ms?.approved || (side === 1 && ui.setup.ai === 1)) return '';
-  const cur = PRIMARY_OPS.includes(ui.setup.primaryOps?.[side]) ? ui.setup.primaryOps[side] : 'crit';
-  const name = { crit: L('核心任務（Crit Op）', 'Crit Op'), tac: L('戰術行動（Tac Op）', 'Tac Op'), kill: L('Kill Op（擊殺）', 'Kill Op') };
-  return `<div class="tactics"><h4>${L('主要任務（Primary Op，結算時才公布）', 'Primary Op (revealed at the end)')}</h4>
-    <select data-act="primaryop" data-side="${side}">${PRIMARY_OPS.map((id) => `<option value="${id}" ${id === cur ? 'selected' : ''}>${name[id]}</option>`).join('')}</select>
-    <p class="hint small">${L('選定任務的得分 ×1.5（無條件進位）；選 Kill Op 則是（擊殺等級分＋較高者 1 分）×1.5。', 'The VP scored from the chosen op x1.5 (rounded up); for Kill Op, (grade VP + 1 for the higher grade) x1.5.')}</p></div>`;
 }
 
 /** Tac Op for Approved Ops missions (secret from the opponent; the computer picks its own at random). */
@@ -1235,6 +1223,12 @@ function gambitView(side) {
     html += `<div class="gambit"><h4>${L('戰略謀略（裝備）', 'Strategic gambits (equipment)')}</h4>
       ${dkGambitOk(g, side, 'chrono') ? `<button data-act="dkgambit" data-side="${side}" data-id="chrono">${L('懷錶：友方免費衝刺（整場一次）', 'Chronometer: free Dashes (once per battle)')}</button>` : ''}
       ${dkGambitOk(g, side, 'gas') ? `<button data-act="dkgambit" data-side="${side}" data-id="gas">${L('毒氣轟炸：放毒氣標記（整場一次）', 'Gas Bombardment: place the Gas marker (once per battle)')}</button>` : ''}</div>`;
+  }
+  if (primaryPending(g, side) && !isAI(side)) { // Primary Op: a secret choice made once in the first Strategy phase
+    const name = { crit: L('核心任務（Crit Op）', 'Crit Op'), tac: L('戰術行動（Tac Op）', 'Tac Op'), kill: L('Kill Op（擊殺）', 'Kill Op') };
+    html += `<div class="gambit"><h4>${L('主要任務（Primary Op，策略謀略）', 'Primary Op (strategic gambit)')}</h4>
+      <p class="hint small">${L('秘密選一個：該任務的得分 ×1.5（無條件進位），遊戲結束才公布；選 Kill Op 則是（擊殺等級分＋較高者 1 分）×1.5。', 'Choose one in secret: its VP x1.5 (rounded up), revealed at the end; for Kill Op, (grade VP + 1 for the higher grade) x1.5.')}</p>
+      <div class="row">${PRIMARY_OPS.map((id) => `<button data-act="primaryop" data-side="${side}" data-id="${id}">${name[id]}</button>`).join('')}</div></div>`;
   }
   if (team(g, side).obeliskNodes && !isAI(side)) { // Canoptek Circle: the obelisk nodes are placed / moved by hand
     const left = nodesLeftToPlace(g, side), done = g.nodeTP?.[side] === g.tp, mode = ui.nodeMode?.side === side ? ui.nodeMode : null;
@@ -2829,7 +2823,6 @@ app.addEventListener('change', (e) => {
   if (e.target.dataset.act === 'darkness') { const o = activeOp(g); if (o?.darknessTargets?.includes(e.target.value) && !o.orderSet) o.acted.darknessTarget = e.target.value; return afterChange(); }
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
   if (e.target.dataset.act === 'mission') { ui.setup.mission = e.target.value; render(); }
-  if (e.target.dataset.act === 'primaryop') { (ui.setup.primaryOps ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if (e.target.dataset.act === 'tacop') { (ui.setup.tacOps ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if ((e.target.dataset.act === 'claimobj' || e.target.dataset.act === 'claimkind') && g?.phase === 'strategy') {
     const side = +e.target.dataset.side;
@@ -2962,10 +2955,11 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
-      g = newGame({ primaryOps: ui.setup.primaryOps || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'primaryop': choosePrimary(g, +d.side, d.id); return afterChange();
     case 'nodemode': ui.nodeMode = ui.nodeMode?.side === +d.side && ui.nodeMode.kind === d.m ? null : { side: +d.side, kind: d.m, uid: null }; return render();
     case 'nodeauto': placeNodes(g, +d.side); ui.nodeMode = null; return afterChange();
     case 'nodesdone': nodesDone(g, +d.side); ui.nodeMode = null; return afterChange();

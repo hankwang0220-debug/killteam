@@ -50,6 +50,24 @@ console.log('universal ok');
 {
   const g = G.newGame({ teams: ['angels', 'kommandos'], ai: null, mission: 'secure', primaryOps: ['crit', 'tac'] });
   assert.deepEqual(g.primaryOps, ['crit', 'tac']);
+  const h = G.newGame({ teams: ['angels', 'kommandos'], ai: null, mission: 'secure' });
+  assert.deepEqual(h.primaryOps, [null, null], 'chosen later, in the first Strategy phase');
+  h.tp = 1; h.phase = 'strategy';
+  assert(G.primaryPending(h, 0)); assert(G.choosePrimary(h, 0, 'kill')); assert(!G.choosePrimary(h, 0, 'crit'), 'once only');
+  assert.equal(h.primaryOps[0], 'kill');
+  // Deployment groups: the team goes in three groups, bigger first (6 operatives: 2-2-2).
+  {
+    const q = G.newGame({ teams: ['angels', 'kommandos'], ai: null, equip: [[], []] });
+    while (!q.eqDeploy.done && G.autoPlaceEquipment(q));
+    const n = q.ops.filter((o) => o.side === 1).length, seen = [];
+    let guard = 0;
+    while (!q.dep.done && guard++ < 20) { if (q.dep.turn === 1) seen.push(q.dep.need); G.autoDeployStep(q); G.finishDeployStep(q); }
+    const base = Math.floor(n / 3), want = [0, 1, 2].map((i) => base + (i < n % 3 ? 1 : 0));
+    assert.deepEqual(seen, want, ` operatives`);
+  }
+  // Each op is worth 6VP at most.
+  G.addVP(h, 1, 5, 'crit', { zh: 'x', en: 'x' }); G.addVP(h, 1, 5, 'crit', { zh: 'x', en: 'x' });
+  assert.equal(h.vpBy[1].crit, 6);
   g.vpBy = [{ crit: 3, tac: 1 }, { crit: 2, tac: 3 }]; g.vp = [4, 5];
   assert.equal(G.primaryBonus(g, 0), 0, 'hidden until the end');
   g.phase = 'gameover';
