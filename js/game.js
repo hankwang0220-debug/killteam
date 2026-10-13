@@ -9,6 +9,8 @@ import { SCOUTS_EQUIPMENT } from './data/scouts.js';
 import { RATLINGS_EQUIPMENT } from './data/ratlings.js';
 import { SANCTIFIERS_EQUIPMENT } from './data/sanctifiers.js';
 import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
+import { ANGELS_EQUIPMENT } from './data/angels.js';
+import { adSetup, adTactics, adVeteran, adPloyBought, adHeroicFree, adHeroicUsed, adIronHalo, adRoll, adShootStart, adAuspexOn, adEnd, adTilting, adReliquaries } from './angels.js';
 import { isPulse, pfSetup, pfActivate, pfEnd, pfRules, pfGravHit, pfShield, pfTaoBonus, pfShootStart, pfShootEnd, pfMarkerTargets, pfMarkerlight, pfSwap, pfPointBlank, pfPloyBought, pfWorthy, pfActions, pfSelf, registerPathfinderActions } from './pathfinders.js';
 import { isSF, sfSetup, sfSermon, sfOrator, sfNearOrator, sfReady, sfActivate, sfEnd, sfRules, sfConversion, sfNullApl, sfShootBlaze, sfFightBlaze, sfRoll, sfSymbols, sfSwap, sfPloyBought, sfMiracleMoves, sfDeath, sfDeclaim, sfActions, sfSelf, registerSanctifierActions } from './sanctifiers.js';
 import { rtShootHideWhy, isRat, isSmall, isRifle, rtSetup, rtFree, rtTripwires, rtStolen, rtMine, rtSilent, rtRules, rtShifty, rtEquipRoll, rtArmour, rtBlockSI, rtScarper, rtAfterEnemyAction, rtMoved, rtLieInWait, rtShot, rtActions, registerRatlingActions } from './ratlings.js';
@@ -74,7 +76,7 @@ export const d3 = () => { rolls++; return 1 + Math.floor(Math.random() * 3); };
 export const injuredPenalty = (g, op) => isInjured(op) && !op.acted?.mwIgnoreInjury && !op.scRaw && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat // (Raging Heat of the Dying Flame)
   && !(markOf(op) === 'nurgle' && hasPloy(g, op.side, 'implacable')); // Implacable (Legionaries)
 /** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
-export const hasTactic = (g, op, id) => !!g.tactics?.[op.side]?.includes(id) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).weavewerke || !!tpl(op).wastelandStalker)); // (Wasteland Stalker: Ruststalkers)
+export const hasTactic = (g, op, id) => !!adTactics(g, op.side)?.includes(id) || adVeteran(g, op, id) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).weavewerke || !!tpl(op).wastelandStalker)); // (Wasteland Stalker: Ruststalkers)
 
 /** Art of War option (Mont'ka / Kauyon) in effect for this operative; the Blooded veteran gets either. */
 export const artOfWar = (g, op, id) => hasPloy(g, op.side, id)
@@ -192,7 +194,8 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
     markers: [], // mission markers that can be carried: {id, kind, x, y, carriedBy}
     deploy: map?.deploy.map((z) => ({ ...z })) || m.deploy || null, axis: map?.axis || m.axis || 'x', ops: [], seq: 0,
     // Chapter Tactics [primary, secondary] for teams that have them; free ploys already used (Doctrine Warfare).
-    tactics: [0, 1].map((s) => (TEAM_MAP[teams[s]].tactics ? tactics[s] || TEAM_MAP[teams[s]].defaultTactics : null)),
+    tactics: [0, 1].map((s) => (TEAM_MAP[teams[s]].tactics ? (tactics[s] || TEAM_MAP[teams[s]].defaultTactics).slice(0, 2) : null)),
+    vet: [0, 1].map((s) => (teams[s] === 'angels' ? tactics[s]?.[2] || null : null)), // (Chapter Veteran: the Sergeants' extra Chapter Tactic)
     freePloys: [[], [], []],
   };
   for (const side of [0, 1]) {
@@ -235,6 +238,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   rtSetup(g, roster, ratFree);
   sfSetup(g, roster); // Sanctifiers: roster check, the Orator and Declamation state
   pfSetup(g, roster); // Pathfinders: roster limits
+  adSetup(g, roster); // Angels of Death: roster limits
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -794,6 +798,7 @@ export function buyPloy(g, side, ploy) {
   scPloyBought(g, side, ploy); // Scout Squad: Adaptable Training, Stealth Relocation
   sfPloyBought(g, side, ploy); // Sanctifiers: Rally the Flock
   pfPloyBought(g, side, ploy); // Pathfinders: Recon Sweep
+  adPloyBought(g, side, ploy); // Angels of Death: Adaptive Tactics
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
   if (ploy.id === 'gloryKill') setGloryKill(g, side, living(g, 1 - side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]);
@@ -1003,7 +1008,7 @@ export function endActivation(g) {
   if (g.smoke?.length) { for (const s of g.smoke) if (s.left != null) s.left--; g.smoke = g.smoke.filter((s) => s.left == null || s.left > 0); }
   if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `${opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `${opName(op, 'en')} Slink into Darkness: now Concealed` }, `side${op.side}`); }
   if (op) {
-    op.ready = false; op.ap = 0; op.rtLarcenous = false; sfEnd(op); pfEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
+    op.ready = false; op.ap = 0; op.rtLarcenous = false; sfEnd(op); pfEnd(op); adEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
     if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; op.ctlOnly = null; op.ctlMove = null; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
     // Lacerate Flesh (Goremonger firefight ploy): the tank goes down again at the end, or it takes D3.
@@ -2652,7 +2657,7 @@ export const mlLevel = (g, op, weapon, target) =>
 
 // Optics, Multi-dimensional Vision, Long-sight (hunting rifle) and 3+ Markerlight tokens: the target can't be obscured.
 const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, target, {
-  noObscure: (op.archonMark?.tp === g.tp && op.archonMark.uid === target.uid) || !!op.optics || !!tpl(op).multiVision || mlLevel(g, op, weapon, target) >= 3
+  noObscure: (op.archonMark?.tp === g.tp && op.archonMark.uid === target.uid) || !!op.optics || !!tpl(op).multiVision || mlLevel(g, op, weapon, target) >= 3 || adAuspexOn(op, target)
     || (!!op.longSightOn && weapon.group === 'huntingRifle') || spotOn(g, op, target)
     || !!tpl(op).incursor || auspexOn(g, op, target) || !!tpl(op).incorporealSight || !!weapon.rules.hypersense || dwAuspexOn(g, op, target) || (!!tpl(op).panVisor && edgeDist(op, target) <= 6), ...extra, // Multi-spectrum Array, Auspex Scan, Incorporeal Sight
 });
@@ -4358,7 +4363,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT);
+Object.assign(EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT);
@@ -4366,7 +4371,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT,
+  nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4558,7 +4563,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => scVoxFree(g, side, id) || rtFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => scVoxFree(g, side, id) || rtFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id, target = g.dwAuspexTarget) => ffBaseCost(g, side, id, target) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id, target = g.dwAuspexTarget) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id, target) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -4567,6 +4572,7 @@ function spendFF(g, side, id) {
   g.ffUsed[side].ids.push(id);
   scrivener(g, side, id); // (Scrivener)
   const paid = ffCostNow(g, side, id);
+  if (!(id === 'wrathVengeance' && adReliquaries(g, side)) && adHeroicFree(g, side, id, g.ffSpec)) adHeroicUsed(g, side); // Heroic Leader (Space Marine Captain): once per TP
   if (scVoxFree(g, side, id)) (g.scVoxTP ||= [0, 0])[side] = g.tp; // Tactical Vox-link (Scout Squad): free once per TP (after the cost above was worked out)
   if (dwCommandFree(g, side, 'firefight') && !(id === 'dwAuspex' && dwTriangulation(g, side, g.dwAuspexTarget))) dwConsumeCommand(g, side, 'firefight');
   g.cp[side] -= paid;
@@ -4588,6 +4594,8 @@ export function ffToggleArm(g, side, id) {
   if (i >= 0) off.splice(i, 1); else off.push(id);
 }
 /** Use an auto ploy now if it's armed, affordable and unused. */
+/** autoFF where the ploy names a specified operative (the Captain's Heroic Leader makes a ploy free for him). */
+export function autoFFSpec(g, side, id, spec) { g.ffSpec = spec; try { return autoFF(g, side, id); } finally { g.ffSpec = null; } }
 export function autoFF(g, side, id, op = null) {
   if (side > 1 || !ffDef(g, side, id) || !ffArmed(g, side, id) || !ffReady(g, side, id)) return false;
   if (ffDef(g, side, id).technique && (!op || techWhy(g, op, id))) return false;
@@ -5544,6 +5552,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   wkRoll(g, op, a, target, tally); // Wrecka Rampage: 6s gain Wrecka points, points retain fails
   rtEquipRoll(g, op, weapon, a, tally); // Ratlings equipment: Purloined Rations, Lucky Round
   sfRoll(g, op, a, tally); // Sanctifiers equipment: Purity Seals
+  adRoll(g, op, a, tally); // Purity Seals (Angels of Death)
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
   const inCover = vis.cover && !rules.ignoreCover;
@@ -5710,7 +5719,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (markOf(target) === 'tzeentch' && target.ready && hasPloy(g, target.side, 'fickleFates') && d.crits > 0) { const x = d.dice.find((y) => y.res === 'miss'); if (x) { x.res = 'norm'; x.indo = true; d.norms++; } }
   // Transhuman Physiology (Angels / Phobos firefight ploy): one normal save is retained as a critical one,
   // when that could block a crit that would otherwise get through.
-  if (d.norms > 0 && a.crits > d.crits + coverC && autoFF(g, target.side, 'transhuman')) {
+  if (d.norms > 0 && a.crits > d.crits + coverC && autoFFSpec(g, target.side, 'transhuman', target)) {
     const x = d.dice.find((y) => y.res === 'norm'); x.res = 'crit'; x.prom = true; d.norms--; d.crits++;
   }
   // War Gong: crits that get through inflict Normal Dmg instead (when that's better, or to keep a Frenzied Fellgor up).
@@ -5725,7 +5734,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (gong) dc = dn;
   const dev = devDmg; // (already inflicted, straight after the attack dice)
   // Weavefield Crest (Theyn): once per battle, ignore the Normal Dmg of one attack die.
-  const crest = block.remN > 0 && dn > 0 && (useCrest(g, target) || pfShield(g, target)); // (Shield Generator: MV4 Shield Drone)
+  const crest = block.remN > 0 && dn > 0 && (useCrest(g, target) || pfShield(g, target) || adIronHalo(g, target)); // (Shield Generator: MV4 Shield Drone; Iron Halo: Space Marine Captain)
   const normals = Array(Math.max(0, block.remN - (crest ? 1 : 0))).fill(dn);
   if (normals.length && corsairShield(g, target)) normals.shift();
   else if (normals.length && target.side < 2 && isCC(target) && matrixCovers(g, target.side, op, target) && autoFF(g, target.side, 'shieldFlare')) normals.shift(); // Shield Flare
@@ -5859,6 +5868,7 @@ export function forcedShot(g, op, weapon, targets, real = false) {
 export function* shootFlow(g, op, weapon, target) {
   if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
   pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
+  adShootStart(g, op, target, shotVisibility(g, op, target, weapon).obscured); // Auspex (Angels of Death)
   mwActionStart(g);
   wkActionStart(g, op, 'shoot'); // Wrecka Krew: Tanked Up, Wrecka Boss
   scNoteAttack(g, op); // Scout Squad: who attacked first this turning point (Emboldened Aspirant)
@@ -6075,6 +6085,8 @@ export function startFight(g, op, weapon, target) {
     me.nimbusTP = g.tp; delete foeRules.lethal; delete foeRules.rending; delete foeRules.severe;
     log(g, { zh: `${opName(me, 'zh')} 幽光環：對手只有擲出 6 才算暴擊`, en: `${opName(me, 'en')} Spectral Nimbus: the opponent's crits need a 6` }, `side${me.side}`);
   }
+  // Tilting Shields (Angels of Death equipment): the opponent can't retain results below 6 as critical successes.
+  for (const [me, foeRules] of [[op, dr], [target, ar]]) if (adTilting(g, me)) { delete foeRules.lethal; delete foeRules.rending; delete foeRules.severe; }
   // Rust Emanations (Gellerpox): a Nightmare Hulk fighting — the opponent can't retain results of 3.
   if (tpl(op).hulk && hasPloy(g, op.side, 'rustEmanations')) dr.no3 = true;
   // Blessings of Infection (Gellerpox): adjusts the fight dice of its operatives.
@@ -6114,6 +6126,7 @@ export function startFight(g, op, weapon, target) {
   claimBoost(g, op, target, aRoll); claimBoost(g, target, op, dRoll); // Stake Claim (Elucidian Starstriders)
   wkRoll(g, op, aRoll, target, tally); wkRoll(g, target, dRoll, op, tally); // Wrecka Rampage (fighting or retaliating)
   sfRoll(g, op, aRoll, tally); sfRoll(g, target, dRoll, tally); // Purity Seals (Sanctifiers)
+  adRoll(g, op, aRoll, tally); adRoll(g, target, dRoll, tally); // Purity Seals (Angels of Death)
   spend(g, op, 'fight');
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons
   if (free) { op.acted.free.fight = null; if (op.acted.ancestors && op.acted.free.shoot === 'any') op.acted.free.shoot = null; }
@@ -6302,6 +6315,7 @@ export function fightApply(g, optId) {
     if (!shrug && opt.die === 'n' && corsairShield(g, foeOp)) shrug = true;
     if (!shrug && opt.die === 'n' && useCrest(g, foeOp)) shrug = true; // Weavefield Crest (Theyn)
     if (!shrug && opt.die === 'n' && pfShield(g, foeOp)) shrug = true; // Shield Generator (MV4 Shield Drone)
+    if (!shrug && opt.die === 'n' && adIronHalo(g, foeOp)) shrug = true; // Iron Halo (Space Marine Captain)
     if (!shrug && opt.die === 'n' && foeOp.side < 2 && isCC(foeOp) && inMatrix(g, foeOp.side, foeOp) && autoFF(g, foeOp.side, 'shieldFlare')) shrug = true; // Shield Flare (Canoptek Circle)
     if (!shrug && opt.die === 'n' && opt.dmg >= 3 && autoFF(g, foeOp.side, 'justScratch')) shrug = true; // Just a Scratch (Kommandos)
     if (!shrug && opt.die === 'n' && isWK(foeOp) && !tpl(foeOp).wkSquig && autoFF(g, foeOp.side, 'wkJustScratch')) shrug = true; // Just a Scratch (Wrecka Krew)

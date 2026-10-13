@@ -11,6 +11,7 @@ import { ratlingsRosterError, ratFreeCount, cleanRatFree, DEFAULT_RAT_FREE, RATL
 import { rtGambitLeft, rtDesignate, slingshotCheck, doSlingshot } from './ratlings.js';
 import { SANCTIFIERS_EQUIPMENT, sanctifiersRosterError } from './data/sanctifiers.js';
 import { pathfindersRosterError } from './data/pathfinders.js';
+import { angelsRosterError } from './data/angels.js';
 import { sfGambitLeft, sfChooseOrator, sfOrator, sfSermon } from './sanctifiers.js';
 import { wreckaOf } from './wrecka.js';
 import { shadowPassageCheck, doShadowPassage, withinShadow, isMandrake } from './mandrakes.js';
@@ -516,6 +517,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'tauPathfinders') { const error = pathfindersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'angels') { const error = angelsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wreckaKrew') { // (and only one Glyphs)
     const error = wreckaRosterError(t, cur), glyphs = ['wkGlyphsW', 'wkGlyphsD'].every((id) => ui.setup.equip?.[side]?.includes(id));
     return [error && tx(error), glyphs && L('圖騰只能選一個（哇啊啊！或大破壞）', 'Pick only one Glyphs (Waaagh! or Destruction)')].filter(Boolean).map((m) => `<p class="bad small">⚠ ${esc(m)}</p>`).join('');
@@ -612,6 +614,8 @@ function tacticsPick(side) {
       ${t.tactics.map((x) => `<option value="${x.id}" ${cur[slot] === x.id ? 'selected' : ''} ${cur[1 - slot] === x.id ? 'disabled' : ''}>${esc(bi(x.name))}</option>`).join('')}
     </select></label>`;
   const desc = (id) => t.tactics.find((x) => x.id === id);
+  const vetSel = t.id === 'angels' ? `<label>${L('士官的額外戰術（老練）', 'Sergeants\' extra tactic (Chapter Veteran)')}
+    <select data-act="tactic" data-side="${side}" data-slot="2"><option value="">${L('（不選）', '(none)')}</option>${t.tactics.map((x) => `<option value="${x.id}" ${cur[2] === x.id ? 'selected' : ''}>${esc(bi(x.name))}</option>`).join('')}</select></label>` : '';
   // A single choice (Gellerpox Techno-curse) or primary + secondary (Chapter Tactics).
   if (t.tacticSlots === 1) {
     return `<div class="tactics"><h4>${esc(bi(t.tacticsLabel))}</h4>
@@ -622,8 +626,8 @@ function tacticsPick(side) {
     </div>`;
   }
   return `<div class="tactics"><h4>${L('戰團戰術', 'Chapter Tactics')}</h4>
-    <div class="row">${sel(0)}${sel(1)}</div>
-    ${cur.map((id) => `<p class="hint small"><b>${esc(tx(desc(id).name))}</b>：${esc(tx(desc(id).desc))}</p>`).join('')}
+    <div class="row">${sel(0)}${sel(1)}${vetSel}</div>
+    ${cur.filter(Boolean).map((id) => `<p class="hint small"><b>${esc(tx(desc(id).name))}</b>：${esc(tx(desc(id).desc))}</p>`).join('')}
   </div>`;
 }
 
@@ -2836,6 +2840,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'tauPathfinders' && pathfindersRosterError(TEAM_MAP.tauPathfinders, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'angels' && angelsRosterError(TEAM_MAP.angels, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();

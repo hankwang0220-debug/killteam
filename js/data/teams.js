@@ -93,6 +93,32 @@ const krakGrenade = W('krakGrenade', '穿甲手雷', 'Krak grenade', 'ranged', 4
 const chainswordA = W('chainswordA', '鏈鋸劍', 'Chainsword', 'melee', 5, 3, 4, 5);
 const chainswordSgt = W('chainswordSgt', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5);
 const fistsA = W('fistsA', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
+// Angels of Death: the Sergeants' and the Captain's weapon options, and the rifle choices.
+const autoBolt = W('autoBolt', '自動爆彈步槍', 'Auto bolt rifle', 'ranged', 4, 3, 3, 4, { torrent: 1 });
+const stalkerHeavy = W('stalkerHeavy', '潛獵爆彈步槍（重型）', 'Stalker bolt rifle (heavy)', 'ranged', 4, 3, 3, 5, { heavy: 'dash', lethal: 5, piercingCrits: 1 }, 'stalkerRifle');
+const stalkerMobile = W('stalkerMobile', '潛獵爆彈步槍（機動）', 'Stalker bolt rifle (mobile)', 'ranged', 4, 3, 3, 4, {}, 'stalkerRifle');
+const handFlamerA = W('handFlamerA', '手持火焰噴射器', 'Hand flamer', 'ranged', 4, 2, 3, 3, { range: 6, saturate: true, torrent: 1 });
+const plasmaPistolAD = W('plasmaPistolAD', '等離子手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolAD');
+const plasmaPistolADs = W('plasmaPistolADs', '等離子手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 3, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolAD');
+const powerFistAS = W('powerFistAS', '動力拳', 'Power fist', 'melee', 5, 4, 5, 7, { brutal: true });
+const powerWeaponAS = W('powerWeaponAS', '動力武器', 'Power weapon', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const thunderHammerAS = W('thunderHammerAS', '雷霆錘', 'Thunder hammer', 'melee', 5, 4, 5, 6, { shock: true, stun: true });
+const powerFistIS = W('powerFistIS', '動力拳', 'Power fist', 'melee', 4, 4, 5, 7, { brutal: true });
+const powerWeaponIS = W('powerWeaponIS', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const thunderHammerIS = W('thunderHammerIS', '雷霆錘', 'Thunder hammer', 'melee', 4, 4, 5, 6, { shock: true, stun: true });
+const powerFistCap = W('powerFistCap', '動力拳', 'Power fist', 'melee', 5, 3, 5, 7, { brutal: true });
+const rifleSets = { bolt: [boltRifle], auto: [autoBolt], stalker: [stalkerHeavy, stalkerMobile] };
+const mk = (o) => Object.fromEntries(Object.entries(o));
+// Assault Intercessor Sergeant: (hand flamer | heavy bolt pistol) × (chainsword | power fist | power weapon | thunder hammer), or plasma pistol + chainsword.
+const asgtLoadouts = {
+  ...Object.fromEntries([['pistol', heavyBoltPistol], ['flamer', handFlamerA]].flatMap(([rk, rw]) => [['chain', chainswordA], ['fist', powerFistAS], ['power', powerWeaponAS], ['hammer', thunderHammerAS]].map(([mkk, mw]) => [`${rk}-${mkk}`, [rw, mw]]))),
+  plasma: [plasmaPistolAD, plasmaPistolADs, chainswordA],
+};
+// Intercessor Sergeant: (auto bolt rifle | bolt rifle | stalker bolt rifle) × (chainsword | fists | power fist | power weapon | thunder hammer).
+const isgtLoadouts = Object.fromEntries(Object.entries(rifleSets).flatMap(([rk, rw]) => [['chain', chainswordSgt], ['fists', fistsA], ['fist', powerFistIS], ['power', powerWeaponIS], ['hammer', thunderHammerIS]].map(([mkk, mw]) => [`${rk}-${mkk}`, [...rw, mw]])));
+const gunnerLoadouts = Object.fromEntries(Object.entries(rifleSets).map(([rk, rw]) => [rk, [...rw, auxFrag, auxKrak, fistsA]]));
+const warriorLoadouts = Object.fromEntries(Object.entries(rifleSets).map(([rk, rw]) => [rk, [...rw, fistsA]]));
+void mk;
 
 // ---- Kommandos ----
 const slugga = W('slugga', '粗製手槍', 'Slugga', 'ranged', 4, 4, 3, 4, { range: 8 });
@@ -691,12 +717,22 @@ export const TEAMS = [
         desc: { zh: '本回合友方被射擊時，若防禦骰失敗 2 顆以上，可把其中 1 顆改為普通成功。', en: 'This TP, when a friendly operative is shot and rolls two or more failed defence dice, one becomes a normal success.' } },
       { id: 'noFear', cp: 1, name: { zh: '無所畏懼', en: 'And They Shall Know No Fear' },
         desc: { zh: '本回合友方無視重傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
+      { id: 'adaptiveTactics', cp: 1, name: { zh: '適應戰術', en: 'Adaptive Tactics' },
+        desc: { zh: '本回合把次要戰團戰術換成另一個（回合結束後換回來）。（自動選擇：依隊上武器挑最合適的）', en: 'This TP, change your secondary Chapter Tactic (it returns at the end of the turning point). (Chosen automatically to suit the squad.)' } },
     ],
+    // The leader (Intercessor Sergeant, Assault Sergeant or Captain) + 5 picks, each once except Warriors.
+    replacements: {
+      sgt: ['sgt', 'asgt', 'captain'],
+      ...Object.fromEntries(['assault', 'grenadier', 'gunner', 'heavy', 'sniper'].map((id) => [id, ['assault', 'warrior', 'grenadier', 'gunner', 'heavy', 'sniper']])),
+    },
     ops: [
-      op('sgt', '仲裁者士官', 'Intercessor Sergeant', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, doctrineWarfare: ['docDevastator', 'docTactical'] }, [boltRifle, chainswordSgt]),
-      op('assault', '突襲仲裁者戰士', 'Assault Intercessor Warrior', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [heavyBoltPistol, chainswordA]),
+      op('sgt', '仲裁者士官', 'Intercessor Sergeant', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, doctrineWarfare: ['docDevastator', 'docTactical'], chapterVeteran: true, loadouts: isgtLoadouts }, isgtLoadouts['bolt-chain']),
+      op('asgt', '突襲仲裁者士官', 'Assault Intercessor Sergeant', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, doctrineWarfare: ['docAssault', 'docTactical'], chapterVeteran: true, loadouts: asgtLoadouts }, asgtLoadouts['pistol-chain'], 0),
+      op('captain', '星際戰士連長', 'Space Marine Captain', { apl: 3, move: 6, save: 3, wounds: 15, base: 40, heroicLeader: true, ironHalo: true }, [plasmaPistolAD, plasmaPistolADs, powerFistCap], 0),
+      op('assault', '突襲仲裁者戰士', 'Assault Intercessor Warrior', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, adWarrior: true }, [heavyBoltPistol, chainswordA]),
+      op('warrior', '仲裁者戰士', 'Intercessor Warrior', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, adWarrior: true, loadouts: warriorLoadouts }, warriorLoadouts.bolt, 0),
       op('grenadier', '突襲仲裁者擲彈兵', 'Assault Intercessor Grenadier', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [heavyBoltPistol, fragGrenade, krakGrenade, chainswordA]),
-      op('gunner', '仲裁者槍手', 'Intercessor Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [boltRifle, auxFrag, auxKrak, fistsA]),
+      op('gunner', '仲裁者槍手', 'Intercessor Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, loadouts: gunnerLoadouts }, gunnerLoadouts.bolt),
       op('heavy', '重裝仲裁者槍手', 'Heavy Intercessor Gunner', { apl: 3, move: 5, save: 3, wounds: 18, base: 40 }, [boltPistol, hbFocused, hbSweeping, fistsA]),
       op('sniper', '清除者狙擊手', 'Eliminator Sniper', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, camoCloak: true, optics: true }, [boltPistol, sniperExec, sniperHyper, sniperMortis, fistsA]),
     ],
