@@ -210,6 +210,8 @@ button.wide { width: 100%; margin-top: 10px; }
 #board { width: 100%; height: auto; max-height: calc(100vh - 90px); background: #0c0e11; border-radius: 10px; user-select: none; touch-action: manipulation; }
 #board .mat { fill: var(--mat); }
 #board .cover-range { fill: none; stroke: #9edbd2; stroke-width: .045; stroke-dasharray: .22 .16; opacity: .35; pointer-events: none; }
+#terrain-hover { position: fixed; z-index: 1000; pointer-events: none; max-width: min(340px, calc(100vw - 16px)); padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font-size: .85rem; box-shadow: 0 4px 16px #0008; }
+#terrain-hover div { margin-top: 5px; color: var(--muted); }
 #board .heavy { fill: var(--heavy); stroke: var(--heavy-s); stroke-width: .06; }
 #board .light { stroke: var(--light-s); stroke-width: .04; }
 #board .wire { fill: none; stroke: #b9b2a0; stroke-width: .07; stroke-dasharray: .18 .1; }

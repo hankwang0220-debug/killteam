@@ -15,7 +15,7 @@ import {
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
-  radius, resolveShoot, setOrder, shootCheck, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
+  radius, resolveShoot, setOrder, shootCheck, visibility, hasPloy, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
   giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
   ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor,
@@ -28,6 +28,7 @@ import {
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
 import { renderBoard, tokenLegend, roleGlyph, roleOf } from './board.js';
+import { distPointRect } from './geometry.js';
 import { findPath, moveCtx, wholeInchPath } from './path.js';
 import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices, setReboot } from './missions.js';
@@ -50,8 +51,9 @@ const ui = {
   undo: [],           // snapshots before the player's undoable actions this activation
   help: false,
   settingsOpen: false,
-  setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null], mission: 'standard' },
+  setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null], mission: 'standard', terrainRanges: 'nearby' },
 };
+try { const mode = localStorage.getItem('kt.terrainRanges'); if (['nearby', 'always', 'off'].includes(mode)) ui.setup.terrainRanges = mode; } catch { /* optional preference */ }
 let aiTimer = null;
 
 /** Sides the computer plays: the AI player and mission NPOs. */
@@ -104,6 +106,7 @@ const nm = (op) => esc(opName(op, lang()));
 
 // ---------- render root ----------
 function render() {
+  document.getElementById('terrain-hover')?.remove();
   if (ui.screen !== 'game' && ui.screen !== 'replay') { measure.pts = []; measure.cursor = null; measure.mode = false; angle.pts = []; angle.cursor = null; angle.mode = false; }
   if (ui.screen === 'game') noteTurn();
   if (ui.screen === 'home') app.innerHTML = homeView();
@@ -420,6 +423,10 @@ function setupView() {
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
   return `${topBar()}
   <main class="setup">
+    <section class="card missionpick"><h3>${L('顯示設定', 'Display settings')}</h3>
+      <label>${L('地形 1 吋範圍', 'Terrain 1-inch boundaries')}
+      <select data-act="terrainRanges">${[['nearby', L('單位進入範圍時顯示（預設）', 'Show when an operative is within range (default)')], ['always', L('全部顯示', 'Always show')], ['off', L('不顯示', 'Hide')]].map(([id, text]) => `<option value="${id}" ${ui.setup.terrainRanges === id ? 'selected' : ''}>${text}</option>`).join('')}</select></label>
+      <p class="hint small">${L('以底座邊緣判定距離；範圍線是距離參考，實際效果依攻擊方向與規則判定。', 'Distances use base edges; boundaries are guides, effects depend on attack direction and rules.')}</p></section>
     <section class="card missionpick"><h3>${L('任務', 'Mission')}</h3>
       <select data-act="mission">${MISSION_LIST.map((m) => `<option value="${m.id}" ${m.id === ms.id ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
       <p class="hint small">${esc(tx(ms.desc))}${ms.source ? ` <i>（${esc(ms.source)}）</i>` : ''}</p></section>
@@ -719,7 +726,7 @@ function replayView() {
     });
     return `${topBar(scoreBar(), status)}
     <main class="game">
-      <div class="boardwrap"><div class="boardbox">${renderBoard(view, { sel: ui.sel, trails: trailsAt(R.rep, R.i) })}${measureBar()}</div>${tokenLegend()}</div>
+      <div class="boardwrap"><div class="boardbox">${renderBoard(view, { sel: ui.sel, terrainRanges: ui.setup.terrainRanges, trails: trailsAt(R.rep, R.i) })}${measureBar()}</div>${tokenLegend()}</div>
       <aside class="panel">
         <section class="card replayctl">
           <h2>📜 ${L('複盤', 'Replay')} <small>${esc(R.title)}</small></h2>
@@ -885,7 +892,7 @@ function statusBox({ color, icon, phase, tp, who, doing, last, key }) {
 }
 
 function boardUi() {
-  const b = { sel: ui.sel, peek: ui.peek, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy' };
+  const b = { sel: ui.sel, peek: ui.peek, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy', terrainRanges: ui.setup.terrainRanges };
   const op = activeOp(g);
   if (op && ui.mode?.kind === 'move' && ui.mode.action !== 'mdPass') b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   // Exodite riders: where a Sprint can go (or the turn arc).
@@ -2425,6 +2432,39 @@ app.addEventListener('click', (e) => {
   handle(b.dataset.act, b.dataset, e);
 });
 // Hovering an operative in the lists beside the board lights it up on the board, and the other way round.
+app.addEventListener('pointermove', (e) => {
+  const el = e.target.closest('.opchip[data-uid], #board .op[data-uid]');
+  const op = g && activeOp(g), target = el && g && getOp(g, el.dataset.uid);
+  let tip = document.getElementById('terrain-hover');
+  if (ui.screen !== 'game' || !op || !target || target.dead || target.side === op.side || !['shoot', 'fight'].includes(ui.mode?.kind) || e.pointerType === 'touch') { tip?.remove(); return; }
+  if (!tip) { tip = document.createElement('div'); tip.id = 'terrain-hover'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip); }
+  const near = g.terrain.filter(t => distPointRect(target, t) - radius(target) <= 1 + .001);
+  const names = [...new Set(near.map(t => t.kind === 'heavy' ? L('重型地形', 'Heavy terrain') : t.kind === 'wire' ? L('鐵絲網', 'Razor wire') : L('輕型地形', 'Light terrain')))];
+  const lines = [];
+  if (names.length) lines.push(`${names.join('、')}（${L('底座距地形 1 吋內', 'within 1 inch of base')}）`);
+  if (near.some(t => t.kind === 'wire')) lines.push(L('鐵絲網（穿越時額外消耗 1 吋移動距離）', 'Razor wire (crossing costs 1 extra inch of movement)'));
+  if (ui.mode.kind === 'fight') {
+    lines.push(L('近戰（地形不提供射擊掩護豁免）', 'Fight (terrain grants no shooting cover save)'));
+    if (!fightTargets(g, op).includes(target)) lines.push(L('目前不是合法近戰目標', 'Not a valid fight target'));
+  } else if (ui.mode.weapon) {
+    const attacker = shooter(op), check = shootCheck(g, attacker, target, ui.mode.weapon);
+    const v = check.ok ? check : visibility(g, attacker, target);
+    const rules = effectiveRules(g, attacker, ui.mode.weapon, target);
+    const saturated = rules.saturate && !tpl(target).camoCloak && !tpl(target).weavewerke && !hasPloy(g, target.side, 'rogue') && !tpl(target).cultAgent;
+    if (v.cover) lines.push(rules.ignoreCover || saturated
+      ? L('掩護（此攻擊忽略地形掩護豁免）', 'Cover (this attack ignores terrain cover saves)')
+      : L('掩護（基本效果：可保留 1 顆普通豁免；特殊能力另計）', 'Cover (base effect: may retain 1 normal save; abilities may modify this)'));
+    if (v.obscured) lines.push(L('遮蔽（攻擊暴擊變普通成功，再棄掉 1 顆成功骰；武器例外另計）', 'Obscured (attack crits become normal, then discard 1 success; weapon exceptions apply)'));
+    if (v.cover && v.obscured && v.defenceOptions?.length && !v.defenceOptions.some(o => o.cover && o.obscured)) lines.push(L('掩護與遮蔽需擇一，不能同時套用', 'Choose cover or obscuring; cannot apply both'));
+    if (!v.cover && !v.obscured) lines.push(L('無射擊地形防護（靠近地形不代表這個射擊方向有掩護）', 'No terrain protection for this shot (proximity alone does not grant cover)'));
+    if (!check.ok) lines.push(L('目前不是合法射擊目標', 'Not a valid shooting target'));
+  }
+  tip.innerHTML = `<b>${nm(target)}</b>${lines.map(line => `<div>${esc(line)}</div>`).join('')}`;
+  const bounds = tip.getBoundingClientRect();
+  tip.style.left = `${Math.max(8, Math.min(e.clientX + 16, innerWidth - bounds.width - 8))}px`;
+  tip.style.top = `${Math.max(8, Math.min(e.clientY + 16, innerHeight - bounds.height - 8))}px`;
+});
+app.addEventListener('pointerleave', () => document.getElementById('terrain-hover')?.remove());
 app.addEventListener('mouseover', (e) => {
   const el = e.target.closest('.opchip[data-uid], #board .op[data-uid]');
   const uid = el?.dataset.uid || null;
@@ -2436,6 +2476,7 @@ modalRoot.addEventListener('click', (e) => {
   if (b) handle(b.dataset.act, b.dataset, e);
 });
 app.addEventListener('change', (e) => {
+  if (e.target.dataset.act === 'terrainRanges') { ui.setup.terrainRanges = e.target.value; try { localStorage.setItem('kt.terrainRanges', e.target.value); } catch { /* optional preference */ } return render(); }
   if (e.target.dataset.act === 'roster') {
     const r = ((ui.setup.roster ||= [{}, {}])[+e.target.dataset.side]), id = e.target.dataset.id;
     if (e.target.dataset.k == null) r[id] = e.target.value;

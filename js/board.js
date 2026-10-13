@@ -1,6 +1,7 @@
 import { BOARD, DEPLOY, OBJ_R, CONTROL, controller, isInjured, opName, radius, team, tpl } from './game.js';
 import { getLang, tx } from './i18n.js';
 import { objBadges } from './missions.js';
+import { distPointRect } from './geometry.js';
 
 const f = (n) => +n.toFixed(3);
 
@@ -82,6 +83,8 @@ export function renderBoard(g, ui) {
   s.push(`<defs><clipPath id="cover-range-clip"><rect width="${BOARD.w}" height="${BOARD.h}"/></clipPath></defs>`);
   s.push('<g class="cover-ranges" clip-path="url(#cover-range-clip)" pointer-events="none" aria-hidden="true">');
   for (const t of g.terrain) {
+    const mode = ui.terrainRanges || 'nearby';
+    if (mode === 'off' || (mode === 'nearby' && !g.ops.some(o => !o.dead && o.x > -50 && distPointRect(o, t) - radius(o) <= 1 + 0.001))) continue;
     s.push(`<rect class="cover-range" x="${f(t.x - 1)}" y="${f(t.y - 1)}" width="${f(t.w + 2)}" height="${f(t.h + 2)}" rx="1" ry="1"/>`);
   }
   s.push('</g>');
