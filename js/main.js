@@ -16,6 +16,8 @@ import { spPatienceOk, spPatience, spStarshellOk, spStarshell } from './spectres
 import { aquilonsRosterError } from './data/aquilons.js';
 import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
+import { stealthRosterError } from './data/stealthsuits.js';
+import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
 import { adHeroicDocOk, adHeroicDocs, adHeroicDoc } from './angels.js';
 import { vdChooseOk, vdChoose, vdGrantOk, vdGrantGambit, vdCandidates, vdLeadOk, vdLead, vdHasAccolade } from './voiddancers.js';
@@ -549,6 +551,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'aquilons') { const error = aquilonsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -1275,6 +1278,12 @@ function gambitView(side) {
       <p class="hint small">${L('秘密選一個：該任務的得分 ×1.5（無條件進位），遊戲結束才公布；選 Kill Op 則是（擊殺等級分＋較高者 1 分）×1.5。', 'Choose one in secret: its VP x1.5 (rounded up), revealed at the end; for Kill Op, (grade VP + 1 for the higher grade) x1.5.')}</p>
       <div class="row">${PRIMARY_OPS.map((id) => `<button data-act="primaryop" data-side="${side}" data-id="${id}">${name[id]}</button>`).join('')}</div></div>`;
   }
+  if (g.teams[side] === 'stealthSuits' && !isAI(side) && (xvDroneOk(g, side) || xvJamOk(g, side))) {
+    html += `<div class="gambit"><h4>${L('XV26 策略謀略', 'XV26 strategic gambits')}</h4>`;
+    if (xvDroneOk(g, side)) html += `<label>${L('無人機控制：', 'Drone Controller: ')}<select id="xvDroneSel">${living(g, side).filter((o) => tpl(o).xvDrone && o.x > -50).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></label><button data-act="xvdrone" data-side="${side}">${L('解除無人機限制（到它下次啟動結束）', 'Lift its Drone limits (until the end of its next activation)')}</button>`;
+    if (xvJamOk(g, side)) html += `<button data-act="xvjam" data-side="${side}">${L('反網路干擾器：鎖定友方最近的目標點（自動）', 'Counter-Network Jammers: the marker nearest your suits (automatic)')}</button>`;
+    html += `</div>`;
+  }
   if (g.teams[side] === 'voidDancers' && !isAI(side) && (vdChooseOk(g, side) || vdGrantOk(g, side) || vdLeadOk(g, side))) {
     const opts = (list) => list.map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('');
     html += `<div class="gambit"><h4>${L('劇目（策略謀略）', 'Saedath (strategic gambits)')}</h4>`;
@@ -1987,6 +1996,15 @@ const ABILITIES = {
   kfWarrior: () => ['準備好面對一切', 'Ready for Anything', '每回合一次，友方戰士啟動中可以額外使用生肉、穿甲彈或毒彈（不佔每回合一次的限制）。', 'Once per TP during a Warrior\'s activation, use Meat, Piercing Shot or Toxin Shot once more (it doesn\'t count towards their limit).'],
   kmGrapple: () => ['鉤爪', 'Grappling Hook', '1AP（視為重新定位，不在交戰中，不能和衝鋒或撤退同一次啟動）：選一個看得到的地形點，被移走後放回該點 1" 內、看得到該點的位置。', '1AP (a Reposition; not engaged; not with Charge or Fall Back): pick a visible point on terrain and be set up again within 1" of it, seeing it.'],
   sneaky: () => ['鬼祟搗蛋', 'Sneaky Zogger', '不能有交戰指令；在掩護中時，2" 外不能被選為有效目標（優先於其他規則）。', 'Can\'t have an Engage order; in cover it can\'t be selected as a valid target beyond 2" (taking precedence over other rules).'],
+  xvSuit: () => ['隱形力場・耐心獵人', 'Stealth Fields · Kauyon', '隱蔽指令時，3" 外的敵人看不到它，撤退少 1AP。射擊敵人時依敵人位置得到「精準 X」：在你領地 3" 內 1、在你領地內 2、在你降落區 3" 內 3。', 'With a Conceal order enemies more than 3" away can\'t see it, and it Falls Back for 1 less AP. Shooting an enemy: Accurate 1 within 3" of your territory, 2 in your territory, 3 within 3" of your drop zone.'],
+  xvShasvre: () => ['為了更偉大的善・無人機控制', 'For the Greater Good · Drone Controller', '它在場上時，若有 2 名以上友方戰鬥服（不含無人機）殘廢，耐心獵人的精準 +1（最多 3）。無人機控制（策略謀略）：一架友方無人機到下次啟動結束不受無人機的前兩條限制。', 'While it is in the killzone and two or more friendly suits (not drones) are incapacitated, Kauyon\'s Accurate is 1 higher (max 3). Drone Controller (strategic gambit): one friendly drone ignores the first two Drone restrictions until the end of its next activation.'],
+  xvMarker: () => ['標記光', 'Markerlight', '它的有效目標（或它看得到、在伏擊標記 2" 內的敵人）被標記：友方射擊被標記的敵人時武器「嚴重」。', 'An enemy that is a valid target for it (or visible to it within 2" of the Ambush marker) is marked: friendlies shooting a marked enemy have Severe.'],
+  xvDesignator: () => ['集中標記光', 'Focused Markerlight', '1AP：看得到的一名敵人，本回合一次，友方射擊它時遠程武器命中 +1。', '1AP: a visible enemy — once this TP, a friendly shooting it improves its ranged Hit by 1.'],
+  xvLiberator: () => ['擲彈兵', 'Grenadier', '自己的破片、穿甲、煙霧、震撼手雷（不算進裝備次數），破片與穿甲命中 +1；還有 EMP 炸彈。', 'Its own frag, krak, smoke and stun grenades (not from the team\'s uses), frag and krak Hit +1; plus the EMP bomb.'],
+  xvLodestar: () => ['電子箔片發射器・歸航信標', 'Electrochaff Launcher · Homing Beacon', '每回合一次（自動）：敵人射擊它 3" 內看得到的友方（距射手 2" 以上）時，無視穿甲且被遮蔽。攜帶歸航信標：放下後（1AP），準備步驟擲 D6 +信標 6" 內的目標點數，5+ 得 1CP；敵人撿起就移除。', 'Once per TP (automatic): an enemy shooting a friendly visible within 3" of it (more than 2" from the shooter) ignores Piercing and the friendly is obscured. Carries the Homing Beacon: once placed (1AP), in the Ready step roll a D6 + objectives within 6" of it, 5+ gives 1CP; an enemy picking it up discards it.'],
+  xvInfiltrator: () => ['隱密協議', 'Covert Protocols', '任何指令都能反應；隱蔽指令反應時只能撿標記、放標記或任務行動。', 'It can counteract with any order; with a Conceal order it can then only Pick Up, Place a Marker or do mission actions.'],
+  xvNeutraliser: () => ['多光譜感測組件・系統干擾', 'Multispectrum Sensor Package · System Jam', '每回合一次（自動）：敵人在它 8" 內啟動時，它 3" 內 Engage 指令的友方改為隱蔽。系統干擾（1AP，隱蔽時 2AP）：看得到的一名敵人下次啟動 APL -1。', 'Once per TP (automatic): when an enemy activates within 8" of it, friendlies within 3" of it with an Engage order switch to Conceal. System Jam (1AP, 2AP while Concealed): a visible enemy has -1 APL for its next activation.'],
+  xvDrone: () => ['無人機', 'Drone', '只能衝鋒、衝刺、撤退、近戰、重新定位、射擊（砲無人機還有光子榴彈發射器）；爭奪標記 APL 視為少 1；不計入對手的擊殺任務。', 'Only Charge, Dash, Fall Back, Fight, Reposition and Shoot (the Gun Drone also Photon Grenade Launcher); counts 1 lower APL at markers; ignored for the opponent\'s kill op.'],
   vsVespid: () => ['飛行・中子充能', 'Fly · Neutron Charge', '移動時可以飛行：直接重新放在移動距離內（越過地形與特工）。移動或飛行後，本回合中子武器「穿甲 1」。受交融點數限制（見隊伍規則）。', 'It can FLY whenever it moves: set up again within its move (over terrain and operatives). After moving or flying, its neutron weapons have Piercing 1 for the TP. Bound by Communion (see the team rule).'],
   vsLeader: () => ['交融頭盔・交融', 'Communion Helm · Commune', '它每次啟動可以免費花 1 點交融點數。交融：組隊時選一個策略計謀，它在場上且沒交戰時那個計謀 0CP。（「讓友方免費做任務行動」的選項沒做）', 'Once per activation it can spend a Communion point for free. Commune: a strategy ploy chosen at set-up costs 0CP while it is in the killzone and not engaged. (The free mission action for a friendly isn\'t done.)'],
   vsDrone: () => ['迴避無人機・空中導引', 'Evasive Drone · Aerial Guidance', '只能空中導引、衝鋒、衝刺、撤退、近戰、重新定位；爭奪標記 APL 視為少 1；隱蔽且在掩護中時 2" 外不能被選為目標；射擊它時無視穿甲。空中導引（1AP，支援）：到它下次啟動前，它 6" 內看得到的友方胡蜂射擊它看得到的敵人時「致命 5+」與「飽和」。', 'Only Aerial Guidance, Charge, Dash, Fall Back, Fight and Reposition; counts 1 lower APL at markers; Concealed in cover it can\'t be targeted beyond 2"; Piercing is ignored when it\'s shot. Aerial Guidance (1AP, support): until its next activation, friendly Vespids visible within 6" of it shooting enemies it can see have Lethal 5+ and Saturate.'],
@@ -3089,6 +3107,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'stealthSuits' && stealthRosterError(TEAM_MAP.stealthSuits, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'vespids' && vespidsRosterError(TEAM_MAP.vespids, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'voidDancers' && voidDancersRosterError(TEAM_MAP.voidDancers, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'aquilons' && aquilonsRosterError(TEAM_MAP.aquilons, ui.setup.roster?.[side])) return render();
@@ -3107,6 +3126,8 @@ function handle(act, d) {
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'xvdrone': xvDrone(g, +d.side, document.getElementById('xvDroneSel')?.value); return afterChange();
+    case 'xvjam': xvJammers(g, +d.side); return afterChange();
     case 'vdchoose': vdChoose(g, +d.side, d.al, document.getElementById('vdPivot')?.value); return afterChange();
     case 'vdgrant': vdGrantGambit(g, +d.side, document.getElementById('vdGrant')?.value); return afterChange();
     case 'vdlead': vdLead(g, +d.side); return afterChange();
@@ -3263,7 +3284,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

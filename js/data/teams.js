@@ -12,6 +12,7 @@ import { SPECTRES_TEAM } from './spectres.js';
 import { AQUILONS_TEAM } from './aquilons.js';
 import { VOIDDANCERS_TEAM } from './voiddancers.js';
 import { VESPIDS_TEAM } from './vespids.js';
+import { STEALTH_TEAM } from './stealthsuits.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2269,6 +2270,7 @@ TEAMS.push(SPECTRES_TEAM);
 TEAMS.push(AQUILONS_TEAM);
 TEAMS.push(VOIDDANCERS_TEAM);
 TEAMS.push(VESPIDS_TEAM);
+TEAMS.push(STEALTH_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the
@@ -2651,6 +2653,7 @@ export const RULE_LABELS = {
   rvVenom: { zh: '毒液彈', en: 'Venom bolt' },
   spMissile: { zh: '飛彈發射器', en: 'Missile launcher' },
   vsClaws: { zh: '爪', en: 'Claws' },
+  xvSweep: { zh: '掃射', en: 'Sweeping' },
   vsNeutron: { zh: '中子武器（移動或飛行後本回合「穿甲 1」）', en: 'Neutron (Piercing 1 for the TP after moving or flying)' },
   vsFragment: { zh: '中子碎片（沒殺死但有攻擊骰結算時，目標獲得標記：啟動時每個標記受 D3 傷害）', en: 'Neutron Fragment (a surviving target gains a token: D3 damage per token when it activates)' },
   vsFallout: { zh: '中子轟炸（射擊後在主要目標控制範圍內放中子落塵標記）', en: 'Neutron Bombardment (a Neutron Fallout marker by the primary target after shooting)' },

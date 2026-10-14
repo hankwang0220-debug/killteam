@@ -22,6 +22,7 @@ import { spAiStrategy } from './spectres.js';
 import { aqAiStrategy, aqAiAbove } from './aquilons.js';
 import { vdAiStrategy } from './voiddancers.js';
 import { vsChargeAmong } from './vespids.js';
+import { xvAiStrategy } from './stealthsuits.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -35,6 +36,7 @@ export function aiStrategy(g, side) {
   spAiStrategy(g, side); // Spectre Squad: Starshell Flare
   aqAiStrategy(g, side); // Tempestus Aquilons: Rapid Insertion, Drop markers
   vdAiStrategy(g, side); // Void-dancer Troupe: Saedath
+  xvAiStrategy(g, side); // XV26 Stealth Battlesuits: Drone Controller, Counter-Network Jammers
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
