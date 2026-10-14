@@ -1374,7 +1374,7 @@ export const TEAMS = [
       { id: 'malevolentGrit', cp: 1, name: { zh: '惡毒的韌性', en: 'Malevolent Grit' },
         desc: { zh: '本回合持有標記、或完全在敵方領域內的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, a friendly with a token, or wholly within your opponent\'s territory, re-rolls one defence die when shot.' } },
       { id: 'gloryKill', cp: 1, name: { zh: '榮耀擊殺', en: 'Glory Kill' },
-        desc: { zh: '選一名友方看得到的敵人：本回合攻擊它時武器「無休」，持有標記時改為「無情」。', en: 'Pick an enemy a friendly can see: this TP, weapons have Ceaseless against it, or Relentless with a token.' } },
+        desc: { zh: '選一名友方看得到的敵人：本回合攻擊它時武器「無休」，持有標記時改為「毫不留情」。', en: 'Pick an enemy a friendly can see: this TP, weapons have Ceaseless against it, or Relentless with a token.' } },
       { id: 'bitterDemise', cp: 1, name: { zh: '苦澀的死亡', en: 'Bitter Demise' },
         desc: { zh: '本回合友方殘廢時擲 D3：擲出 3（持有標記時 2+）就對 2" 內一名可見敵人造成等量傷害。', en: 'This TP, when a friendly is incapacitated roll a D3: on a 3 (2+ with a token), that much damage to a visible enemy within 2".' } },
     ],
@@ -1420,7 +1420,7 @@ export const TEAMS = [
     },
     ploys: [
       { id: 'peltingFire', cp: 1, name: { zh: '亂槍齊射', en: 'Pelting Firepower' },
-        desc: { zh: '本回合友方射擊已被另一名友方射擊過的敵人時，遠程武器「無休」；被兩名以上射擊過時改為「無情」。', en: 'This TP, a friendly shooting an enemy another friendly has shot has Ceaseless; Relentless if two or more have.' } },
+        desc: { zh: '本回合友方射擊已被另一名友方射擊過的敵人時，遠程武器「無休」；被兩名以上射擊過時改為「毫不留情」。', en: 'This TP, a friendly shooting an enemy another friendly has shot has Ceaseless; Relentless if two or more have.' } },
       { id: 'recklessDetermination', cp: 1, name: { zh: '魯莽的決心', en: 'Reckless Determination' },
         desc: { zh: '本回合已行動的友方被射擊、又沒有掩護豁免時，可直接保留一顆防禦骰為普通成功。', en: 'This TP, an expended friendly being shot without cover saves retains one defence die as a normal success without rolling.' } },
       { id: 'violentTemperament', cp: 1, name: { zh: '暴烈脾性', en: 'Violent Temperament' },
@@ -1679,7 +1679,7 @@ export const TEAMS = [
       { id: 'quicksilver', cp: 1, name: { zh: '水銀之速', en: 'Quicksilver Speed' },
         desc: { zh: '本回合移動過的友方近戰或反擊時，敵人近戰命中變差 1；移動過的色孽友方被 6" 外射擊時，敵人命中變差 1。', en: 'This TP, a friendly that moved this TP fighting or retaliating worsens the enemy\'s melee Hit by 1; a Slaanesh one that moved, shot from more than 6", worsens the shooter\'s Hit by 1.' } },
       { id: 'fickleFates', cp: 1, name: { zh: '無常命運', en: 'Fickle Fates' },
-        desc: { zh: '本回合射擊尚未行動的敵人時遠程「平衡」（已有則「無情」）；尚未行動的奸奇友方被射擊時，保留暴擊豁免的話可把一顆失敗算成普通豁免。', en: 'This TP, shooting a ready enemy: Balanced (Relentless if it already has it); a ready Tzeentch friendly being shot that retains a critical save retains one fail as a normal save.' } },
+        desc: { zh: '本回合射擊尚未行動的敵人時遠程「平衡」（已有則「毫不留情」）；尚未行動的奸奇友方被射擊時，保留暴擊豁免的話可把一顆失敗算成普通豁免。', en: 'This TP, shooting a ready enemy: Balanced (Relentless if it already has it); a ready Tzeentch friendly being shot that retains a critical save retains one fail as a normal save.' } },
     ],
     ops: [
       op('lgChosen', '被選者', 'Legionary Chosen', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, mark: 'khorne', daemonicAura: true, soulGorge: true }, [plasmaPistolL, plasmaPistolLS, daemonBlade]),
@@ -1863,7 +1863,7 @@ export const TEAMS = [
       { id: 'huntForBlood', cp: 1, name: { zh: '血之狩獵', en: 'Hunt for Blood' },
         desc: { zh: '選一名友方（自動：能衝到敵人身邊、離敵人最近的一名）：隱蔽改成交戰，立刻免費衝鋒最多 3"。', en: 'Pick a friendly: if Concealed it becomes Engaged, then it immediately makes a free Charge of up to 3".' } },
       { id: 'enhancedViolence', cp: 1, name: { zh: '強化暴力', en: 'Enhanced Violence' },
-        desc: { zh: '本回合友方血槽半格時近戰武器「平衡」，滿格時「無情」。', en: 'This TP, a friendly\'s melee weapons have Balanced with a half GORE TANK, Relentless with a full one.' } },
+        desc: { zh: '本回合友方血槽半格時近戰武器「平衡」，滿格時「毫不留情」。', en: 'This TP, a friendly\'s melee weapons have Balanced with a half GORE TANK, Relentless with a full one.' } },
       { id: 'augmentedEndurance', cp: 1, name: { zh: '強化耐力', en: 'Augmented Endurance' },
         desc: { zh: '本回合友方被射擊時，血槽半格可重擲一顆防禦骰，滿格可重擲任意防禦骰。', en: 'This TP, a friendly being shot re-rolls one defence die with a half GORE TANK, any with a full one.' } },
     ],
@@ -2459,7 +2459,7 @@ const FIREFIGHT = {
     ff('inspirationalLeadership', '鼓舞領導', 'Inspirational Leadership', '支援。看守長或心腹啟動中、行動前後：下達一道衛兵命令（自動選擇命令）。看守長這次啟動沒有以策略謀略下令時 0CP（適應性命令）。', 'Support. During a Watchmaster\'s or Confidant\'s activation, before or after an action: it issues a Guardsman Order (chosen automatically). Free for a Watchmaster that didn\'t issue one as a strategic gambit (Adaptive Orders).'),
     ff('lifeShame', '生之恥辱', 'In Life, Shame', '自動：友方啟動並選交戰指令時，它收到所有衛兵命令（不受一次只能一道的限制）。', 'Auto: when a friendly is activated and given an Engage order, it receives every Guardsman Order (overriding the one-at-a-time rule).'),
     ff('deathAtonement', '死之救贖', 'In Death, Atonement', '自動：準備中、不在敵人控制範圍內的友方殘廢時，被移除前可免費做一個動作（近戰除外），並可改指令；這個動作中它視為重傷。（自動：免費射擊）', 'Auto: when a ready friendly not in enemy control range is incapacitated, before it\'s removed it performs one free action (not Fight) and may change its order; it counts as injured for it. (Automatically a free Shoot.)'),
-    ff('combinedArms', '聯合火力', 'Combined Arms', '射擊本回合已被其他友方射擊過的敵人：可重擲任意攻擊骰（無情）。', 'Shooting an enemy another friendly shot this TP: re-roll any attack dice (Relentless).'),
+    ff('combinedArms', '聯合火力', 'Combined Arms', '射擊本回合已被其他友方射擊過的敵人：可重擲任意攻擊骰（毫不留情）。', 'Shooting an enemy another friendly shot this TP: re-roll any attack dice (Relentless).'),
   ],
   exaction: [
     ff('longArm', '帝皇律法之臂', 'Long Arm of the Emperor\'s Law', '射擊選武器時：有射程限制的武器射程 +3"。', 'When shooting with a Range x weapon: +3" to x.'),
@@ -2472,7 +2472,7 @@ const FIREFIGHT = {
   farstalkers: [
     ff('slipAway', '溜走', 'Slip Away', '啟動中：本次撤退少花 1AP。', 'During an activation: Fall Back costs 1 less AP.'),
     ff('poach', '盜獵', 'Poach', '啟動中：直到啟動結束，這名特工做「撿起標記」或需要控制標記的任務動作時，只要爭奪標記就行。', 'During an activation: until its end, the operative only needs to contest a marker to perform Pick Up Marker or mission actions that usually need it controlled.'),
-    ff('vengeanceKinband', '為戰團復仇', 'Vengeance for the Kinband', '自動：友方被敵人打成殘廢時，之後友方攻擊那個敵人都「無情」（它殘廢前不能再用）。', 'Auto: when a friendly is incapacitated by an enemy, friendlies attacking that enemy have Relentless (not again until it falls).'),
+    ff('vengeanceKinband', '為戰團復仇', 'Vengeance for the Kinband', '自動：友方被敵人打成殘廢時，之後友方攻擊那個敵人都「毫不留情」（它殘廢前不能再用）。', 'Auto: when a friendly is incapacitated by an enemy, friendlies attacking that enemy have Relentless (not again until it falls).'),
     ff('savageAmbush', '野蠻伏擊', 'Savage Ambush', '自動：控制範圍內有地形、尚未行動的友方被近戰時，由它先出手。', 'Auto: a ready friendly with terrain in its control range that\'s fought against resolves the first die.'),
   ],
   gellerpox: [
@@ -2487,7 +2487,7 @@ const FIREFIGHT = {
   ],
   hearthkyn: [
     ff('sturdy', '結實', 'Sturdy', '自動：被射擊時，攻擊方保留的暴擊全部變成普通成功。', 'Auto: when shot, the attacker\'s retained crits become normal successes.'),
-    ff('engageToAcquire', '以戰奪寶', 'Engage to Acquire', '攻擊控制目標點的敵人：可重擲任意攻擊骰（無情）。', 'Attacking an enemy that controls an objective: re-roll any attack dice (Relentless).'),
+    ff('engageToAcquire', '以戰奪寶', 'Engage to Acquire', '攻擊控制目標點的敵人：可重擲任意攻擊骰（毫不留情）。', 'Attacking an enemy that controls an objective: re-roll any attack dice (Relentless).'),
     ff('ancestorsWatching', '先祖注視', 'The Ancestors Are Watching', '啟動中：可免費射擊或近戰一次，且武器無視重傷減益。', 'During an activation: a free Shoot or Fight, ignoring injured weapon penalties.'),
   ],
   hierotek: [
@@ -2524,7 +2524,7 @@ const FIREFIGHT = {
     ff('coiledSerpent', '盤蛇', 'Coiled Serpent', '從隱蔽轉交戰後的第一次攻擊：一顆普通成功當成暴擊。', 'First attack after switching from Conceal to Engage: one normal success becomes a critical success.'),
   ],
   kasrkin: [
-    ff('neutraliseTarget', '消滅目標', 'Neutralise Target', '射擊沒有掩護豁免、或被偵察兵掃描中的敵人：可重擲任意攻擊骰（無情）。', 'Shooting an enemy that can\'t retain cover saves, or is being scanned: re-roll any attack dice (Relentless).'),
+    ff('neutraliseTarget', '消滅目標', 'Neutralise Target', '射擊沒有掩護豁免、或被偵察兵掃描中的敵人：可重擲任意攻擊骰（毫不留情）。', 'Shooting an enemy that can\'t retain cover saves, or is being scanned: re-roll any attack dice (Relentless).'),
   ],
   legionaries: [
     ff('mutability', '變化無常', 'Mutability and Change', '奸奇印記的友方啟動時：本次 APL +1。', 'When a Tzeentch operative is activated: +1 APL this activation.'),
@@ -2561,7 +2561,7 @@ const FIREFIGHT = {
   ],
   celestianInsidiants: [
     ff('unshakeablePursuit', '不屈追擊', 'Unshakeable Pursuit', '友方啟動中：本次啟動無視 Move 的變化；激勵中再 +1"。', 'During a friendly\'s activation: ignore changes to its Move this activation; +1" if it\'s inspiring.'),
-    ff('ferventHate', '狂熱仇恨', 'Fervent Hate', '攻擊非帝國的敵人：這次序列武器「無休」；敵人是混沌或靈能者時改為「無情」。', 'Attacking a non-Imperium enemy: Ceaseless this sequence; Relentless instead against Chaos or a psyker.'),
+    ff('ferventHate', '狂熱仇恨', 'Fervent Hate', '攻擊非帝國的敵人：這次序列武器「無休」；敵人是混沌或靈能者時改為「毫不留情」。', 'Attacking a non-Imperium enemy: Ceaseless this sequence; Relentless instead against Chaos or a psyker.'),
     ff('gloryMartyrs', '榮耀歸於殉道者', 'Glory to the Martyrs', '自動：友方在近戰中殘廢時，先用一顆未結算的成功打擊對手；若因此使對手殘廢，它變為激勵並觸發殉道。', 'Auto: when a friendly is incapacitated in a fight, it strikes with an unresolved success first; if that incapacitates the enemy it becomes inspiring and Martyrdom applies.'),
     ff('faithFury', '信仰與怒火', 'Faith & Fury', '近戰時以暴擊打擊對手後，對它 2" 內看得到的其他敵人各造成 D3 傷害。', 'Fighting: after a critical strike, D3 damage to each other enemy visible within 2" of it.'),
   ],
@@ -2639,7 +2639,7 @@ export const RULE_LABELS = {
   toxic: { zh: '劇毒', en: 'Toxic' },
   shock: { zh: '震撼', en: 'Shock' },
   stun: { zh: '昏迷', en: 'Stun' },
-  relentless: { zh: '無情', en: 'Relentless' },
+  relentless: { zh: '毫不留情', en: 'Relentless' },
   punishing: { zh: '懲罰', en: 'Punishing' },
   firstShotOnly: { zh: '隱蔽陣地（只限第一次射擊）', en: 'Concealed Position (first Shoot only)' },
   salvo: { zh: '齊射', en: 'Salvo' },

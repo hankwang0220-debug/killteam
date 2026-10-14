@@ -75,3 +75,42 @@ function shotAt(defTeam, setup) {
   while (!it.next().done);
 }
 console.log('defence re-rolls ok');
+
+// Ceaseless (pick a result, re-roll every die showing it) and Relentless (pick any dice) are the player's own too; the computer's stay automatic.
+function xvShot(pick, extra = {}, vals = []) {
+  const g = G.newGame({ teams: ['stealthSuits', 'kommandos'], ai: null });
+  Object.assign(g, { tp: 1, phase: 'firefight', turn: 0, terrain: [], cp: [3, 3, 0] });
+  g.ops.forEach((o) => { o.placed = true; o.order = 'engage'; o.ready = true; o.x = -99; o.y = -99; });
+  const sh = g.ops.find((o) => o.side === 0 && o.tplId === 'xvShasvreB'), t = g.ops.find((o) => o.side === 1);
+  Object.assign(sh, { x: 10, y: 10 }); Object.assign(t, { x: 16, y: 10 });
+  if (pick) g.pick = [true, false];
+  G.activate(g, sh);
+  const base = G.weaponsFor(g, sh).find((x) => x.id === 'xvBurstF');
+  const w = { ...base, rules: { ...base.rules, ...extra } };
+  const it = G.shootFlow(g, sh, w, t);
+  const r = dice(vals, () => it.next());
+  return { g, seq: r.value.seq, it };
+}
+{
+  const { g, seq, it } = xvShot(true, {}, [2, 2, 1, 5, 6]);
+  assert.equal(seq.a.ceaselessLeft, 1, 'Ceaseless waits for the player');
+  assert(!seq.a.dice.some((d) => d.rr), 'nothing re-rolled automatically');
+  const vals = seq.a.dice.filter((d) => !d.auto).map((d) => d.v), v = vals.sort((x, y) => vals.filter((z) => z === y).length - vals.filter((z) => z === x).length)[0];
+  const n = seq.a.dice.filter((d) => !d.auto && d.v === v).length;
+  assert(dice([6, 6, 6], () => G.ceaselessReroll(g, seq, 'a', v)), 'every die of that result');
+  assert.equal(seq.a.dice.filter((d) => d.rr).length, n); assert(!G.ceaselessReroll(g, seq, 'a', 6), 'only once');
+  while (!it.next().done);
+}
+{
+  const { g, seq, it } = xvShot(true, { relentless: true, ceaseless: false }, [1, 2, 3, 5, 6]);
+  assert.equal(seq.a.relentlessLeft, 1, 'Relentless waits for the player');
+  const picks = seq.a.dice.map((d, i) => [d, i]).filter(([d]) => !d.auto).slice(0, 2).map(([, i]) => i);
+  assert(dice([6, 6, 6], () => G.relentlessReroll(g, seq, 'a', picks)), 'the picked dice');
+  assert.equal(seq.a.dice.filter((d) => d.rr).length, picks.length); assert(!G.relentlessReroll(g, seq, 'a', [0]), 'only once');
+  while (!it.next().done);
+}
+{
+  const { seq } = xvShot(false, {}, [1, 1, 1, 1, 1, 4, 4, 4]);
+  assert(seq.a.dice.some((d) => d.rr) && !seq.a.ceaselessLeft, 'the computer re-rolls its 1s at once');
+}
+console.log('ceaseless / relentless ok');

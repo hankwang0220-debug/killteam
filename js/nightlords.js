@@ -138,7 +138,7 @@ export function ncDeath(g, op, target, pool, useFF, retally) {
   if (!pool.dice.some(want) || !useFF(g, op.side, 'ncDeathFalse')) return;
   for (const d of pool.dice) if (want(d)) { d.v = d6(); d.rr = true; }
   retally(pool);
-  note(g, op.side, `誅殺偽帝：${opName(op, 'zh')} 用「${relentless ? '無情' : '無休'}」重擲`, `Death to the False Emperor: ${opName(op, 'en')} re-rolls with ${relentless ? 'Relentless' : 'Ceaseless'}`);
+  note(g, op.side, `誅殺偽帝：${opName(op, 'zh')} 用「${relentless ? '毫不留情' : '無休'}」重擲`, `Death to the False Emperor: ${opName(op, 'en')} re-rolls with ${relentless ? 'Relentless' : 'Ceaseless'}`);
 }
 
 // ---------- ploys ----------

@@ -5582,15 +5582,15 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
   const dice = Array.from({ length: n - auto }, () => ({ v: d6(), rr: false }));
   const fail = (v) => rules.soulstrikeDef ? v !== 1 && (v === 6 || v > success) : v < success || (rules.no3 && v === 3); // Soulstrike reverses defence thresholds
   if (rules.reroll6) for (const d of dice) if (d.v === 6) { d.v = d6(); d.rr = true; } // Ravage Destiny (forced)
-  if (rules.ceaseless && !rules.noReroll1) for (const d of dice) if (!d.rr && d.v === 1) { d.v = d6(); d.rr = true; } // (Flayed Skin: results of 1 can't be re-rolled)
-  if (rules.digIn && !rules.relentless && !rules.digInManual) {
+  if (rules.ceaseless && !rules.noReroll1 && !rules.ceaselessManual) for (const d of dice) if (!d.rr && d.v === 1) { d.v = d6(); d.rr = true; } // (Flayed Skin: results of 1 can't be re-rolled)
+  if (rules.digIn && !(rules.relentless && !rules.relentlessManual) && !rules.digInManual) {
     // Dig In!: re-roll every die showing one result — the failed result that came up most.
     const tally_ = {};
     for (const d of dice) if (!d.rr && fail(d.v)) tally_[d.v] = (tally_[d.v] || 0) + 1;
     const v = +Object.keys(tally_).sort((a, b) => tally_[b] - tally_[a])[0];
     if (v) for (const d of dice) if (!d.rr && d.v === v) { d.v = d6(); d.rr = true; }
   }
-  if (rules.relentless) for (const d of dice) if (!d.rr && fail(d.v) && !(rules.noReroll1 && d.v === 1)) { d.v = d6(); d.rr = true; } // re-roll all fails
+  if (rules.relentless && !rules.relentlessManual) for (const d of dice) if (!d.rr && fail(d.v) && !(rules.noReroll1 && d.v === 1)) { d.v = d6(); d.rr = true; } // re-roll all fails
   // Balanced: the computer re-rolls its lowest fail at once; a player's pool keeps the free re-roll to use itself (balancedLeft).
   if (rules.balanced && !rules.balancedManual) {
     const f = dice.filter((d) => !d.rr && fail(d.v) && !(rules.noReroll1 && d.v === 1)).sort((a, b) => a.v - b.v)[0];
@@ -5604,7 +5604,8 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
   for (let k = 0; k < auto; k++) dice.push({ v: '✓', res: 'norm', auto: true });
   const pool = {
     dice, success, critOn, post, crits: 0, norms: 0, balancedLeft: rules.balanced && rules.balancedManual ? 1 : 0, noReroll1: !!rules.noReroll1,
-    digInLeft: rules.digIn && !rules.relentless && rules.digInManual ? 1 : 0, rerollLeft: rules.rerollFails && rules.rerollManual ? rules.rerollFails : 0,
+    digInLeft: rules.digIn && !(rules.relentless && !rules.relentlessManual) && rules.digInManual ? 1 : 0,
+    ceaselessLeft: rules.ceaseless && rules.ceaselessManual ? 1 : 0, relentlessLeft: rules.relentless && rules.relentlessManual ? 1 : 0, rerollLeft: rules.rerollFails && rules.rerollManual ? rules.rerollFails : 0,
     rules: { soulstrikeDef: !!rules.soulstrikeDef, severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze, promote: rules.promote || 0 },
   };
   return tally(pool);
@@ -5887,7 +5888,7 @@ function ffOnDeath(g, src, target) {
   const v = g.vengeance?.[side] && getOp(g, g.vengeance[side]);
   if (src && src.side === 1 - side && !src.dead && (!v || v.dead) && autoFF(g, side, 'vengeanceKinband')) {
     (g.vengeance ||= [null, null])[side] = src.uid;
-    log(g, { zh: `為戰團復仇：友方攻擊 ${opName(src, 'zh')} 時武器「無情」`, en: `Vengeance for the Kinband: friendlies attacking ${opName(src, 'en')} have Relentless` }, `side${side}`);
+    log(g, { zh: `為戰團復仇：友方攻擊 ${opName(src, 'zh')} 時武器「毫不留情」`, en: `Vengeance for the Kinband: friendlies attacking ${opName(src, 'en')} have Relentless` }, `side${side}`);
   }
   // Putrescent Demise (Gellerpox): 1 damage (D3 for a Nightmare Hulk) to each enemy visible within 2".
   if (!tpl(target).vermin && near(2).length && autoFF(g, side, 'putrescentDemise')) {
@@ -6090,7 +6091,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   }
   hit = clampHit(hit);
   const atk = Math.max(1, weapon.atk + (rules.atkPlus || 0) - (rules.atkMinus || 0) - (cursed(g, op, 'barrelwarp') ? 1 : 0)); // (atkMinus: Sanctification) // Barrelwarp (Gellerpox)
-  if (rules.balanced && playerPicks(g, op.side)) rules.balancedManual = true; // (a player uses Balanced itself)
+  if (playerPicks(g, op.side)) { rules.balancedManual = true; rules.ceaselessManual = true; rules.relentlessManual = true; } // (a player uses Balanced, Ceaseless and Relentless itself)
   const a = rollPool(atk, hit, rules.lethal || 6, rules, chainPost(kinPost(g, op), scryPost(g, op, 'guide'))); // (No Kin Left Behind, Scry: Guidance)
   archonPrey(g, op, target, a);
   ncPrey(g, op, target, a); // Death to the False Emperor (Nemesis Claw)
@@ -6270,7 +6271,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const post = indomitus || wrought ? (pool) => { indomitus?.(pool); wrought?.(pool); } : null;
   if (rules.soulstrike) defRules.soulstrikeDef = true;
   if (defRules.balanced && playerPicks(g, target.side)) defRules.balancedManual = true; // (a player uses Balanced itself)
-  if (playerPicks(g, target.side)) { defRules.digInManual = true; defRules.rerollManual = true; } // (and Dig In!-type and Void Armour re-rolls)
+  if (playerPicks(g, target.side)) { defRules.digInManual = true; defRules.rerollManual = true; defRules.relentlessManual = true; } // (and Dig In!-type, Void Armour and re-roll-any defence re-rolls)
   const d = rollPool(defDice - coverN - coverC, rules.soulstrike ? aplNow(g, target) : save, hasTactic(g, target, 'hardy') || rtArmour(g, target) ? 5 : 6, defRules, chainPost(post, scryPost(g, target, 'protect'))); // (Scry: Protection)
   // Unstinting, Immovable (Dire Avenger Aspect Technique): two or more fails — discard one, retain another as a normal save.
   if (tpl(target).aspect === 'da' && d.dice.filter((x) => x.res === 'miss').length >= 2 && autoFF(g, target.side, 'avUnstinting', target)) {
@@ -6701,8 +6702,7 @@ export function startFight(g, op, weapon, target) {
   };
   const aPost = ambush ? (bless(op) ? (p) => { bless(op)(p); ambushPost(p); } : ambushPost) : bless(op);
   const kinA = chainPost(chainPost(aPost, kinPost(g, op)), scryPost(g, op, 'guide')), kinD = chainPost(chainPost(bless(target), kinPost(g, target)), scryPost(g, target, 'guide')); // (Scry: Guidance) // (No Kin Left Behind)
-  if (ar.balanced && playerPicks(g, op.side)) ar.balancedManual = true; // (a player uses Balanced itself)
-  if (dr.balanced && playerPicks(g, target.side)) dr.balancedManual = true;
+  for (const [o, r] of [[op, ar], [target, dr]]) if (playerPicks(g, o.side)) { r.balancedManual = true; r.ceaselessManual = true; r.relentlessManual = true; } // (a player uses Balanced, Ceaseless and Relentless itself)
   let aRoll = rollPool(whip(op, atk(weapon, ar)), aHit, ar.lethal || 6, ar, kinA);
   let dRoll = rollPool(whip(target, atk(dWeapon, dr)), dHit, dr.lethal || 6, dr, kinD);
   // Violent Temperament (Fellgor ploy): re-roll all the attack dice when fewer than two succeeded.
@@ -6804,7 +6804,7 @@ export function startFight(g, op, weapon, target) {
       if (i >= 0) { commandReroll(g, side, holder, 'a', i); syncFightSide(holder); }
       const act = aiFaith(g, side, holder, 'a'); // Acts of Faith (Novitiates)
       if (act) { useFaith(g, side, holder, 'a', act, holder.uid); syncFightSide(holder); }
-    } else if (holder.a.balancedLeft || canCommandReroll(g, side, holder, 'a') || canFaith(g, side, holder, 'a') || painRerollValues(g, fightOp(g, k), holder, 'a').length) g.fight.rrOpen[k] = true;
+    } else if (holder.a.balancedLeft || holder.a.ceaselessLeft || holder.a.relentlessLeft || canCommandReroll(g, side, holder, 'a') || canFaith(g, side, holder, 'a') || painRerollValues(g, fightOp(g, k), holder, 'a').length) g.fight.rrOpen[k] = true;
   }
   // Novitiate Penitent (Absolution Through Destruction): after a Fight it didn't get for free, a free Fight follows.
   if (tpl(op).absolution && !free) op.acted.free = { ...(op.acted.free || {}), fight: 'any' };
@@ -6855,6 +6855,31 @@ export function digInReroll(g, holder, which, value) {
   log(g, { zh: `重擲所有 ${value}：${dice.map((d) => d.v).join('、')}`, en: `Re-rolls every ${value}: ${dice.map((d) => d.v).join(', ')}` }, 'tp');
   return true;
 }
+/** Ceaseless, used by a player: re-roll every die showing one result (that wasn't re-rolled yet; never 1s with Flayed Skin). */
+export function ceaselessReroll(g, holder, which, value) {
+  const pool = holder?.[which === 'a' ? 'a' : 'd'];
+  const dice = pool?.dice.filter((d) => !d.auto && !d.rr && !d.locked && d.v === value) || [];
+  if (!pool?.ceaselessLeft || !dice.length || (pool.noReroll1 && value === 1)) return false;
+  pool.ceaselessLeft = 0;
+  for (const d of dice) { d.v = d6(); d.rr = true; }
+  tally(pool);
+  log(g, { zh: `無休：重擲所有 ${value}：${dice.map((d) => d.v).join('、')}`, en: `Ceaseless: re-rolls every ${value}: ${dice.map((d) => d.v).join(', ')}` }, 'tp');
+  return true;
+}
+/** Relentless, used by a player: re-roll the dice picked (any of them, each once). */
+export function relentlessReroll(g, holder, which, indices) {
+  const pool = holder?.[which === 'a' ? 'a' : 'd'];
+  const dice = [...new Set(indices || [])].map((i) => pool?.dice[i]).filter((d) => d && !d.auto && !d.rr && !d.locked && !(pool.noReroll1 && d.v === 1));
+  if (!pool?.relentlessLeft || !dice.length) return false;
+  pool.relentlessLeft = 0;
+  const old = dice.map((d) => d.v);
+  for (const d of dice) { d.v = d6(); d.rr = true; }
+  tally(pool);
+  log(g, { zh: `毫不留情：重擲 ${old.join('、')} → ${dice.map((d) => d.v).join('、')}`, en: `Relentless: re-rolls ${old.join(', ')} → ${dice.map((d) => d.v).join(', ')}` }, 'tp');
+  return true;
+}
+export function fightCeaseless(g, k, value) { const f = g.fight; if (!f?.rrOpen?.[k]) return false; const ok = ceaselessReroll(g, f[k], 'a', value); if (ok) syncFightSide(f[k]); return ok; }
+export function fightRelentless(g, k, indices) { const f = g.fight; if (!f?.rrOpen?.[k]) return false; const ok = relentlessReroll(g, f[k], 'a', indices); if (ok) syncFightSide(f[k]); return ok; }
 /** Void Armour, used by a player: re-roll one die for free (up to its number of dice). */
 export function voidReroll(g, holder, which, index) {
   const pool = holder?.[which === 'a' ? 'a' : 'd'], die = pool?.dice[index];

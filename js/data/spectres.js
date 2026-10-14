@@ -75,7 +75,7 @@ export const SPECTRES_TEAM = {
   ops,
   ploys: [
     P('spAmbush', '伏擊齊射', 'Ambushing Volley', '友方魅影啟動時，若離敵人超過 3" 且（決定指令前）不是敵人的有效目標：本次啟動遠程武器（壓制機槍除外）獲得「毀滅 1」（已有則 +1）。', 'When a friendly SPECTRE SQUAD operative activates more than 3" from enemies and isn\'t a valid target before choosing its order: its ranged weapons (not the suppressive autostubber) have Devastating 1 (+1 if they already have it).'),
-    P('spPatience', '耐心', 'Patience', '本回合二選一：你的回合輪到友方啟動時可以跳過一次（對手第一次啟動後才能用）；或最後一名啟動的友方魅影射擊／近戰時武器獲得「無情」。', 'This TP, one of: once, skip a friendly activation (after your opponent\'s first activation); or the last friendly SPECTRE SQUAD operative to activate has Relentless when it shoots or fights.'),
+    P('spPatience', '耐心', 'Patience', '本回合二選一：你的回合輪到友方啟動時可以跳過一次（對手第一次啟動後才能用）；或最後一名啟動的友方魅影射擊／近戰時武器獲得「毫不留情」。', 'This TP, one of: once, skip a friendly activation (after your opponent\'s first activation); or the last friendly SPECTRE SQUAD operative to activate has Relentless when it shoots or fights.'),
     P('spDisappear', '消失', 'Disappear', '一名友方魅影免費重新定位：不能更靠近敵人或敵方降落區（除非完全落在己方降落區），本回合不能再重新定位。', 'One friendly SPECTRE SQUAD operative makes a free Reposition: not closer to enemies or their drop zone (unless wholly in your drop zone), and no second Reposition this TP.'),
     P('spHidden', '隱蔽交戰', 'Hidden Engagement', '友方魅影射擊時，若從目標的角度看它在掩護中：武器獲得「平衡」。', 'A friendly SPECTRE SQUAD operative shooting while in cover from the target\'s perspective has Balanced.'),
   ],

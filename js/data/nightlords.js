@@ -87,7 +87,7 @@ export const NIGHTLORDS_TEAM = {
     P('ncReturn', '回歸黑暗', 'Return to Darkness', '立刻：一名友方免費重新定位或撤退（最多 4"），要結束在重型地形旁，且不比之前更靠近敵人。', 'At once: a friendly makes a free Reposition or Fall Back (up to 4") that ends beside Heavy terrain and not closer to enemies.'),
   ],
   firefight: [
-    P('ncDeathFalse', '誅殺偽帝', 'Death to the False Emperor', '自動：友方攻擊或被攻擊者是帝國單位時，擲骰後用「無休」；對方是阿斯塔特軍團則用「無情」。', 'Auto: after rolling attack dice against an IMPERIUM operative, Ceaseless; Relentless if it is ADEPTUS ASTARTES.'),
+    P('ncDeathFalse', '誅殺偽帝', 'Death to the False Emperor', '自動：友方攻擊或被攻擊者是帝國單位時，擲骰後用「無休」；對方是阿斯塔特軍團則用「毫不留情」。', 'Auto: after rolling attack dice against an IMPERIUM operative, Ceaseless; Relentless if it is ADEPTUS ASTARTES.'),
     P('ncMurder', '嗜殺成性', 'Proclivity for Murder', '自動：友方在控制範圍內使敵人殘廢後，免費衝鋒（最多 3"）或衝刺一次，無視之前做過的動作。', 'Auto: after a friendly incapacitates an enemy within its control range, a free Charge (up to 3") or Dash, whatever it did before.'),
     P('ncVox', '尖嚎', 'Vox Scream', '自動：對手要啟動一名被友方看得到的特工時，擲 D6：高過它的 APL 就不能啟動它（改選別人）；否則 CP 退還、本回合不能再用。', 'Auto: when the opponent would activate an operative a friendly can see: D6 above its APL and it can\'t activate (they pick another); otherwise the CP is refunded and it can\'t be used again this TP.'),
     P('ncDirty', '卑鄙打法', 'Dirty Fighter', '自動：友方反擊時，先結算一個成功，之後這次戰鬥不能再結算其他成功。', 'Auto: a friendly retaliating resolves one success first, then no other successes in that sequence.'),

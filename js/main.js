@@ -18,7 +18,7 @@ import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
-import { digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
+import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
@@ -1619,10 +1619,24 @@ function advanceFlow() {
       if (i >= 0) commandReroll(g, side, seq, which, i);
       continue;
     }
-    if ((which === 'a' ? seq.a : seq.d)?.balancedLeft || (which === 'a' ? seq.a : seq.d)?.digInLeft || (which === 'a' ? seq.a : seq.d)?.rerollLeft || canCommandReroll(g, side, seq, which) || painRerollValues(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which).length) { F.step = { stage, seq, side }; return render(); }
+    if ((which === 'a' ? seq.a : seq.d)?.balancedLeft || (which === 'a' ? seq.a : seq.d)?.ceaselessLeft || (which === 'a' ? seq.a : seq.d)?.relentlessLeft || (which === 'a' ? seq.a : seq.d)?.digInLeft || (which === 'a' ? seq.a : seq.d)?.rerollLeft || canCommandReroll(g, side, seq, which) || painRerollValues(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which).length) { F.step = { stage, seq, side }; return render(); }
   }
 }
 
+/** The free re-rolls a player still has on this pool: Ceaseless (pick a result) and Relentless (pick the dice, then re-roll them). */
+function rerollRows(pool, where, k) {
+  const free = pool.dice.map((d, i) => [d, i]).filter(([d]) => !d.auto && !d.rr && !d.locked);
+  let html = '';
+  if (pool.ceaselessLeft) {
+    const values = [...new Set(free.map(([d]) => d.v))].filter((v) => !(pool.noReroll1 && v === 1)).sort((x, y) => x - y);
+    if (values.length) html += `<div class="row"><span class="flag mk">♻ ${L('無休：選一個點數，重擲所有該點數的骰', 'Ceaseless: pick a result, re-roll every die showing it')}</span>${values.map((v) => `<button data-act="ceaseless" data-where="${where}" data-k="${k}" data-v="${v}">${L(`重擲所有 ${v}`, `Re-roll all ${v}s`)}</button>`).join('')}</div>`;
+  }
+  if (pool.relentlessLeft && free.length) {
+    const sel = ui.relSel || [];
+    html += `<div class="row"><span class="flag mk">⚡ ${L('毫不留情：點選要重擲的骰子（任意顆），再按重擲', 'Relentless: tick the dice to re-roll (any number), then re-roll')}</span>${free.map(([d, i]) => `<button class="${sel.includes(i) ? 'on' : ''}" data-act="relpick" data-i="${i}">${d.v}</button>`).join('')}<button data-act="relgo" data-where="${where}" data-k="${k}" ${sel.length ? '' : 'disabled'}>${L(`重擲選取的 ${sel.length} 顆`, `Re-roll the ${sel.length} picked`)}</button></div>`;
+  }
+  return html;
+}
 /** The dice a human can Command Re-roll (1CP), shown before the action continues. */
 function flowView() {
   const { stage, seq, side } = ui.flow.step;
@@ -1638,7 +1652,7 @@ function flowView() {
     <p><b style="color:${team(g, a.side).color}">${nm(a)}</b> → <b style="color:${team(g, t.side).color}">${nm(t)}</b> · ${esc(bi(seq.weapon.name))}</p>
     <div class="dicerow"><label>${stage === 'attack' ? `${L('攻擊', 'Attack')} (${seq.hit}+)` : `${L('防禦', 'Defence')} (${seq.save}+)`}</label>${dice}
       <em>${L(`${pool.crits} 暴擊 / ${pool.norms} 成功`, `${pool.crits} crit / ${pool.norms} success`)}</em>${bal ? ` <span class="flag mk">⚖ ${L('可平衡：免費重擲一顆', 'Balanced: one free re-roll')}</span>` : ''}${vd ? ` <span class="flag mk">🛡 ${L(`虛空護甲：可免費重擲 ${vd} 顆`, `Void Armour: ${vd} free re-roll(s)`)}</span>` : ''}</div>
-    ${dig}${vd && !bal ? `<p class="hint small">${L(`被爆炸或洪流武器射擊，「虛空護甲」可以免費重擲 ${vd} 顆防禦骰（點骰子；不用也可以直接繼續）。用完後再點才是指揮重擲。`, `Shot by a Blast or Torrent weapon: Void Armour lets you re-roll ${vd} defence dice for free (tap them, or just continue). After that, a tap is a Command Re-roll.`)}</p>` : ''}${pool.digInLeft ? `<p class="hint small">${L('這次防禦可以「重擲某一點數的所有骰子」（固守！、防禦命令、皇帝庇佑、預警或超能護盾）：選一個點數，或不用直接繼續。', 'This defence can re-roll every die of one result (Dig In!, Defence Order, The Emperor Protects, Forewarned or Hypershielding): pick a result, or just continue.')}</p>` : ''}
+    ${dig}${rerollRows(pool, 'flow', '')}${vd && !bal ? `<p class="hint small">${L(`被爆炸或洪流武器射擊，「虛空護甲」可以免費重擲 ${vd} 顆防禦骰（點骰子；不用也可以直接繼續）。用完後再點才是指揮重擲。`, `Shot by a Blast or Torrent weapon: Void Armour lets you re-roll ${vd} defence dice for free (tap them, or just continue). After that, a tap is a Command Re-roll.`)}</p>` : ''}${pool.digInLeft ? `<p class="hint small">${L('這次防禦可以「重擲某一點數的所有骰子」（固守！、防禦命令、皇帝庇佑、預警或超能護盾）：選一個點數，或不用直接繼續。', 'This defence can re-roll every die of one result (Dig In!, Defence Order, The Emperor Protects, Forewarned or Hypershielding): pick a result, or just continue.')}</p>` : ''}
     ${bal ? `<p class="hint small">${L('這次擲骰有「平衡」：可以免費重擲一顆骰（點該骰子；不想用就直接繼續）。用過之後再點骰子才是花 1CP 的指揮重擲。', 'This roll has Balanced: you can re-roll one die for free (tap it; or just continue). After that, tapping a die is a 1CP Command Re-roll.')}</p>` : ''}
     <p class="hint small">${L(`<b style="color:${tm.color}">${esc(tx(tm.name))}</b> 有 ${g.cp[side]} CP：可花 1CP「指揮重擲」一顆骰（點該骰子）。`,
     `<b style="color:${tm.color}">${esc(tx(tm.name))}</b> has ${g.cp[side]}CP: spend 1CP on a Command Re-roll of one die (tap it).`)}${used && !seq.rerolled?.[which] ? ` ${L('（此時不能重擲）', '(not allowed now)')}` : ''}</p>
@@ -2210,7 +2224,7 @@ const ABILITIES = {
   zealous: () => ['狂熱奉獻', 'Zealous Dedication', '受到 3 以上的傷害時擲 D6：5+ 傷害 -1。', 'Whenever an attack die inflicts 3+ damage on it, roll a D6: on a 5+, 1 less.'],
   arrest: () => ['懲戒者的逮捕', "Castigator's Arrest", '若它控制範圍內只有一名敵人，該敵人不能撤退。', 'If only one enemy is in its control range, that enemy cannot Fall Back.'],
   apprehend: () => ['扣押', 'Apprehend', '0AP：控制範圍內一名敵人，在它離開前命中變差 1（不與重傷疊加）且不能撤退。', "0AP: an enemy in its control range has its Hit worsened by 1 (not cumulative with injured) and can't Fall Back while it stays there."],
-  aggressivePattern: () => ['攻擊模式', 'Attack Pattern', '馴犬師為牠選了「凶猛」（近戰武器「無情」）與「迅捷」（Move +2"，已算入 8"）。', 'The Leashmaster picked Aggressive (melee Relentless) and Swift (+2" Move, included in its 8").'],
+  aggressivePattern: () => ['攻擊模式', 'Attack Pattern', '馴犬師為牠選了「凶猛」（近戰武器「毫不留情」）與「迅捷」（Move +2"，已算入 8"）。', 'The Leashmaster picked Aggressive (melee Relentless) and Swift (+2" Move, included in its 8").'],
   veriscant: () => ['真相鑑定', 'Veriscant', '1AP（敏銳專注時 0AP）：一名可見敵人，直到它下次啟動，友方攻擊它時武器「致命 5+」＋「重創」。', '1AP (0AP with Acute Focus): a visible enemy — until its next activation, friendly weapons have Lethal 5+ and Severe against it.'],
   acuteFocus: () => ['敏銳專注', 'Acute Focus', '每次啟動一次：撿起標記、真相鑑定或任務動作少花 1AP。', 'Once per activation: Pick Up Marker, Veriscant or a mission action costs 1 less AP.'],
   stubbornSubjugator: () => ['頑強鎮壓者', 'Stubborn Subjugator', '近戰武器的命中值不受任何變化影響。', 'Changes to the Hit stat of its melee weapons are ignored.'],
@@ -2245,7 +2259,7 @@ const ABILITIES = {
   twoShoots: () => ['神槍手', 'Expert Gunslinger', '每次啟動可執行兩次射擊。', 'Can perform two Shoot actions per activation.'],
   heroic: () => ['英雄的鼓舞', 'Heroic Inspiration', '本回合使敵人殘廢過後，3" 內可見的友方新信徒武器「嚴厲」。', 'Once it has incapacitated an enemy this TP, friendly Neophytes visible within 3" of it have Severe.'],
   twoFights: () => ['劍術大師', 'Expert Swordsman', '每次啟動可執行兩次近戰。（之後的 3" 免費衝鋒、閃電突擊、刃之架勢未實作）', 'Can perform two Fight actions per activation. (The free 3" Charge, Quicksilver Strike and Bladed Stance aren\'t modelled.)'],
-  bipod: () => ['重武器腳架', 'Heavy Weapon Bipod', '本次啟動沒移動（或反擊時）射擊：武器「無休」，已有無休則改為「無情」。', 'Shooting without having moved this activation (or when counteracting): Ceaseless, or Relentless if it already has it.'],
+  bipod: () => ['重武器腳架', 'Heavy Weapon Bipod', '本次啟動沒移動（或反擊時）射擊：武器「無休」，已有無休則改為「毫不留情」。', 'Shooting without having moved this activation (or when counteracting): Ceaseless, or Relentless if it already has it.'],
   miasma: () => ['毒瘴', 'Poisonous Miasma', '1AP（靈能）：7" 內可見的敵人中毒；已中毒則受到 3 傷害。', '1AP (Psychic): an enemy visible within 7" is poisoned, or takes 3 damage if it already was.'],
   krumpin: () => ["揍人時間", "Krumpin' Time", '每次啟動可執行兩次近戰。', 'Can perform two Fight actions per activation.'],
   support: (v) => (v === 'getItDun'
@@ -2308,7 +2322,7 @@ const ABILITIES = {
   extractInfo: () => ['榨取情報', 'Extract Information', '敵人在它控制範圍內殘廢時 +1CP。', 'An enemy incapacitated within its control range: +1CP.'],
   hexorcise: () => ['驅魔', 'Hexorcise', '它 6" 內看得到的敵人不能重擲攻擊骰或防禦骰。（「懲戒」動作未實作）', 'Enemies visible within 6" of it can\'t re-roll attack or defence dice. (The Chasten action isn\'t modelled.)'],
   scry: () => ['預視', 'Scry', '1AP，靈能：6" 內一名友方得到「指引」（攻擊時一顆失敗改普通、或一顆普通改暴擊）或「守護」（被射擊時防禦骰同樣處理），直到它下次啟動。', '1AP, PSYCHIC: a friendly within 6" gains Guidance (attack dice: one fail → normal, or one normal → crit) or Protection (the same for defence dice when shot) until its next activation.'],
-  cruel: () => ['殘酷', 'Cruel', '攻擊受傷的敵人時武器「無情」。', 'Attacking a wounded enemy: Relentless.'],
+  cruel: () => ['殘酷', 'Cruel', '攻擊受傷的敵人時武器「毫不留情」。', 'Attacking a wounded enemy: Relentless.'],
   iaBarrage: () => ['手槍彈幕', 'Pistol Barrage', '1AP（交戰指令、本次沒射擊過）：電漿手槍與消音手槍各免費射擊一次。命中值不受任何變化影響。', '1AP (Engage, hasn\'t shot this activation): a free Shoot with each of its pistols. Its ranged Hit can\'t be changed.'],
   lobotomised: () => ['腦葉切除', 'Lobotomised', '啟動時若在另一名特工（非槍械僕從）3" 內且看得到，本次 APL +1。', 'When activated visible within 3" of another agent (not a Gun Servitor): +1 APL this activation.'],
   psychicNull: () => ['靈能虛無', 'Psychic Null', '靈能遠程武器傷不了它；6" 內的任何特工（敵我皆同）不能做靈能動作或用靈能遠程武器。', 'PSYCHIC ranged weapons can\'t damage it; any operative within 6" (friend or foe) can\'t perform PSYCHIC actions or use PSYCHIC ranged weapons.'],
@@ -2491,6 +2505,7 @@ function fightView(readonly = false) {
         ? `<button class="diebtn" data-act="fightbal" data-k="${k}" data-i="${i}" ${d.rr ? 'disabled' : ''} title="${L('平衡：免費重擲這顆骰', 'Balanced: re-roll this die for free')}">${die(d, i)}</button>`
         : !readonly && f.rrOpen?.[k] && !d.auto && canCommandReroll(g, ops[k].side, p, 'a')
         ? `<button class="diebtn" data-act="fightrr" data-k="${k}" data-i="${i}" title="${L('指揮重擲這顆骰（1CP）', 'Command Re-roll this die (1CP)')}">${die(d, i)}</button>` : die(d, i))).join('')}${!readonly && f.rrOpen?.[k] && p.a.balancedLeft ? ` <span class="flag mk">⚖ ${L('可平衡：免費重擲一顆', 'Balanced: one free re-roll')}</span>` : ''}</div>
+      ${!readonly && f.rrOpen?.[k] && !isAI(ops[k].side) ? rerollRows(p.a, 'fight', k) : ''}
       <div class="remain">${L('剩餘成功骰', 'Unresolved')}：${chips || '—'}</div>
       <div class="wounds">${L('生命', 'Wounds')} ${ops[k].wounds}/${ops[k].maxW}${ops[k].dead ? ' ☠' : ''}</div>
     </div>`;
@@ -3354,6 +3369,9 @@ function handle(act, d) {
     case 'foreboding': if (!isAI(g.turn)) undoable(() => ncForeboding(g, g.turn)); return afterChange();
     case 'painreroll': { const s = ui.flow?.step; if (s) { const which = s.stage === 'attack' ? 'a' : 'd'; archonReroll(g, getOp(g, which === 'a' ? s.seq.op : s.seq.target), s.seq, which, +d.value); } return render(); }
     case 'painfight': archonFightReroll(g, d.k, +d.value); return render();
+    case 'ceaseless': { if (d.where === 'fight') fightCeaseless(g, d.k, +d.v); else { const s = ui.flow?.step; if (s) ceaselessReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.v); } ui.relSel = []; return render(); }
+    case 'relpick': { const i = +d.i; ui.relSel = (ui.relSel || []).includes(i) ? ui.relSel.filter((x) => x !== i) : [...(ui.relSel || []), i]; return render(); }
+    case 'relgo': { if (d.where === 'fight') fightRelentless(g, d.k, ui.relSel || []); else { const s = ui.flow?.step; if (s) relentlessReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', ui.relSel || []); } ui.relSel = []; return render(); }
     case 'digin': { const s = ui.flow?.step; if (s) digInReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.v); return render(); }
     case 'voiddie': { const s = ui.flow?.step; if (s) voidReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.i); return render(); }
     case 'balancedie': { const s = ui.flow?.step; if (s) balancedReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.i); return render(); }
@@ -3380,6 +3398,7 @@ function handle(act, d) {
       ui.pending = null;
       const t = getOp(g, p.target);
       ui.undo = []; // dice are rolled: this action can't be undone
+      ui.relSel = [];
       if (p.kind === 'shoot') { ui.flow = { it: shootFlow(g, p.by ? getOp(g, p.by) : op, p.weapon, t), step: null }; return advanceFlow(); }
       startFight(g, op, p.weapon, t);
       return afterChange();
