@@ -5018,7 +5018,7 @@ export function abilityToggle(g, side, id) {
 // Free moves ({ kind: 'move', movers(g, side, ctx) → operatives, moveKind(g, o, ctx), max(g, o, ctx), check(g, side, o, end, ctx), autoAll(g, side, ctx) }):
 // the player moves each mover it wants (a path to a tapped point), then finishes; ctx.n caps how many.
 export const CHOICES = {};
-export const playerPicks = (g, side) => side < 2 && !!g.pick?.[side];
+export const playerPicks = (g, side) => side < 2 && !!g.pick?.[side] && !g.autoResolve; // (an attack resolved without a dice window — guard, Counterattack, forced shots — keeps the automatic re-rolls)
 export function needChoice(g, side, id, ctx = {}) {
   const c = CHOICES[id];
   if (!c) return;
@@ -5583,7 +5583,7 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
   const fail = (v) => rules.soulstrikeDef ? v !== 1 && (v === 6 || v > success) : v < success || (rules.no3 && v === 3); // Soulstrike reverses defence thresholds
   if (rules.reroll6) for (const d of dice) if (d.v === 6) { d.v = d6(); d.rr = true; } // Ravage Destiny (forced)
   if (rules.ceaseless && !rules.noReroll1) for (const d of dice) if (!d.rr && d.v === 1) { d.v = d6(); d.rr = true; } // (Flayed Skin: results of 1 can't be re-rolled)
-  if (rules.digIn && !rules.relentless) {
+  if (rules.digIn && !rules.relentless && !rules.digInManual) {
     // Dig In!: re-roll every die showing one result — the failed result that came up most.
     const tally_ = {};
     for (const d of dice) if (!d.rr && fail(d.v)) tally_[d.v] = (tally_[d.v] || 0) + 1;
@@ -5597,13 +5597,14 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
     if (f) { f.v = d6(); f.rr = true; }
   }
   // Void Armour (Navy Breachers): re-roll up to n failed defence dice.
-  if (rules.rerollFails) {
+  if (rules.rerollFails && !rules.rerollManual) {
     for (const d of dice.filter((x) => !x.rr && fail(x.v)).sort((a, b) => a.v - b.v).slice(0, rules.rerollFails)) { d.v = d6(); d.rr = true; }
   }
   dice.sort((a, b) => b.v - a.v);
   for (let k = 0; k < auto; k++) dice.push({ v: '✓', res: 'norm', auto: true });
   const pool = {
     dice, success, critOn, post, crits: 0, norms: 0, balancedLeft: rules.balanced && rules.balancedManual ? 1 : 0, noReroll1: !!rules.noReroll1,
+    digInLeft: rules.digIn && !rules.relentless && rules.digInManual ? 1 : 0, rerollLeft: rules.rerollFails && rules.rerollManual ? rules.rerollFails : 0,
     rules: { soulstrikeDef: !!rules.soulstrikeDef, severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze, promote: rules.promote || 0 },
   };
   return tally(pool);
@@ -6269,6 +6270,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const post = indomitus || wrought ? (pool) => { indomitus?.(pool); wrought?.(pool); } : null;
   if (rules.soulstrike) defRules.soulstrikeDef = true;
   if (defRules.balanced && playerPicks(g, target.side)) defRules.balancedManual = true; // (a player uses Balanced itself)
+  if (playerPicks(g, target.side)) { defRules.digInManual = true; defRules.rerollManual = true; } // (and Dig In!-type and Void Armour re-rolls)
   const d = rollPool(defDice - coverN - coverC, rules.soulstrike ? aplNow(g, target) : save, hasTactic(g, target, 'hardy') || rtArmour(g, target) ? 5 : 6, defRules, chainPost(post, scryPost(g, target, 'protect'))); // (Scry: Protection)
   // Unstinting, Immovable (Dire Avenger Aspect Technique): two or more fails — discard one, retain another as a normal save.
   if (tpl(target).aspect === 'da' && d.dice.filter((x) => x.res === 'miss').length >= 2 && autoFF(g, target.side, 'avUnstinting', target)) {
@@ -6397,6 +6399,10 @@ function suppressed(g, op, weapon, target) {
  * (used by the AI and tests). The interface steps through `shootFlow` instead so a human can decide.
  */
 export function resolveShoot(g, op, weapon, target) {
+  g.autoResolve = (g.autoResolve || 0) + 1;
+  try { return resolveShootNow(g, op, weapon, target); } finally { g.autoResolve--; }
+}
+function resolveShootNow(g, op, weapon, target) {
   const it = shootFlow(g, op, weapon, target);
   let r = it.next();
   while (!r.done) {
@@ -6838,6 +6844,28 @@ export function balancedReroll(g, holder, which, index) {
   log(g, { zh: `平衡：重擲一顆骰 ${old} → ${die.v}`, en: `Balanced: re-rolls a die ${old} → ${die.v}` }, 'tp');
   return true;
 }
+/** Dig In!-type re-rolls, used by a player: re-roll every die showing one result (that wasn't re-rolled yet). */
+export function digInReroll(g, holder, which, value) {
+  const pool = holder?.[which === 'a' ? 'a' : 'd'];
+  const dice = pool?.dice.filter((d) => !d.auto && !d.rr && !d.locked && d.v === value) || [];
+  if (!pool?.digInLeft || !dice.length) return false;
+  pool.digInLeft = 0;
+  for (const d of dice) { d.v = d6(); d.rr = true; }
+  tally(pool);
+  log(g, { zh: `重擲所有 ${value}：${dice.map((d) => d.v).join('、')}`, en: `Re-rolls every ${value}: ${dice.map((d) => d.v).join(', ')}` }, 'tp');
+  return true;
+}
+/** Void Armour, used by a player: re-roll one die for free (up to its number of dice). */
+export function voidReroll(g, holder, which, index) {
+  const pool = holder?.[which === 'a' ? 'a' : 'd'], die = pool?.dice[index];
+  if (!pool?.rerollLeft || !die || die.auto || die.rr || die.locked) return false;
+  pool.rerollLeft--;
+  const old = die.v;
+  die.v = d6(); die.rr = true;
+  tally(pool);
+  log(g, { zh: `虛空護甲：重擲一顆防禦骰 ${old} → ${die.v}`, en: `Void Armour: re-rolls a defence die ${old} → ${die.v}` }, 'tp');
+  return true;
+}
 export function fightBalanced(g, k, index) {
   const f = g.fight;
   if (!f?.rrOpen?.[k]) return false;
@@ -7224,6 +7252,10 @@ export function fightAutoChoice(g) {
 
 /** Resolve a whole fight automatically (AI vs AI, simulations). */
 export function resolveFight(g, op, weapon, target) {
+  g.autoResolve = (g.autoResolve || 0) + 1;
+  try { return resolveFightNow(g, op, weapon, target); } finally { g.autoResolve--; }
+}
+function resolveFightNow(g, op, weapon, target) {
   if (!startFight(g, op, weapon, target)) return null; // (refused, or cancelled by Commanding Declamation)
   while (!g.fight.done) fightApply(g, fightAutoChoice(g));
   const f = g.fight;

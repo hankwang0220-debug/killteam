@@ -18,7 +18,7 @@ import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
-import { balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
+import { digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
@@ -1619,7 +1619,7 @@ function advanceFlow() {
       if (i >= 0) commandReroll(g, side, seq, which, i);
       continue;
     }
-    if ((which === 'a' ? seq.a : seq.d)?.balancedLeft || canCommandReroll(g, side, seq, which) || painRerollValues(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which).length) { F.step = { stage, seq, side }; return render(); }
+    if ((which === 'a' ? seq.a : seq.d)?.balancedLeft || (which === 'a' ? seq.a : seq.d)?.digInLeft || (which === 'a' ? seq.a : seq.d)?.rerollLeft || canCommandReroll(g, side, seq, which) || painRerollValues(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which).length) { F.step = { stage, seq, side }; return render(); }
   }
 }
 
@@ -1628,13 +1628,17 @@ function flowView() {
   const { stage, seq, side } = ui.flow.step;
   const a = getOp(g, seq.op), t = getOp(g, seq.target), which = stage === 'attack' ? 'a' : 'd';
   const pool = which === 'a' ? seq.a : seq.d, tm = team(g, side);
-  const used = !canCommandReroll(g, side, seq, which), bal = !!pool.balancedLeft;
+  const used = !canCommandReroll(g, side, seq, which), bal = !!pool.balancedLeft, vd = pool.rerollLeft || 0;
+  const values = [...new Set(pool.dice.filter((d) => !d.auto && !d.rr && !d.locked).map((d) => d.v))].sort((x, y) => x - y);
+  const dig = pool.digInLeft && values.length ? `<div class="row"><span class="flag mk">⛨ ${L('可重擲某一點數的所有骰（固守等）', 'Re-roll every die of one result (Dig In! etc.)')}</span>${values.map((v) => `<button data-act="digin" data-v="${v}">${L(`重擲所有 ${v}`, `Re-roll all ${v}s`)}</button>`).join('')}</div>` : '';
   const dice = pool.dice.map((d, i) => (d.auto ? die(d, i) : bal ? `<button class="diebtn" ${d.rr ? 'disabled' : ''} data-act="balancedie" data-i="${i}" title="${L('平衡：免費重擲這顆骰', 'Balanced: re-roll this die for free')}">${die(d, i)}</button>`
+    : vd ? `<button class="diebtn" ${d.rr ? 'disabled' : ''} data-act="voiddie" data-i="${i}" title="${L('虛空護甲：免費重擲這顆骰', 'Void Armour: re-roll this die for free')}">${die(d, i)}</button>`
     : `<button class="diebtn" ${used ? 'disabled' : ''} data-act="rerolldie" data-i="${i}" title="${L('指揮重擲這顆骰（1CP）', 'Command Re-roll this die (1CP)')}">${die(d, i)}</button>`)).join('');
   return `<h2>⌖ ${stage === 'attack' ? L('攻擊骰', 'Attack dice') : L('防禦骰', 'Defence dice')}</h2>
     <p><b style="color:${team(g, a.side).color}">${nm(a)}</b> → <b style="color:${team(g, t.side).color}">${nm(t)}</b> · ${esc(bi(seq.weapon.name))}</p>
     <div class="dicerow"><label>${stage === 'attack' ? `${L('攻擊', 'Attack')} (${seq.hit}+)` : `${L('防禦', 'Defence')} (${seq.save}+)`}</label>${dice}
-      <em>${L(`${pool.crits} 暴擊 / ${pool.norms} 成功`, `${pool.crits} crit / ${pool.norms} success`)}</em>${bal ? ` <span class="flag mk">⚖ ${L('可平衡：免費重擲一顆', 'Balanced: one free re-roll')}</span>` : ''}</div>
+      <em>${L(`${pool.crits} 暴擊 / ${pool.norms} 成功`, `${pool.crits} crit / ${pool.norms} success`)}</em>${bal ? ` <span class="flag mk">⚖ ${L('可平衡：免費重擲一顆', 'Balanced: one free re-roll')}</span>` : ''}${vd ? ` <span class="flag mk">🛡 ${L(`虛空護甲：可免費重擲 ${vd} 顆`, `Void Armour: ${vd} free re-roll(s)`)}</span>` : ''}</div>
+    ${dig}${vd && !bal ? `<p class="hint small">${L(`被爆炸或洪流武器射擊，「虛空護甲」可以免費重擲 ${vd} 顆防禦骰（點骰子；不用也可以直接繼續）。用完後再點才是指揮重擲。`, `Shot by a Blast or Torrent weapon: Void Armour lets you re-roll ${vd} defence dice for free (tap them, or just continue). After that, a tap is a Command Re-roll.`)}</p>` : ''}${pool.digInLeft ? `<p class="hint small">${L('這次防禦可以「重擲某一點數的所有骰子」（固守！、防禦命令、皇帝庇佑、預警或超能護盾）：選一個點數，或不用直接繼續。', 'This defence can re-roll every die of one result (Dig In!, Defence Order, The Emperor Protects, Forewarned or Hypershielding): pick a result, or just continue.')}</p>` : ''}
     ${bal ? `<p class="hint small">${L('這次擲骰有「平衡」：可以免費重擲一顆骰（點該骰子；不想用就直接繼續）。用過之後再點骰子才是花 1CP 的指揮重擲。', 'This roll has Balanced: you can re-roll one die for free (tap it; or just continue). After that, tapping a die is a 1CP Command Re-roll.')}</p>` : ''}
     <p class="hint small">${L(`<b style="color:${tm.color}">${esc(tx(tm.name))}</b> 有 ${g.cp[side]} CP：可花 1CP「指揮重擲」一顆骰（點該骰子）。`,
     `<b style="color:${tm.color}">${esc(tx(tm.name))}</b> has ${g.cp[side]}CP: spend 1CP on a Command Re-roll of one die (tap it).`)}${used && !seq.rerolled?.[which] ? ` ${L('（此時不能重擲）', '(not allowed now)')}` : ''}</p>
@@ -3350,6 +3354,8 @@ function handle(act, d) {
     case 'foreboding': if (!isAI(g.turn)) undoable(() => ncForeboding(g, g.turn)); return afterChange();
     case 'painreroll': { const s = ui.flow?.step; if (s) { const which = s.stage === 'attack' ? 'a' : 'd'; archonReroll(g, getOp(g, which === 'a' ? s.seq.op : s.seq.target), s.seq, which, +d.value); } return render(); }
     case 'painfight': archonFightReroll(g, d.k, +d.value); return render();
+    case 'digin': { const s = ui.flow?.step; if (s) digInReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.v); return render(); }
+    case 'voiddie': { const s = ui.flow?.step; if (s) voidReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.i); return render(); }
     case 'balancedie': { const s = ui.flow?.step; if (s) balancedReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.i); return render(); }
     case 'fightbal': fightBalanced(g, d.k, +d.i); return render();
     case 'rerolldie': {
