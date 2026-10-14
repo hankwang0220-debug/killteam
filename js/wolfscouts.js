@@ -3,7 +3,7 @@
 // the Haywire Mine, Pounce), the ploys and the faction equipment. game.js calls these hooks; the team data is in data/wolfscouts.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, ffOn, changeApl, d3, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, boardOf, applyDamage, resolveFight, bestMelee, doMove, mission, ployChooser } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, ffOn, changeApl, d3, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, boardOf, applyDamage, resolveFight, bestMelee, doMove, mission, ployChooser } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx, findPath, wholeInchPath } from './path.js';
 import { WOLF_TEAM, wolfRosterError } from './data/wolfscouts.js';
@@ -114,19 +114,19 @@ export const wsChirurgy = (g, op) => isWS(op) && op.side < 2 && !!g.ws?.fang?.[o
 // ---------- shooting and defence ----------
 /** Runic Charms (once per TP, automatic): Piercing 1 worse against a friendly in the storm. */
 export function wsCharms(g, op, target, rules) {
-  if (!isWS(target) || target.side > 1 || wolf(target) || !rules.piercing || !equip(g, target.side, 'wsCharms') || g.ws.used[target.side].charms === g.tp || !inStorm(g, target.side, target)) return;
+  if (!isWS(target) || target.side > 1 || wolf(target) || !rules.piercing || !equip(g, target.side, 'wsCharms') || !abilityArmed(g, target.side, 'wsCharms') || g.ws.used[target.side].charms === g.tp || !inStorm(g, target.side, target)) return;
   g.ws.used[target.side].charms = g.tp;
   rules.piercing--;
   note(g, target.side, '符文護符：穿甲 -1', 'Runic Charms: Piercing worsened by 1');
 }
 /** Cloaked by the Storm: re-roll one defence die in the storm. */
 export function wsDefence(g, target, r) {
-  if (isWS(target) && target.side < 2 && hasPloy(g, target.side, 'wsCloak') && inStorm(g, target.side, target)) r.balanced = true;
+  if (isWS(target) && target.side < 2 && hasPloy(g, target.side, 'wsCloak') && abilityArmed(g, target.side, 'wsCloak') && inStorm(g, target.side, target)) r.balanced = true;
 }
 export const wsTranshumanOk = (target) => isWS(target) && target.side < 2 && !wolf(target);
 /** Wolfteeth Necklaces (once per TP): two or more fails — one is retained as a normal success. */
 export function wsTeeth(g, op, pool, retally) {
-  if (!isWS(op) || op.side > 1 || wolf(op) || !pool || !equip(g, op.side, 'wsTeeth') || g.ws.used[op.side].teeth === g.tp) return;
+  if (!isWS(op) || op.side > 1 || wolf(op) || !pool || !equip(g, op.side, 'wsTeeth') || !abilityArmed(g, op.side, 'wsTeeth') || g.ws.used[op.side].teeth === g.tp) return;
   if (pool.dice.filter((d) => !d.auto && d.res === 'miss').length < 2) return;
   g.ws.used[op.side].teeth = g.tp;
   const teeth = (p) => { const m = p.dice.filter((d) => !d.auto && d.res === 'miss'); if (m.length >= 2) { m[0].res = 'norm'; m[0].indo = true; p.norms++; } };
@@ -152,13 +152,13 @@ export function wsBite(g, op, target, dWeapon, dr) {
 }
 /** Talismanic Trophies: in the storm, one normal success inflicts 1 less damage on it (once per sequence). */
 export function wsTrophy(g, me, amount, asNormal, seq) {
-  if (!asNormal || amount <= 0 || seq.wsTrophy || !isWS(me) || me.side > 1 || wolf(me) || !equip(g, me.side, 'wsTrophies') || !inStorm(g, me.side, me)) return amount;
+  if (!asNormal || amount <= 0 || seq.wsTrophy || !isWS(me) || me.side > 1 || wolf(me) || !equip(g, me.side, 'wsTrophies') || !abilityArmed(g, me.side, 'wsTrophies') || !inStorm(g, me.side, me)) return amount;
   seq.wsTrophy = true;
   return amount - 1;
 }
 /** Savage Fighters: the retaliating friendly, still standing in the enemy's control range — D3+1 damage. */
 export function wsSavage(g, attacker, defender) {
-  if (!isWS(defender) || defender.dead || !attacker || attacker.dead || defender.side > 1 || !hasPloy(g, defender.side, 'wsSavage') || defender.convictionNow) return;
+  if (!isWS(defender) || defender.dead || !attacker || attacker.dead || defender.side > 1 || !hasPloy(g, defender.side, 'wsSavage') || !abilityArmed(g, defender.side, 'wsSavage') || defender.convictionNow) return;
   if (edgeDist(attacker, defender) > CONTROL + 0.01) return;
   const dmg = d3() + 1;
   note(g, defender.side, `兇猛鬥士：${opName(attacker, 'zh')} 受到 ${dmg} 傷害`, `Savage Fighters: ${opName(attacker, 'en')} takes ${dmg} damage`);

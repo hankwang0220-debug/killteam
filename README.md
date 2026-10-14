@@ -34,6 +34,7 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 
 - A 30"×22" killzone with heavy terrain (blocks movement and line of sight) and light terrain (provides cover)
 - 4 Turning Points, an initiative roll, CP, and strategy ploys
+- Room to make mistakes: a player's automatic firefight ploys start switched off (tick them, or "All on", in the Strategy phase; a setup option turns them all on from the start), and "you can" abilities and equipment that have a switch (XV26, Wolf Scouts so far) start off too. The computer uses its own.
 - Alternating activations, Engage/Conceal orders, and APL-based actions
 - Movement uses automatic pathfinding around obstacles and retains freely chosen legal endpoints while rounding up the total movement cost (moving 0.3 inches costs 1 inch; moving 1.3 inches costs 2). A move may pass through engagement range but cannot end inside it (except a Charge). Clicking too far stops at a legal endpoint within the allowance. An invalid landing shows the base outline, blocking terrain/operatives, and the clearance reason
 - Shooting: visibility to any part of the target, cover (terrain within 1" of the target), heavy terrain obscuring, defence dice equal to the DEF stat, and save allocation that is optimised automatically

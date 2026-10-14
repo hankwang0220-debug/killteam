@@ -18,6 +18,7 @@ import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
+import { abilityArmed, abilityToggle } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
@@ -82,7 +83,7 @@ const ui = {
   undo: [],           // snapshots before the player's undoable actions this activation
   help: false,
   settingsOpen: false,
-  setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null], mission: 'standard', map: 'default', terrainRanges: 'nearby' },
+  setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null], mission: 'standard', map: 'default', terrainRanges: 'nearby', autoFF: (() => { try { return localStorage.getItem('ktAutoFF') === '1'; } catch { return false; } })() },
 };
 try { const mode = localStorage.getItem('kt.terrainRanges'); if (['nearby', 'always', 'off'].includes(mode)) ui.setup.terrainRanges = mode; } catch { /* optional preference */ }
 let aiTimer = null;
@@ -460,7 +461,9 @@ function setupView() {
     <section class="card missionpick"><h3>${L('顯示設定', 'Display settings')}</h3>
       <label>${L('地形 1 吋範圍', 'Terrain 1-inch boundaries')}
       <select data-act="terrainRanges">${[['nearby', L('單位進入範圍時顯示（預設）', 'Show when an operative is within range (default)')], ['always', L('全部顯示', 'Always show')], ['off', L('不顯示', 'Hide')]].map(([id, text]) => `<option value="${id}" ${ui.setup.terrainRanges === id ? 'selected' : ''}>${text}</option>`).join('')}</select></label>
-      <p class="hint small">${L('以底座邊緣判定距離；範圍線是距離參考，實際效果依攻擊方向與規則判定。', 'Distances use base edges; boundaries are guides, effects depend on attack direction and rules.')}</p></section>
+      <p class="hint small">${L('以底座邊緣判定距離；範圍線是距離參考，實際效果依攻擊方向與規則判定。', 'Distances use base edges; boundaries are guides, effects depend on attack direction and rules.')}</p>
+      <label><input type="checkbox" data-act="autoff" ${ui.setup.autoFF ? 'checked' : ''}> ${L('交戰計謀預設自動使用（熟悉規則的玩家用；預設關閉）', 'Firefight ploys used automatically from the start (for players who know the rules; off by default)')}</label>
+      <p class="hint small">${L('關閉時，被射擊、受傷等時機才觸發的交戰計謀一開始都不會自動用，要在策略階段的「自動使用的交戰計謀」自己勾選。', 'When off, firefight ploys that trigger on being shot, damaged and so on start unticked; tick the ones you want in "Firefight ploys used automatically" in the Strategy phase.')}</p></section>
     <section class="card missionpick"><h3>${L('任務', 'Mission')}</h3>
       <select data-act="mission">${MISSION_LIST.map((m) => `<option value="${m.id}" ${m.id === ms.id ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
       <p class="hint small">${esc(tx(ms.desc))}${ms.source ? ` <i>（${esc(ms.source)}）</i>` : ''}</p></section>
@@ -1095,6 +1098,8 @@ function initCardsLine() {
   return `<p class="hint small">${L('先攻卡', 'Initiative cards')}：${[0, 1].map((s) => `<b style="color:${team(g, s).color}">${esc(tx(team(g, s).name))}</b> ${held(s)}`).join('　')}</p>`;
 }
 /** Before the result stands: human players may use initiative cards (Re-roll, ±1, ±2, ±3). */
+/** The firefight ploys a team uses automatically (Animalistic Fury: automatic when retaliating). */
+function autoPloys(t) { return [...(t.firefight || []), ...(t.techniques || [])].filter((p) => ffKind(p.id) === 'auto' || p.id === 'animalisticFury'); }
 function initCardsPanel() {
   const w = initWinner(g), wt = team(g, w);
   const tie = g.initRoll[0] === g.initRoll[1];
@@ -1376,11 +1381,21 @@ function gambitView(side) {
     </div>`;
   }
   // Reaction firefight ploys: used automatically while switched on (and affordable, once per turning point).
-  const autos = [...(team(g, side).firefight || []), ...(team(g, side).techniques || [])].filter((p) => ffKind(p.id) === 'auto' || p.id === 'animalisticFury'); // (Animalistic Fury: automatic when retaliating)
+  // A player's are off unless switched on (the setup option turns them all on): learning when to use them is part of the game.
+  const autos = autoPloys(team(g, side));
   if (autos.length && !isAI(side)) {
     html += `<div class="gambit"><h4>${L('自動使用的交戰計謀', 'Firefight ploys used automatically')}</h4>
-      <p class="hint small">${L('這些計謀在觸發時機（被射擊、受傷、殘廢…）自動花 CP 使用；不想用就取消勾選。', 'These are spent automatically when their moment comes (shot, damaged, incapacitated…); untick to keep the CP.')}</p>
+      <p class="hint small">${L('預設全部關閉。勾選的計謀，在觸發時機（被射擊、受傷、殘廢…）會自動花 CP 使用；沒勾就不會用。想清楚哪個時機值得花 CP 再勾。', 'All off by default. A ticked ploy is spent automatically when its moment comes (shot, damaged, incapacitated…); unticked ones are never used. Think about when each is worth the CP before ticking it.')}</p>
+      <div class="row"><button data-act="ffarmall" data-side="${side}" data-on="1">${L('全部開啟', 'All on')}</button><button data-act="ffarmall" data-side="${side}" data-on="0">${L('全部關閉', 'All off')}</button></div>
       ${autos.map((p) => `<label class="small"><input type="checkbox" data-act="ffarm" data-side="${side}" data-id="${p.id}" ${ffArmed(g, side, p.id) ? 'checked' : ''}> ${esc(tx(p.name))}（${p.cp}CP）<span class="hint">${esc(tx(p.desc))}</span></label>`).join('')}
+    </div>`;
+  }
+  // Automatic abilities, equipment and ploy effects the rules leave to the player ("you can"): off until ticked.
+  const abil = (team(g, side).autoAbilities || []).filter((a) => (!a.equip || g.equip?.[side]?.includes(a.equip)) && (!a.ploy || g.ploys?.[side]?.includes(a.ploy)));
+  if (abil.length && !isAI(side)) {
+    html += `<div class="gambit"><h4>${L('自動使用的能力與裝備', 'Abilities and equipment used automatically')}</h4>
+      <p class="hint small">${L('規則寫「可以」的能力與裝備預設關閉；勾選後在時機到時自動使用（每回合一次的會用掉這回合的次數）。買下的策略計謀預設開啟，也可以取消。', 'Abilities and equipment that say "you can" are off by default (bought strategy ploys start on); ticked ones are used automatically when their moment comes (once-per-TP ones use up that TP\'s use).')}</p>
+      ${abil.map((a) => `<label class="small"><input type="checkbox" data-act="abarm" data-side="${side}" data-id="${a.id}" ${abilityArmed(g, side, a.id) ? 'checked' : ''}> ${esc(tx(a.name))}<span class="hint">${esc(tx(a.desc))}</span></label>`).join('')}
     </div>`;
   }
   // Kasrkin: Skill at Arms (two while the Sergeant is in the killzone).
@@ -3018,6 +3033,7 @@ app.addEventListener('change', (e) => {
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
   if (e.target.dataset.act === 'vscommune') { (ui.setup.vsCommune ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if (e.target.dataset.act === 'aicustom') { ui.setup.aiCustom = e.target.checked; render(); }
+  if (e.target.dataset.act === 'autoff') { ui.setup.autoFF = e.target.checked; try { localStorage.setItem('ktAutoFF', e.target.checked ? '1' : ''); } catch {} render(); }
   if (e.target.dataset.act === 'mission') { ui.setup.mission = e.target.value; render(); }
   if (e.target.dataset.act === 'tacop') { (ui.setup.tacOps ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if ((e.target.dataset.act === 'claimobj' || e.target.dataset.act === 'claimkind') && g?.phase === 'strategy') {
@@ -3159,6 +3175,8 @@ function handle(act, d) {
       clearSave();
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      // Automatic firefight ploys start switched off for players (unless the setup option says otherwise); the computer keeps its own.
+      if (!ui.setup.autoFF) for (const side of [0, 1]) if (side !== g.ai) { const off = ((g.ffOff ||= [[], []])[side] ||= []); for (const p of autoPloys(team(g, side))) if (!off.includes(p.id)) off.push(p.id); const aoff = ((g.abOff ||= [[], []])[side] ||= []); for (const a of team(g, side).autoAbilities || []) if (!a.ploy && !aoff.includes(a.id)) aoff.push(a.id); }
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
@@ -3313,6 +3331,8 @@ function handle(act, d) {
     case 'adheroicdoc': undoable(() => adHeroicDoc(g, op.side, d.id)); return afterChange();
     case 'ffuse': undoable(() => useFFButton(g, op, d.id)); return afterChange();
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
+    case 'abarm': if (!isAI(+d.side)) abilityToggle(g, +d.side, d.id); return render();
+    case 'ffarmall': if (!isAI(+d.side)) for (const p of autoPloys(team(g, +d.side))) if (ffArmed(g, +d.side, p.id) !== (d.on === '1')) ffToggleArm(g, +d.side, p.id); return render();
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack
     case 'action': {
       if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass', 'rtSlingshot', 'kmGrapple'].includes(d.id) || (d.id === 'rvBurrow' && op.underground) || d.id === 'aqLand' || d.id === 'vsSkytorch') ui.mode = { kind: 'move', action: d.id };

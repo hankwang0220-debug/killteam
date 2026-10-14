@@ -50,6 +50,14 @@ export const WOLF_TEAM = {
     desc: B('策略謀略：放置風暴標記，完全在標記 6" 內就是「在你的風暴內」；在風暴內結束的衝鋒可以用隱蔽指令。每次啟動可以兩次射擊或兩次近戰（兩次都用電漿武器第二次 +1AP，不能兩次都用靈能武器）；任何指令都能反應，在風暴內反應時可以先改指令，或只改指令。',
       'Strategic gambit: place the Storm marker — wholly within 6" of it is "wholly within your STORM"; a Charge that ends wholly within it can be made with a Conceal order. Two Shoots or two Fights per activation (the second costs 1 more AP if both use plasma; never two PSYCHIC ranged weapons); it counteracts with any order, and within the storm can change order first, or instead of an action.'),
   },
+  // Automatic rules the player can switch on (players start with them off): equip / ploy limits where they show.
+  autoAbilities: [
+    { id: 'wsCharms', equip: 'wsCharms', name: B('符文護符', 'Runic Charms'), desc: B('每回合一次：敵人射擊風暴內的友方時，穿甲 -1。', 'Once per TP: an enemy shooting a friendly in the storm has Piercing 1 worse.') },
+    { id: 'wsTeeth', equip: 'wsTeeth', name: B('狼牙項鍊', 'Wolfteeth Necklaces'), desc: B('每回合一次：兩個以上失敗時，一個當成普通成功。', 'Once per TP: with two or more fails, one is retained as a normal success.') },
+    { id: 'wsTrophies', equip: 'wsTrophies', name: B('護身戰利品', 'Talismanic Trophies'), desc: B('風暴內近戰時，對手一個普通成功傷害 -1。', 'In the storm, fighting: one normal success inflicts 1 less damage.') },
+    { id: 'wsCloak', ploy: 'wsCloak', name: B('風暴掩護', 'Cloaked by the Storm'), desc: B('買了計謀後：風暴內被射擊時重擲一顆防禦骰。', 'With the ploy: re-roll one defence die when shot in the storm.') },
+    { id: 'wsSavage', ploy: 'wsSavage', name: B('兇猛鬥士', 'Savage Fighters'), desc: B('買了計謀後：反擊結束時對敵人造成 D3+1。', 'With the ploy: D3+1 damage to the enemy after retaliating.') },
+  ],
   replacements: { wsLeader: PICKS, wsFang: PICKS, wsFrost: PICKS, wsGunner: PICKS, wsSkjald: PICKS },
   perCopyRoster: true,
   ops,
@@ -57,13 +65,13 @@ export const WOLF_TEAM = {
     P('wsCloak', '風暴掩護', 'Cloaked by the Storm', '敵人射擊在你風暴內的友方時，你可以重擲一顆防禦骰。', 'An enemy shooting a friendly wholly within your STORM: you can re-roll one defence die.'),
     P('wsWrath', '暴風之怒', 'Tempestuous Wrath', '友方近戰或反擊時，若在風暴內（或本次啟動開始時在風暴內），近戰武器「平衡」。', 'A friendly fighting or retaliating wholly within your STORM (or that was at the start of the activation): Balanced melee weapons.'),
     P('wsBite', '風暴之噬', 'Storm\'s Bite', '友方近戰攻擊在你風暴內的敵人時，敵人近戰武器攻擊數 -1（最少 3）。', 'A friendly fighting an enemy wholly within your STORM: that enemy\'s melee weapons have -1 Atk (minimum 3).'),
-    P('wsSavage', '兇猛鬥士', 'Savage Fighters', '友方反擊結束時，若沒殘廢且還在那名敵人的控制範圍內，對它造成 D3+1 傷害（自動）。', 'When a friendly finishes retaliating, not incapacitated and still within the enemy\'s control range: D3+1 damage to that enemy (automatic).'),
+    P('wsSavage', '兇猛鬥士', 'Savage Fighters', '友方反擊結束時，若沒殘廢且還在那名敵人的控制範圍內，對它造成 D3+1 傷害（勾選後自動）。', 'When a friendly finishes retaliating, not incapacitated and still within the enemy\'s control range: D3+1 damage to that enemy (automatic once ticked).'),
   ],
   firefight: [
     P('wsAcute', '敏銳感官', 'Acute Senses', '友方射擊選目標時（目標要在 6" 內）：這次射擊武器獲得「尋找輕型」，敵人不能被遮蔽。', 'When a friendly picks a target to shoot (within 6"): its ranged weapons have Seek Light and enemies can\'t be obscured for that action.'),
-    P('wsCounter', '反擊', 'Counterattack', '敵人啟動結束或近戰後（自動）：一名在它控制範圍內的友方免費近戰它。', 'At the end of an enemy\'s activation or after it fights (automatic): a friendly within its control range makes a free Fight against it.'),
-    P('wsLokyar', '洛卡之觸', 'Touched by Lokyar', '友方（芬里斯狼除外）近戰時離其他友方 5" 以上（自動）：重擲失敗的攻擊骰。', 'A friendly (not the Fenrisian Wolf) fighting more than 5" from other friendlies (automatic): re-roll its failed attack dice.'),
-    P('wsTranshuman', '超人生理', 'Transhuman Physiology', '友方（芬里斯狼除外）被射擊時（自動）：一顆普通豁免當成暴擊豁免（能多擋暴擊時才用）。', 'A friendly (not the Fenrisian Wolf) being shot (automatic): one normal save is retained as a critical one (when it blocks a crit).'),
+    P('wsCounter', '反擊', 'Counterattack', '敵人啟動結束或近戰後（勾選後自動）：一名在它控制範圍內的友方免費近戰它。', 'At the end of an enemy\'s activation or after it fights (automatic once ticked): a friendly within its control range makes a free Fight against it.'),
+    P('wsLokyar', '洛卡之觸', 'Touched by Lokyar', '友方（芬里斯狼除外）近戰時離其他友方 5" 以上（勾選後自動）：重擲失敗的攻擊骰。', 'A friendly (not the Fenrisian Wolf) fighting more than 5" from other friendlies (automatic once ticked): re-roll its failed attack dice.'),
+    P('wsTranshuman', '超人生理', 'Transhuman Physiology', '友方（芬里斯狼除外）被射擊時（勾選後自動）：一顆普通豁免當成暴擊豁免（能多擋暴擊時才用）。', 'A friendly (not the Fenrisian Wolf) being shot (automatic once ticked): one normal save is retained as a critical one (when it blocks a crit).'),
   ],
 };
 
@@ -79,7 +87,7 @@ export function wolfRosterError(t, roster = {}) {
 
 export const WOLF_EQUIPMENT = {
   wsFrostW: { name: B('寒霜武器', 'Frost Weapons'), desc: B('友方在你風暴內時，戰鬥刀獲得「致命 5+」。', 'A friendly wholly within your STORM: its combat blade has Lethal 5+.') },
-  wsCharms: { name: B('符文護符', 'Runic Charms'), desc: B('每回合一次（自動）：敵人射擊在你風暴內的友方（芬里斯狼除外）時，穿甲 -1。', 'Once per TP (automatic): an enemy shooting a friendly (not the Fenrisian Wolf) wholly within your STORM has its Piercing worsened by 1.') },
-  wsTeeth: { name: B('狼牙項鍊', 'Wolfteeth Necklaces'), desc: B('每回合一次（自動）：友方（芬里斯狼除外）射擊、近戰或反擊擲出兩個以上失敗時，一個失敗當成普通成功。', 'Once per TP (automatic): a friendly (not the Fenrisian Wolf) shooting, fighting or retaliating with two or more fails retains one as a normal success.') },
+  wsCharms: { name: B('符文護符', 'Runic Charms'), desc: B('每回合一次（勾選後自動）：敵人射擊在你風暴內的友方（芬里斯狼除外）時，穿甲 -1。', 'Once per TP (automatic once ticked): an enemy shooting a friendly (not the Fenrisian Wolf) wholly within your STORM has its Piercing worsened by 1.') },
+  wsTeeth: { name: B('狼牙項鍊', 'Wolfteeth Necklaces'), desc: B('每回合一次（勾選後自動）：友方（芬里斯狼除外）射擊、近戰或反擊擲出兩個以上失敗時，一個失敗當成普通成功。', 'Once per TP (automatic once ticked): a friendly (not the Fenrisian Wolf) shooting, fighting or retaliating with two or more fails retains one as a normal success.') },
   wsTrophies: { name: B('護身戰利品', 'Talismanic Trophies'), desc: B('友方（芬里斯狼除外）在你風暴內近戰或反擊時，對手一個普通成功的傷害 -1。', 'A friendly (not the Fenrisian Wolf) wholly within your STORM fighting or retaliating: one normal success inflicts 1 less damage on it.') },
 };

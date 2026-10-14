@@ -165,6 +165,14 @@ const storm = (g, x, y) => { g.ws.storm[0] = { x, y }; };
   assert(!g.fight && !g.wsCounterNow);
 }
 
+// Switched off (as a player starts): Runic Charms and Counterattack aren't used.
+{
+  const g = arena({ equip: ['wsCharms'] }), l = get(g, 'wsLeader'), e = foes(g)[0]; clear(g, [l, e]); storm(g, 10, 10); place(l, 10, 10); place(e, 11.4, 10);
+  G.abilityToggle(g, 0, 'wsCharms'); const r = { piercing: 1 }; W.wsCharms(g, e, l, r); assert.equal(r.piercing, 1, 'Runic Charms off');
+  G.abilityToggle(g, 0, 'wsCharms'); W.wsCharms(g, e, l, r); assert.equal(r.piercing, 0, 'and on again');
+  G.ffToggleArm(g, 0, 'wsCounter'); g.cp[0] = 2; G.activate(g, e); G.endActivation(g); assert.equal(g.cp[0], 2, 'Counterattack off: no CP spent');
+}
+
 // The AI: storm and Pounce.
 {
   const g = arena(); g.phase = 'strategy'; g.stratTurn = 0;

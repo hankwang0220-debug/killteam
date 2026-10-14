@@ -2,7 +2,7 @@
 // and Homing Beacon, the Neutraliser, the ploys and the faction equipment. game.js calls these hooks; the team data is in data/stealthsuits.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, changeApl, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, visibility, boardOf, deployZones, territoryOf, controller, ffReady, ffArmed } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, changeApl, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, visibility, boardOf, deployZones, territoryOf, controller, ffReady, ffArmed } from './game.js';
 import { dist } from './geometry.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { STEALTH_TEAM, stealthRosterError } from './data/stealthsuits.js';
@@ -64,7 +64,7 @@ export function xvRules(g, op, weapon, target, r) {
     if (fm && fm.uid === target.uid && fm.tp === g.tp && !fm.used) r.xvHit = true; // Focused Markerlight
     const amb = g.xv.ambush[op.side];
     if (amb && dist(amb, target) - radius(target) <= 2) r.seek = true; // Prepare Ambush
-    if (weapon.rules.xvSweep && equip(g, op.side, 'xvMulti') && (g.xv.used[op.side].multi !== g.tp || g.xv.multiNow === op.uid)) r.torrent = Math.max(r.torrent || 0, 2); // XV26 Multitrackers
+    if (weapon.rules.xvSweep && equip(g, op.side, 'xvMulti') && abilityArmed(g, op.side, 'xvMulti') && (g.xv.used[op.side].multi !== g.tp || g.xv.multiNow === op.uid)) r.torrent = Math.max(r.torrent || 0, 2); // XV26 Multitrackers
   }
   if (target && !target.ready && hasPloy(g, op.side, 'xvPatient')) { r.balanced = true; if (weapon.type === 'ranged') r.saturate = true; } // Patient Hunters
 }
@@ -73,7 +73,7 @@ export function xvShootStart(g, op, weapon, target) {
   if (!isXV(op) || op.side > 1 || !target) return;
   const fm = g.xv.focus?.[op.side];
   if (fm && fm.uid === target.uid && fm.tp === g.tp && !fm.used) { fm.usedNow = true; note(g, op.side, '集中標記光：這次射擊命中 +1', 'Focused Markerlight: Hit improved by 1 for this shot'); }
-  if (weapon.rules.xvSweep && equip(g, op.side, 'xvMulti') && g.xv.used[op.side].multi !== g.tp) { g.xv.used[op.side].multi = g.tp; g.xv.multiNow = op.uid; note(g, op.side, 'XV26 多重追蹤器：洪流 2"', 'XV26 Multitrackers: Torrent 2"'); }
+  if (weapon.rules.xvSweep && equip(g, op.side, 'xvMulti') && abilityArmed(g, op.side, 'xvMulti') && g.xv.used[op.side].multi !== g.tp) { g.xv.used[op.side].multi = g.tp; g.xv.multiNow = op.uid; note(g, op.side, 'XV26 多重追蹤器：洪流 2"', 'XV26 Multitrackers: Torrent 2"'); }
   const amb = g.xv.ambush[op.side];
   if (amb && dist(amb, target) - radius(target) <= 2) g.xv.ambushUsed = op.side;
 }
@@ -91,7 +91,7 @@ export function xvHolowave(g, shooter, target) { return isXV(target) && target.s
 /** Electrochaff Launcher (Lodestar, once per TP, automatic): friendlies near it shot from more than 2" away are obscured and ignore Piercing. */
 export function xvChaffStart(g, shooter, target) {
   g.xvChaff = null;
-  if (!isXV(target) || target.side > 1 || tpl(target).xvDrone || g.xv.used[target.side].chaff === g.tp) return;
+  if (!isXV(target) || target.side > 1 || tpl(target).xvDrone || g.xv.used[target.side].chaff === g.tp || !abilityArmed(g, target.side, 'xvChaff')) return;
   const lode = living(g, target.side).find((o) => tpl(o).xvLodestar && o.x > -50 && !isEngaged(g, o));
   if (!lode || !chaffCovers(g, lode, shooter, target)) return;
   g.xv.used[target.side].chaff = g.tp;
@@ -142,7 +142,7 @@ export function xvActivate(g, op) {
   op.xvPhotonActive = !!op.xvPhoton; // (Photon Grenade Launcher: until the end of its next activation)
   // Multispectrum Sensor Package (Neutraliser, once per TP, automatic): an enemy activates within 8" — friendlies within 3" of it go Concealed.
   const side = 1 - op.side;
-  if (!g.counter && g.teams[side] === 'stealthSuits' && g.xv && g.xv.used[side].sensor !== g.tp) {
+  if (!g.counter && g.teams[side] === 'stealthSuits' && g.xv && g.xv.used[side].sensor !== g.tp && abilityArmed(g, side, 'xvSensor')) {
     const n = living(g, side).find((o) => tpl(o).xvNeutraliser && o.x > -50 && edgeDist(o, op) <= 8);
     const near = n ? living(g, side).filter((o) => isXV(o) && o.x > -50 && o.order === 'engage' && edgeDist(o, n) <= 3) : [];
     if (n && near.length) {
@@ -157,7 +157,7 @@ export function xvActivate(g, op) {
     return;
   }
   // Bonds of Unity: beside another suit, ignore APL changes and the injured Hit penalty this activation.
-  if (suit(op) && hasPloy(g, op.side, 'xvBonds') && living(g, op.side).some((o) => o !== op && suit(o) && o.x > -50 && edgeDist(o, op) <= 6 && visibility(g, o, op).visible)) {
+  if (suit(op) && hasPloy(g, op.side, 'xvBonds') && abilityArmed(g, op.side, 'xvBonds') && living(g, op.side).some((o) => o !== op && suit(o) && o.x > -50 && edgeDist(o, op) <= 6 && visibility(g, o, op).visible)) {
     op.ap = tpl(op).apl; op.xvBondHit = true;
   }
 }

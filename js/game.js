@@ -4941,6 +4941,13 @@ export function skipArchonActivation(g, side) {
   spendFF(g, side, 'heinousArrogance'); handOff(g, side); return true;
 }
 
+/** Automatic abilities and equipment that the rules leave to the player ("you can"): on unless switched off (players start with them off). */
+export const abilityArmed = (g, side, id) => side > 1 || !g.abOff?.[side]?.includes(id);
+export function abilityToggle(g, side, id) {
+  const off = ((g.abOff ||= [[], []])[side] ||= []);
+  const i = off.indexOf(id);
+  if (i >= 0) off.splice(i, 1); else off.push(id);
+}
 /** Auto ploys: armed unless the player switched them off. */
 export const ffArmed = (g, side, id) => !g.ffOff?.[side]?.includes(id);
 export function ffToggleArm(g, side, id) {

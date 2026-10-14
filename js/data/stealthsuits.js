@@ -55,6 +55,13 @@ export const STEALTH_TEAM = {
     desc: B('隱蔽指令時，3" 外的敵人看不到它；隱蔽指令撤退少 1AP。射擊敵人時依敵人位置獲得「精準 X」：在你領地 3" 內 1、在你領地內 2、在你降落區 3" 內 3。',
       'With a Conceal order it can\'t be visible to enemies more than 3" away, and it Falls Back for 1 less AP. Shooting an enemy its ranged weapons have Accurate X by where that enemy is: within 3" of your territory 1, in your territory 2, within 3" of your drop zone 3.'),
   },
+  // Automatic rules the player can switch on (players start with them off).
+  autoAbilities: [
+    { id: 'xvChaff', name: B('電子箔片發射器', 'Electrochaff Launcher'), desc: B('磁石，每回合一次：敵人射擊它 3" 內的友方時，無視穿甲且被遮蔽。', 'Lodestar, once per TP: an enemy shooting a friendly within 3" of it ignores Piercing and the friendly is obscured.') },
+    { id: 'xvSensor', name: B('多光譜感測組件', 'Multispectrum Sensor Package'), desc: B('中和者，每回合一次：敵人在 8" 內啟動時，3" 內的友方改為隱蔽。', 'Neutraliser, once per TP: an enemy activating within 8" — friendlies within 3" of it switch to Conceal.') },
+    { id: 'xvMulti', equip: 'xvMulti', name: B('XV26 多重追蹤器', 'XV26 Multitrackers'), desc: B('每回合一次：爆裂炮（掃射）洪流 2"。', 'Once per TP: burst cannon (sweeping) Torrent 2".') },
+    { id: 'xvBonds', ploy: 'xvBonds', name: B('團結紐帶', 'Bonds of Unity'), desc: B('買了計謀後：6" 內看得到友方時，無視 APL 改變與重傷的命中變差。', 'With the ploy: visible within 6" of another suit, ignore APL changes and the injured Hit penalty.') },
+  ],
   replacements: {
     xvShasvreB: ['xvShasvreB', 'xvShasvreF'],
     xvDesignatorB: PICKS, xvInfiltratorF: PICKS, xvLiberatorB: PICKS, xvNeutraliserB: PICKS,
@@ -69,8 +76,8 @@ export const STEALTH_TEAM = {
   ],
   firefight: [
     P('xvJet', '噴射背包', 'Engage Jet Pack', '友方（無人機除外）啟動或反應時使用：本次無視攀爬與下落的垂直距離。', 'When a friendly (not a drone) activates or counteracts: it ignores the vertical distance of climbs and drops this time.'),
-    P('xvSaviour', '救主協議', 'Saviour Protocols', '友方（無人機除外）被選為射擊目標時（自動）：改由它 3" 內看得到的友方無人機承受（爆裂、洪流武器無效）。', 'When a friendly (not a drone) is picked as the target of a Shoot (automatic): a friendly drone visible within 3" of it becomes the target instead (not against Blast or Torrent).'),
-    P('xvRetro', '向量反推', 'Vectored Retro-Thrusters', '敵人衝鋒結束在友方（無人機除外）控制範圍內時（自動）：友方免費撤退最多 3"，不能被阻止。', 'When an enemy ends a Charge in a friendly\'s control range (not a drone; automatic): that friendly makes a free Fall Back of up to 3", which can\'t be prevented.'),
+    P('xvSaviour', '救主協議', 'Saviour Protocols', '友方（無人機除外）被選為射擊目標時（勾選後自動）：改由它 3" 內看得到的友方無人機承受（爆裂、洪流武器無效）。', 'When a friendly (not a drone) is picked as the target of a Shoot (automatic once ticked): a friendly drone visible within 3" of it becomes the target instead (not against Blast or Torrent).'),
+    P('xvRetro', '向量反推', 'Vectored Retro-Thrusters', '敵人衝鋒結束在友方（無人機除外）控制範圍內時（勾選後自動）：友方免費撤退最多 3"，不能被阻止。', 'When an enemy ends a Charge in a friendly\'s control range (not a drone; automatic): that friendly makes a free Fall Back of up to 3", which can\'t be prevented.'),
     P('xvGhost', '幽靈罩', 'Ghostshroud', '友方啟動結束時：Engage 改為隱蔽。每名友方整場一次。', 'At the end of a friendly\'s activation: Engage becomes Conceal. Once per friendly per battle.'),
   ],
 };
@@ -91,6 +98,6 @@ export function stealthRosterError(t, roster = {}) {
 export const STEALTH_EQUIPMENT = {
   xvBlacksun: { name: B('進階黑日濾鏡', 'Advanced Blacksun Filters'), desc: B('友方射擊被遮蔽的目標時，不用因遮蔽捨棄一個成功（其他遮蔽效果照常）。', 'A friendly shooting an obscured target doesn\'t discard a success for it (the other effects of obscured still apply).') },
   xvLocks: { name: B('硬接線目標鎖定', 'Hardwired Target Locks'), desc: B('反應時可以用一名隱蔽指令、離敵人 3" 以上的友方：先改為 Engage，這次反應只能射擊。', 'You can counteract with a friendly that has a Conceal order and is more than 3" from enemies: it changes to Engage first and can only Shoot in that counteraction.') },
-  xvMulti: { name: B('XV26 多重追蹤器', 'XV26 Multitrackers'), desc: B('每回合一次（自動），用爆裂炮（掃射）射擊時，這次武器「洪流 2\"」。', 'Once per TP (automatic), shooting with a burst cannon (sweeping): Torrent 2" for that action.') },
+  xvMulti: { name: B('XV26 多重追蹤器', 'XV26 Multitrackers'), desc: B('每回合一次（勾選後自動），用爆裂炮（掃射）射擊時，這次武器「洪流 2\"」。', 'Once per TP (automatic once ticked), shooting with a burst cannon (sweeping): Torrent 2" for that action.') },
   xvJammers: { name: B('反網路干擾器', 'Counter-Network Jammers'), desc: B('策略謀略（自動選目標點）：本回合爭奪那個標記時，若有敵人在友方 3" 內，敵方 APL 總和視為少 1。', 'Strategic gambit (the marker is picked automatically): this TP, enemies contesting it count 1 lower in APL total if one of them is within 3" of a friendly.') },
 };
