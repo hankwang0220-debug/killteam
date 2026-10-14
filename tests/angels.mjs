@@ -125,4 +125,20 @@ for (const [a, b] of [['angels', 'kommandos'], ['angels', 'angels']]) {
   assert(steps < 3000, `${a} vs ${b}: simulation stalled`);
   console.log(`${a} vs ${b}: ${G.totalVP(g, 0)} : ${G.totalVP(g, 1)} (TP ${g.tp})`);
 }
+// Heroic Leader, second option: a Combat Doctrine when a friendly operative is activated (Captain free of enemies; pay the CP; once per TP).
+{
+  const AD = await import('../js/angels.js');
+  const g = arena({ roster: { sgt: 'captain' } }), cap = get(g, 'captain'), w = g.ops.find((o) => o.side === 0 && o !== cap);
+  place(cap, 5, 5); place(w, 5, 8); g.ops.filter((o) => o.side === 1).forEach((o, i) => place(o, 27, 2 + i * 1.8));
+  G.activate(g, w);
+  assert(AD.adHeroicDocOk(g, 0), 'available when activated');
+  assert(AD.adHeroicDoc(g, 0, 'docAssault')); assert(g.ploys[0].includes('docAssault')); assert.equal(g.cp[0], 2, 'pays the CP');
+  assert(!AD.adHeroicDocOk(g, 0), 'once per TP');
+  const h = arena({ roster: { sgt: 'captain' } }), c2 = get(h, 'captain'), w2 = h.ops.find((o) => o.side === 0 && o !== c2);
+  place(c2, 5, 5); place(w2, 5, 8); const e = foe(h); place(e, 6.2, 5); G.activate(h, w2);
+  assert(!AD.adHeroicDocOk(h, 0), 'not with the Captain in enemy control range');
+  const k = arena({ roster: { sgt: 'captain' } }), c3 = get(k, 'captain'), w3 = k.ops.find((o) => o.side === 0 && o !== c3); place(c3, 5, 5); place(w3, 5, 8);
+  k.ops.filter((o) => o.side === 1).forEach((o, i) => place(o, 27, 2 + i * 1.8)); k.ploys[0].push('docTactical'); G.activate(k, w3);
+  assert(!AD.adHeroicDocOk(k, 0), 'not when a Combat Doctrine was already used this TP');
+}
 console.log('angels ok');

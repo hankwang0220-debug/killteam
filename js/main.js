@@ -17,6 +17,7 @@ import { aquilonsRosterError } from './data/aquilons.js';
 import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
+import { adHeroicDocOk, adHeroicDocs, adHeroicDoc } from './angels.js';
 import { vdChooseOk, vdChoose, vdGrantOk, vdGrantGambit, vdCandidates, vdLeadOk, vdLead, vdHasAccolade } from './voiddancers.js';
 import { aqCanAbove, aqSetAbove, aqLandCheck, aqDoLand, aqDropLeft, aqRapidOk, aqRapid, aqAutoDrop, aqMoveDrop, aqOverseerOk, aqUseOverseer } from './aquilons.js';
 import { pathfindersRosterError } from './data/pathfinders.js';
@@ -1708,6 +1709,8 @@ function firefightPanel() {
     }
     html += `<div class="actions">${availableActions(g, op).map((a) => `<button data-act="action" data-id="${a.id}" ${a.ok ? '' : 'disabled'} title="${a.why ? esc(tx(a.why)) : ''}">
       ${esc(tx(a.name || ACTIONS[a.id].name))} <span class="cp">${a.ap}AP</span></button>`).join('')}</div>`;
+    // Heroic Leader (Angels of Death Captain): a Combat Doctrine when a friendly operative is activated.
+    if (adHeroicDocOk(g, op.side)) html += `<div class="ffploys"><h4>${L('英雄領袖：補用戰鬥教條（照常付 CP，每回合一次）', 'Heroic Leader: use a Combat Doctrine (pay its CP, once per TP)')}</h4><div class="actions">${adHeroicDocs(g, op.side).map((p) => `<button data-act="adheroicdoc" data-id="${p.id}">${esc(tx(p.name))} <span class="cp">${p.cp}CP</span></button>`).join('')}</div></div>`;
     // Firefight ploys this operative can use now (交戰計謀).
     const ffb = ffButtons(g, op);
     if (ffb.length) {
@@ -3244,6 +3247,7 @@ function handle(act, d) {
     case 'animate': undoable(() => animateBegin(g, g.turn)); ui.animUid = null; return afterChange();
     case 'animateend': undoable(() => animateEnd(g, g.animating.side)); ui.animUid = null; return afterChange();
     case 'nodal': undoable(() => nodalChoose(g, op.side, document.getElementById('nodalNew').value, document.getElementById('nodalOld').value || null)); return afterChange();
+    case 'adheroicdoc': undoable(() => adHeroicDoc(g, op.side, d.id)); return afterChange();
     case 'ffuse': undoable(() => useFFButton(g, op, d.id)); return afterChange();
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack

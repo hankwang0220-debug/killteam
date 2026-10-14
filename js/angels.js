@@ -1,6 +1,6 @@
 // Angels of Death (死亡天使) rules engine for the Captain, Chapter Veteran, Adaptive Tactics and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { activeOp, edgeDist, foes, living, log, opName, tpl, team } from './game.js';
+import { activeOp, edgeDist, foes, living, log, opName, tpl, team, ployTaken, ployCost } from './game.js';
 import { angelsRosterError, ADAPTIVE_ORDER } from './data/angels.js';
 
 export function isAD(o) { return o?.team === 'angels'; }
@@ -88,4 +88,28 @@ export function adTilting(g, me) {
 export function adReliquaries(g, side) {
   const o = activeOp(g);
   return g.teams[side] === 'angels' && equip(g, side, 'adReliquaries') && !!o && o.side === side && o.order === 'engage';
+}
+
+// ---------- Heroic Leader, second option: Combat Doctrine when a friendly operative is activated ----------
+/** Once per TP (shared with the other Heroic Leader options): when a friendly ANGEL OF DEATH is activated, with the Captain in the killzone
+ *  and not within enemy control range, the Combat Doctrine strategy ploy can be used (paying its CP), unless one was used this TP. */
+export function adHeroicDocOk(g, side) {
+  const c = g.teams[side] === 'angels' && captainOf(g, side), a = activeOp(g);
+  if (!c || !a || a.side !== side || !isAD(a) || g.phase !== 'firefight' || g.counter || g.adUsed?.[side]?.heroic === g.tp) return false;
+  if (c.x < -50 || foes(g, c).some((e) => edgeDist(c, e) <= 1.01)) return false;
+  if (Object.keys(a.acted || {}).some((k) => a.acted[k] && !['free', 'unseen'].includes(k))) return false; // (when it is activated: before its first action)
+  return adHeroicDocs(g, side).length > 0;
+}
+export function adHeroicDocs(g, side) {
+  return team(g, side).ploys.filter((p) => p.group === 'doctrine' && !ployTaken(g, side, p) && g.cp[side] >= ployCost(g, side, p));
+}
+export function adHeroicDoc(g, side, id) {
+  if (!adHeroicDocOk(g, side)) return false;
+  const p = adHeroicDocs(g, side).find((x) => x.id === id);
+  if (!p) return false;
+  g.cp[side] -= ployCost(g, side, p);
+  g.ploys[side].push(p.id);
+  g.adUsed[side].heroic = g.tp;
+  note(g, side, `英雄領袖：連長下令「${p.name.zh}」`, `Heroic Leader: the Captain calls ${p.name.en}`);
+  return true;
 }
