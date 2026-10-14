@@ -5591,7 +5591,8 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
     if (v) for (const d of dice) if (!d.rr && d.v === v) { d.v = d6(); d.rr = true; }
   }
   if (rules.relentless) for (const d of dice) if (!d.rr && fail(d.v) && !(rules.noReroll1 && d.v === 1)) { d.v = d6(); d.rr = true; } // re-roll all fails
-  if (rules.balanced) {
+  // Balanced: the computer re-rolls its lowest fail at once; a player's pool keeps the free re-roll to use itself (balancedLeft).
+  if (rules.balanced && !rules.balancedManual) {
     const f = dice.filter((d) => !d.rr && fail(d.v) && !(rules.noReroll1 && d.v === 1)).sort((a, b) => a.v - b.v)[0];
     if (f) { f.v = d6(); f.rr = true; }
   }
@@ -5602,7 +5603,7 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
   dice.sort((a, b) => b.v - a.v);
   for (let k = 0; k < auto; k++) dice.push({ v: '✓', res: 'norm', auto: true });
   const pool = {
-    dice, success, critOn, post, crits: 0, norms: 0,
+    dice, success, critOn, post, crits: 0, norms: 0, balancedLeft: rules.balanced && rules.balancedManual ? 1 : 0, noReroll1: !!rules.noReroll1,
     rules: { soulstrikeDef: !!rules.soulstrikeDef, severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze, promote: rules.promote || 0 },
   };
   return tally(pool);
@@ -6088,6 +6089,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   }
   hit = clampHit(hit);
   const atk = Math.max(1, weapon.atk + (rules.atkPlus || 0) - (rules.atkMinus || 0) - (cursed(g, op, 'barrelwarp') ? 1 : 0)); // (atkMinus: Sanctification) // Barrelwarp (Gellerpox)
+  if (rules.balanced && playerPicks(g, op.side)) rules.balancedManual = true; // (a player uses Balanced itself)
   const a = rollPool(atk, hit, rules.lethal || 6, rules, chainPost(kinPost(g, op), scryPost(g, op, 'guide'))); // (No Kin Left Behind, Scry: Guidance)
   archonPrey(g, op, target, a);
   ncPrey(g, op, target, a); // Death to the False Emperor (Nemesis Claw)
@@ -6266,6 +6268,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   } : null;
   const post = indomitus || wrought ? (pool) => { indomitus?.(pool); wrought?.(pool); } : null;
   if (rules.soulstrike) defRules.soulstrikeDef = true;
+  if (defRules.balanced && playerPicks(g, target.side)) defRules.balancedManual = true; // (a player uses Balanced itself)
   const d = rollPool(defDice - coverN - coverC, rules.soulstrike ? aplNow(g, target) : save, hasTactic(g, target, 'hardy') || rtArmour(g, target) ? 5 : 6, defRules, chainPost(post, scryPost(g, target, 'protect'))); // (Scry: Protection)
   // Unstinting, Immovable (Dire Avenger Aspect Technique): two or more fails — discard one, retain another as a normal save.
   if (tpl(target).aspect === 'da' && d.dice.filter((x) => x.res === 'miss').length >= 2 && autoFF(g, target.side, 'avUnstinting', target)) {
@@ -6692,6 +6695,8 @@ export function startFight(g, op, weapon, target) {
   };
   const aPost = ambush ? (bless(op) ? (p) => { bless(op)(p); ambushPost(p); } : ambushPost) : bless(op);
   const kinA = chainPost(chainPost(aPost, kinPost(g, op)), scryPost(g, op, 'guide')), kinD = chainPost(chainPost(bless(target), kinPost(g, target)), scryPost(g, target, 'guide')); // (Scry: Guidance) // (No Kin Left Behind)
+  if (ar.balanced && playerPicks(g, op.side)) ar.balancedManual = true; // (a player uses Balanced itself)
+  if (dr.balanced && playerPicks(g, target.side)) dr.balancedManual = true;
   let aRoll = rollPool(whip(op, atk(weapon, ar)), aHit, ar.lethal || 6, ar, kinA);
   let dRoll = rollPool(whip(target, atk(dWeapon, dr)), dHit, dr.lethal || 6, dr, kinD);
   // Violent Temperament (Fellgor ploy): re-roll all the attack dice when fewer than two succeeded.
@@ -6793,7 +6798,7 @@ export function startFight(g, op, weapon, target) {
       if (i >= 0) { commandReroll(g, side, holder, 'a', i); syncFightSide(holder); }
       const act = aiFaith(g, side, holder, 'a'); // Acts of Faith (Novitiates)
       if (act) { useFaith(g, side, holder, 'a', act, holder.uid); syncFightSide(holder); }
-    } else if (canCommandReroll(g, side, holder, 'a') || canFaith(g, side, holder, 'a') || painRerollValues(g, fightOp(g, k), holder, 'a').length) g.fight.rrOpen[k] = true;
+    } else if (holder.a.balancedLeft || canCommandReroll(g, side, holder, 'a') || canFaith(g, side, holder, 'a') || painRerollValues(g, fightOp(g, k), holder, 'a').length) g.fight.rrOpen[k] = true;
   }
   // Novitiate Penitent (Absolution Through Destruction): after a Fight it didn't get for free, a free Fight follows.
   if (tpl(op).absolution && !free) op.acted.free = { ...(op.acted.free || {}), fight: 'any' };
@@ -6822,6 +6827,24 @@ export function archonReroll(g, op, holder, which, value) { return painReroll(g,
 export function archonFightReroll(g, k, value) { if (!g.fight?.rrOpen?.[k]) return false; const ok = archonReroll(g, fightOp(g, k), g.fight[k], 'a', value); if (ok) syncFightSide(g.fight[k]); return ok; }
 export function archonAutoReroll(g, op, holder, which) { aiPain(g, op, holder, which, tally); }
 
+/** Balanced, used by a player: re-roll one of the pool's dice for free (a die that wasn't re-rolled yet). */
+export function balancedReroll(g, holder, which, index) {
+  const pool = holder?.[which === 'a' ? 'a' : 'd'], die = pool?.dice[index];
+  if (!pool?.balancedLeft || !die || die.auto || die.rr || die.locked || (pool.noReroll1 && die.v === 1)) return false;
+  pool.balancedLeft = 0;
+  const old = die.v;
+  die.v = d6(); die.rr = true;
+  tally(pool);
+  log(g, { zh: `平衡：重擲一顆骰 ${old} → ${die.v}`, en: `Balanced: re-rolls a die ${old} → ${die.v}` }, 'tp');
+  return true;
+}
+export function fightBalanced(g, k, index) {
+  const f = g.fight;
+  if (!f?.rrOpen?.[k]) return false;
+  const ok = balancedReroll(g, f[k], 'a', index);
+  if (ok) syncFightSide(f[k]);
+  return ok;
+}
 export function fightCommandReroll(g, k, index) {
   const f = g.fight;
   if (!f?.rrOpen?.[k]) return false;
