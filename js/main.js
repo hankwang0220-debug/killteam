@@ -18,7 +18,7 @@ import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
-import { abilityArmed, abilityToggle } from './game.js';
+import { abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
@@ -1229,6 +1229,7 @@ function strategyPanel() {
   const t = team(g, cur);
   const picker = g.ai === cur
     ? `<p class="hint">${L('電腦選擇計謀中…', 'Computer is choosing ploys…')}</p>`
+    : pendingChoice(g, cur) ? `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} · CP ${g.cp[cur]}</h3>${choiceView(cur)}</div>`
     : `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))} ${L('選擇計謀', 'chooses ploys')} · CP ${g.cp[cur]}</h3>
       ${t.ploys.map((p) => {
         const on = g.ploys[cur].includes(p.id);
@@ -1247,6 +1248,24 @@ function strategyPanel() {
   <section class="card turnbanner" style="--tc:${t.color}">${picker}</section>`;
 }
 
+/** A pick the player has to make for a ploy or gambit (an operative, a marker, an option or a point on the board). */
+function choiceView(side) {
+  const p = pendingChoice(g, side), c = p && CHOICES[p.id];
+  if (!c) return '';
+  const label = (o) => (o.label ? esc(tx(o.label)) : c.kind === 'op' ? (() => { const x = getOp(g, o.value); return x ? `${nm(x)} ${x.wounds}/${x.maxW}` : '?'; })()
+    : c.kind === 'objective' ? (() => { const m = g.objectives.find((x) => x.id === o.value); return m ? L(`目標點 ${m.id + 1}（${m.x.toFixed(1)}, ${m.y.toFixed(1)}）`, `Objective ${m.id + 1} (${m.x.toFixed(1)}, ${m.y.toFixed(1)})`) : '?'; })() : esc(String(o.value)));
+  if (c.kind === 'move') {
+    const left = moversLeft(g, side, c, p.ctx), sel = left.find((o) => o.uid === ui.moveUid);
+    const n = p.ctx.n != null ? L(`（最多 ${p.ctx.n} 名，已移動 ${p.ctx.done.length}）`, ` (up to ${p.ctx.n}; ${p.ctx.done.length} moved)`) : L(`（已移動 ${p.ctx.done.length}）`, ` (${p.ctx.done.length} moved)`);
+    return `<div class="gambit"><h4>${esc(tx(c.title))}</h4><p class="hint small">${L('先選一名特工，再點棋盤選終點，按「確定移動」；不想動的不用選。全部弄完按「完成」。', 'Pick an operative, tap the board for where it goes and press "Confirm move"; leave out any you don\'t want to move. Press "Done" when finished.')}${n}</p>
+      <div class="readylist">${left.map((o) => `<button class="${o.uid === ui.moveUid ? 'on' : ''}" data-act="pickmover" data-uid="${o.uid}">${nm(o)}</button>`).join('')}</div>
+      ${sel ? `<p>${L(`點棋盤選 ${nm(sel)} 的終點（最多 ${c.max(g, sel, p.ctx)}"）`, `Tap the board for ${nm(sel)}'s destination (up to ${c.max(g, sel, p.ctx)}")`)}</p>${ui.path && !ui.path.ok && ui.path.why ? `<p class="bad small">${esc(ui.path.why)}</p>` : ''}` : ''}
+      <div class="row">${sel ? `<button data-act="pickmove" ${ui.path?.ok ? '' : 'disabled'}>${L('確定移動', 'Confirm move')}</button>` : ''}<button data-act="pickskip">${L('完成', 'Done')}</button>${p.ctx.done.length ? '' : `<button data-act="pickauto">${L('讓電腦移動', 'Let the computer move them')}</button>`}</div></div>`;
+  }
+  const opts = c.kind === 'point' ? `<p>${L('點棋盤選位置。', 'Tap the board for the spot.')}</p>` : `<div class="readylist">${c.options(g, side, p.ctx).map((o, i) => `<button data-act="choicepick" data-i="${i}">${label(o)}</button>`).join('')}</div>`;
+  return `<div class="gambit"><h4>${esc(tx(c.title))}</h4>${c.hint ? `<p class="hint small">${esc(tx(c.hint))}</p>` : ''}${opts}
+    <div class="row"><button data-act="pickauto">${L('讓電腦選', 'Let the computer pick')}</button>${c.skippable ? `<button data-act="pickskip">${L('略過', 'Skip')}</button>` : ''}</div></div>`;
+}
 /** Farstalker Kinband choices while picking ploys: Call the Kill and up to three order changes. */
 function gambitView(side) {
   let html = '';
@@ -1311,7 +1330,7 @@ function gambitView(side) {
   if (g.teams[side] === 'stealthSuits' && !isAI(side) && (xvDroneOk(g, side) || xvJamOk(g, side))) {
     html += `<div class="gambit"><h4>${L('XV26 策略謀略', 'XV26 strategic gambits')}</h4>`;
     if (xvDroneOk(g, side)) html += `<label>${L('無人機控制：', 'Drone Controller: ')}<select id="xvDroneSel">${living(g, side).filter((o) => tpl(o).xvDrone && o.x > -50).map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('')}</select></label><button data-act="xvdrone" data-side="${side}">${L('解除無人機限制（到它下次啟動結束）', 'Lift its Drone limits (until the end of its next activation)')}</button>`;
-    if (xvJamOk(g, side)) html += `<button data-act="xvjam" data-side="${side}">${L('反網路干擾器：鎖定友方最近的目標點（自動）', 'Counter-Network Jammers: the marker nearest your suits (automatic)')}</button>`;
+    if (xvJamOk(g, side)) html += `<button data-act="xvjam" data-side="${side}">${L('反網路干擾器：選一個目標點', 'Counter-Network Jammers: pick an objective marker')}</button>`;
     html += `</div>`;
   }
   if (g.teams[side] === 'voidDancers' && !isAI(side) && (vdChooseOk(g, side) || vdGrantOk(g, side) || vdLeadOk(g, side))) {
@@ -2696,6 +2715,20 @@ function onBoardClick(evt) {
     ui.notice = L('超過 4" 或不在戰場上。', 'More than 4" away, or off the board.');
     return render();
   }
+  if (g.phase === 'strategy' && !isAI(ployChooser(g)) && CHOICES[pendingChoice(g, ployChooser(g))?.id]?.kind === 'move') { // a ploy's free move: the destination
+    const s = ployChooser(g), pc = pendingChoice(g, s), c = CHOICES[pc.id], o = moversLeft(g, s, c, pc.ctx).find((x) => x.uid === ui.moveUid);
+    if (!o) { ui.notice = L('先在面板選一名特工。', 'Pick an operative in the panel first.'); return render(); }
+    const kind = c.moveKind(g, o, pc.ctx), max = c.max(g, o, pc.ctx), ctx = moveCtx(g, o, kind), raw = findPath(ctx, svgPoint(evt));
+    const path = raw && freeMovePath(g, o, kind, max, raw.pts), end = path?.pts.at(-1);
+    const ok = !!end && (!c.check || c.check(g, s, o, end, pc.ctx));
+    ui.path = raw ? { ...(path || raw), ok, r: radius(o), why: ok ? '' : !path ? L(`超過 ${max}"、或終點在敵人控制範圍內／不合法。`, `More than ${max}", or the end is in an enemy's control range / not allowed.`) : L('終點不符合這個計謀的條件。', 'The end point doesn\'t meet this ploy\'s condition.') } : null;
+    if (!raw) ui.notice = L('到不了那個位置。', 'It cannot get there.');
+    return render();
+  }
+  if (g.phase === 'strategy' && !isAI(ployChooser(g)) && CHOICES[pendingChoice(g, ployChooser(g))?.id]?.kind === 'point') { // a ploy / gambit pick: a point on the board
+    if (!resolveChoice(g, ployChooser(g), svgPoint(evt))) ui.notice = L('這個位置不符合條件。', 'That spot isn\'t allowed.');
+    return afterChange();
+  }
   if (g.phase === 'strategy' && ui.stormMode && !isAI(ui.stormMode.side)) { // Wolf Scouts: placing the Storm marker
     if (wsPlaceStorm(g, ui.stormMode.side, svgPoint(evt))) ui.stormMode = null; else ui.notice = L('風暴標記要放在戰場上。', 'The Storm marker goes on the board.');
     return afterChange();
@@ -3187,6 +3220,8 @@ function handle(act, d) {
       clearSave();
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      // Players make their own picks for ploys and gambits (targets, markers, points); the computer picks for itself.
+      g.pick = [0, 1].map((s) => s !== g.ai);
       // Automatic firefight ploys start switched off for players (unless the setup option says otherwise); the computer keeps its own.
       if (!ui.setup.autoFF) for (const side of [0, 1]) if (side !== g.ai) { const off = ((g.ffOff ||= [[], []])[side] ||= []); for (const p of autoPloys(team(g, side))) if (!off.includes(p.id)) off.push(p.id); const aoff = ((g.abOff ||= [[], []])[side] ||= []); for (const a of autoAbilitiesFor(g, side)) if (!a.ploy && !aoff.includes(a.id)) aoff.push(a.id); }
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
@@ -3343,6 +3378,11 @@ function handle(act, d) {
     case 'adheroicdoc': undoable(() => adHeroicDoc(g, op.side, d.id)); return afterChange();
     case 'ffuse': undoable(() => useFFButton(g, op, d.id)); return afterChange();
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
+    case 'choicepick': { const s = ployChooser(g), p = pendingChoice(g, s); if (p && !isAI(s)) { const o = CHOICES[p.id].options(g, s, p.ctx)[+d.i]; if (o) resolveChoice(g, s, o.value); } return afterChange(); }
+    case 'pickauto': { const s = ployChooser(g); if (!isAI(s)) resolveChoice(g, s, 'auto'); return afterChange(); }
+    case 'pickskip': { const s = ployChooser(g); if (!isAI(s)) resolveChoice(g, s, null); ui.moveUid = null; ui.path = null; return afterChange(); }
+    case 'pickmover': ui.moveUid = d.uid; ui.path = null; return render();
+    case 'pickmove': { const s = ployChooser(g); if (!isAI(s) && ui.path?.ok && resolveChoice(g, s, { uid: ui.moveUid, pts: ui.path.pts })) { ui.moveUid = null; ui.path = null; } return afterChange(); }
     case 'abarm': if (!isAI(+d.side)) abilityToggle(g, +d.side, d.id); return render();
     case 'ffarmall': if (!isAI(+d.side)) for (const p of autoPloys(team(g, +d.side))) if (ffArmed(g, +d.side, p.id) !== (d.on === '1')) ffToggleArm(g, +d.side, p.id); return render();
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack

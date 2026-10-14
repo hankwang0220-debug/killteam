@@ -54,7 +54,7 @@ export const RAVENERS_TEAM = {
     P('rvDeath', '來自地底的死亡', 'Death From Below', '友方蛇蟲近戰時：本次啟動做過「鑽地」，近戰武器獲得「平衡」；在你的隧道上，近戰武器獲得「無休」。', 'A friendly RAVENER fighting: if it performed Burrow this activation its melee weapons have Balanced; if it is on your TUNNEL they have Ceaseless.'),
     P('rvLurkers', '隧道潛伏者', 'Tunnel Lurkers', '在你隧道上的友方蛇蟲視為在輕型地形的掩護中（除非在行動特工 2" 內）。', 'A friendly RAVENER on your TUNNEL is in cover (as from Light terrain) unless it is within 2" of the active operative.'),
     P('rvWhip', '破土而出', 'Whipcord Emergence', '敵人射擊友方蛇蟲時：該蛇蟲本回合做過鑽地，可以重擲一顆防禦骰；在你的隧道上，可以重擲同一種結果的所有防禦骰（自動選最有利的結果）。', 'When an enemy shoots a friendly RAVENER: if it Burrowed this turning point, re-roll one defence die; if it is on your TUNNEL, re-roll all defence dice of one result (the best is picked automatically).'),
-    P('rvWrithe', '滑入暗處', 'Writhe Out of Sight', '選一名戰場上的友方蛇蟲（自動選最需要的）：免費「鑽地」；它在隧道 2" 內時，先免費撤退或重新定位。', 'Pick a friendly RAVENER in the killzone (picked automatically): it makes a free Burrow, after a free Fall Back or Reposition if it is within 2" of your TUNNEL.'),
+    P('rvWrithe', '滑入暗處', 'Writhe Out of Sight', '選一名戰場上的友方蛇蟲：免費「鑽地」；它在隧道 2" 內時，先免費撤退或重新定位。', 'Pick a friendly RAVENER in the killzone: it makes a free Burrow, after a free Fall Back or Reposition if it is within 2" of your TUNNEL.'),
   ],
   firefight: [
     P('rvSlither', '滑溜閃避', 'Slithering Evasion', '友方蛇蟲啟動或反應中、行動前後使用：本次啟動撤退少 1AP；且可以在敵人控制範圍內衝鋒，並離開那名敵人的控制範圍。', 'During a friendly RAVENER activation or counteraction, before or after an action: Fall Back for 1 less AP, and Charge while within an enemy\'s control range (leaving it).'),

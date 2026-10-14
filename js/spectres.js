@@ -2,7 +2,7 @@
 // the ploys and the faction equipment. game.js calls these hooks; the team data is in data/spectres.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, autoFF, changeApl, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, handOff, hasPloy, ffArmed, isEngaged, living, log, opName, radius, shootCheck, team, tpl, visibility, weaponsFor, boardOf, deployZones, territoryOf, moveStat, aplNow } from './game.js';
+import { CHOICES, needChoice, abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, autoFF, changeApl, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, handOff, hasPloy, ffArmed, isEngaged, living, log, opName, radius, shootCheck, team, tpl, visibility, weaponsFor, boardOf, deployZones, territoryOf, moveStat, aplNow } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { SPECTRES_TEAM, SP_OVERWATCH, SP_EXTRA_EQUIPMENT, spectresRosterError } from './data/spectres.js';
@@ -188,6 +188,23 @@ export function spPatience(g, side) {
 // ---------- strategy ----------
 /** Disappear (ploy): a free Reposition for the friendly operative that needs it most. */
 export function spPloyBought(g, side, ploy) {
+  if (ploy.id === 'spDisappear') needChoice(g, side, 'spDisappear', { n: 1 });
+}
+function disappearOk(g, side, o, q) {
+  const enemies = foes(g, { side }).filter((e) => e.x > -50 && e.side < 2);
+  const z = deployZones(g)[1 - side], zc = { x: (z.x0 + z.x1) / 2, y: ((z.y0 ?? 0) + (z.y1 ?? boardOf(g).h)) / 2 };
+  return !enemies.some((e) => dist(q, e) < dist(o, e) - 0.01) && !(dist(q, zc) < dist(o, zc) - 0.01);
+}
+/** The player's free Reposition for Disappear (not closer to any enemy, nor to the enemy drop zone). */
+export function spChoices() {
+  CHOICES.spDisappear = {
+    kind: 'move', title: { zh: '消失：一名友方魅影免費重新定位，不能更靠近任何敵人或敵方降落區', en: 'Disappear: one friendly Spectre makes a free Reposition, not closer to any enemy or the enemy drop zone' },
+    movers: (g, side) => living(g, side).filter((o) => real(o) && o.x > -50 && !isEngaged(g, o) && o.reposTP !== g.tp),
+    moveKind: () => 'reposition', max: (g, o) => moveStat(g, o), check: disappearOk, after: (g, side, o) => { o.reposTP = g.tp; },
+    autoAll: (g, side) => disappearOld(g, side, { id: 'spDisappear' }),
+  };
+}
+function disappearOld(g, side, ploy) {
   if (ploy.id !== 'spDisappear') return;
   const enemies = foes(g, { side }).filter((e) => e.x > -50 && e.side < 2);
   const z = deployZones(g)[1 - side], zc = { x: (z.x0 + z.x1) / 2, y: ((z.y0 ?? 0) + (z.y1 ?? boardOf(g).h)) / 2 };

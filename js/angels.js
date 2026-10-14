@@ -1,6 +1,6 @@
 // Angels of Death (死亡天使) rules engine for the Captain, Chapter Veteran, Adaptive Tactics and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { abilityArmed, activeOp, edgeDist, foes, living, log, opName, tpl, team, ployTaken, ployCost } from './game.js';
+import { CHOICES, needChoice, abilityArmed, activeOp, edgeDist, foes, living, log, opName, tpl, team, ployTaken, ployCost } from './game.js';
 import { angelsRosterError, ADAPTIVE_ORDER } from './data/angels.js';
 
 export function isAD(o) { return o?.team === 'angels'; }
@@ -25,10 +25,18 @@ export function adTactics(g, side) {
 /** Chapter Veteran: a Sergeant has one more tactic for the battle. */
 export function adVeteran(g, op, id) { return !!tpl(op).chapterVeteran && !!g.vet?.[op.side] && g.vet[op.side] === id; }
 export function adPloyBought(g, side, ploy) {
-  if (ploy.id !== 'adaptiveTactics') return;
-  const have = g.tactics?.[side] || [];
-  const pick = ADAPTIVE_ORDER.find((id) => !have.includes(id));
-  if (!pick) return;
+  if (ploy.id === 'adaptiveTactics') needChoice(g, side, 'adaptiveTactics');
+}
+/** The player's pick: Adaptive Tactics (the Chapter Tactic for this turning point). */
+export function adChoices() {
+  CHOICES.adaptiveTactics = {
+    kind: 'option', title: { zh: '適應戰術：選本回合的次要戰團戰術', en: 'Adaptive Tactics: pick this turning point\'s secondary Chapter Tactic' },
+    options: (g, side) => team(g, side).tactics.filter((t) => !(g.tactics?.[side] || []).includes(t.id)).map((t) => ({ value: t.id, label: t.name })),
+    auto: (g, side) => ADAPTIVE_ORDER.find((id) => !(g.tactics?.[side] || []).includes(id)) ?? null,
+    apply: (g, side, id) => adaptiveOn(g, side, id),
+  };
+}
+function adaptiveOn(g, side, pick) {
   g.adTactic[side] = { tp: g.tp, id: pick };
   const t = team(g, side).tactics.find((x) => x.id === pick);
   note(g, side, `適應戰術：本回合次要戰團戰術改為「${t.name.zh}」`, `Adaptive Tactics: the secondary Chapter Tactic is ${t.name.en} this turning point`);

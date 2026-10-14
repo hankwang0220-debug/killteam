@@ -2,7 +2,7 @@
 // Synaptic Link, the ploys and the faction equipment. game.js calls these hooks; the team data is in data/raveners.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, CONTROL, applyDamage, autoFF, d3, d6, edgeDist, engagedEnemies, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, team, tpl, boardOf, deployZones, resolveFight, bestMelee, endActivation } from './game.js';
+import { CHOICES, needChoice, ACTIONS, TARGET_ACTIONS, CONTROL, applyDamage, autoFF, d3, d6, edgeDist, engagedEnemies, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, team, tpl, boardOf, deployZones, resolveFight, bestMelee, endActivation } from './game.js';
 import { dist, distPointSegment, distPointRect } from './geometry.js';
 import { moveCtx } from './path.js';
 import { RAVENERS_TEAM, ravenersRosterError } from './data/raveners.js';
@@ -308,12 +308,20 @@ export function rvDeath(g, src, target) {
 // ---------- ploys ----------
 /** Writhe Out of Sight: a free Burrow for the friendly RAVENER that needs it most (a free Fall Back or Reposition first near the tunnel). */
 export function rvPloyBought(g, side, ploy) {
-  if (ploy.id !== 'rvWrithe') return;
-  const cands = living(g, side).filter((o) => isRV(o) && !o.underground && o.x > -50 && !carrying(g, o));
-  if (!cands.length) { note(g, side, '滑入暗處：戰場上沒有蛇蟲', 'Writhe Out of Sight: no RAVENER in the killzone'); return; }
-  const score = (o) => (rvOnTunnel(g, o) ? 3 : rvOnTunnelAt(g, side, o, radius(o) + 2) ? 1 : 0) + (isEngaged(g, o) ? 2 : 0) + (1 - o.wounds / o.maxW) * 2;
-  const o = cands.filter((c) => rvOnTunnel(g, c) || rvOnTunnelAt(g, side, c, radius(c) + 2)).sort((a, b) => score(b) - score(a))[0];
-  if (!o) { note(g, side, '滑入暗處：沒有蛇蟲在隧道上或它 2" 內', 'Writhe Out of Sight: no RAVENER on or within 2" of the tunnel'); return; }
+  if (ploy.id === 'rvWrithe') needChoice(g, side, 'rvWrithe');
+}
+const writheCands = (g, side) => living(g, side).filter((o) => isRV(o) && !o.underground && o.x > -50 && !carrying(g, o) && (rvOnTunnel(g, o) || rvOnTunnelAt(g, side, o, radius(o) + 2)));
+/** The player's pick: Writhe Out of Sight (the Ravener that burrows). */
+export function rvChoices() {
+  CHOICES.rvWrithe = {
+    kind: 'op', title: { zh: '滑入暗處：選一名在隧道上或它 2" 內的友方蛇蟲（免費鑽地）', en: 'Writhe Out of Sight: pick a friendly Ravener on or within 2" of the tunnel (a free Burrow)' },
+    options: (g, side) => writheCands(g, side).map((o) => ({ value: o.uid })),
+    auto(g, side) { const score = (o) => (rvOnTunnel(g, o) ? 3 : rvOnTunnelAt(g, side, o, radius(o) + 2) ? 1 : 0) + (isEngaged(g, o) ? 2 : 0) + (1 - o.wounds / o.maxW) * 2; return writheCands(g, side).sort((a, b) => score(b) - score(a))[0]?.uid ?? null; },
+    none: (g, side) => note(g, side, '滑入暗處：沒有蛇蟲在隧道上或它 2" 內', 'Writhe Out of Sight: no RAVENER on or within 2" of the tunnel'),
+    apply: (g, side, uid) => writheOn(g, side, living(g, side).find((o) => o.uid === uid)),
+  };
+}
+function writheOn(g, side, o) {
   if (!rvOnTunnel(g, o)) {
     // The nearest tunnel point it can step onto (a free Fall Back or Reposition).
     const t = rvTunnel(g, side);

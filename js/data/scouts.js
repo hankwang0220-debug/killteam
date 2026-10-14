@@ -60,8 +60,8 @@ export const SCOUTS_TEAM = {
   ploys: [
     P('scGuerrilla', '游擊交戰', 'Guerrilla Engagement', '敵人射擊友方偵察小隊特工時，若它在掩護中、且離看得到它的敵人都超過 6"：可以重擲一顆防禦骰。', 'When an enemy shoots a friendly Scout Squad operative in cover that is more than 6" from the enemy operatives it\'s visible to: re-roll one defence die.'),
     P('scAmbush', '伏擊', 'Ambush', '友方偵察小隊特工啟動中射擊或近戰時，若它的指令在啟動開始時從隱蔽改成交戰、或啟動開始時沒被敵人看見：武器「平衡」；目標已行動則改為「無休」。', 'A friendly Scout Squad operative shooting or fighting in its activation, if its order changed from Conceal to Engage at the start or it wasn\'t visible to enemies at the start: Balanced; Ceaseless instead if the target is expended.'),
-    P('scAdaptable', '適應訓練', 'Adaptable Training', '立刻：最多 D3 名離敵人超過 4" 的友方偵察小隊特工改變指令。（自動選擇）', 'At once: change the order of up to D3 friendly Scout Squad operatives more than 4" from enemies. (Chosen automatically.)'),
-    P('scStealth', '隱蔽轉移', 'Stealth Relocation', '立刻：最多 D3 名隱蔽指令、離敵人超過 4" 的友方偵察小隊特工免費衝刺一次。第 1 回合不能用。（自動選擇）', 'At once: up to D3 friendly Scout Squad operatives with a Conceal order more than 4" from enemies make a free Dash. Not in the first turning point. (Chosen automatically.)'),
+    P('scAdaptable', '適應訓練', 'Adaptable Training', '立刻：最多 D3 名離敵人超過 4" 的友方偵察小隊特工改變指令。', 'At once: change the order of up to D3 friendly Scout Squad operatives more than 4" from enemies.'),
+    P('scStealth', '隱蔽轉移', 'Stealth Relocation', '立刻：最多 D3 名隱蔽指令、離敵人超過 4" 的友方偵察小隊特工免費衝刺一次。第 1 回合不能用。', 'At once: up to D3 friendly Scout Squad operatives with a Conceal order more than 4" from enemies make a free Dash. Not in the first turning point.'),
   ],
   firefight: [
     P('scTraining', '阿斯塔特訓練', 'Astartes Training', '友方偵察小隊特工啟動中，直到啟動結束，擇一：近戰兩次；射擊兩次（至少一次用霰彈槍、爆彈手槍或爆彈槍）；用重型爆彈槍、飛彈發射器或狙擊步槍射擊兩次（第二次多花 1AP）。', 'During a friendly Scout Squad operative\'s activation, for the rest of it, one of: Fight twice; Shoot twice (an Astartes shotgun, bolt pistol or boltgun for at least one); Shoot twice with a heavy bolter, missile launcher or sniper rifle (1 more AP for the second).'),

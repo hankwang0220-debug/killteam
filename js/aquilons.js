@@ -2,7 +2,7 @@
 // the ploys and the faction equipment. game.js calls these hooks; the team data is in data/aquilons.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, hasPloy, ffArmed, ffReady, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, deployZones, moveStat, changeApl, actionCost, controller } from './game.js';
+import { CHOICES, needChoice, getOp, abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, hasPloy, ffArmed, ffReady, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, deployZones, moveStat, changeApl, actionCost, controller } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx } from './path.js';
 import { bestStep, stepTo } from './sanctifiers.js';
@@ -284,18 +284,48 @@ export function aqControl(g, obj, sum) {
 /** Eye Above / Drop and Secure / Sudden Offensive: chosen automatically when bought. */
 export function aqPloyBought(g, side, ploy) {
   if (ploy.id === 'aqSudden') g.aq.sudden[side] = Math.ceil(living(g, side).length / 2);
-  if (ploy.id === 'aqEye') {
+  if (ploy.id === 'aqEye') needChoice(g, side, 'aqEye');
+  if (ploy.id === 'aqSecure') needChoice(g, side, 'aqSecure');
+}
+/** The players' picks: Eye Above (an enemy), Drop and Secure (a marker). */
+export function aqChoices() {
+  const B = (zh, en) => ({ zh, en });
+  const eyeT = (g, side) => foes(g, { side }).filter((e) => e.side < 2 && e.x > -50);
+  CHOICES.aqEye = {
+    kind: 'op', title: B('天眼：選一名敵人（它和它 3" 內的敵人得到偵測標記）', 'Eye Above: pick an enemy (it and enemies within 3" of it are Detected)'),
+    options: (g, side) => eyeT(g, side).map((e) => ({ value: e.uid })),
+    auto: (g, side) => eyeAuto(g, side)?.uid ?? null,
+    apply: (g, side, uid) => eyeOn(g, side, getOp(g, uid)),
+  };
+  CHOICES.aqSecure = {
+    kind: 'objective', title: B('空降並確保：選一個標記', 'Drop and Secure: pick a marker'),
+    options: (g) => (g.objectives || []).map((m) => ({ value: m.id })),
+    auto: (g, side) => secureAuto(g, side)?.id ?? null,
+    apply: (g, side, id) => secureOn(g, side, g.objectives.find((m) => m.id === id)),
+  };
+}
+function eyeAuto(g, side) {
+  {
     const t = foes(g, { side }).filter((e) => e.side < 2 && e.x > -50).sort((a, b) => foes(g, { side: 1 - side }).filter((x) => edgeDist(x, b) <= 3).length - foes(g, { side: 1 - side }).filter((x) => edgeDist(x, a) <= 3).length || b.wounds - a.wounds)[0];
+    return t || null;
+  }
+}
+function eyeOn(g, side, t) {
+  {
     if (!t) return;
     const hit = [t, ...foes(g, { side }).filter((e) => e !== t && e.side < 2 && e.x > -50 && edgeDist(e, t) <= 3)];
     for (const e of hit) (e.aqDetected ||= [0, 0])[side] = g.tp;
     note(g, side, `天眼：${hit.length} 名敵人獲得偵測標記`, `Eye Above: ${hit.length} enemies gain a Detected token`);
   }
-  if (ploy.id === 'aqSecure') {
-    const mine = living(g, side).filter((o) => o.x > -50);
-    const cands = (g.objectives || []).filter((m) => controller(g, m) !== side);
-    const pool = cands.length ? cands : g.objectives || [];
-    const mk = pool.slice().sort((a, b) => Math.min(...mine.map((o) => dist(o, a)), 99) - Math.min(...mine.map((o) => dist(o, b)), 99))[0];
+}
+function secureAuto(g, side) {
+  const mine = living(g, side).filter((o) => o.x > -50);
+  const cands = (g.objectives || []).filter((m) => controller(g, m) !== side);
+  const pool = cands.length ? cands : g.objectives || [];
+  return pool.slice().sort((a, b) => Math.min(...mine.map((o) => dist(o, a)), 99) - Math.min(...mine.map((o) => dist(o, b)), 99))[0] || null;
+}
+function secureOn(g, side, mk) {
+  {
     if (!mk) return;
     (g.aq.secure ||= [null, null])[side] = { id: mk.id, x: mk.x, y: mk.y, tp: g.tp };
     note(g, side, `空降並確保：標記 (${mk.x.toFixed(1)}, ${mk.y.toFixed(1)})`, `Drop and Secure: the marker at (${mk.x.toFixed(1)}, ${mk.y.toFixed(1)})`);

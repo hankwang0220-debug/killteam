@@ -1,7 +1,7 @@
 // Pathfinders (探路者) rules engine for the parts added after the first version: Recon Sweep, the extra drones (Pulse Accelerator,
 // Grav-inhibitor, Shield, Recon), Saviour Protocols, Point-Blank Fusillade, A Worthy Cause and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { abilityArmed, ACTIONS, TARGET_ACTIONS, BOARD, autoFF, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, missionActionsFor, doMissionAction, opName, radius, spend, team, tpl, visibility, ffReady, ffArmed } from './game.js';
+import { CHOICES, needChoice, abilityArmed, ACTIONS, TARGET_ACTIONS, BOARD, autoFF, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, missionActionsFor, doMissionAction, opName, radius, spend, team, tpl, visibility, ffReady, ffArmed } from './game.js';
 import { dist } from './geometry.js';
 import { MISSION_ACTIONS } from './missions.js';
 import { bestStep, stepTo } from './sanctifiers.js';
@@ -128,6 +128,36 @@ function ownEdge(g, side) {
 const whollyWithin = (o, edge) => EDGES(o)[edge] + radius(o) <= 6.01;
 const whollyNear = (o, edges) => edges.some((e) => whollyWithin(o, e));
 export function pfPloyBought(g, side, ploy) {
+  if (ploy.id !== 'reconSweep') return;
+  if (g.tp === 1) { note(g, side, '偵察掃蕩：第 1 回合不能用', 'Recon Sweep: not in the first turning point'); return; }
+  needChoice(g, side, 'reconSweep');
+}
+const reconEdges = (g, side) => ['left', 'right', 'top', 'bottom'].filter((e) => e !== ownEdge(g, side));
+const reconCands = (g, side, e) => living(g, side).filter((o) => isPF(o) && o.x > -50 && whollyWithin(o, e) && !isEngaged(g, o));
+const EDGE_NAME = { left: { zh: '左側邊緣', en: 'Left edge' }, right: { zh: '右側邊緣', en: 'Right edge' }, top: { zh: '上方邊緣', en: 'Top edge' }, bottom: { zh: '下方邊緣', en: 'Bottom edge' } };
+/** The player's picks for Recon Sweep: the edge, then the free Dashes (ending wholly within 6" of an edge that isn't yours). */
+export function pfChoices() {
+  CHOICES.reconSweep = {
+    kind: 'option', title: { zh: '偵察掃蕩：選一條不是己方的戰場邊緣', en: 'Recon Sweep: pick a killzone edge that isn\'t yours' },
+    options: (g, side) => reconEdges(g, side).filter((e) => reconCands(g, side, e).length).map((e) => ({ value: e, label: EDGE_NAME[e] })),
+    auto: (g, side) => reconEdges(g, side).map((e) => [e, reconCands(g, side, e).length]).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+    none: (g, side) => note(g, side, '偵察掃蕩：沒有符合條件的特工', 'Recon Sweep: no eligible operative'),
+    apply(g, side, e) { note(g, side, `偵察掃蕩：選擇${EDGE_NAME[e].zh}`, `Recon Sweep: the ${e} edge`); needChoice(g, side, 'reconMoves', { edge: e }); },
+  };
+  CHOICES.reconMoves = {
+    kind: 'move', title: { zh: '偵察掃蕩：完全在那條邊緣 6" 內的探路者免費衝刺（結束時要完全在非己方邊緣 6" 內）', en: 'Recon Sweep: Pathfinders wholly within 6" of that edge make free Dashes (ending wholly within 6" of an edge that isn\'t yours)' },
+    movers: (g, side, ctx) => reconCands(g, side, ctx.edge), moveKind: () => 'dash', max: () => 3,
+    check: (g, side, o, q) => whollyNear({ ...o, x: q.x, y: q.y }, reconEdges(g, side)),
+    autoAll(g, side, ctx) {
+      for (const o of reconCands(g, side, ctx.edge)) {
+        const goal = [...(g.objectives || [])].sort((a, b) => dist(o, a) - dist(o, b))[0] || { x: BOARD.w / 2, y: BOARD.h / 2 };
+        const q = bestStep(g, o, 3, 'dash', (p) => (whollyNear({ ...o, x: p.x, y: p.y }, reconEdges(g, side)) ? dist(o, goal) - dist(p, goal) : null));
+        if (q) { stepTo(g, o, q); note(g, side, `偵察掃蕩：${opName(o, 'zh')} 免費衝刺`, `Recon Sweep: ${opName(o, 'en')} makes a free Dash`); }
+      }
+    },
+  };
+}
+function reconOld(g, side, ploy) {
   if (ploy.id !== 'reconSweep') return;
   if (g.tp === 1) { note(g, side, '偵察掃蕩：第 1 回合不能用', 'Recon Sweep: not in the first turning point'); return; }
   const own = ownEdge(g, side), edges = ['left', 'right', 'top', 'bottom'].filter((e) => e !== own);

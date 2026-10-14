@@ -1,7 +1,7 @@
 // Death Korps (克里格死亡兵團) rules engine for the parts added after the first version: the Sapper's mines, the Veteran, Regroup,
 // Inspirational Leadership, In Life Shame, In Death Atonement, free ploys and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { abilityArmed, ACTIONS, BOARD, activeOp, autoFF, edgeDist, engagedEnemies, foes, forcedShot, isEngaged, living, log, opName, radius, spend, team, tpl, visibility, GUARD_ORDERS } from './game.js';
+import { CHOICES, needChoice, abilityArmed, ACTIONS, BOARD, activeOp, autoFF, edgeDist, engagedEnemies, foes, forcedShot, isEngaged, living, log, opName, radius, spend, team, tpl, visibility, GUARD_ORDERS } from './game.js';
 import { dist } from './geometry.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { deathKorpsRosterError, dkFreeCount, cleanDkFree, DEFAULT_DK_FREE } from './data/deathkorps.js';
@@ -83,6 +83,48 @@ export function dkPloyBought(g, side, ploy) {
   if (ploy.id !== 'regroup') return;
   if (g.dkUsed[side].chronoTP === g.tp) { note(g, side, '重整：本回合已用懷錶', 'Regroup: the Chronometer was used this turning point'); return; }
   g.dkUsed[side].regroupTP = g.tp;
+  needChoice(g, side, 'regroup');
+}
+const regroupAnchors = (g, side) => living(g, side).filter((o) => isDK(o) && o.x > -50 && !foes(g, o).some((e) => edgeDist(o, e) <= 3));
+const regroupMovers = (g, side, anchor) => living(g, side).filter((x) => isDK(x) && x !== anchor && x.x > -50 && edgeDist(x, anchor) <= 5 && !isEngaged(g, x));
+const closerTo = (o, q, a) => dist(q, a) - radius(o) - radius(a) < edgeDist(o, a) - 0.05;
+function foeCentreOf(g, side) { const f = foes(g, { side }); return f.length ? { x: f.reduce((s, o) => s + o.x, 0) / f.length, y: f.reduce((s, o) => s + o.y, 0) / f.length } : { x: BOARD.w / 2, y: BOARD.h / 2 }; }
+/** The player's picks: Regroup (the operative to gather on, then the free Dashes towards it), the Chronometer's free Dashes. */
+export function dkMoveChoices() {
+  CHOICES.regroup = {
+    kind: 'op', title: { zh: '重整：選一名離敵人超過 3" 的友方（它 5" 內的友方可以免費衝刺靠近它）', en: 'Regroup: pick a friendly more than 3" from enemies (friendlies within 5" of it can Dash towards it for free)' },
+    options: (g, side) => regroupAnchors(g, side).map((o) => ({ value: o.uid })),
+    auto: (g, side) => { const own = living(g, side).filter((o) => isDK(o)); return regroupAnchors(g, side).sort((a, b) => own.filter((x) => x !== b && edgeDist(x, b) <= 5).length - own.filter((x) => x !== a && edgeDist(x, a) <= 5).length)[0]?.uid ?? null; },
+    none: (g, side) => note(g, side, '重整：沒有符合條件的特工', 'Regroup: no eligible operative'),
+    apply: (g, side, uid) => needChoice(g, side, 'regroupMoves', { anchor: uid }),
+  };
+  CHOICES.regroupMoves = {
+    kind: 'move', title: { zh: '重整：5" 內的友方免費衝刺，結束時要更靠近那名友方', en: 'Regroup: friendlies within 5" make free Dashes, ending closer to that friendly' },
+    movers: (g, side, ctx) => regroupMovers(g, side, g.ops.find((o) => o.uid === ctx.anchor)), moveKind: () => 'dash', max: () => 3,
+    check: (g, side, o, q, ctx) => closerTo(o, q, g.ops.find((x) => x.uid === ctx.anchor)),
+    autoAll(g, side, ctx) {
+      const anchor = g.ops.find((o) => o.uid === ctx.anchor);
+      for (const o of regroupMovers(g, side, anchor)) {
+        const q = bestStep(g, o, 3, 'dash', (p) => (closerTo(o, p, anchor) ? edgeDist(o, anchor) - (dist(p, anchor) - radius(o) - radius(anchor)) : null));
+        if (q) { stepTo(g, o, q); note(g, side, `重整：${opName(o, 'zh')} 免費衝刺，靠近 ${opName(anchor, 'zh')}`, `Regroup: ${opName(o, 'en')} makes a free Dash towards ${opName(anchor, 'en')}`); }
+      }
+    },
+  };
+  CHOICES.dkChrono = {
+    kind: 'move', title: { zh: '懷錶：每名友方可以免費衝刺，結束時要更靠近對手的降落區', en: 'Chronometer: each friendly can make a free Dash, ending closer to the opponent\'s drop zone' },
+    movers: (g, side) => living(g, side).filter((x) => isDK(x) && x.x > -50 && !isEngaged(g, x)), moveKind: () => 'dash', max: () => 3,
+    check: (g, side, o, q) => { const c = foeCentreOf(g, side); return dist(q, c) < dist(o, c) - 0.05; },
+    autoAll(g, side) {
+      const c = foeCentreOf(g, side);
+      for (const o of living(g, side).filter((x) => isDK(x) && !isEngaged(g, x))) { const q = bestStep(g, o, 3, 'dash', (p) => dist(o, c) - dist(p, c)); if (q) stepTo(g, o, q); }
+      note(g, side, '懷錶：友方免費衝刺，靠近敵人', 'Chronometer: the friendlies make free Dashes towards the enemy');
+    },
+  };
+}
+function regroupOld(g, side, ploy) {
+  if (ploy.id !== 'regroup') return;
+  if (g.dkUsed[side].chronoTP === g.tp) { note(g, side, '重整：本回合已用懷錶', 'Regroup: the Chronometer was used this turning point'); return; }
+  g.dkUsed[side].regroupTP = g.tp;
   const own = living(g, side).filter((o) => isDK(o));
   const anchor = own.filter((o) => !foes(g, o).some((e) => edgeDist(o, e) <= 3)).sort((a, b) => own.filter((x) => x !== b && edgeDist(x, b) <= 5).length - own.filter((x) => x !== a && edgeDist(x, a) <= 5).length)[0];
   if (!anchor) { note(g, side, '重整：沒有符合條件的特工', 'Regroup: no eligible operative'); return; }
@@ -101,6 +143,10 @@ export function dkGambit(g, side, id) {
   if (!dkGambitOk(g, side, id)) return false;
   if (id === 'chrono') {
     g.dkUsed[side].chrono = true; g.dkUsed[side].chronoTP = g.tp;
+    needChoice(g, side, 'dkChrono');
+    return true;
+  }
+  if (id === 'chronoOld') {
     const foeCentre = (() => { const f = foes(g, { side }); return f.length ? { x: f.reduce((s, o) => s + o.x, 0) / f.length, y: f.reduce((s, o) => s + o.y, 0) / f.length } : { x: BOARD.w / 2, y: BOARD.h / 2 }; })();
     for (const o of living(g, side).filter((x) => isDK(x) && !isEngaged(g, x))) {
       const q = bestStep(g, o, 3, 'dash', (p) => dist(o, foeCentre) - dist(p, foeCentre));
@@ -110,15 +156,30 @@ export function dkGambit(g, side, id) {
     return true;
   }
   g.dkUsed[side].gas = true;
+  needChoice(g, side, 'dkGas');
+  return true;
+}
+function gasAuto(g, side) {
   let best = null;
   for (let x = 2; x < BOARD.w - 1; x += 2) for (let y = 2; y < BOARD.h - 1; y += 2) {
     const p = { x, y };
     const score = foes(g, { side }).filter((e) => dist(e, p) - radius(e) <= 3).length - 2 * living(g, side).filter((o) => dist(o, p) - radius(o) <= 3).length;
     if (!best || score > best.score) best = { p, score };
   }
-  (g.markers ||= []).push({ id: g.markers.length, kind: 'gas', owner: side, x: best.p.x, y: best.p.y, tp: g.tp, carriedBy: null });
-  note(g, side, `毒氣轟炸：毒氣標記放在戰場 (${best.p.x}, ${best.p.y})`, `Gas Bombardment: the Gas marker goes at (${best.p.x}, ${best.p.y})`);
-  return true;
+  return best?.p || null;
+}
+/** The player's pick: where the Gas marker goes (anywhere in the killzone). */
+export function dkChoices() {
+  CHOICES.dkGas = {
+    kind: 'point', title: { zh: '毒氣轟炸：點棋盤放毒氣標記（3" 內的特工 APL -1）', en: 'Gas Bombardment: tap the board for the Gas marker (operatives within 3" get -1 APL)' },
+    valid: (g, side, p) => !!p && p.x > 0 && p.y > 0 && p.x < BOARD.w && p.y < BOARD.h,
+    auto: (g, side) => gasAuto(g, side),
+    apply(g, side, p) {
+      const q = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
+      (g.markers ||= []).push({ id: g.markers.length, kind: 'gas', owner: side, x: q.x, y: q.y, tp: g.tp, carriedBy: null });
+      note(g, side, `毒氣轟炸：毒氣標記放在戰場 (${q.x}, ${q.y})`, `Gas Bombardment: the Gas marker goes at (${q.x}, ${q.y})`);
+    },
+  };
 }
 /** The computer's gambits: Chronometer in the first two turning points, Gas Bombardment as soon as it hits something. */
 export function dkAiStrategy(g, side) {

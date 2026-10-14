@@ -1,7 +1,7 @@
 // Plague Marines (瘟疫戰士) rules engine for the parts added after the first version: Cloud of Flies, Nurglings, Curse of Rot, the
 // Warrior and the faction equipment. (Careful: game.js and this module import each other, so nothing here may use a top-level const
 // while the modules load.)
-import { applyDamage, autoFF, changeApl, d3, edgeDist, foes, living, log, opName, radius, team, tpl } from './game.js';
+import { CHOICES, needChoice, getOp, applyDamage, autoFF, changeApl, d3, edgeDist, foes, living, log, opName, radius, team, tpl } from './game.js';
 import { dist } from './geometry.js';
 import { plagueRosterError } from './data/plague.js';
 
@@ -42,22 +42,32 @@ export function pmWeapons(g, op, ws) {
 
 // ---------- strategy ploys ----------
 export function pmPloyBought(g, side, ploy) {
-  if (ploy.id === 'cloudFlies') {
-    const pms = living(g, side).filter((o) => isPM(o));
-    const enemies = foes(g, { side });
-    // On the Plague Marine nearest the enemy (a marker covers the one it sits under).
-    const best = pms.sort((a, b) => Math.min(99, ...enemies.map((e) => edgeDist(a, e))) - Math.min(99, ...enemies.map((e) => edgeDist(b, e))))[0];
+  if (ploy.id === 'cloudFlies') needChoice(g, side, 'cloudFlies');
+  if (ploy.id === 'nurglings') needChoice(g, side, 'nurglings');
+}
+const nurglingTargets = (g, side) => { const pms = living(g, side).filter((o) => isPM(o)); return foes(g, { side }).filter((e) => e.side < 2 && e.x > -50 && pms.some((p) => edgeDist(p, e) <= 3.01 || (e.poison && edgeDist(p, e) <= 7.01))); };
+/** The players' picks: Cloud of Flies (the friendly it goes on), Nurglings (an enemy). */
+export function pmChoices() {
+  const B = (zh, en) => ({ zh, en });
+  CHOICES.cloudFlies = {
+    kind: 'op', title: B('蒼蠅雲：選一名友方瘟疫戰士（標記放在它身上）', 'Cloud of Flies: pick a friendly Plague Marine (the marker goes on it)'),
+    options: (g, side) => living(g, side).filter((o) => isPM(o) && o.x > -50).map((o) => ({ value: o.uid })),
+    auto: (g, side) => { const enemies = foes(g, { side }); return living(g, side).filter((o) => isPM(o)).sort((a, b) => Math.min(99, ...enemies.map((e) => edgeDist(a, e))) - Math.min(99, ...enemies.map((e) => edgeDist(b, e))))[0]?.uid ?? null; },
+    apply: (g, side, uid) => fliesOn(g, side, getOp(g, uid)),
+  };
+  CHOICES.nurglings = {
+    kind: 'op', title: B('寧古蘭：選一名敵人（友方 3" 內，或 7" 內且有你的中毒標記）', 'Nurglings: pick an enemy (within 3" of a friendly, or 7" if poisoned)'),
+    options: (g, side) => nurglingTargets(g, side).map((e) => ({ value: e.uid })),
+    auto: (g, side) => nurglingTargets(g, side).sort((a, b) => tpl(b).apl - tpl(a).apl || b.wounds - a.wounds)[0]?.uid ?? null,
+    none: (g, side) => note(g, side, '寧古蘭：沒有符合條件的敵人', 'Nurglings: no eligible enemy'),
+    apply(g, side, uid) { const t = getOp(g, uid); changeApl(g, t, -1); note(g, side, `寧古蘭：${opName(t, 'zh')} 到下次啟動結束 APL -1`, `Nurglings: ${opName(t, 'en')} gets -1 APL until the end of its next activation`); },
+  };
+}
+function fliesOn(g, side, best) {
+  {
     if (!best) return;
     (g.markers ||= []).push({ id: g.markers.length, kind: 'flies', owner: side, x: best.x, y: best.y, tp: g.tp, carriedBy: null });
     note(g, side, `蒼蠅雲：標記放在 ${opName(best, 'zh')} 身上`, `Cloud of Flies: the marker goes on ${opName(best, 'en')}`);
-  }
-  if (ploy.id === 'nurglings') {
-    const pms = living(g, side).filter((o) => isPM(o));
-    const t = foes(g, { side }).filter((e) => e.side < 2 && pms.some((p) => edgeDist(p, e) <= 3.01 || (e.poison && edgeDist(p, e) <= 7.01)))
-      .sort((a, b) => tpl(b).apl - tpl(a).apl || b.wounds - a.wounds)[0];
-    if (!t) { note(g, side, '寧古蘭：沒有符合條件的敵人', 'Nurglings: no eligible enemy'); return; }
-    changeApl(g, t, -1);
-    note(g, side, `寧古蘭：${opName(t, 'zh')} 到下次啟動結束 APL -1`, `Nurglings: ${opName(t, 'en')} gets -1 APL until the end of its next activation`);
   }
 }
 /** The Ready step: the Cloud of Flies markers from the last turning point are removed. */

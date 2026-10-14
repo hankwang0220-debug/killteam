@@ -6,7 +6,7 @@ export const DEATHKORPS_EQUIPMENT = {
   dkChrono: { name: B('懷錶', 'Chronometer'), desc: B('整場一次的策略謀略（第 1 或第 2 回合）：完全在己方領域內的每名友方免費衝刺一次，必須結束得更靠近對手的降落區或戰場邊緣。同一回合不能和「重整」策略計謀並用。', 'Once per battle strategic gambit in the first or second turning point: each friendly wholly within your territory makes a free Dash, ending closer to an opponent\'s drop zone or killzone edge. Not in the same turning point as the Regroup ploy.') },
   dkBeads: { name: B('通訊珠', 'Comm-beads'), desc: B('看守長或心腹下達衛兵命令時（自動）：改為只有一名友方收到命令（自動選最受益的），而不是 6" 內全部。', 'When a Watchmaster or Confidant issues a Guardsman Order (automatic): one friendly receives it (the one it helps most) instead of everyone within 6".') },
   dkAxes: { name: B('手斧', 'Hand Axes'), desc: B('友方克里格死亡兵團多一把近戰武器「手斧」（3/4+/3/4）。', 'Friendly DEATH KORPS operatives have a Hand axe melee weapon (3 / 4+ / 3/4).') },
-  dkGas: { name: B('毒氣轟炸', 'Gas Bombardment'), desc: B('整場一次的策略謀略：在戰場放一個毒氣標記（自動放在敵人最多、友方最少的地方）；標記 3" 內的特工 APL -1。下個策略階段的準備步驟移除。', 'Once per battle strategic gambit: place your Gas marker in the killzone (automatically where it hits the most enemies and the fewest friendlies); operatives within 3" of it have -1 APL. Removed in the Ready step of the next Strategy phase.') },
+  dkGas: { name: B('毒氣轟炸', 'Gas Bombardment'), desc: B('整場一次的策略謀略：在戰場放一個毒氣標記（點棋盤放置）；標記 3" 內的特工 APL -1。下個策略階段的準備步驟移除。', 'Once per battle strategic gambit: place your Gas marker in the killzone (tap the board); operatives within 3" of it have -1 APL. Removed in the Ready step of the next Strategy phase.') },
 };
 
 /** The ploys a Trooper selection can be traded for: the team's own strategy and firefight ploys. */

@@ -77,7 +77,7 @@ export const SANCTIFIERS_TEAM = {
     P('sfProtects', '皇帝庇佑', 'The Emperor Protects', '敵人射擊享有佈道加成的友方淨化者時，可以重擲同一種結果的所有防禦骰（自動選最有利的結果）。', 'When an enemy shoots a friendly SANCTIFIER benefitting from the Sermon, re-roll any defence dice of one result (the best one is chosen automatically).'),
     P('sfBrawl', '狂熱混戰', 'Fervent Brawl', '享有佈道加成的友方淨化者近戰或反擊時，近戰武器獲得「無休」。', 'A friendly SANCTIFIER benefitting from the Sermon that is fighting or retaliating has Ceaseless on its melee weapons.'),
     P('sfZealous', '狂熱迫害', 'Zealous Persecution', '友方淨化者在有衝鋒的啟動中近戰時，近戰武器獲得「致命 5+」。', 'A friendly SANCTIFIER fighting in an activation in which it charged has Lethal 5+ on its melee weapons.'),
-    P('sfRally', '聚攏信眾', 'Rally the Flock', '每名享有佈道加成的友方淨化者（佈道者除外）立刻免費衝刺或撤退（撤退最多 3"），結束時要比開始更靠近、且看得到（或看得到它的）佈道者。第 1 回合不能用。（自動選擇）', 'Each friendly SANCTIFIER (not the orator) benefitting from the Sermon makes a free Dash or Fall Back (3" at most), ending closer to and visible to the orator. Not in the first turning point. (Chosen automatically.)'),
+    P('sfRally', '聚攏信眾', 'Rally the Flock', '每名享有佈道加成的友方淨化者（佈道者除外）立刻免費衝刺或撤退（撤退最多 3"），結束時要比開始更靠近、且看得到（或看得到它的）佈道者。第 1 回合不能用。', 'Each friendly SANCTIFIER (not the orator) benefitting from the Sermon makes a free Dash or Fall Back (3" at most), ending closer to and visible to the orator. Not in the first turning point.'),
   ],
   firefight: [
     P('sfRosarius', '護身聖章', 'Rosarius', '一顆攻擊骰對友方淨化者造成普通傷害時使用：無視那次傷害。', 'When an attack die inflicts Normal Dmg on a friendly SANCTIFIER, ignore that damage.'),

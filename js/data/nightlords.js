@@ -71,7 +71,7 @@ export const NIGHTLORDS_TEAM = {
     oneBox: B('能', 'Yes'),
     buyable: B('能', 'Yes'),
     size: B('6 名特工', '6 operatives'),
-    note: B('預見者＋從清單選 5 名（除了戰士，每種只能選一次）。每個名額的下拉選單同時選特工與武器；預見者的武器另外選。2D 簡化：沒有高低差，「午夜裝束」只看重型地形；「回歸黑暗」自動選一名友方走到有重型地形的位置；「變聲模仿」的免費衝刺位置由系統挑選（把敵人拉離目標點）。', 'The Visionary plus five from the list (each once, except Warriors). Each slot\'s dropdown picks the operative and its weapons together; the Visionary\'s weapons are picked separately. 2D simplifications: no heights, In Midnight Clad only looks at Heavy terrain; Return to Darkness automatically picks a friendly and a destination by Heavy terrain; Disconcerting Mimicry\'s free Dash destination is chosen by the game (it pulls the enemy off objectives).'),
+    note: B('預見者＋從清單選 5 名（除了戰士，每種只能選一次）。每個名額的下拉選單同時選特工與武器；預見者的武器另外選。2D 簡化：沒有高低差，「午夜裝束」只看重型地形；「變聲模仿」的免費衝刺位置由系統挑選（把敵人拉離目標點）。', 'The Visionary plus five from the list (each once, except Warriors). Each slot\'s dropdown picks the operative and its weapons together; the Visionary\'s weapons are picked separately. 2D simplifications: no heights, In Midnight Clad only looks at Heavy terrain; Return to Darkness automatically picks a friendly and a destination by Heavy terrain; Disconcerting Mimicry\'s free Dash destination is chosen by the game (it pulls the enemy off objectives).'),
   },
   rule: {
     name: B('阿斯塔特・午夜裝束', 'Astartes · In Midnight Clad'),
@@ -84,7 +84,7 @@ export const NIGHTLORDS_TEAM = {
     P('ncBlackHunt', '黑暗狩獵', 'The Black Hunt', '本回合友方射擊、近戰或反擊受傷的敵人時，可以重擲一顆攻擊骰。', 'This TP, a friendly shooting, fighting or retaliating against a wounded enemy can re-roll one attack die.'),
     P('ncPreysight', '獵物視線', 'Preysight', '本回合每把遠程武器多一個「射程 6"、搜尋（輕型）」的版本可選（限用武器除外）。', 'This TP, each ranged weapon gets an extra version with Range 6" and Seek Light to pick (Limited weapons excepted).'),
     P('ncWeCome', '我們為你而來', 'We Have Come For You', '本回合友方啟動後第一個動作是衝鋒時：衝鋒結束對控制範圍內一名敵人造成 D3 傷害。', 'This TP, when a friendly\'s first action of an activation is a Charge, it inflicts D3 damage on an enemy in its control range at the end of the move.'),
-    P('ncReturn', '回歸黑暗', 'Return to Darkness', '立刻：一名友方免費重新定位或撤退（最多 4"），要結束在重型地形旁，且不比之前更靠近敵人。（自動選擇）', 'At once: a friendly makes a free Reposition or Fall Back (up to 4") that ends beside Heavy terrain and not closer to enemies. (Chosen automatically.)'),
+    P('ncReturn', '回歸黑暗', 'Return to Darkness', '立刻：一名友方免費重新定位或撤退（最多 4"），要結束在重型地形旁，且不比之前更靠近敵人。', 'At once: a friendly makes a free Reposition or Fall Back (up to 4") that ends beside Heavy terrain and not closer to enemies.'),
   ],
   firefight: [
     P('ncDeathFalse', '誅殺偽帝', 'Death to the False Emperor', '自動：友方攻擊或被攻擊者是帝國單位時，擲骰後用「無休」；對方是阿斯塔特軍團則用「無情」。', 'Auto: after rolling attack dice against an IMPERIUM operative, Ceaseless; Relentless if it is ADEPTUS ASTARTES.'),

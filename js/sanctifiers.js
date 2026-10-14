@@ -2,7 +2,7 @@
 // faction equipment. game.js calls these hooks; the team data is in data/sanctifiers.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, OBJ_R, applyDamage, aplNow, autoFF, changeApl, checkMines, controller, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
+import { CHOICES, needChoice, abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, OBJ_R, applyDamage, aplNow, autoFF, changeApl, checkMines, controller, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx, wholeInchPath } from './path.js';
 import { scTrapCheck } from './scouts.js';
@@ -185,6 +185,21 @@ export function sfSwap(g, target, weapon) {
 }
 /** Rally the Flock (bought in the Strategy phase, not in the first turning point): free Dashes or Fall Backs towards the Orator. */
 export function sfPloyBought(g, side, ploy) {
+  if (ploy.id !== 'sfRally') return;
+  if (g.tp === 1 || !sfOrator(g, side)) { note(g, side, '聚攏信眾：沒有效果', 'Rally the Flock: no effect'); return; }
+  needChoice(g, side, 'sfRally');
+}
+const rallyMovers = (g, side) => { const or = sfOrator(g, side); return living(g, side).filter((x) => x !== or && x.x > -50 && sfSermon(g, x)); };
+const rallyOk = (g, side, o, q) => { const or = sfOrator(g, side); return !!or && dist(q, or) - radius(o) - radius(or) < edgeDist(o, or) - 0.05 && sees(g, or, o, q); };
+/** The player's free moves for Rally the Flock (each ends closer to the orator and visible to it). */
+export function sfChoices() {
+  CHOICES.sfRally = {
+    kind: 'move', title: { zh: '聚攏信眾：享有佈道加成的友方免費衝刺（交戰中則撤退），結束時要更靠近佈道者且看得到它', en: 'Rally the Flock: friendlies with the Sermon make a free Dash (Fall Back if engaged), ending closer to the orator and visible to it' },
+    movers: rallyMovers, moveKind: (g, o) => (isEngaged(g, o) ? 'fallBack' : 'dash'), max: () => 3, check: rallyOk,
+    autoAll: (g, side) => rallyOld(g, side, { id: 'sfRally' }),
+  };
+}
+function rallyOld(g, side, ploy) {
   if (ploy.id !== 'sfRally') return;
   const or = sfOrator(g, side);
   if (g.tp === 1 || !or) { note(g, side, '聚攏信眾：沒有效果', 'Rally the Flock: no effect'); return; }

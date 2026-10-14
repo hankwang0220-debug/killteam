@@ -759,7 +759,7 @@ export const TEAMS = [
       { id: 'noFear', cp: 1, name: { zh: '無所畏懼', en: 'And They Shall Know No Fear' },
         desc: { zh: '本回合友方無視重傷造成的數值變化。', en: 'This TP, friendly operatives ignore stat changes from being injured.' } },
       { id: 'adaptiveTactics', cp: 1, name: { zh: '適應戰術', en: 'Adaptive Tactics' },
-        desc: { zh: '本回合把次要戰團戰術換成另一個（回合結束後換回來）。（自動選擇：依隊上武器挑最合適的）', en: 'This TP, change your secondary Chapter Tactic (it returns at the end of the turning point). (Chosen automatically to suit the squad.)' } },
+        desc: { zh: '本回合把次要戰團戰術換成另一個（回合結束後換回來）。（選一個）', en: 'This TP, change your secondary Chapter Tactic (it returns at the end of the turning point).' } },
     ],
     // The leader (Intercessor Sergeant, Assault Sergeant or Captain) + 5 picks, each once except Warriors.
     replacements: {
@@ -811,7 +811,7 @@ export const TEAMS = [
       { id: 'skulkAbout', cp: 1, name: { zh: '鬼祟潛行', en: 'Skulk About' },
         desc: { zh: '本回合隱蔽指令的友方被射擊時，可多保留 1 顆防禦骰作為普通成功（可與掩護豁免疊加）。', en: 'This TP, a friendly operative with a Conceal order being shot retains one extra defence die as a normal success (on top of any cover save).' } },
       { id: 'sssshhhh', cp: 1, name: { zh: '噓——！', en: 'Sssshhhh!' },
-        desc: { zh: '不是敵人有效目標、或是隱蔽指令且離敵人超過 6" 的友方特工，立刻各免費衝刺一次。第 1 回合不能用。（自動移動）', en: 'Each friendly operative that isn\'t a valid target for enemy operatives, or has a Conceal order and is more than 6" from enemy operatives, makes a free Dash. Not in the first turning point. (Moves chosen automatically.)' } },
+        desc: { zh: '不是敵人有效目標、或是隱蔽指令且離敵人超過 6" 的友方特工，立刻各免費衝刺一次。第 1 回合不能用。', en: 'Each friendly operative that isn\'t a valid target for enemy operatives, or has a Conceal order and is more than 6" from enemy operatives, makes a free Dash. Not in the first turning point.' } },
     ],
     // The Boss Nob and nine selections: each once except Boys; the Grot and the Bomb Squig count as half a selection each, so the
     // extra slot (empty, Grot or Bomb Squig) holds the second of the pair.
@@ -867,7 +867,7 @@ export const TEAMS = [
       { id: 'takeCover', cp: 1, name: { zh: '尋找掩護', en: 'Take Cover' },
         desc: { zh: '本回合友方被射擊時，若能保留掩護豁免，豁免值改善 1。', en: 'This TP, when a friendly operative is shot and can retain cover saves, its Save improves by 1.' } },
       { id: 'reconSweep', cp: 1, name: { zh: '偵察掃蕩', en: 'Recon Sweep' },
-        desc: { zh: '選一條不是己方的戰場邊緣：完全在它 6" 內的每名友方探路者可免費衝刺一次，結束時必須完全在某條非己方邊緣 6" 內。第 1 回合不能用。（自動選邊與移動）', en: 'Pick a killzone edge that isn\'t yours: each friendly Pathfinder wholly within 6" of it makes a free Dash, ending wholly within 6" of a killzone edge that isn\'t yours. Not in the first turning point. (Edge and moves chosen automatically.)' } },
+        desc: { zh: '選一條不是己方的戰場邊緣：完全在它 6" 內的每名友方探路者可免費衝刺一次，結束時必須完全在某條非己方邊緣 6" 內。第 1 回合不能用。', en: 'Pick a killzone edge that isn\'t yours: each friendly Pathfinder wholly within 6" of it makes a free Dash, ending wholly within 6" of a killzone edge that isn\'t yours. Not in the first turning point.' } },
       // Shas'ui Art of War: once per battle each, one per turning point, while the Shas'ui is in the killzone.
       { id: 'montka', group: 'artOfWar', oncePerBattle: true, needs: 'shasui', cp: 0, name: { zh: '兵法：蒙卡', en: "Art of War: Mont'ka" },
         desc: { zh: '本回合友方 Move +1"。（整場一次，需要小隊長在場）', en: 'This TP, friendly operatives get +1" Move. (Once per battle; needs the Shas\'ui)' } },
@@ -931,9 +931,9 @@ export const TEAMS = [
       { id: 'lumbering', cp: 1, name: { zh: '笨重死神', en: 'Lumbering Death' },
         desc: { zh: '本回合友方在本次啟動移動不超過 3" 時射擊或近戰，以及反擊時，武器獲得「無休」。', en: 'This TP, friendly weapons have Ceaseless when shooting or fighting in an activation in which the operative moved no more than 3", and when retaliating.' } },
       { id: 'cloudFlies', cp: 1, name: { zh: '蒼蠅雲', en: 'Cloud of Flies' },
-        desc: { zh: '在戰場放一個蒼蠅雲標記（自動放在最前線的友方身上）：敵人射擊離標記超過 3"、且完全在標記 1" 內的友方瘟疫戰士時，該友方被遮蔽。下個策略階段的準備步驟移除。', en: 'Place a Cloud of Flies marker (automatically on the front-most friendly): when an operative shoots a friendly PLAGUE MARINE more than 3" from the marker and wholly within 1" of it, that friendly is obscured. Removed in the Ready step of the next Strategy phase.' } },
+        desc: { zh: '在戰場放一個蒼蠅雲標記（放在你選的一名友方身上）：敵人射擊離標記超過 3"、且完全在標記 1" 內的友方瘟疫戰士時，該友方被遮蔽。下個策略階段的準備步驟移除。', en: 'Place a Cloud of Flies marker (on a friendly you pick): when an operative shoots a friendly PLAGUE MARINE more than 3" from the marker and wholly within 1" of it, that friendly is obscured. Removed in the Ready step of the next Strategy phase.' } },
       { id: 'nurglings', cp: 1, name: { zh: '寧古蘭', en: 'Nurglings' },
-        desc: { zh: '選友方瘟疫戰士 3" 內的一名敵人（或 7" 內且有你的中毒標記的敵人）：到它下次啟動結束 APL -1。（自動選 APL 最高的）', en: 'Pick an enemy within 3" of a friendly PLAGUE MARINE (or within 7" with one of your Poison tokens): -1 APL until the end of its next activation. (The highest APL is chosen automatically.)' } },
+        desc: { zh: '選友方瘟疫戰士 3" 內的一名敵人（或 7" 內且有你的中毒標記的敵人）：到它下次啟動結束 APL -1。', en: 'Pick an enemy within 3" of a friendly PLAGUE MARINE (or within 7" with one of your Poison tokens): -1 APL until the end of its next activation.' } },
     ],
     // The Champion plus five of the six others (each once).
     replacements: Object.fromEntries(['bombardier', 'fighter', 'heavyGunner', 'icon', 'caster'].map((id) => [id, ['bombardier', 'fighter', 'heavyGunner', 'icon', 'caster', 'warrior']])),
@@ -1032,7 +1032,7 @@ export const TEAMS = [
       { id: 'clearTheLine', cp: 1, name: { zh: '清理戰線', en: 'Clear the Line' },
         desc: { zh: '本回合友方近戰武器獲得「精準 1」；完全在我方領域內近戰，或反擊時，再獲得「嚴厲」。', en: 'This TP, friendly melee weapons have Accurate 1; also Severe when fighting wholly within your territory or when retaliating.' } },
       { id: 'regroup', cp: 1, name: { zh: '重整', en: 'Regroup' },
-        desc: { zh: '支援：選一名離敵人超過 3" 的友方；它 5" 內不在敵人控制範圍內的其他友方各免費衝刺一次，必須結束得更靠近它。（自動選擇；不能和懷錶同回合使用）', en: 'Support: pick a friendly more than 3" from enemies; each other friendly within 5" and not engaged makes a free Dash, ending closer to it. (Chosen automatically; not in the same turning point as the Chronometer.)' } },
+        desc: { zh: '支援：選一名離敵人超過 3" 的友方；它 5" 內不在敵人控制範圍內的其他友方各免費衝刺一次，必須結束得更靠近它。（不能和懷錶同回合使用）', en: 'Support: pick a friendly more than 3" from enemies; each other friendly within 5" and not engaged makes a free Dash, ending closer to it. (Not in the same turning point as the Chronometer.)' } },
     ],
     // The Watchmaster, four Troopers (each can instead be a ploy that costs 0CP for the battle) and nine selections: each once, except Troopers.
     perCopyRoster: true,
@@ -1374,7 +1374,7 @@ export const TEAMS = [
       { id: 'malevolentGrit', cp: 1, name: { zh: '惡毒的韌性', en: 'Malevolent Grit' },
         desc: { zh: '本回合持有標記、或完全在敵方領域內的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, a friendly with a token, or wholly within your opponent\'s territory, re-rolls one defence die when shot.' } },
       { id: 'gloryKill', cp: 1, name: { zh: '榮耀擊殺', en: 'Glory Kill' },
-        desc: { zh: '選一名友方看得到的敵人：本回合攻擊它時武器「無休」，持有標記時改為「無情」。（使用時自動選生命最高的敵人，可在策略面板更換）', en: 'Pick an enemy a friendly can see: this TP, weapons have Ceaseless against it, or Relentless with a token. (The toughest enemy is picked automatically; change it in the strategy panel.)' } },
+        desc: { zh: '選一名友方看得到的敵人：本回合攻擊它時武器「無休」，持有標記時改為「無情」。', en: 'Pick an enemy a friendly can see: this TP, weapons have Ceaseless against it, or Relentless with a token.' } },
       { id: 'bitterDemise', cp: 1, name: { zh: '苦澀的死亡', en: 'Bitter Demise' },
         desc: { zh: '本回合友方殘廢時擲 D3：擲出 3（持有標記時 2+）就對 2" 內一名可見敵人造成等量傷害。', en: 'This TP, when a friendly is incapacitated roll a D3: on a 3 (2+ with a token), that much damage to a visible enemy within 2".' } },
     ],
@@ -1770,7 +1770,7 @@ export const TEAMS = [
       { id: 'noosphericPossession', cp: 1, name: { zh: '聖靈附身', en: 'Noospheric Possession' },
         desc: { zh: '本回合在自動代理或僕從監督者 6" 內的僕從機，武器「精準 1」。', en: 'This TP, servitors within 6" of an Auto-proxy or the Servitor Underseer have Accurate 1.' } },
       { id: 'prioritisedAcq', cp: 1, name: { zh: '優先取得', en: 'Prioritised Acquisition' },
-        desc: { zh: '本回合自動指定一個目標點（離我方最近的）：爭奪它時我方 APL 總和 +1；它 3" 內的友方近戰 Atk +1（最多 4）。', en: 'This TP, an objective marker is picked for you (the one nearest your operatives): +1 to your total APL contesting it, and friendlies within 3" of it have +1 melee Atk (max 4).' } },
+        desc: { zh: '本回合選一個目標點：爭奪它時我方 APL 總和 +1；它 3" 內的友方近戰 Atk +1（最多 4）。', en: 'This TP, pick an objective marker: +1 to your total APL contesting it, and friendlies within 3" of it have +1 melee Atk (max 4).' } },
     ],
     ops: [
       op('bcArcheo', '技術考古學家', 'Technoarcheologist', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, techPriest: true, omniscanner: true }, [eradPistol, servoArcClaw]),
@@ -1861,7 +1861,7 @@ export const TEAMS = [
       { id: 'goryTenacity', cp: 1, name: { zh: '血腥韌性', en: 'Gory Tenacity' },
         desc: { zh: '本回合友方近戰或反擊時，對手第一次打擊它的傷害減半（無條件進位，最低 2）。', en: 'This TP, a friendly fighting or retaliating halves the damage of the opponent\'s first strike on it (rounding up, minimum 2).' } },
       { id: 'huntForBlood', cp: 1, name: { zh: '血之狩獵', en: 'Hunt for Blood' },
-        desc: { zh: '選一名友方（自動：能衝到敵人身邊、離敵人最近的一名）：隱蔽改成交戰，立刻免費衝鋒最多 3"。', en: 'Pick a friendly (automatic: the one nearest an enemy it can reach): if Concealed it becomes Engaged, then it immediately makes a free Charge of up to 3".' } },
+        desc: { zh: '選一名友方（自動：能衝到敵人身邊、離敵人最近的一名）：隱蔽改成交戰，立刻免費衝鋒最多 3"。', en: 'Pick a friendly: if Concealed it becomes Engaged, then it immediately makes a free Charge of up to 3".' } },
       { id: 'enhancedViolence', cp: 1, name: { zh: '強化暴力', en: 'Enhanced Violence' },
         desc: { zh: '本回合友方血槽半格時近戰武器「平衡」，滿格時「無情」。', en: 'This TP, a friendly\'s melee weapons have Balanced with a half GORE TANK, Relentless with a full one.' } },
       { id: 'augmentedEndurance', cp: 1, name: { zh: '強化耐力', en: 'Augmented Endurance' },
@@ -2056,7 +2056,7 @@ export const TEAMS = [
       { id: 'holyResilience', cp: 1, name: { zh: '神聖韌性', en: 'Holy Resilience' },
         desc: { zh: '本回合激勵中的友方近戰或反擊時，4 以上的普通與暴擊傷害 -1。', en: 'This TP, an inspiring friendly fighting or retaliating takes 1 less from Normal and Critical Dmg of 4+.' } },
       { id: 'suspectEliminate', cp: 1, name: { zh: '懷疑與剷除', en: 'Suspect & Eliminate' },
-        desc: { zh: '本回合選一名敵人（自動：離我方最近、身邊敵人最多的）：它和 2" 內看得到的敵人得到懷疑標記，友方射擊或近戰它們時武器「懲罰」。', en: 'This TP, pick an enemy (automatic: the one nearest your team with the most enemies around it): it and enemies visible within 2" of it gain Suspicion tokens — friendlies shooting or fighting them have Punishing.' } },
+        desc: { zh: '本回合選一名敵人：它和 2" 內看得到的敵人得到懷疑標記，友方射擊或近戰它們時武器「懲罰」。', en: 'This TP, pick an enemy: it and enemies visible within 2" of it gain Suspicion tokens — friendlies shooting or fighting them have Punishing.' } },
       { id: 'wrathfulDetermination', cp: 1, name: { zh: '憤怒的決心', en: 'Wrathful Determination' },
         desc: { zh: '本回合交戰指令的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, an Engage-order friendly that\'s shot re-rolls one defence die.' } },
     ],
@@ -2378,11 +2378,11 @@ TEAMS.push({
   },
   ploys: [
     { id: 'denounce', cp: 1, name: { zh: '揭發', en: 'Denounce' },
-      desc: { zh: '選一名敵人（自動：APL 與生命最高的）並擲 D3：本回合它要等到最後才能啟動，或對手已啟動 D3 名特工後。每多用一次多花 1CP。', en: 'Pick an enemy (automatic: the highest APL and wounds) and roll a D3: this TP it can\'t activate until it\'s the last one, or until your opponent has activated that many operatives. Costs 1CP more each time it was used before.' } },
+      desc: { zh: '選一名敵人並擲 D3：本回合它要等到最後才能啟動，或對手已啟動 D3 名特工後。每多用一次多花 1CP。', en: 'Pick an enemy and roll a D3: this TP it can\'t activate until it\'s the last one, or until your opponent has activated that many operatives. Costs 1CP more each time it was used before.' } },
     { id: 'intenseScrutiny', cp: 1, name: { zh: '嚴密審查', en: 'Intense Scrutiny' },
       desc: { zh: '本回合友方選目標時，4" 內（而非 2"）的敵人不能算在掩體中（掩體豁免照常）。', en: 'This TP, when a friendly selects a valid target, enemies within 4" (instead of 2") can\'t be in cover (cover saves still apply).' } },
     { id: 'quarry', cp: 1, name: { zh: '獵物', en: 'Quarry' },
-      desc: { zh: '選一名敵人當獵物（自動：最強的）：友方攻擊它時武器「無休」；它殘廢時換一名新的獵物。', en: 'Pick an enemy as your quarry (automatic: the strongest): friendlies attacking it have Ceaseless; when it\'s incapacitated, pick a new one.' } },
+      desc: { zh: '選一名敵人當獵物：友方攻擊它時武器「無休」；它殘廢時換一名新的獵物。', en: 'Pick an enemy as your quarry: friendlies attacking it have Ceaseless; when it\'s incapacitated, pick a new one.' } },
     { id: 'irrefutableJurisdiction', cp: 1, name: { zh: '不容置疑的管轄', en: 'Irrefutable Jurisdiction' },
       desc: { zh: '本回合 3" 內有目標點的友方被射擊時可重擲一顆防禦骰；爭奪該目標點時改為重擲同一種點數的骰子。', en: 'This TP, a friendly within 3" of an objective being shot re-rolls one defence die; contesting it, any defence dice of one result instead.' } },
   ],

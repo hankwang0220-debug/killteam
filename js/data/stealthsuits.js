@@ -69,7 +69,7 @@ export const STEALTH_TEAM = {
   perCopyRoster: true,
   ops,
   ploys: [
-    P('xvAmbush', '準備伏擊', 'Prepare Ambush', '在你領地內、離敵人 2" 以上放伏擊標記（自動放在最可能有用的地方）：友方射擊標記 2" 內的敵人時武器「搜尋」（用一次就移除，或下回合準備步驟移除）；標記附近看得到的敵人也算被標記。', 'An Ambush marker wholly in your territory more than 2" from enemies (placed automatically): a friendly shooting an enemy within 2" of it has Seek (removed after that action or in the next Ready step); visible enemies near it count as marked.'),
+    P('xvAmbush', '準備伏擊', 'Prepare Ambush', '在你領地內、離敵人 2" 以上放伏擊標記（點棋盤）：友方射擊標記 2" 內的敵人時武器「搜尋」（用一次就移除，或下回合準備步驟移除）；標記附近看得到的敵人也算被標記。', 'An Ambush marker wholly in your territory more than 2" from enemies (tap the board): a friendly shooting an enemy within 2" of it has Seek (removed after that action or in the next Ready step); visible enemies near it count as marked.'),
     P('xvHolowave', '全像波干擾', 'Holowave Countermeasures', '敵人在 6" 外射擊友方時，擲完攻擊骰要捨棄一個普通成功（沒有就捨棄暴擊）。不與遮蔽疊加。', 'An enemy shooting a friendly from more than 6" away discards one normal success (or a critical if none). Not cumulative with being obscured.'),
     P('xvPatient', '耐心獵手', 'Patient Hunters', '友方射擊或近戰已行動的敵人時，武器「平衡」，遠程武器「飽和」。', 'A friendly shooting or fighting an expended enemy has Balanced, and its ranged weapons Saturate.'),
     P('xvBonds', '團結紐帶', 'Bonds of Unity', '友方（無人機除外）啟動時，若在另一名友方 6" 內且看得到它：無視 APL 改變，並在本次啟動無視重傷造成的命中變差（自動選）。', 'A friendly (not a drone) activated visible within 6" of another: it ignores APL changes, and injured Hit penalties this activation (picked automatically).'),
@@ -99,5 +99,5 @@ export const STEALTH_EQUIPMENT = {
   xvBlacksun: { name: B('進階黑日濾鏡', 'Advanced Blacksun Filters'), desc: B('友方射擊被遮蔽的目標時，不用因遮蔽捨棄一個成功（其他遮蔽效果照常）。', 'A friendly shooting an obscured target doesn\'t discard a success for it (the other effects of obscured still apply).') },
   xvLocks: { name: B('硬接線目標鎖定', 'Hardwired Target Locks'), desc: B('反應時可以用一名隱蔽指令、離敵人 3" 以上的友方：先改為 Engage，這次反應只能射擊。', 'You can counteract with a friendly that has a Conceal order and is more than 3" from enemies: it changes to Engage first and can only Shoot in that counteraction.') },
   xvMulti: { name: B('XV26 多重追蹤器', 'XV26 Multitrackers'), desc: B('每回合一次（勾選後自動），用爆裂炮（掃射）射擊時，這次武器「洪流 2\"」。', 'Once per TP (automatic once ticked), shooting with a burst cannon (sweeping): Torrent 2" for that action.') },
-  xvJammers: { name: B('反網路干擾器', 'Counter-Network Jammers'), desc: B('策略謀略（自動選目標點）：本回合爭奪那個標記時，若有敵人在友方 3" 內，敵方 APL 總和視為少 1。', 'Strategic gambit (the marker is picked automatically): this TP, enemies contesting it count 1 lower in APL total if one of them is within 3" of a friendly.') },
+  xvJammers: { name: B('反網路干擾器', 'Counter-Network Jammers'), desc: B('策略謀略（選一個目標點）：本回合爭奪那個標記時，若有敵人在友方 3" 內，敵方 APL 總和視為少 1。', 'Strategic gambit (pick an objective marker): this TP, enemies contesting it count 1 lower in APL total if one of them is within 3" of a friendly.') },
 };

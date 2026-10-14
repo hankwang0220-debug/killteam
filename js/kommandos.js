@@ -1,7 +1,7 @@
 // Kommandos (歐克蠻人) rules engine for the parts added after the first version: the Grot's Grappling Hook, the Breacha Boy's Breach,
 // Sssshhhh!, Krump 'Em!, Kunnin' But Brutal, the Smoke Grenade (Taktical Wot-notz) and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { ACTIONS, TARGET_ACTIONS, BOARD, autoFF, availableActions, bestMelee, d6, edgeDist, engagedEnemies, foes, hasPloy, isEngaged, living, log, opName, radius, resolveFight, spend, team, tpl, visibility } from './game.js';
+import { CHOICES, needChoice, ACTIONS, TARGET_ACTIONS, BOARD, autoFF, availableActions, bestMelee, d6, edgeDist, engagedEnemies, foes, hasPloy, isEngaged, living, log, opName, radius, resolveFight, spend, team, tpl, visibility } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { flatSight } from './sight.js';
 import { moveCtx } from './path.js';
@@ -43,6 +43,19 @@ export function kmWeapons(g, op, ws) {
 
 // ---------- strategy ploy: Sssshhhh! ----------
 export function kmPloyBought(g, side, ploy) {
+  if (ploy.id !== 'sssshhhh') return;
+  if (g.tp === 1) { note(g, side, '噓——！：第 1 回合不能用', 'Sssshhhh!: not in the first turning point'); return; }
+  needChoice(g, side, 'sssshhhh');
+}
+const shhMovers = (g, side) => living(g, side).filter((o) => isKM(o) && !isEngaged(g, o) && o.x > -50 && (!foes(g, o).some((e) => visibility(g, e, o).visible) || (o.order === 'conceal' && !foes(g, o).some((e) => edgeDist(o, e) <= 6))));
+/** The player's free Dashes for Sssshhhh!. */
+export function kmChoices() {
+  CHOICES.sssshhhh = {
+    kind: 'move', title: { zh: '噓——！：沒被敵人看到（或隱蔽且 6" 內沒有敵人）的歐克可以免費衝刺', en: 'Sssshhhh!: an Ork not visible to enemies (or Concealed with no enemy within 6") can make a free Dash' },
+    movers: shhMovers, moveKind: () => 'dash', max: () => 3, autoAll: (g, side) => shhAuto(g, side, { id: 'sssshhhh' }),
+  };
+}
+function shhAuto(g, side, ploy) {
   if (ploy.id !== 'sssshhhh') return;
   if (g.tp === 1) { note(g, side, '噓——！：第 1 回合不能用', 'Sssshhhh!: not in the first turning point'); return; }
   for (const o of living(g, side).filter((x) => isKM(x) && !isEngaged(g, x))) {

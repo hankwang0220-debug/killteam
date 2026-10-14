@@ -23,22 +23,22 @@ import { VESPIDS_EQUIPMENT } from './data/vespids.js';
 import { STEALTH_EQUIPMENT } from './data/stealthsuits.js';
 import { WOLF_EQUIPMENT } from './data/wolfscouts.js';
 import { isWS, wsSetup, wsActivate, wsEnd, wsRules, wsActions, wsSelf, wsWeapons, wsObscure, wsChirurgy, wsConcealCharge, wsChargeEndOk, wsMoved, wsSecondShot, wsNoObscure, wsCharms, wsTeeth, wsDefence, wsTranshumanOk, wsLokyar, wsBite, wsTrophy, wsFightEnd, wsAfterFight, wsRuneFree, wsRuneUsed, wsGuileOk, wsUseGuile, wsCanPickUp, wsDeath, wsFilter, registerWolfActions } from './wolfscouts.js';
-import { isXV, xvSetup, xvStealth, xvFallBackCheap, xvRules, xvShootStart, xvShootEnd, xvHolowave, xvChaffStart, xvChaffOn, xvChaffEnd, xvObscure, xvSwap, xvRetro, xvActivate, xvEnd, xvCanCounter, xvFilter, xvActions, xvSelf, xvActionCost, xvAfterPickUp, xvReady, xvPloyBought, xvJamControl, registerStealthActions } from './stealthsuits.js';
+import { xvChoices, isXV, xvSetup, xvStealth, xvFallBackCheap, xvRules, xvShootStart, xvShootEnd, xvHolowave, xvChaffStart, xvChaffOn, xvChaffEnd, xvObscure, xvSwap, xvRetro, xvActivate, xvEnd, xvCanCounter, xvFilter, xvActions, xvSelf, xvActionCost, xvAfterPickUp, xvReady, xvPloyBought, xvJamControl, registerStealthActions } from './stealthsuits.js';
 import { isVS, vsSetup, vsReady, vsTargetOk, vsShootStart, vsReroll, vsWeapons, vsRules, vsNoPierce, vsCamo, vsHidden, vsAgility, vsExo, vsVenom, vsShootEnd, vsActivate, vsMoved, vsChargeOk, vsGate, vsMissionSpend, vsCommuneFree, vsActions, vsSelf, registerVespidActions } from './vespids.js';
 import { isVD, vdSetup, vdFill, vdActivate, vdEnd, vdRules, vdShootStart, vdShootEnd, vdPanoply, vdDefence, vdElusiveHidden, vdRoll, vdDomino, vdJest, vdCurtain, vdDeath, vdLuckFree, vdLuckUsed, vdLuckReroll, vdActions, vdFogged, registerVoidDancerActions } from './voiddancers.js';
-import { isAQ, aqSetup, aqReady, aqTPEnd, aqActivate, aqEnd, aqActions, aqSelf, aqWeapons, aqRules, aqDefence, aqDetectedBlock, aqStimms, aqControl, aqPloyBought, aqVetFree, aqVetUsed, aqVetReroll, aqVetRerollUsed, aqTrack, aqAfterShoot, aqDynamic, aqObscure, aqPlaceAuto, aqOverseerOk, aqUseOverseer, registerAquilonActions } from './aquilons.js';
-import { isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
-import { rvSensesOk, rvUseSenses, isRV, rvSetup, rvStart, rvActivate, rvEnd, rvActions, rvSelf, rvRules, rvShot, rvDefence, rvNoReroll, rvCrestExtra, rvCrestControl, rvLurkCover, rvChroma, rvCarapace, rvCrush, rvAcidBlood, rvHorror, rvDeath, rvPloyBought, rvAmbush, rvPoisonHit, rvPlaceAuto, rvEndBattle, rvFreeBurrow, registerRavenerActions } from './raveners.js';
-import { dkSetup, dkFreeHas, dkAdaptiveFree, dkBeadsOn, dkBeadsTarget, dkLeadership, dkLifeShame, dkVeteranActivate, dkDeath, dkPloyBought, dkGasApl, dkReady, dkWeapons, dkActions, dkSelf, registerDeathKorpsActions, hasOrder } from './deathkorps.js';
+import { aqChoices, isAQ, aqSetup, aqReady, aqTPEnd, aqActivate, aqEnd, aqActions, aqSelf, aqWeapons, aqRules, aqDefence, aqDetectedBlock, aqStimms, aqControl, aqPloyBought, aqVetFree, aqVetUsed, aqVetReroll, aqVetRerollUsed, aqTrack, aqAfterShoot, aqDynamic, aqObscure, aqPlaceAuto, aqOverseerOk, aqUseOverseer, registerAquilonActions } from './aquilons.js';
+import { spChoices, isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
+import { rvChoices, rvSensesOk, rvUseSenses, isRV, rvSetup, rvStart, rvActivate, rvEnd, rvActions, rvSelf, rvRules, rvShot, rvDefence, rvNoReroll, rvCrestExtra, rvCrestControl, rvLurkCover, rvChroma, rvCarapace, rvCrush, rvAcidBlood, rvHorror, rvDeath, rvPloyBought, rvAmbush, rvPoisonHit, rvPlaceAuto, rvEndBattle, rvFreeBurrow, registerRavenerActions } from './raveners.js';
+import { dkMoveChoices, dkChoices, dkSetup, dkFreeHas, dkAdaptiveFree, dkBeadsOn, dkBeadsTarget, dkLeadership, dkLifeShame, dkVeteranActivate, dkDeath, dkPloyBought, dkGasApl, dkReady, dkWeapons, dkActions, dkSelf, registerDeathKorpsActions, hasOrder } from './deathkorps.js';
 import { kfSetup, kfActions, kfSelf, kfActivate, kfQuickDraw, kfShootStart, kfShootEnd, kfRules, kfGatherFree, registerKinbandActions } from './kinband.js';
-import { kmSetup, kmReady, kmWeapons, kmPloyBought, kmEndFirefight, kmKunnin, kmActions, kmSelf, registerKommandoActions } from './kommandos.js';
-import { pmSetup, pmRules, pmBells, pmVents, pmWeapons, pmPloyBought, pmReady, pmCloud, pmCurse } from './plague.js';
-import { adSetup, adTactics, adVeteran, adPloyBought, adHeroicFree, adHeroicUsed, adIronHalo, adRoll, adShootStart, adAuspexOn, adEnd, adTilting, adReliquaries } from './angels.js';
-import { isPulse, pfSetup, pfActivate, pfEnd, pfRules, pfGravHit, pfShield, pfTaoBonus, pfShootStart, pfShootEnd, pfMarkerTargets, pfMarkerlight, pfSwap, pfPointBlank, pfPloyBought, pfWorthy, pfActions, pfSelf, registerPathfinderActions } from './pathfinders.js';
-import { isSF, sfSetup, sfSermon, sfOrator, sfNearOrator, sfReady, sfActivate, sfEnd, sfRules, sfConversion, sfNullApl, sfShootBlaze, sfFightBlaze, sfRoll, sfSymbols, sfSwap, sfPloyBought, sfMiracleMoves, sfDeath, sfDeclaim, sfActions, sfSelf, registerSanctifierActions } from './sanctifiers.js';
+import { kmChoices, kmSetup, kmReady, kmWeapons, kmPloyBought, kmEndFirefight, kmKunnin, kmActions, kmSelf, registerKommandoActions } from './kommandos.js';
+import { pmChoices, pmSetup, pmRules, pmBells, pmVents, pmWeapons, pmPloyBought, pmReady, pmCloud, pmCurse } from './plague.js';
+import { adChoices, adSetup, adTactics, adVeteran, adPloyBought, adHeroicFree, adHeroicUsed, adIronHalo, adRoll, adShootStart, adAuspexOn, adEnd, adTilting, adReliquaries } from './angels.js';
+import { pfChoices, isPulse, pfSetup, pfActivate, pfEnd, pfRules, pfGravHit, pfShield, pfTaoBonus, pfShootStart, pfShootEnd, pfMarkerTargets, pfMarkerlight, pfSwap, pfPointBlank, pfPloyBought, pfWorthy, pfActions, pfSelf, registerPathfinderActions } from './pathfinders.js';
+import { sfChoices, stepTo, isSF, sfSetup, sfSermon, sfOrator, sfNearOrator, sfReady, sfActivate, sfEnd, sfRules, sfConversion, sfNullApl, sfShootBlaze, sfFightBlaze, sfRoll, sfSymbols, sfSwap, sfPloyBought, sfMiracleMoves, sfDeath, sfDeclaim, sfActions, sfSelf, registerSanctifierActions } from './sanctifiers.js';
 import { rtShootHideWhy, isRat, isSmall, isRifle, rtSetup, rtFree, rtTripwires, rtStolen, rtMine, rtSilent, rtRules, rtShifty, rtEquipRoll, rtArmour, rtBlockSI, rtScarper, rtAfterEnemyAction, rtMoved, rtLieInWait, rtShot, rtActions, registerRatlingActions } from './ratlings.js';
-import { isSC, scSetup, scResolve, scReady, scActivate, scNoteAttack, scEmbOk, scRules, scGuerrilla, scCamoExtra, scWeapons, scOculars, scVoxFree, scPloyBought, scActions, scTrapPath, scTrapShorten, scTrapFire, scTrapCheck, registerScoutActions } from './scouts.js';
-import { isNC, ncSetup, ncReady, ncTPEnd, ncPortent, ncTerror, ncFightToken, ncActivate, ncPoisonCheck, ncObscure, ncScreeched, ncRules, ncWeapons, ncJammed, ncDeath, ncMoved, ncReturn, ncScream, ncKill, ncSnare, ncActions, ncSelf, registerNightlordsActions } from './nightlords.js';
+import { scChoices, isSC, scSetup, scResolve, scReady, scActivate, scNoteAttack, scEmbOk, scRules, scGuerrilla, scCamoExtra, scWeapons, scOculars, scVoxFree, scPloyBought, scActions, scTrapPath, scTrapShorten, scTrapFire, scTrapCheck, registerScoutActions } from './scouts.js';
+import { ncChoices, ncReturnBought, isNC, ncSetup, ncReady, ncTPEnd, ncPortent, ncTerror, ncFightToken, ncActivate, ncPoisonCheck, ncObscure, ncScreeched, ncRules, ncWeapons, ncJammed, ncDeath, ncMoved, ncReturn, ncScream, ncKill, ncSnare, ncActions, ncSelf, registerNightlordsActions } from './nightlords.js';
 import { isWK, wkSetup, wkActionStart, wkRoll, wkKompetitive, wkActivate, shokked, wkMove, wkSaveBonus, wkReckless, wkRules, wkGlyphFree, wkPloyBought, wkReady, wkBoom, wkDetonate, wkSmash, wkPulsaShot, wkActions, wkSelf, registerWreckaActions } from './wrecka.js';
 import { isMurderwing, mwSetup, mwStrategy, mwActivation, mwActionStart, mwBoon, mwRules, mwDelay, mwFallBack, mwMoved, mwActions, mwSelf, mwHonour, registerMurderwingActions } from './murderwing.js';
 import { isMandrake, withinShadow, mdSetup, mdReady, mdStrategy, mdActivate, mdProjected, mdRules, mdRangedBonus, mdWeapons, mdShot, mdKill, mdDeath, mdFeast, mdActions, mdSelfAction, mdFallBack, mdInterrupt, mdEnd, registerMandrakeActions } from './mandrakes.js';
@@ -789,6 +789,7 @@ export const ployChooser = (g) => g.stratTurn ?? (g.stratStep ? 1 - g.initiative
 export function finishPloys(g) {
   if (g.phase !== 'strategy') return false;
   const side = ployChooser(g);
+  if (pendingChoice(g, side)) return false; // (a pick still to make)
   log(g, { zh: `${teamZh(g, side)} 跳過（0CP）`, en: `${team(g, side).name.en} passes (0CP)` }, `side${side}`);
   g.stratOpportunities ||= [0, 0];
   if (!g.stratOpportunities[side] && !g.ploys[side].length && living(g, side).some((o) => tpl(o).cunning)) { g.cp[side]++; log(g, { zh: '狡詐：首先放棄策略計謀，+1CP', en: 'Cunning: passed at first opportunity, +1CP' }, `side${side}`); }
@@ -869,7 +870,7 @@ export function buyPloy(g, side, ploy) {
   if (g.phase !== 'strategy' || !ploy) return false;
   if (ploy.id === 'mdCreeping' && g.tp === 1) return false;
   const cost = ployCost(g, side, ploy);
-  if (side !== ployChooser(g) || g.cp[side] < cost || ployTaken(g, side, ploy)) return false;
+  if (side !== ployChooser(g) || g.cp[side] < cost || ployTaken(g, side, ploy) || pendingChoice(g, side)) return false;
   if (g.ployBlocked?.[side]?.[ploy.id] === g.tp) return false; // (Absolute Authority: not again this TP)
   if (absoluteAuthority(g, side, ploy, cost)) { advanceStrategy(g, side); return true; } // (Inquisition: cancelled, nothing spent)
   if (dwCommandFree(g, side, 'strategy')) dwConsumeCommand(g, side, 'strategy');
@@ -893,14 +894,19 @@ export function buyPloy(g, side, ploy) {
   adPloyBought(g, side, ploy); // Angels of Death: Adaptive Tactics
   if (ploy.oncePerBattle) ((g.battlePloys ||= [[], []])[side]).push(ploy.id);
   // Glory Kill: the toughest enemy a friendly can see (it can be changed while choosing ploys).
-  if (ploy.id === 'gloryKill') setGloryKill(g, side, living(g, 1 - side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]);
+  if (ploy.id === 'gloryKill') needChoice(g, side, 'gloryKill');
+  if (ploy.id === 'suspectEliminate') needChoice(g, side, 'suspectEliminate');
+  if (ploy.id === 'prioritisedAcq') needChoice(g, side, 'prioritisedAcq');
+  if (ploy.id === 'huntForBlood') needChoice(g, side, 'huntForBlood');
+  if (ploy.id === 'ncReturn') ncReturnBought(g, side); // (Return to Darkness: a player moves at once)
   // Attack / Defence Order: the marker starts by the friendly operative nearest the centre of the killzone.
   if (ploy.marker) placeNavyOrder(g, side, living(g, side).sort((a, b) => dist(a, { x: boardOf(g).w / 2, y: boardOf(g).h / 2 }) - dist(b, { x: boardOf(g).w / 2, y: boardOf(g).h / 2 }))[0]);
   const free = cost === 0 && ploy.cp > 0 ? freePloyOp(g, side, ploy) : null;
   if (free) (g.freePloys[side] ||= []).push(ploy.id);
   const note = free ? { zh: `（${opName(free, 'zh')} 教條戰：0CP）`, en: ` (${opName(free, 'en')} Doctrine Warfare: 0CP)` } : { zh: '', en: '' };
   log(g, { zh: `${teamZh(g, side)} 使用計謀「${ploy.name.zh}（${ploy.name.en}）」${note.zh}`, en: `${team(g, side).name.en} uses ploy "${ploy.name.en}"${note.en}` }, `side${side}`);
-  advanceStrategy(g, side);
+  if (pendingChoice(g, side)) (g.pendingAdvance ||= [false, false])[side] = true; // (the turn passes once the pick is made)
+  else advanceStrategy(g, side);
   return true;
 }
 
@@ -3616,9 +3622,63 @@ const upgradePost = (pool) => {
 const scryPost = (g, op, mode) => (scryOn(g, op, mode) ? upgradePost : null);
 /** Quarry (ploy): the enemy friendlies attack with Ceaseless; a new one is picked (automatically) when it falls. */
 const quarryOf = (g, side) => (g.quarry?.[side]?.tp === g.tp ? getOp(g, g.quarry[side].uid) : null);
-function pickQuarry(g, side) {
+/** The players' picks for ploys in this file (Glory Kill, Quarry, Denounce, Suspect & Eliminate, Prioritised Acquisition, Hunt for Blood). */
+function registerCoreChoices() {
+  const B = (zh, en) => ({ zh, en });
+  const enemies = (g, side) => living(g, 1 - side).filter((e) => e.side < 2 && e.x > -50);
+  const ops = (list) => list.map((o) => ({ value: o.uid }));
+  CHOICES.gloryKill = {
+    kind: 'op', title: B('榮耀擊殺：選一名友方看得到的敵人', 'Glory Kill: pick an enemy a friendly can see'),
+    options: (g, side) => ops(enemies(g, side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible))),
+    auto: (g, side) => enemies(g, side).filter((e) => living(g, side).some((f) => visibility(g, f, e).visible)).sort((a, b) => b.wounds - a.wounds)[0]?.uid ?? null,
+    apply: (g, side, uid) => setGloryKill(g, side, getOp(g, uid)),
+  };
+  CHOICES.quarry = {
+    kind: 'op', title: B('獵物：選一名敵人', 'Quarry: pick an enemy'),
+    options: (g, side) => ops(enemies(g, side)), auto: (g, side) => quarryAuto(g, side)?.uid ?? null,
+    apply: (g, side, uid) => pickQuarry(g, side, getOp(g, uid)),
+  };
+  CHOICES.denounce = {
+    kind: 'op', title: B('揭發：選一名敵人', 'Denounce: pick an enemy'),
+    options: (g, side) => ops(enemies(g, side)),
+    auto: (g, side) => enemies(g, side).sort((a, b) => tpl(b).apl * b.wounds - tpl(a).apl * a.wounds)[0]?.uid ?? null,
+    apply: (g, side, uid) => denounceOn(g, side, getOp(g, uid)),
+  };
+  const crowd = (g, side, e) => living(g, 1 - side).filter((o) => o !== e && edgeDist(o, e) <= 2 && visibility(g, e, o).visible);
+  CHOICES.suspectEliminate = {
+    kind: 'op', title: B('懷疑與剷除：選一名敵人（它 2" 內看得到的敵人也會得到懷疑標記）', 'Suspect & Eliminate: pick an enemy (enemies visible within 2" of it are suspected too)'),
+    options: (g, side) => ops(enemies(g, side)),
+    auto: (g, side) => { const mine = living(g, side), near = (e) => Math.min(...mine.map((m) => dist(m, e))); return enemies(g, side).sort((a, b) => crowd(g, side, b).length - crowd(g, side, a).length || near(a) - near(b))[0]?.uid ?? null; },
+    apply(g, side, uid) {
+      const t = getOp(g, uid);
+      (g.suspectTP ||= [0, 0])[side] = g.tp;
+      for (const e of [t, ...crowd(g, side, t)]) (e.suspect ||= [0, 0])[side] = g.tp;
+      log(g, { zh: `懷疑與剷除：${opName(t, 'zh')} 和身邊 ${crowd(g, side, t).length} 名敵人得到懷疑標記`, en: `Suspect & Eliminate: ${opName(t, 'en')} and ${crowd(g, side, t).length} enemies by it gain Suspicion tokens` }, `side${side}`);
+    },
+  };
+  CHOICES.prioritisedAcq = {
+    kind: 'objective', title: B('優先取得：選一個目標點', 'Prioritised Acquisition: pick an objective marker'),
+    options: (g) => (g.objectives || []).map((o) => ({ value: o.id })),
+    auto: (g, side) => { const mine = living(g, side), d = (o) => Math.min(...mine.map((m) => dist(m, o))); return [...(g.objectives || [])].sort((a, b) => d(a) - d(b))[0]?.id ?? null; },
+    apply(g, side, id) {
+      const obj = g.objectives.find((o) => o.id === id);
+      (g.acquisition ||= [null, null])[side] = { tp: g.tp, id: obj.id, x: obj.x, y: obj.y };
+      log(g, { zh: `${teamZh(g, side)} 優先取得：目標點 ${obj.id + 1}`, en: `${team(g, side).name.en} Prioritised Acquisition: objective ${obj.id + 1}` }, `side${side}`);
+    },
+  };
+  CHOICES.huntForBlood = {
+    kind: 'op', title: B('血之狩獵：選一名友方（策略階段結束時，它改為交戰並免費衝鋒最多 3"）', 'Hunt for Blood: pick a friendly (at the end of the Strategy phase it goes Engage and Charges up to 3" for free)'),
+    options: (g, side) => ops(living(g, side).filter((o) => isGM(o) && !isEngaged(g, o) && o.x > -50)),
+    auto: () => null, none: () => {}, // (the computer picks at the end of the Strategy phase)
+    apply: (g, side, uid) => { (g.huntPick ||= [null, null])[side] = { tp: g.tp, uid }; },
+  };
+}
+
+function quarryAuto(g, side) {
   const mine = living(g, side), near = (e) => Math.min(...mine.map((m) => dist(m, e)));
-  const t = living(g, 1 - side).filter((e) => e.side < 2).sort((a, b) => (tpl(b).apl * b.wounds) - (tpl(a).apl * a.wounds) || near(a) - near(b))[0];
+  return living(g, 1 - side).filter((e) => e.side < 2).sort((a, b) => (tpl(b).apl * b.wounds) - (tpl(a).apl * a.wounds) || near(a) - near(b))[0] || null;
+}
+function pickQuarry(g, side, t = quarryAuto(g, side)) {
   (g.quarry ||= [null, null])[side] = t ? { tp: g.tp, uid: t.uid } : null;
   if (t) log(g, { zh: `獵物：${opName(t, 'zh')}（友方攻擊它時武器「無休」）`, en: `Quarry: ${opName(t, 'en')} (friendlies attacking it have Ceaseless)` }, `side${side}`);
 }
@@ -3677,9 +3737,11 @@ function relentlessPursuit(g, enemy, from) {
 const prefersMeleeG = (o) => { const ws = tpl(o).weapons; const best = (t) => Math.max(0, ...ws.filter((w) => w.type === t).map((w) => w.atk * w.dmg[0])); return best('melee') > best('ranged') ? 1 : 0; };
 /** Inquisition strategy ploys that pick a target: Denounce and Quarry (automatic). */
 function inquisitionPloy(g, side, ploy) {
-  if (ploy.id === 'quarry') pickQuarry(g, side);
-  if (ploy.id === 'denounce') {
-    const t = living(g, 1 - side).filter((e) => e.side < 2).sort((a, b) => tpl(b).apl * b.wounds - tpl(a).apl * a.wounds)[0];
+  if (ploy.id === 'quarry') needChoice(g, side, 'quarry');
+  if (ploy.id === 'denounce') needChoice(g, side, 'denounce');
+}
+function denounceOn(g, side, t) {
+  {
     if (t) {
       const n = d3();
       (g.denounce ||= [null, null])[side] = { tp: g.tp, uid: t.uid, n };
@@ -3923,7 +3985,7 @@ function goremongerStrategyEnd(g, side) {
   if (!TEAM_MAP[g.teams[side]]?.goreTanks || !hasPloy(g, side, 'huntForBlood') || g.huntTP?.[side] === g.tp) return;
   (g.huntTP ||= [0, 0])[side] = g.tp;
   let best = null;
-  for (const op of living(g, side).filter((o) => isGM(o) && !isEngaged(g, o))) {
+  for (const op of living(g, side).filter((o) => isGM(o) && !isEngaged(g, o) && (g.huntPick?.[side]?.tp !== g.tp || g.huntPick[side].uid === o.uid))) { // (the friendly the player picked)
     const ctx = moveCtx(g, op);
     for (const e of foes(g, op).filter((x) => x.side < 2 && edgeDist(op, x) <= 3 + CONTROL)) {
       for (let a = 0; a < 16; a++) {
@@ -4126,7 +4188,7 @@ function insidiantsStrategyEnd(g, side) {
       log(g, { zh: `${opName(mort, 'zh')} 熱誠的最後通牒：${opName(t, 'zh')}${accepted ? '接受（雙方近戰時闊劍 Atk +1）' : '拒絕（它對修女近戰時 Atk -1）'}（擲 ${r}）`, en: `${opName(mort, 'en')} Zealous Ultimatum: ${opName(t, 'en')} ${accepted ? 'accepts (+1 Atk for the broadsword between them)' : 'declines (-1 Atk fighting the Insidiants)'} (rolled ${r})` }, `side${side}`);
     }
   }
-  if (hasPloy(g, side, 'suspectEliminate')) {
+  if (hasPloy(g, side, 'suspectEliminate') && g.suspectTP?.[side] !== g.tp) {
     const mine = living(g, side), near = (e) => Math.min(...mine.map((m) => dist(m, e)));
     const crowd = (e) => living(g, 1 - side).filter((o) => o !== e && edgeDist(o, e) <= 2 && visibility(g, e, o).visible);
     const t = living(g, 1 - side).filter((e) => e.side < 2).sort((a, b) => crowd(b).length - crowd(a).length || near(a) - near(b))[0];
@@ -4948,6 +5010,79 @@ export function abilityToggle(g, side, id) {
   const i = off.indexOf(id);
   if (i >= 0) off.splice(i, 1); else off.push(id);
 }
+// ---------- Player choices (room for mistakes) ----------
+// A ploy or gambit that has the player pick something (an operative, a marker, an option or a point): for a player side (g.pick[side],
+// set by the interface) it waits as a pending choice; the computer (and tests) get the automatic pick. Each team module adds its entries:
+// { kind: 'op' | 'objective' | 'option' | 'point', title, hint, options(g, side, ctx) → [{ value, label? }], valid(g, side, v, ctx) (points),
+//   auto(g, side, ctx) → value | null, apply(g, side, value, ctx), none(g, side, ctx) (nothing to pick / skipped), again(g, side, ctx) (pick another) }
+// Free moves ({ kind: 'move', movers(g, side, ctx) → operatives, moveKind(g, o, ctx), max(g, o, ctx), check(g, side, o, end, ctx), autoAll(g, side, ctx) }):
+// the player moves each mover it wants (a path to a tapped point), then finishes; ctx.n caps how many.
+export const CHOICES = {};
+export const playerPicks = (g, side) => side < 2 && !!g.pick?.[side];
+export function needChoice(g, side, id, ctx = {}) {
+  const c = CHOICES[id];
+  if (!c) return;
+  if (c.kind === 'move') {
+    ctx.done ||= [];
+    if (!c.movers(g, side, ctx).length) { c.none?.(g, side, ctx); return; }
+    if (playerPicks(g, side)) (g.pending ||= []).push({ side, id, ctx }); else c.autoAll(g, side, ctx);
+    return;
+  }
+  if (playerPicks(g, side)) {
+    if (c.options && !c.options(g, side, ctx).length) { c.none?.(g, side, ctx); return; }
+    (g.pending ||= []).push({ side, id, ctx });
+    return;
+  }
+  const v = c.auto(g, side, ctx);
+  if (v != null) c.apply(g, side, v, ctx); else c.none?.(g, side, ctx);
+}
+export const pendingChoice = (g, side) => (g.pending || []).find((p) => p.side === side) || null;
+/** The player's pick (null: skip it, where the entry allows that); 'auto' lets the computer pick for them. */
+export function resolveChoice(g, side, value) {
+  const p = pendingChoice(g, side);
+  if (!p) return false;
+  const c = CHOICES[p.id];
+  if (c.kind === 'move') return resolveMove(g, side, p, c, value);
+  if (value === 'auto') value = c.auto(g, side, p.ctx);
+  if (value != null) {
+    if (c.options && !c.options(g, side, p.ctx).some((o) => o.value === value)) return false;
+    if (c.valid && !c.valid(g, side, value, p.ctx)) return false;
+  } else if (!c.skippable && !c.none) return false;
+  g.pending = g.pending.filter((x) => x !== p);
+  if (value == null) c.none?.(g, side, p.ctx); else c.apply(g, side, value, p.ctx);
+  if (value != null && c.again?.(g, side, p.ctx)) g.pending.unshift(p); // (another pick: Adaptable Training)
+  afterPick(g, side);
+  return true;
+}
+function afterPick(g, side) {
+  if (g.pendingAdvance?.[side] && !pendingChoice(g, side)) { g.pendingAdvance[side] = false; if (g.phase === 'strategy') advanceStrategy(g, side); }
+}
+/** The legal path of a free move (whole inches, not ending in an enemy's control range unless it's a Charge). */
+export function freeMovePath(g, o, kind, max, pts) {
+  if (!o || !pts?.length) return null;
+  const ctx = moveCtx(g, o, kind);
+  const path = wholeInchPath(ctx, { pts: [{ x: o.x, y: o.y }, ...pts.filter((q, i) => i > 0 || Math.hypot(q.x - o.x, q.y - o.y) > 0.01)] }, max, kind === 'charge' ? ctx.inEnemyER : (q) => !ctx.inEnemyER(q));
+  return path && path.len <= max + 0.01 ? path : null;
+}
+/** One free move picked by the player ({ uid, pts }), 'auto' (the computer moves them all) or null (done). */
+function resolveMove(g, side, p, c, value) {
+  const finish = () => { g.pending = g.pending.filter((x) => x !== p); afterPick(g, side); return true; };
+  if (value == null) return finish();
+  if (value === 'auto') { if (p.ctx.done.length) return false; g.pending = g.pending.filter((x) => x !== p); c.autoAll(g, side, p.ctx); afterPick(g, side); return true; }
+  const o = moversLeft(g, side, c, p.ctx).find((x) => x.uid === value.uid);
+  if (!o) return false;
+  const path = freeMovePath(g, o, c.moveKind(g, o, p.ctx), c.max(g, o, p.ctx), value.pts);
+  const end = path?.pts.at(-1);
+  if (!end || (c.check && !c.check(g, side, o, end, p.ctx))) return false;
+  stepTo(g, o, end);
+  c.after?.(g, side, o, p.ctx);
+  p.ctx.done.push(o.uid);
+  log(g, { zh: `${tx2(c.title, 'zh')}：${opName(o, 'zh')} 移動 ${path.len}"`, en: `${tx2(c.title, 'en')}: ${opName(o, 'en')} moves ${path.len}"` }, `side${side}`);
+  if (!moversLeft(g, side, c, p.ctx).length || (p.ctx.n != null && p.ctx.done.length >= p.ctx.n)) return finish();
+  return true;
+}
+export const moversLeft = (g, side, c, ctx) => c.movers(g, side, ctx).filter((o) => !ctx.done?.includes(o.uid));
+const tx2 = (t, lang) => String(t[lang]).split('：')[0].split(':')[0];
 /** Auto ploys: armed unless the player switched them off. */
 export const ffArmed = (g, side, id) => !g.ffOff?.[side]?.includes(id);
 export function ffToggleArm(g, side, id) {
@@ -7072,3 +7207,5 @@ export function resolveFight(g, op, weapon, target) {
   endFight(g);
   return f;
 }
+
+registerCoreChoices(); aqChoices(); pmChoices(); adChoices(); rvChoices(); xvChoices(); dkChoices(); kmChoices(); pfChoices(); dkMoveChoices(); sfChoices(); scChoices(); spChoices(); ncChoices(); // (after CHOICES is defined)

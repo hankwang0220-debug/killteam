@@ -1,7 +1,7 @@
 // Scout Squad (偵察小隊) rules engine: Forward Scouting, Guidance and Experience, Track Enemy, Grapnel Assault, the ploys
 // and the faction equipment. game.js calls these hooks; the team data is in data/scouts.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { abilityArmed, ACTIONS, TARGET_ACTIONS, boardOf, CONTROL, OBJ_R, applyDamage, changeApl, d3, d6, deployZones, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, moveAllowance, opName, placeAuto, radius, team, tpl, visibility } from './game.js';
+import { CHOICES, needChoice, playerPicks, abilityArmed, ACTIONS, TARGET_ACTIONS, boardOf, CONTROL, OBJ_R, applyDamage, changeApl, d3, d6, deployZones, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, moveAllowance, opName, placeAuto, radius, team, tpl, visibility } from './game.js';
 import { dist, distPointRect, pathLength, truncatePath } from './geometry.js';
 import { moveCtx, wholeInchPath } from './path.js';
 import { revealTacOp } from './missions.js';
@@ -224,6 +224,29 @@ export const scVoxFree = (g, side, id) => g.teams[side] === 'scoutSquad' && (id 
 
 // ---------- strategy ploys (automatic) ----------
 export function scPloyBought(g, side, ploy) {
+  if (ploy.id === 'scAdaptable' && playerPicks(g, side)) { const n = d3(); note(g, side, `適應訓練：最多 ${n} 名`, `Adaptable Training: up to ${n}`); needChoice(g, side, 'scAdaptable', { n, done: [] }); return; }
+  if (ploy.id === 'scStealth') { const n = d3(); note(g, side, `隱蔽轉移：最多 ${n} 名`, `Stealth Relocation: up to ${n}`); needChoice(g, side, 'scStealth', { n }); return; }
+  scOld(g, side, ploy);
+}
+const scAway = (g, side) => living(g, side).filter((o) => isSC(o) && o.x > -50 && !foes(g, o).some((e) => edgeDist(e, o) <= 4));
+/** The player's picks: Adaptable Training (the operatives whose order changes), Stealth Relocation (the free Dashes). */
+export function scChoices() {
+  CHOICES.scAdaptable = {
+    kind: 'op', title: { zh: '適應訓練：點友方改變它的指令（交戰↔隱蔽）', en: 'Adaptable Training: tap a friendly to change its order (Engage ↔ Conceal)' },
+    options: (g, side, ctx) => scAway(g, side).filter((o) => !ctx.done.includes(o.uid)).map((o) => ({ value: o.uid })),
+    auto: (g, side, ctx) => scAway(g, side).find((o) => !ctx.done.includes(o.uid) && o.order !== (Math.min(...foes(g, o).map((e) => edgeDist(e, o)), 99) <= 12 ? 'engage' : 'conceal'))?.uid ?? null,
+    apply(g, side, uid, ctx) { const o = g.ops.find((x) => x.uid === uid); o.order = o.order === 'engage' ? 'conceal' : 'engage'; ctx.done.push(uid); note(g, side, `適應訓練：${opName(o, 'zh')} 改為${o.order === 'engage' ? '交戰' : '隱蔽'}指令`, `Adaptable Training: ${opName(o, 'en')} now has a${o.order === 'engage' ? 'n Engage' : ' Conceal'} order`); },
+    again: (g, side, ctx) => ctx.done.length < ctx.n && scAway(g, side).some((o) => !ctx.done.includes(o.uid)),
+    skippable: true, none: () => {},
+  };
+  CHOICES.scStealth = {
+    kind: 'move', title: { zh: '隱蔽轉移：隱蔽指令、4" 內沒有敵人的偵察兵免費衝刺', en: 'Stealth Relocation: Concealed scouts with no enemy within 4" make free Dashes' },
+    movers: (g, side) => scAway(g, side).filter((o) => o.order === 'conceal'), moveKind: () => 'dash', max: () => 3,
+    none: (g, side) => note(g, side, '隱蔽轉移：沒有符合條件的特工', 'Stealth Relocation: no eligible operative'),
+    autoAll(g, side, ctx) { for (const o of scAway(g, side).filter((x) => x.order === 'conceal').slice(0, ctx.n)) stealthDash(g, o); },
+  };
+}
+function scOld(g, side, ploy) {
   const scouts = living(g, side).filter((o) => isSC(o) && !foes(g, o).some((e) => edgeDist(e, o) <= 4));
   if (ploy.id === 'scAdaptable') {
     // Up to D3 operatives: Engage when an enemy is within 12" (it can shoot soon), otherwise Conceal.

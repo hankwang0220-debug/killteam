@@ -1,6 +1,6 @@
 // Nemesis Claw (復仇之爪) rules engine: Prescience, Terrorchem, In Midnight Clad, Disconcerting Mimicry, the ploys and the
 // faction equipment. game.js calls these hooks; the team data is in data/nightlords.js.
-import { ACTIONS, TARGET_ACTIONS, CONTROL, OBJ_R, applyDamage, changeApl, controller, d3, d6, edgeDist, engagedEnemies, foes, handOff, hasPloy, hasReady, isEngaged, isInjured, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
+import { CHOICES, needChoice, playerPicks, ACTIONS, TARGET_ACTIONS, CONTROL, OBJ_R, applyDamage, changeApl, controller, d3, d6, edgeDist, engagedEnemies, foes, handOff, hasPloy, hasReady, isEngaged, isInjured, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { moveCtx, wholeInchPath } from './path.js';
 import { NIGHTLORDS_TEAM, nightlordsRosterError } from './data/nightlords.js';
@@ -151,9 +151,32 @@ export function ncMoved(g, op, kind, first) {
   ncPoisonCheck(g);
 }
 /** Return to Darkness: a friendly makes a free move (up to 4") to end beside Heavy terrain, not closer to any enemy — automatic. */
+/** Return to Darkness, bought by a player: they move the operative themselves at once (the computer's is made at the end of the Strategy phase). */
+export function ncReturnBought(g, side) {
+  if (!playerPicks(g, side)) return;
+  (g.ncReturnTP ||= [0, 0])[side] = g.tp;
+  needChoice(g, side, 'ncReturn', { n: 1 });
+}
+function returnOk(g, side, o, q) {
+  const heavy = g.terrain.filter((t) => t.kind === 'heavy'), enemies = foes(g, o).filter((e) => e.side < 2 && e.x > -50), at = { ...o, x: q.x, y: q.y };
+  if (!heavy.some((t) => distPointRect(q, t) - radius(o) <= CONTROL + 0.01)) return false;
+  if (enemies.length && Math.min(...enemies.map((e) => edgeDist(at, e))) < Math.min(...enemies.map((e) => edgeDist(o, e))) - 0.01) return false;
+  const holds = (g.objectives || []).some((m) => controller(g, m) === side && dist(o, m) - radius(o) - OBJ_R <= CONTROL);
+  return !holds || (g.objectives || []).some((m) => controller(g, m) === side && dist(at, m) - radius(o) - OBJ_R <= CONTROL);
+}
+export function ncChoices() {
+  CHOICES.ncReturn = {
+    kind: 'move', title: { zh: '回歸黑暗：一名友方免費重新定位到重型地形旁，不能更靠近敵人', en: 'Return to Darkness: a friendly makes a free Reposition to beside Heavy terrain, not closer to the enemy' },
+    movers: (g, side) => living(g, side).filter((o) => isNC(o) && o.x > -50 && !isEngaged(g, o)), moveKind: () => 'reposition', max: () => 4, check: returnOk,
+    autoAll: (g, side) => ncReturnAuto(g, side),
+  };
+}
 export function ncReturn(g, side) {
   if (g.teams[side] !== 'nemesisClaw' || !hasPloy(g, side, 'ncReturn') || g.ncReturnTP?.[side] === g.tp) return;
   (g.ncReturnTP ||= [0, 0])[side] = g.tp;
+  ncReturnAuto(g, side);
+}
+function ncReturnAuto(g, side) {
   const heavy = g.terrain.filter((t) => t.kind === 'heavy');
   let best = null;
   for (const o of living(g, side).filter(isNC)) {

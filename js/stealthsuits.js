@@ -2,7 +2,7 @@
 // and Homing Beacon, the Neutraliser, the ploys and the faction equipment. game.js calls these hooks; the team data is in data/stealthsuits.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, changeApl, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, visibility, boardOf, deployZones, territoryOf, controller, ffReady, ffArmed } from './game.js';
+import { CHOICES, needChoice, abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, changeApl, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, visibility, boardOf, deployZones, territoryOf, controller, ffReady, ffArmed } from './game.js';
 import { dist } from './geometry.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { STEALTH_TEAM, stealthRosterError } from './data/stealthsuits.js';
@@ -242,7 +242,26 @@ export function xvReady(g) {
   }
 }
 export function xvPloyBought(g, side, ploy) {
-  if (ploy.id !== 'xvAmbush') return;
+  if (ploy.id === 'xvAmbush') needChoice(g, side, 'xvAmbush');
+}
+const ambushOk = (g, side, p) => { const b = boardOf(g); return !!p && p.x > 0 && p.y > 0 && p.x < b.w && p.y < b.h && territoryOf(g, p) === side && !foes(g, { side }).some((e) => e.x > -50 && e.side < 2 && dist(e, p) - radius(e) <= 2); };
+/** The players' picks: the Ambush marker (a point), Counter-Network Jammers (a marker). */
+export function xvChoices() {
+  CHOICES.xvAmbush = {
+    kind: 'point', title: { zh: '準備伏擊：點棋盤放伏擊標記（你的領地內、離敵人 2" 以上）', en: 'Prepare Ambush: tap the board for the Ambush marker (in your territory, more than 2" from enemies)' },
+    valid: (g, side, p) => ambushOk(g, side, p),
+    auto: (g, side) => ambushAuto(g, side),
+    apply(g, side, p) { g.xv.ambush[side] = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, tp: g.tp }; note(g, side, `準備伏擊：伏擊標記放在 (${g.xv.ambush[side].x}, ${g.xv.ambush[side].y})`, `Prepare Ambush: the Ambush marker goes at (${g.xv.ambush[side].x}, ${g.xv.ambush[side].y})`); },
+    none: () => {},
+  };
+  CHOICES.xvJammers = {
+    kind: 'objective', title: { zh: '反網路干擾器：選一個目標點', en: 'Counter-Network Jammers: pick an objective marker' },
+    options: (g) => (g.objectives || []).map((o) => ({ value: o.id })),
+    auto: (g, side) => { const mine = living(g, side).filter((o) => isXV(o) && o.x > -50); return (g.objectives || []).slice().sort((a, b) => Math.min(...mine.map((o) => dist(o, a)), 99) - Math.min(...mine.map((o) => dist(o, b)), 99))[0]?.id ?? null; },
+    apply(g, side, id) { const obj = g.objectives.find((o) => o.id === id); g.xv.jam[side] = { id: obj.id, tp: g.tp }; note(g, side, `反網路干擾器：鎖定 (${obj.x.toFixed(1)}, ${obj.y.toFixed(1)}) 的目標點`, `Counter-Network Jammers: the marker at (${obj.x.toFixed(1)}, ${obj.y.toFixed(1)})`); },
+  };
+}
+function ambushAuto(g, side) {
   const en = foes(g, { side }).filter((e) => e.x > -50 && e.side < 2);
   const b = boardOf(g);
   let best = null;
@@ -252,9 +271,7 @@ export function xvPloyBought(g, side, ploy) {
     const s = en.length ? Math.min(...en.map((e) => dist(e, p))) : 0;
     if (!best || s < best.s) best = { p, s };
   }
-  if (!best) return;
-  g.xv.ambush[side] = { x: best.p.x, y: best.p.y, tp: g.tp };
-  note(g, side, `準備伏擊：伏擊標記放在 (${best.p.x}, ${best.p.y})`, `Prepare Ambush: the Ambush marker goes at (${best.p.x}, ${best.p.y})`);
+  return best ? best.p : null;
 }
 export function xvDroneOk(g, side) { return g.teams[side] === 'stealthSuits' && !!g.xv && g.phase === 'strategy' && g.xv.used[side].droneCtl !== g.tp && living(g, side).some((o) => tpl(o).xvShasvre && o.x > -50) && living(g, side).some((o) => tpl(o).xvDrone && o.x > -50); }
 /** XV26 Drone Controller (Shas'vre gambit): a drone ignores its action limits and its control penalty until the end of its next activation. */
@@ -268,10 +285,8 @@ export function xvDrone(g, side, uid) {
 export function xvJamOk(g, side) { return g.teams[side] === 'stealthSuits' && !!g.xv && g.phase === 'strategy' && equip(g, side, 'xvJammers') && g.xv.used[side].jammers !== g.tp && (g.objectives || []).length > 0; }
 export function xvJammers(g, side) {
   if (!xvJamOk(g, side)) return false;
-  const mine = living(g, side).filter((o) => isXV(o) && o.x > -50);
-  const obj = (g.objectives || []).slice().sort((a, b) => Math.min(...mine.map((o) => dist(o, a)), 99) - Math.min(...mine.map((o) => dist(o, b)), 99))[0];
-  g.xv.used[side].jammers = g.tp; g.xv.jam[side] = { id: obj.id, tp: g.tp };
-  note(g, side, `反網路干擾器：鎖定 (${obj.x.toFixed(1)}, ${obj.y.toFixed(1)}) 的目標點`, `Counter-Network Jammers: the marker at (${obj.x.toFixed(1)}, ${obj.y.toFixed(1)})`);
+  g.xv.used[side].jammers = g.tp;
+  needChoice(g, side, 'xvJammers');
   return true;
 }
 /** Counter-Network Jammers at a marker: the enemy total counts 1 lower when one of them is within 3" of a friendly suit. */
