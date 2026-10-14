@@ -18,7 +18,7 @@ import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
-import { wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
+import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
 import { adHeroicDocOk, adHeroicDocs, adHeroicDoc } from './angels.js';
@@ -1781,6 +1781,7 @@ function modeView(op) {
     const status = p ? (p.ok ? `<p class="ok">✔ ${p.len}"</p>` : `<p class="bad">✘ ${esc(p.why || '')}</p>`) : '';
     return `<div class="mode"><h3>${esc(tx(ACTIONS.edSprint.name))}</h3><p class="hint">${info}</p>${status}<div class="row">${cancel}<button class="primary" data-act="confirmsprint" ${p?.ok ? '' : 'disabled'}>${L('確認疾馳', 'Sprint')}</button></div></div>`;
   }
+  if (m.kind === 'wsStorm') return `<div class="mode"><h3>${esc(tx(ACTIONS.wsCallMove.name))}</h3><p class="hint">${L('點棋盤任何位置放風暴標記。', 'Tap anywhere on the board for the Storm marker.')}</p><div class="row">${cancel}</div></div>`;
   if (m.kind === 'turn') {
     return `<div class="mode"><h3>${esc(tx(ACTIONS.edTurn.name))}</h3><p class="hint">${L('點棋盤指定要面向的方向（最多轉 45°）。', 'Tap the board towards where it should face (45° at most).')}</p><div class="row">${cancel}<button class="primary" data-act="confirmturn" ${m.dest ? '' : 'disabled'}>${L('確認轉向（1AP）', 'Turn (1AP)')}</button></div></div>`;
   }
@@ -2016,7 +2017,7 @@ const ABILITIES = {
   wsGunner: () => ['暴風之怒', 'Tempest\'s Fury', '完全在風暴內時，電漿槍「懲罰」，超載模式沒有「過熱」。', 'Wholly within the storm its plasma gun has Punishing and the supercharge profile loses Hot.'],
   wsHunter: () => ['兇暴性情', 'Fierce Temperament', '完全在風暴內時，武器「嚴重」。', 'Wholly within the storm its weapons have Severe.'],
   wsTrap: () => ['干擾地雷', 'Haywire Mine', '攜帶干擾地雷標記（可放下、可撿回，不能放在其他特工控制範圍內）。第一次有其他特工進入地雷控制範圍時：移除標記，該特工下次啟動 APL -1，受 2D3+3 傷害（地雷在風暴標記 6" 內則 D3+6）。地雷兵自己不會觸發。', 'Carries the Haywire Mine marker (placed and picked up again; never within another operative\'s control range). The first time another operative has it within its control range: the marker goes, that operative gets -1 APL and takes 2D3+3 damage (D3+6 within 6" of the Storm marker). The Trapmaster never sets it off.'],
-  wsSkjald: () => ['擲符文・召喚風暴', 'Cast the Runes · Call the Storm', '戰鬥前擲 3D6：每個 1-4 在對應回合可以免費指揮重擲一次；有 5-6 得 1CP。召喚風暴（1AP，不能在交戰中）：把風暴標記移到一名友方身上，或讓一名友方在風暴內、離行動中的敵人 3" 外時被遮蔽（到它下次啟動）。', 'Before the battle roll 3D6: each 1-4 is a free Command Re-roll in that turning point; any 5-6 is 1CP. Call the Storm (1AP, not while engaged): move the Storm marker onto a friendly, or make a friendly obscured while wholly within the storm and more than 3" from the active operative (until its next activation).'],
+  wsSkjald: () => ['擲符文・召喚風暴', 'Cast the Runes · Call the Storm', '戰鬥前擲 3D6：每個 1-4 在對應回合可以免費指揮重擲一次；有 5-6 得 1CP。召喚風暴（1AP，不能在交戰中）：把風暴標記移到戰場任何位置（點棋盤），或讓一名友方在風暴內、離行動中的敵人 3" 外時被遮蔽（到它下次啟動）。', 'Before the battle roll 3D6: each 1-4 is a free Command Re-roll in that turning point; any 5-6 is 1CP. Call the Storm (1AP, not while engaged): move the Storm marker anywhere (tap the board), or make a friendly obscured while wholly within the storm and more than 3" from the active operative (until its next activation).'],
   wsWolf: () => ['本能掠食者・撲擊', 'Instinctive Predator · Pounce', '只能衝鋒、衝刺、撤退、近戰、警戒、移動；隱蔽指令也能衝鋒。撲擊（整場一次的策略謀略）：免費衝鋒、撤退或移動，之後到下次啟動結束 APL -1、不能再做這三種。', 'Only Charge, Dash, Fall Back, Fight, Guard and Reposition; it can Charge on Conceal. Pounce (once per battle, strategic gambit): a free Charge, Fall Back or Reposition, then -1 APL and none of those until the end of its next activation.'],
   xvSuit: () => ['隱形力場・耐心獵人', 'Stealth Fields · Kauyon', '隱蔽指令時，3" 外的敵人看不到它，撤退少 1AP。射擊敵人時依敵人位置得到「精準 X」：在你領地 3" 內 1、在你領地內 2、在你降落區 3" 內 3。', 'With a Conceal order enemies more than 3" away can\'t see it, and it Falls Back for 1 less AP. Shooting an enemy: Accurate 1 within 3" of your territory, 2 in your territory, 3 within 3" of your drop zone.'],
   xvShasvre: () => ['為了善善上道・無人機控制', 'For the Greater Good · Drone Controller', '它在場上時，若有 2 名以上友方戰鬥服（不含無人機）殘廢，耐心獵人的精準 +1（最多 3）。無人機控制（策略謀略）：一架友方無人機到下次啟動結束不受無人機的前兩條限制。', 'While it is in the killzone and two or more friendly suits (not drones) are incapacitated, Kauyon\'s Accurate is 1 higher (max 3). Drone Controller (strategic gambit): one friendly drone ignores the first two Drone restrictions until the end of its next activation.'],
@@ -2745,6 +2746,7 @@ function onBoardClick(evt) {
   if (op && ui.mode && myTurn) {
     const m = ui.mode;
     if (m.kind === 'move') return previewMove(op, m.action, p);
+    if (m.kind === 'wsStorm') { undoable(() => wsCallStormAt(g, op, p)); ui.mode = null; return afterChange(); } // Call the Storm (Wolf Scouts)
     if (m.kind === 'sprint') {
       const c = sprintCheck(g, op, p);
       ui.path = { pts: [{ x: op.x, y: op.y }, p], len: c.inches || Math.hypot(p.x - op.x, p.y - op.y), ok: c.ok, why: c.why ? tx(c.why) : null, r: radius(op) };
@@ -3316,6 +3318,7 @@ function handle(act, d) {
       if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass', 'rtSlingshot', 'kmGrapple'].includes(d.id) || (d.id === 'rvBurrow' && op.underground) || d.id === 'aqLand' || d.id === 'vsSkytorch') ui.mode = { kind: 'move', action: d.id };
       else if (d.id === 'edSprint') ui.mode = { kind: 'sprint' }; // Exodite riders
       else if (d.id === 'edTurn') ui.mode = { kind: 'turn' };
+      else if (d.id === 'wsCallMove') ui.mode = { kind: 'wsStorm' }; // Call the Storm: tap where the Storm marker goes
       else if (d.id === 'shoot' || d.id === 'fight') {
         const type = d.id === 'shoot' ? 'ranged' : 'melee';
         const ws = weaponsFor(g, op).filter((w) => w.type === type);

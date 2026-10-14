@@ -276,14 +276,22 @@ export function registerWolfActions() {
       return { zh: `治療香膏：${opName(t, 'zh')} 回復 ${t.wounds - before} 生命`, en: `Healing Balms: ${opName(t, 'en')} regains ${t.wounds - before} wounds` };
     },
   };
-  TARGET_ACTIONS.wsCallMove = {
-    targets: (g, o) => friends(g, o),
-    apply(g, o, t) { o.acted.wsCall = 1; wsPlaceStorm(g, o.side, { x: t.x, y: t.y }, false); return { zh: `召喚風暴：風暴移到 ${opName(t, 'zh')} 身上`, en: `Call the Storm: the storm moves onto ${opName(t, 'en')}` }; },
-  };
+
   TARGET_ACTIONS.wsCallVeil = {
     targets: (g, o) => friends(g, o).filter((f) => isWS(f)),
     apply(g, o, t) { o.acted.wsCall = 1; g.ws.veil[o.side] = { uid: t.uid, by: o.uid }; return { zh: `召喚風暴：${opName(t, 'zh')} 在風暴內、離行動中的敵人 3" 外時被遮蔽`, en: `Call the Storm: ${opName(t, 'en')} is obscured wholly within the storm, more than 3" from the active operative` }; },
   };
+}
+
+/** Call the Storm (move): the Skjald puts the Storm marker anywhere in the killzone (the player taps the board). */
+export function wsCallStormAt(g, op, p) {
+  if (!isWS(op) || !tpl(op).wsSkjald || op.acted.wsCall || isEngaged(g, op) || op.ap < 1) return false;
+  const b = boardOf(g);
+  if (!p || p.x < 0 || p.y < 0 || p.x > b.w || p.y > b.h) return false;
+  spend(g, op, 'wsCallMove'); op.acted.wsCall = 1;
+  wsPlaceStorm(g, op.side, p, false);
+  note(g, op.side, '召喚風暴：風暴標記移動', 'Call the Storm: the Storm marker moves');
+  return true;
 }
 
 // ---------- the Haywire Mine ----------
@@ -294,12 +302,19 @@ export function wsMoved(g, op, path) {
   for (const m of (g.markers || []).filter((x) => x.kind === 'wsMine' && !x.carriedBy && x.x > -50)) {
     if (tpl(op).wsTrap && op.side === m.owner) continue; // (the Trapmaster itself is ignored)
     const pts = [...(path?.pts || []), { x: op.x, y: op.y }];
-    let hit = false;
+    let hit = null;
     for (let i = 0; i < pts.length && !hit; i++) {
       const a = pts[i], b = pts[i + 1] || a, n = Math.max(1, Math.ceil(dist(a, b) / 0.25));
-      for (let k = 0; k <= n && !hit; k++) { const p = { x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n }; if (dist(p, m) - radius(op) <= CONTROL) hit = true; }
+      for (let k = 0; k <= n && !hit; k++) { const p = { x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n }; if (dist(p, m) - radius(op) <= CONTROL) hit = p; }
     }
-    if (hit) wsBlow(g, op, m);
+    if (!hit) continue;
+    // The move ends where the mine went off ("end its action, even if its effects aren't fulfilled").
+    if (Math.hypot(hit.x - op.x, hit.y - op.y) > 0.05 && path?.pts?.length) {
+      op.x = Math.round(hit.x * 100) / 100; op.y = Math.round(hit.y * 100) / 100;
+      for (const c of (g.markers || []).filter((x) => x.carriedBy === op.uid)) { c.x = op.x; c.y = op.y; }
+      note(g, m.owner, `${opName(op, 'zh')} 在地雷處停下`, `${opName(op, 'en')} is stopped at the mine`);
+    }
+    wsBlow(g, op, m);
   }
 }
 function wsBlow(g, op, m) {
@@ -380,5 +395,17 @@ export function wsAiAction(g, op, can, self, target) {
   if (can.wsBalm) { const t = TARGET_ACTIONS.wsBalm.targets(g, op).filter((o) => o.maxW - o.wounds >= 4).sort((a, b) => a.wounds - b.wounds)[0]; if (t) { target(g, op, 'wsBalm', t); return true; } }
   if (can.wsPlaceMine && foes(g, op).some((e) => e.x > -50 && edgeDist(op, e) <= 10)) { self(g, op, 'wsPlaceMine'); return true; }
   if (can.wsSensesSev && op.ap >= 2 && can.shoot) { self(g, op, 'wsSensesSev'); return true; }
+  // Call the Storm: veil the friendly in the storm closest to the enemy, or bring the storm over more friendlies.
+  if (can.wsCallVeil && !g.ws.veil[op.side]) {
+    const near = (o) => Math.min(...foes(g, o).filter((e) => e.x > -50).map((e) => edgeDist(o, e)), 99);
+    const t = TARGET_ACTIONS.wsCallVeil.targets(g, op).filter((o) => !wolf(o) && inStorm(g, op.side, o) && near(o) > 3 && near(o) <= 12).sort((a, b) => near(a) - near(b))[0];
+    if (t) { target(g, op, 'wsCallVeil', t); return true; }
+  }
+  if (can.wsCallMove) {
+    const p = wsBestStorm(g, op.side), inside = (q) => living(g, op.side).filter((o) => o.x > -50 && q && dist(q, o) + radius(o) <= 6).length;
+    if (p && inside(p) >= inside(wsStorm(g, op.side)) + 2 && wsCallStormAt(g, op, p)) return true;
+  }
+  // Storm-veiled Execution: nothing to shoot — go on Guard.
+  if (can.wsGuard && !can.shoot && !isEngaged(g, op)) { self(g, op, 'wsGuard'); return true; }
   return false;
 }

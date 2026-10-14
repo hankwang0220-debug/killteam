@@ -112,7 +112,7 @@ const storm = (g, x, y) => { g.ws.storm[0] = { x, y }; };
 {
   const g = arena(), sk = get(g, 'wsSkjald'), gun = get(g, 'wsGunner'), e = foes(g)[0]; clear(g, [sk, gun, e]);
   place(sk, 10, 10); place(gun, 12, 12); place(e, 22, 12);
-  G.activate(g, sk); G.TARGET_ACTIONS.wsCallMove.apply(g, sk, gun); assert.deepEqual(g.ws.storm[0], { x: 12, y: 12 });
+  G.activate(g, sk); assert(W.wsCallStormAt(g, sk, { x: 12, y: 12 })); assert.deepEqual(g.ws.storm[0], { x: 12, y: 12 }); assert.equal(sk.ap, 2); sk.acted.wsCall = 0;
   G.TARGET_ACTIONS.wsCallVeil.apply(g, sk, gun);
   assert(G.visibility(g, e, gun).obscured, 'veiled');
   place(e, 14, 12); assert(!G.visibility(g, e, gun).obscured, 'within 3"');
@@ -129,6 +129,7 @@ const storm = (g, x, y) => { g.ws.storm[0] = { x, y }; };
   const w0 = e.wounds;
   dice([6, 6], () => W.wsMoved(g, e, { pts: [{ x: 25, y: 10 }, { x: 10.5, y: 11.2 }] }));
   assert(!g.markers.includes(m)); assert.equal(w0 - e.wounds, 9, '2D3+3 (3+3+3)'); assert.equal(e.aplNext, -1);
+  assert(e.x < 13 && Math.hypot(e.x - 10, e.y - 10) - G.radius(e) <= 1.01, 'the move stops at the mine');
 }
 
 // Pounce: a free move in the Strategy phase, then -1 APL and no moves in its next activation.
