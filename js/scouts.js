@@ -1,7 +1,7 @@
 // Scout Squad (偵察小隊) rules engine: Forward Scouting, Guidance and Experience, Track Enemy, Grapnel Assault, the ploys
 // and the faction equipment. game.js calls these hooks; the team data is in data/scouts.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { ACTIONS, TARGET_ACTIONS, boardOf, CONTROL, OBJ_R, applyDamage, changeApl, d3, d6, deployZones, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, moveAllowance, opName, placeAuto, radius, team, tpl, visibility } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, boardOf, CONTROL, OBJ_R, applyDamage, changeApl, d3, d6, deployZones, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, moveAllowance, opName, placeAuto, radius, team, tpl, visibility } from './game.js';
 import { dist, distPointRect, pathLength, truncatePath } from './geometry.js';
 import { moveCtx, wholeInchPath } from './path.js';
 import { revealTacOp } from './missions.js';
@@ -211,7 +211,7 @@ export function scWeapons(g, op, ws) {
 }
 /** Targeting Oculars (equipment): the first two Shoots each turning point have Lethal 5+ and Saturate. */
 export function scOculars(g, op, weapon) {
-  if (!isSC(op) || !equip(g, op.side, 'scOculars') || weapon.type !== 'ranged') return weapon;
+  if (!isSC(op) || !(equip(g, op.side, 'scOculars') && abilityArmed(g, op.side, 'scOculars')) || weapon.type !== 'ranged') return weapon;
   const u = ((g.scOcular ||= [null, null])[op.side] = g.scOcular[op.side]?.tp === g.tp ? g.scOcular[op.side] : { tp: g.tp, n: 0 });
   if (u.n >= 2) return weapon;
   u.n++;

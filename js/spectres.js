@@ -2,7 +2,7 @@
 // the ploys and the faction equipment. game.js calls these hooks; the team data is in data/spectres.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, CONTROL, autoFF, changeApl, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, handOff, hasPloy, ffArmed, isEngaged, living, log, opName, radius, shootCheck, team, tpl, visibility, weaponsFor, boardOf, deployZones, territoryOf, moveStat, aplNow } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, autoFF, changeApl, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, handOff, hasPloy, ffArmed, isEngaged, living, log, opName, radius, shootCheck, team, tpl, visibility, weaponsFor, boardOf, deployZones, territoryOf, moveStat, aplNow } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { SPECTRES_TEAM, SP_OVERWATCH, SP_EXTRA_EQUIPMENT, spectresRosterError } from './data/spectres.js';
@@ -259,7 +259,7 @@ export function spPlaceAuto(g, side, ops, base) {
 // ---------- Tvid-feed Triangulation ----------
 /** Once per turning point (automatic): the target of a friendly SPECTRE SQUAD shot can't be obscured. */
 export function spTvid(g, op, target) {
-  if (!real(op) || op.side > 1 || !equip(g, op.side, 'spTvid') || g.sp?.used[op.side]?.tvid === g.tp || !target) return false;
+  if (!real(op) || op.side > 1 || !(equip(g, op.side, 'spTvid') && abilityArmed(g, op.side, 'spTvid')) || g.sp?.used[op.side]?.tvid === g.tp || !target) return false;
   const other = living(g, op.side).some((o) => o !== op && real(o) && o.x > -50 && visibility(g, o, target).visible);
   const beacon = living(g, op.side).some((o) => tpl(o).spBeacon && edgeDist(o, target) <= 6);
   return other || beacon;

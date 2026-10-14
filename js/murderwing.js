@@ -1,4 +1,4 @@
-import { ACTIONS, TARGET_ACTIONS, tpl, living, foes, radius, edgeDist, isEngaged, visibility, spend, applyDamage, changeApl, d6, d3, hasPloy, availableActions, readyOps, log, ffReady, ffArmed } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, tpl, living, foes, radius, edgeDist, isEngaged, visibility, spend, applyDamage, changeApl, d6, d3, hasPloy, availableActions, readyOps, log, ffReady, ffArmed } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx, findPath, wholeInchPath } from './path.js';
 import { MURDERWING_TEAM, murderwingRosterError } from './data/murderwing.js';
@@ -90,12 +90,12 @@ export function mwMoved(g, o, kind, path, start, pursuers) {
         }
       } else if (tpl(o).mwHunt) { used = true; applyDamage(g, o, t, d3() + d3() + 1); }
       else if (tpl(o).mwShriek && o.order === 'engage' && !o.acted.mwShriek && (!isEngaged(g, o) || edgeDist(o, t) <= 1.01)) { used = true; applyDamage(g, o, t, d3()); changeApl(g, t, -1); o.acted.mwShriek = 1; }
-      else if (equip(g, o, 'mwBladefins') && !o.acted.mwCarving) { used = true; applyDamage(g, o, t, d3() + 1); o.acted.mwSlice = true; }
+      else if ((equip(g, o, 'mwBladefins') && abilityArmed(g, o, 'mwBladefins')) && !o.acted.mwCarving) { used = true; applyDamage(g, o, t, d3() + 1); o.acted.mwSlice = true; }
       if (used) { spend(g, o, 'mwBoostAction', 1); note(g, o, '噴射通道動作（1AP）', 'Boost-zone action (1AP)'); }
     }
   }
   if (kind === 'fallBack' && !o.counter && g.active === o.uid) {
-    for (const e of pursuers || []) if (equip(g, e, 'mwFuel') && g.mwFuelTP?.[e.side] !== g.tp) {
+    for (const e of pursuers || []) if ((equip(g, e, 'mwFuel') && abilityArmed(g, e, 'mwFuel')) && g.mwFuelTP?.[e.side] !== g.tp) {
       const p = landing(g, e, o, 3, e.order === 'engage', true);
       if (p) { Object.assign(e, p.p); (g.mwFuelTP ||= [0, 0])[e.side] = g.tp; note(g, e, '次元燃料：免費追擊', 'Warp Fuel: free pursuit'); break; }
     }

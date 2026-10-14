@@ -1098,6 +1098,18 @@ function initCardsLine() {
   return `<p class="hint small">${L('先攻卡', 'Initiative cards')}：${[0, 1].map((s) => `<b style="color:${team(g, s).color}">${esc(tx(team(g, s).name))}</b> ${held(s)}`).join('　')}</p>`;
 }
 /** Before the result stands: human players may use initiative cards (Re-roll, ±1, ±2, ±3). */
+/** Faction equipment that's used automatically when the rules say "you can" (players switch each on): equipment id = switch id. */
+const OPTIONAL_EQUIP = ['adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
+  'kfMeat', 'kfTrophy', 'kfPiercing', 'kfToxin', 'mdGlyph', 'mwFuel', 'mwBladefins', 'pfTao', 'pfHiml', 'rtRations', 'rtLucky', 'sfSymbols', 'sfSeals', 'scOculars', 'spTvid',
+  'vsConvergence', 'vdToxin', 'vdTalisman', 'vdUnderstudy', 'wkDrill', 'wkOil'];
+/** The switchable automatic rules a side has: the team's own list, its optional equipment, and the Bioscryer Cuffs' automatic cleanse. */
+function autoAbilitiesFor(g, side) {
+  const eq = g.equip?.[side] || [];
+  const list = [...(team(g, side).autoAbilities || [])];
+  for (const id of OPTIONAL_EQUIP) if (eq.includes(id) && EQUIPMENT[id] && !list.some((a) => a.id === id)) list.push({ id, equip: id, name: EQUIPMENT[id].name, desc: EQUIPMENT[id].desc });
+  if (eq.includes('dwCuffs')) list.push({ id: 'dwCuffsAuto', equip: 'dwCuffs', name: { zh: '生體掃描護腕（啟動前自動清除）', en: 'Bioscryer Cuffs (automatic cleanse before activating)' }, desc: { zh: '有毒素或 APL 減值時，啟動前自動用護腕清除（用掉這次啟動的護腕）。', en: 'With a poison token or an APL reduction, the cuffs clear it automatically before it activates (using that activation\'s cuffs).' } });
+  return list;
+}
 /** The firefight ploys a team uses automatically (Animalistic Fury: automatic when retaliating). */
 function autoPloys(t) { return [...(t.firefight || []), ...(t.techniques || [])].filter((p) => ffKind(p.id) === 'auto' || p.id === 'animalisticFury'); }
 function initCardsPanel() {
@@ -1391,7 +1403,7 @@ function gambitView(side) {
     </div>`;
   }
   // Automatic abilities, equipment and ploy effects the rules leave to the player ("you can"): off until ticked.
-  const abil = (team(g, side).autoAbilities || []).filter((a) => (!a.equip || g.equip?.[side]?.includes(a.equip)) && (!a.ploy || g.ploys?.[side]?.includes(a.ploy)));
+  const abil = autoAbilitiesFor(g, side).filter((a) => (!a.equip || g.equip?.[side]?.includes(a.equip)) && (!a.ploy || g.ploys?.[side]?.includes(a.ploy)));
   if (abil.length && !isAI(side)) {
     html += `<div class="gambit"><h4>${L('自動使用的能力與裝備', 'Abilities and equipment used automatically')}</h4>
       <p class="hint small">${L('規則寫「可以」的能力與裝備預設關閉；勾選後在時機到時自動使用（每回合一次的會用掉這回合的次數）。買下的策略計謀預設開啟，也可以取消。', 'Abilities and equipment that say "you can" are off by default (bought strategy ploys start on); ticked ones are used automatically when their moment comes (once-per-TP ones use up that TP\'s use).')}</p>
@@ -3176,7 +3188,7 @@ function handle(act, d) {
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       // Automatic firefight ploys start switched off for players (unless the setup option says otherwise); the computer keeps its own.
-      if (!ui.setup.autoFF) for (const side of [0, 1]) if (side !== g.ai) { const off = ((g.ffOff ||= [[], []])[side] ||= []); for (const p of autoPloys(team(g, side))) if (!off.includes(p.id)) off.push(p.id); const aoff = ((g.abOff ||= [[], []])[side] ||= []); for (const a of team(g, side).autoAbilities || []) if (!a.ploy && !aoff.includes(a.id)) aoff.push(a.id); }
+      if (!ui.setup.autoFF) for (const side of [0, 1]) if (side !== g.ai) { const off = ((g.ffOff ||= [[], []])[side] ||= []); for (const p of autoPloys(team(g, side))) if (!off.includes(p.id)) off.push(p.id); const aoff = ((g.abOff ||= [[], []])[side] ||= []); for (const a of autoAbilitiesFor(g, side)) if (!a.ploy && !aoff.includes(a.id)) aoff.push(a.id); }
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();

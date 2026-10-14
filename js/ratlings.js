@@ -2,7 +2,7 @@
 // faction equipment. game.js calls these hooks; the team data is in data/ratlings.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, BOARD, CONTROL, OBJ_R, applyDamage, availableActions, carriables, changeApl, checkMines, clearSpot, controller, d3, edgeDist, engagedEnemies, foes, getOp, hasPloy, hasReady, isEngaged, living, log, opName, ownPoint, radius, spend, team, tpl, territoryOf, visibility } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, BOARD, CONTROL, OBJ_R, applyDamage, availableActions, carriables, changeApl, checkMines, clearSpot, controller, d3, edgeDist, engagedEnemies, foes, getOp, hasPloy, hasReady, isEngaged, living, log, opName, ownPoint, radius, spend, team, tpl, territoryOf, visibility } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { flatSight } from './sight.js';
 import { moveCtx, wholeInchPath } from './path.js';
@@ -85,12 +85,12 @@ export function rtShifty(g, target) { return isSmall(target) && hasPloy(g, targe
 export function rtEquipRoll(g, op, weapon, pool, retally) {
   if (!isRat(op) || !isRifle(weapon) || op.side > 1 || !pool) return;
   const used = (g.rtUsed ||= [{}, {}])[op.side];
-  if (equip(g, op.side, 'rtRations') && used.rations !== g.tp && pool.success > 2
+  if ((equip(g, op.side, 'rtRations') && abilityArmed(g, op.side, 'rtRations')) && used.rations !== g.tp && pool.success > 2
     && pool.dice.some((d) => !d.auto && d.res === 'miss' && d.v === pool.success - 1)) {
     used.rations = g.tp; pool.success--; retally(pool);
     note(g, op.side, `偷來的口糧：${opName(op, 'zh')} 步槍命中值改善 1`, `Purloined Rations: ${opName(op, 'en')}'s rifle Hit improves by 1`);
   }
-  if (equip(g, op.side, 'rtLucky') && used.lucky !== g.tp && pool.crits === 0 && pool.norms > 0 && !pool.rules.severe) {
+  if ((equip(g, op.side, 'rtLucky') && abilityArmed(g, op.side, 'rtLucky')) && used.lucky !== g.tp && pool.crits === 0 && pool.norms > 0 && !pool.rules.severe) {
     used.lucky = g.tp; pool.rules.severe = true; retally(pool);
     note(g, op.side, `幸運子彈：${opName(op, 'zh')} 步槍獲得「嚴重」`, `Lucky Round: ${opName(op, 'en')}'s rifle has Severe`);
   }

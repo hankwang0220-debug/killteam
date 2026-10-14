@@ -1,6 +1,6 @@
 // Wrecka Krew (破壞專隊) rules engine: Wrecka points, Tanked Up, Bomb Squigs, Detonate, Smash, Pulsa rokkit,
 // Break Stuff and the faction equipment. game.js calls these hooks; the team data is in data/wrecka.js.
-import { ACTIONS, applyDamage, d3, d6, edgeDist, forcedShot, getOp, hasPloy, isEngaged, isInjured, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
+import { abilityArmed, ACTIONS, applyDamage, d3, d6, edgeDist, forcedShot, getOp, hasPloy, isEngaged, isInjured, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { moveCtx } from './path.js';
 import { WRECKA_TEAM, wreckaRosterError } from './data/wrecka.js';
@@ -76,7 +76,7 @@ export function wkActivate(g, op) {
   op.wkTanked = false; // Tanked Up lasts until the start of its next activation
   if (tpl(op).stoopid) op.order = 'engage'; // Stoopid: never Conceal in the Firefight phase
   // Engine Oil: once per TP, an injured friendly ignores injury stat changes for this activation.
-  if (!isSquig(op) && isInjured(op) && equip(g, op.side, 'wkOil') && g.wkOilTP?.[op.side] !== g.tp) {
+  if (!isSquig(op) && isInjured(op) && (equip(g, op.side, 'wkOil') && abilityArmed(g, op.side, 'wkOil')) && g.wkOilTP?.[op.side] !== g.tp) {
     (g.wkOilTP ||= [0, 0])[op.side] = g.tp; op.acted.mwIgnoreInjury = true;
     note(g, op.side, `${opName(op, 'zh')} 機油：本次啟動不受重傷影響`, `${opName(op, 'en')} Engine Oil: ignores being injured this activation`);
   }

@@ -1,7 +1,7 @@
 // Farstalker Kinband (遠獵者) rules engine for the parts added after the first version: Gather, Quick Draw, Ready for Anything, Poach,
 // Bound and the faction equipment (Meat, Trophy, Piercing Shot, Toxin Shot).
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { ACTIONS, d3, isEngaged, log, opName, shootCheck, spend, forcedShot, team, tpl } from './game.js';
+import { abilityArmed, ACTIONS, d3, isEngaged, log, opName, shootCheck, spend, forcedShot, team, tpl } from './game.js';
 import { kinbandRosterError } from './data/kinband.js';
 
 export function isKF(o) { return o?.team === 'farstalkers'; }
@@ -64,12 +64,12 @@ function mayUse(g, op, key) {
 /** At the start of an activation: Meat heals a wounded operative, Trophy adds an AP. */
 export function kfActivate(g, op) {
   if (g.counter || !isKF(op) || op.side > 1 || tpl(op).kfHound || isEngaged(g, op)) return;
-  if (equip(g, op.side, 'kfMeat') && op.wounds < op.maxW && mayUse(g, op, 'meat')) {
+  if ((equip(g, op.side, 'kfMeat') && abilityArmed(g, op.side, 'kfMeat')) && op.wounds < op.maxW && mayUse(g, op, 'meat')) {
     const h = Math.min(op.maxW - op.wounds, d3() + 1);
     op.wounds += h;
     note(g, op.side, `生肉：${opName(op, 'zh')} 回復 ${h} 生命`, `Meat: ${opName(op, 'en')} regains ${h} wounds`);
   }
-  if (equip(g, op.side, 'kfTrophy') && !g.kfUsed[op.side].trophy && tpl(op).apl >= 2 && g.tp >= 2) {
+  if ((equip(g, op.side, 'kfTrophy') && abilityArmed(g, op.side, 'kfTrophy')) && !g.kfUsed[op.side].trophy && tpl(op).apl >= 2 && g.tp >= 2) {
     g.kfUsed[op.side].trophy = true;
     op.ap++;
     note(g, op.side, `戰利品：${opName(op, 'zh')} APL +1`, `Trophy: ${opName(op, 'en')} gets +1 APL`);
@@ -80,7 +80,7 @@ const AMMO_WEAPONS = ['krootRifle', 'krootRifleKB', 'krootRifleCB', 'scattergun'
 export function kfShootStart(g, op, weapon) {
   op.kfAmmo = null;
   if (!isKF(op) || op.side > 1 || !AMMO_WEAPONS.includes(weapon.id)) return;
-  const choose = (key, eq) => (equip(g, op.side, eq) && (g.kfUsed[op.side][key] !== g.tp || (tpl(op).kfWarrior && g.kfUsed[op.side].ready !== g.tp)));
+  const choose = (key, eq) => (equip(g, op.side, eq) && abilityArmed(g, op.side, eq) && (g.kfUsed[op.side][key] !== g.tp || (tpl(op).kfWarrior && g.kfUsed[op.side].ready !== g.tp)));
   if (choose('toxin', 'kfToxin') && mayUse(g, op, 'toxin')) { op.kfAmmo = { w: weapon.id, kind: 'toxin' }; note(g, op.side, `毒彈：${opName(op, 'zh')} 的武器「致命 5+」與「震懾」`, `Toxin Shot: ${opName(op, 'en')}'s weapon has Lethal 5+ and Stun`); }
   else if (choose('piercing', 'kfPiercing') && mayUse(g, op, 'piercing')) { op.kfAmmo = { w: weapon.id, kind: 'piercing' }; note(g, op.side, `穿甲彈：${opName(op, 'zh')} 的武器「穿甲 1」`, `Piercing Shot: ${opName(op, 'en')}'s weapon has Piercing 1`); }
 }

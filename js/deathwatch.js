@@ -1,7 +1,7 @@
 import { DW_AMMO, deathwatchRosterError } from './data/deathwatch.js';
 import { TEAM_MAP } from './data/teams.js';
 import { spAfterAction } from './spectres.js';
-import { tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, equipmentLimitFor } from './game.js';
+import { abilityArmed, tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, equipmentLimitFor } from './game.js';
 import { MISSION_ACTIONS } from './missions.js';
 export { DW_AMMO };
 export const isDeathwatch = (o) => o?.team === 'deathwatch';
@@ -51,7 +51,7 @@ export function dwActivate(g, o) {
 }
 // Before activation effects, automatically use cuffs to cleanse poison or restore a reduced APL.
 export function dwBeforeActivation(g, o) {
-  if (!dwEquip(g, o, 'dwCuffs') || isEngaged(g, o)) return;
+  if (!dwEquip(g, o, 'dwCuffs') || !abilityArmed(g, o, 'dwCuffsAuto') || isEngaged(g, o)) return;
   let note;
   if (o.poison || o.archonPoison || o.neutron || o.terrorchem) { dwCleanse(o); note = B('清除有害標記', 'clears a harmful token'); }
   else if (o.aplNext < 0) { o.aplNext = 0; note = B('清除 APL 減值', 'clears APL reductions'); }
@@ -148,7 +148,7 @@ export function dwMissionDone(g, o, id) {
   }
 }
 export function dwDigital(g, o, target) {
-  if (dwEquip(g, o, 'dwDigital') && g.dwDigitalTP?.[o.side] !== g.tp) {
+  if ((dwEquip(g, o, 'dwDigital') && abilityArmed(g, o, 'dwDigital')) && g.dwDigitalTP?.[o.side] !== g.tp) {
     (g.dwDigitalTP ||= [0, 0])[o.side] = g.tp; applyDamage(g, o, target, 1);
   }
 }

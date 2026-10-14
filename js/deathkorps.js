@@ -1,7 +1,7 @@
 // Death Korps (克里格死亡兵團) rules engine for the parts added after the first version: the Sapper's mines, the Veteran, Regroup,
 // Inspirational Leadership, In Life Shame, In Death Atonement, free ploys and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { ACTIONS, BOARD, activeOp, autoFF, edgeDist, engagedEnemies, foes, forcedShot, isEngaged, living, log, opName, radius, spend, team, tpl, visibility, GUARD_ORDERS } from './game.js';
+import { abilityArmed, ACTIONS, BOARD, activeOp, autoFF, edgeDist, engagedEnemies, foes, forcedShot, isEngaged, living, log, opName, radius, spend, team, tpl, visibility, GUARD_ORDERS } from './game.js';
 import { dist } from './geometry.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { deathKorpsRosterError, dkFreeCount, cleanDkFree, DEFAULT_DK_FREE } from './data/deathkorps.js';
@@ -42,7 +42,7 @@ export function dkBeadsTarget(g, candidates, id) {
   };
   return [...candidates].sort((a, b) => score(b) - score(a))[0] || null;
 }
-export const dkBeadsOn = (g, side) => g.teams[side] === 'deathKorps' && equip(g, side, 'dkBeads');
+export const dkBeadsOn = (g, side) => g.teams[side] === 'deathKorps' && (equip(g, side, 'dkBeads') && abilityArmed(g, side, 'dkBeads'));
 /** Inspirational Leadership (firefight ploy): the Watchmaster or Confidant issues an order now. Returns the log text. */
 export function dkLeadership(g, op, giveOrder) {
   const id = dkBestOrder(g, op.side);

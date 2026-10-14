@@ -1,4 +1,4 @@
-import { ACTIONS, TARGET_ACTIONS, tpl, living, foes, radius, edgeDist, isEngaged, visibility, shootCheck, weaponsFor, availableActions, spend, log, applyDamage, aplNow, hasPloy, getOp, readyOps, activate, d3 as roll3 } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, tpl, living, foes, radius, edgeDist, isEngaged, visibility, shootCheck, weaponsFor, availableActions, spend, log, applyDamage, aplNow, hasPloy, getOp, readyOps, activate, d3 as roll3 } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { moveCtx, findPath, wholeInchPath } from './path.js';
 import { MD_DART, MD_GEM } from './data/mandrakes.js';
@@ -34,7 +34,7 @@ export function mdActivate(g, o) {
   // Expiry is at the START of the source's activation, not at the end.
   for (const x of g.ops) { if (x.mdBalefire === o.uid) x.mdBalefire = null; if (x.mdProjection === o.uid) x.mdProjection = null; }
   o.mdGlyph = false;
-  if (isMandrake(o) && !g.counter && withinShadow(g, o) && equip(g, o.side, 'mdGlyph') && g.mdGlyphTP?.[o.side] !== g.tp) {
+  if (isMandrake(o) && !g.counter && withinShadow(g, o) && (equip(g, o.side, 'mdGlyph') && abilityArmed(g, o.side, 'mdGlyph')) && g.mdGlyphTP?.[o.side] !== g.tp) {
     o.mdGlyph = true; (g.mdGlyphTP ||= [0, 0])[o.side] = g.tp;
   }
 }

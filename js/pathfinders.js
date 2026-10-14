@@ -1,7 +1,7 @@
 // Pathfinders (探路者) rules engine for the parts added after the first version: Recon Sweep, the extra drones (Pulse Accelerator,
 // Grav-inhibitor, Shield, Recon), Saviour Protocols, Point-Blank Fusillade, A Worthy Cause and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { ACTIONS, TARGET_ACTIONS, BOARD, autoFF, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, missionActionsFor, doMissionAction, opName, radius, spend, team, tpl, visibility, ffReady, ffArmed } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, BOARD, autoFF, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, missionActionsFor, doMissionAction, opName, radius, spend, team, tpl, visibility, ffReady, ffArmed } from './game.js';
 import { dist } from './geometry.js';
 import { MISSION_ACTIONS } from './missions.js';
 import { bestStep, stepTo } from './sanctifiers.js';
@@ -49,7 +49,7 @@ export function pfShield(g, target) {
 export const pfTaoBonus = (g, op, target) => (g.pfTao && g.pfTao.uid === op.uid && g.pfTao.target === target.uid ? 1 : 0);
 export function pfShootStart(g, op, weapon, target) {
   g.pfTao = null;
-  if (!isPF(op) || tpl(op).drone || op.side > 1 || !equip(g, op.side, 'pfTao') || g.pfUsed?.[op.side]?.tao === g.tp || !(target.ml > 0) || weapon.rules.noMarkerlight) return;
+  if (!isPF(op) || tpl(op).drone || op.side > 1 || !(equip(g, op.side, 'pfTao') && abilityArmed(g, op.side, 'pfTao')) || g.pfUsed?.[op.side]?.tao === g.tp || !(target.ml > 0) || weapon.rules.noMarkerlight) return;
   ((g.pfUsed ||= [{}, {}])[op.side]).tao = g.tp;
   g.pfTao = { uid: op.uid, target: target.uid };
   note(g, op.side, `目標分析光學：${opName(target, 'zh')} 視為多一個標記光標記`, `Target Analysis Optic: ${opName(target, 'en')} counts as having one more Markerlight token`);
@@ -70,7 +70,7 @@ export function pfMarkerlight(g, op, t) {
     ((g.pfUsed ||= [{}, {}])[op.side]).uplink = g.tp;
     n = 1;
     note(g, op.side, `軌道偵測連結：${opName(t, 'zh')} 不需看得到也獲得標記`, `Orbital Survey Uplink: ${opName(t, 'en')} gains a token without being visible`);
-  } else if (n === 1 && equip(g, op.side, 'pfHiml') && !tpl(op).drone) {
+  } else if (n === 1 && (equip(g, op.side, 'pfHiml') && abilityArmed(g, op.side, 'pfHiml')) && !tpl(op).drone) {
     const u = ((g.pfUsed ||= [{}, {}])[op.side]);
     if (u.himlTP !== g.tp) { u.himlTP = g.tp; u.himl = 0; }
     if (u.himl < 2) { u.himl++; n = 2; note(g, op.side, `高強度標記光：${opName(t, 'zh')} 獲得兩個標記`, `High-intensity Markerlight: ${opName(t, 'en')} gains two tokens`); }

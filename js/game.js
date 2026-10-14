@@ -4225,7 +4225,7 @@ const ccAwakenedFree = (g, side, id) => id === 'animateNodes' && (g.awakened?.[s
 /** Phase Shifter: once per TP, the first shot at the Geomancer has Piercing worsened by 1. */
 function ccPhaseStart(g, op, target) {
   g.ccPhase = null;
-  if (!target || target.side > 1 || !tpl(target).ccLeader || !ccEquip(g, target.side, 'ccPhase') || g.ccPhaseTP?.[target.side] === g.tp) return;
+  if (!target || target.side > 1 || !tpl(target).ccLeader || !(ccEquip(g, target.side, 'ccPhase') && abilityArmed(g, target.side, 'ccPhase')) || g.ccPhaseTP?.[target.side] === g.tp) return;
   (g.ccPhaseTP ||= [0, 0])[target.side] = g.tp; g.ccPhase = target.uid;
   log(g, { zh: '相位轉換器：這次射擊的穿甲 -1', en: 'Phase Shifter: Piercing is worsened by 1 for this shot' }, `side${target.side}`);
 }
@@ -4233,7 +4233,7 @@ function ccPhaseStart(g, op, target) {
 function ccManipActivate(g, op) {
   if (!g.counter && isCC(op) && op.side < 2 && ccEquip(g, op.side, 'ccCaskets') && op.wounds < op.maxW) { const h = Math.min(op.maxW - op.wounds, d3()); op.wounds += h; log(g, { zh: `納米甲蟲匣：${opName(op, 'zh')} 回復 ${h} 生命`, en: `Nanoscarab Caskets: ${opName(op, 'en')} regains ${h} wounds` }, `side${op.side}`); }
   g.ccManip = null;
-  if (g.counter || !isCC(op) || op.side > 1 || !ccEquip(g, op.side, 'ccManip') || g.ccManipUsed?.[op.side] || inMatrix(g, op.side, op)) return;
+  if (g.counter || !isCC(op) || op.side > 1 || !(ccEquip(g, op.side, 'ccManip') && abilityArmed(g, op.side, 'ccManip')) || g.ccManipUsed?.[op.side] || inMatrix(g, op.side, op)) return;
   const geo = living(g, op.side).find((o) => tpl(o).ccLeader);
   if (!geo) return;
   g.ccManip = { side: op.side, uid: geo.uid };
@@ -4942,7 +4942,7 @@ export function skipArchonActivation(g, side) {
 }
 
 /** Automatic abilities and equipment that the rules leave to the player ("you can"): on unless switched off (players start with them off). */
-export const abilityArmed = (g, side, id) => side > 1 || !g.abOff?.[side]?.includes(id);
+export const abilityArmed = (g, who, id) => { const side = typeof who === 'object' ? who?.side : who; return side == null || side > 1 || !g.abOff?.[side]?.includes(id); }; // (who: a side or an operative)
 export function abilityToggle(g, side, id) {
   const off = ((g.abOff ||= [[], []])[side] ||= []);
   const i = off.indexOf(id);
@@ -5940,7 +5940,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (rules.earthenWrath && vis.cover) rules.lethal = Math.min(rules.lethal || 6, 5); // Earthen Wrath (Stonesinger): Lethal 5+ against a target in cover
   // Contempt (Blades of Khaine firefight ploy): the shooter can't re-roll its attack dice this sequence.
   if (!noReroll && target.side < 2 && isBlade(target) && (rules.balanced || rules.ceaseless || rules.relentless) && autoFF(g, target.side, 'contempt')) noReroll = true;
-  if (corsairEquip(g, target, 'mistfield') && edgeDist(op, target) > 3 && rules.piercing && g.mistfieldTP?.[target.side] !== g.tp) { rules.piercing--; (g.mistfieldTP ||= [0, 0])[target.side] = g.tp; }
+  if ((corsairEquip(g, target, 'mistfield') && abilityArmed(g, target, 'mistfield')) && edgeDist(op, target) > 3 && rules.piercing && g.mistfieldTP?.[target.side] !== g.tp) { rules.piercing--; (g.mistfieldTP ||= [0, 0])[target.side] = g.tp; }
   wsCharms(g, op, target, rules); // Runic Charms (Wolf Scouts)
   if (noReroll) { delete rules.balanced; delete rules.ceaseless; delete rules.relentless; } // Suppressing Fire
   let hit = weapon.hit;
@@ -6332,7 +6332,7 @@ export function* shootFlow(g, op, weapon, target) {
   }
   if (ffOn(g, op, 'wkKaboom')) weapon = { ...weapon, rules: { ...weapon.rules, blast: (weapon.rules.blast || 0) + 1 } }; // Kaboom!: Blast +1"
   // Drill Rokkits (Wrecka Krew equipment, once per TP): a rokkit launcha with nobody else in the blast trades Blast for Piercing 1.
-  if (weapon.group === 'wkRokkit' && !ffOn(g, op, 'wkKaboom') && hasEquip(g, op.side, 'wkDrill') && g.wkDrillTP?.[op.side] !== g.tp && !secondaryTargets(g, op, weapon, target).length) {
+  if (weapon.group === 'wkRokkit' && !ffOn(g, op, 'wkKaboom') && (hasEquip(g, op.side, 'wkDrill') && abilityArmed(g, op.side, 'wkDrill')) && g.wkDrillTP?.[op.side] !== g.tp && !secondaryTargets(g, op, weapon, target).length) {
     (g.wkDrillTP ||= [0, 0])[op.side] = g.tp;
     const rules = { ...weapon.rules, piercing: 1 }; delete rules.blast;
     weapon = { ...weapon, rules };

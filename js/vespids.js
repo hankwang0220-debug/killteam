@@ -3,7 +3,7 @@
 // game.js calls these hooks; the team data is in data/vespids.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, moveStat } from './game.js';
+import { abilityArmed, ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, moveStat } from './game.js';
 import { dist, distPointSegment } from './geometry.js';
 import { moveCtx } from './path.js';
 import { VESPIDS_TEAM, VS_SKYTORCH, VS_COMMUNE_PLOYS, vespidsRosterError } from './data/vespids.js';
@@ -197,13 +197,13 @@ const MISSIONISH = (id, mission) => id === 'pickUp' || (mission && !/^tw(Open|Cl
 /** Pick Up and mission actions need a Communion point (Convergence Stimulant: one free per turning point). */
 export function vsGate(g, op, list, missionIds) {
   if (!bound(op)) return;
-  const free = (equip(g, op.side, 'vsConvergence') && g.vs.used[op.side].convergence !== g.tp) || vsCanSpend(g, op);
+  const free = ((equip(g, op.side, 'vsConvergence') && abilityArmed(g, op.side, 'vsConvergence')) && g.vs.used[op.side].convergence !== g.tp) || vsCanSpend(g, op);
   if (free) return;
   for (const a of list) if (a.ok && MISSIONISH(a.id, missionIds.includes(a.id))) { a.ok = false; a.why = { zh: '沒有交融點數', en: 'No Communion points' }; }
 }
 export function vsMissionSpend(g, op, id) {
   if (!bound(op) || /^tw(Open|Close)_/.test(id)) return;
-  if (equip(g, op.side, 'vsConvergence') && g.vs.used[op.side].convergence !== g.tp) { g.vs.used[op.side].convergence = g.tp; note(g, op.side, '聚合興奮劑：這次不用花交融點數', 'Convergence Stimulant: no Communion point needed this time'); return; }
+  if ((equip(g, op.side, 'vsConvergence') && abilityArmed(g, op.side, 'vsConvergence')) && g.vs.used[op.side].convergence !== g.tp) { g.vs.used[op.side].convergence = g.tp; note(g, op.side, '聚合興奮劑：這次不用花交融點數', 'Convergence Stimulant: no Communion point needed this time'); return; }
   vsSpend(g, op, { zh: id === 'pickUp' ? '撿標記' : '任務行動', en: id === 'pickUp' ? 'Pick Up Marker' : 'a mission action' });
 }
 /** Commune (Strain Leader): the chosen strategy ploy costs 0CP while the Leader is in the killzone and not engaged. */

@@ -2,7 +2,7 @@
 // faction equipment. game.js calls these hooks; the team data is in data/sanctifiers.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, CONTROL, OBJ_R, applyDamage, aplNow, autoFF, changeApl, checkMines, controller, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, OBJ_R, applyDamage, aplNow, autoFF, changeApl, checkMines, controller, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx, wholeInchPath } from './path.js';
 import { scTrapCheck } from './scouts.js';
@@ -150,7 +150,7 @@ export function sfFightBlaze(g, op, weapon, target, crit, dmg) {
 // ---------- equipment: Purity Seals and Imperial Cult Symbols ----------
 /** Purity Seals (once per TP): two or more fails — one is discarded and another kept as a normal success. */
 export function sfRoll(g, op, pool, retally) {
-  if (!isSF(op) || op.side > 1 || !pool || !equip(g, op.side, 'sfSeals') || g.sfUsed?.[op.side]?.seals === g.tp) return;
+  if (!isSF(op) || op.side > 1 || !pool || !(equip(g, op.side, 'sfSeals') && abilityArmed(g, op.side, 'sfSeals')) || g.sfUsed?.[op.side]?.seals === g.tp) return;
   if (pool.dice.filter((d) => !d.auto && d.res === 'miss').length < 2) return;
   g.sfUsed[op.side].seals = g.tp;
   // (A post step, so the change survives any later re-roll and re-count.)
@@ -162,7 +162,7 @@ export function sfRoll(g, op, pool, retally) {
 }
 /** Imperial Cult Symbols (once per TP): one of the shooter's retained critical successes becomes a normal one. */
 export function sfSymbols(g, target, a) {
-  if (!isSF(target) || target.side > 1 || a.crits < 1 || !equip(g, target.side, 'sfSymbols') || g.sfUsed?.[target.side]?.symbols === g.tp || !sfSermon(g, target)) return false;
+  if (!isSF(target) || target.side > 1 || a.crits < 1 || !(equip(g, target.side, 'sfSymbols') && abilityArmed(g, target.side, 'sfSymbols')) || g.sfUsed?.[target.side]?.symbols === g.tp || !sfSermon(g, target)) return false;
   g.sfUsed[target.side].symbols = g.tp;
   const x = a.dice.find((d) => d.res === 'crit');
   if (!x) return false;

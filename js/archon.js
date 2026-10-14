@@ -2,7 +2,7 @@ import { ARCHON_EQUIPMENT } from './data/eldar.js';
 export { ARCHON_EQUIPMENT };
 // Hand of the Archon, January 2026 official datacards. Reactions use the
 // simulator's existing automatic-reaction convention; active choices stay manual.
-import { tpl, living, foes, edgeDist, visibility, isEngaged, isInjured, getOp, activeOp, aplNow, d6, applyDamage, log, opName, hasPloy } from './game.js';
+import { abilityArmed, tpl, living, foes, edgeDist, visibility, isEngaged, isInjured, getOp, activeOp, aplNow, d6, applyDamage, log, opName, hasPloy } from './game.js';
 
 export const isArchon = (o) => o?.team === 'handOfArchon';
 const D3 = () => Math.ceil(d6() / 2);
@@ -83,7 +83,7 @@ export function archonBeforeAttack(g, o, kind) {
   if (!isArchon(o)) return;
   if (g.active === o.uid && !o.counter && tpl(o).torturousVision && !o.pain && !o.acted.torturousVision) { o.acted.torturousVision = true; gainPain(g, o); }
   const key = kind === 'fight' ? 'toxinCoating' : 'refinedPoison';
-  if (archonEquip(g, o, key)) {
+  if (archonEquip(g, o, key) && abilityArmed(g, o, key)) {
     if (g.archonEq?.[o.side]?.tp !== g.tp) (g.archonEq ||= [{}, {}])[o.side] = { tp: g.tp };
     if ((g.archonEq[o.side][key] || 0) < 2) { g.archonEq[o.side][key] = (g.archonEq[o.side][key] || 0) + 1; o.acted[kind === 'fight' ? 'toxinSequence' : 'refinedSequence'] = true; }
   }

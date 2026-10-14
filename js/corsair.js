@@ -1,6 +1,6 @@
 import { CORSAIR_EQUIPMENT } from './data/eldar.js';
 export { CORSAIR_EQUIPMENT };
-import { tpl, living, foes, edgeDist, visibility, hasPloy, d6, log, opName, radius, applyDamage, isEngaged, getOp, ACTIONS, TARGET_ACTIONS, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, aplNow, doMove } from './game.js';
+import { abilityArmed, tpl, living, foes, edgeDist, visibility, hasPloy, d6, log, opName, radius, applyDamage, isEngaged, getOp, ACTIONS, TARGET_ACTIONS, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, aplNow, doMove } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx, findPath, clampPath } from './path.js';
 export const isCorsair = (o) => o?.team === 'corsairVoidscarred';
@@ -43,7 +43,7 @@ export function corsairDefence(g, o, w, r) {
 }
 export function corsairStrategy(g, side) {
   const o = living(g, side).find(isCorsair);
-  if (o && corsairEquip(g, o, 'starCharts') && !g.starChartsDone?.[side] && g.starChartsTP?.[side] !== g.tp) {
+  if (o && (corsairEquip(g, o, 'starCharts') && abilityArmed(g, o, 'starCharts')) && !g.starChartsDone?.[side] && g.starChartsTP?.[side] !== g.tp) {
     (g.starChartsTP ||= [0, 0])[side] = g.tp; const roll = D3();
     if (roll > g.tp) { g.cp[side]++; (g.starChartsDone ||= [false, false])[side] = true; }
     log(g, { zh: `星圖：擲 ${roll}${roll > g.tp ? '，+1CP' : '，無效果'}`, en: `Star Charts: ${roll}${roll > g.tp ? ', +1CP' : ', no effect'}` }, `side${side}`);

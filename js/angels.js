@@ -1,6 +1,6 @@
 // Angels of Death (死亡天使) rules engine for the Captain, Chapter Veteran, Adaptive Tactics and the faction equipment.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load.)
-import { activeOp, edgeDist, foes, living, log, opName, tpl, team, ployTaken, ployCost } from './game.js';
+import { abilityArmed, activeOp, edgeDist, foes, living, log, opName, tpl, team, ployTaken, ployCost } from './game.js';
 import { angelsRosterError, ADAPTIVE_ORDER } from './data/angels.js';
 
 export function isAD(o) { return o?.team === 'angels'; }
@@ -59,7 +59,7 @@ export function adIronHalo(g, target) {
 // ---------- equipment ----------
 /** Purity Seals: two or more fails, one is discarded and another kept as a normal success (a post step, so it survives re-rolls). */
 export function adRoll(g, op, pool, retally) {
-  if (!isAD(op) || op.side > 1 || !pool || !equip(g, op.side, 'adSeals') || g.adUsed?.[op.side]?.seals === g.tp) return;
+  if (!isAD(op) || op.side > 1 || !pool || !(equip(g, op.side, 'adSeals') && abilityArmed(g, op.side, 'adSeals')) || g.adUsed?.[op.side]?.seals === g.tp) return;
   if (pool.dice.filter((d) => !d.auto && d.res === 'miss').length < 2) return;
   g.adUsed[op.side].seals = g.tp;
   const seals = (p) => { const m = p.dice.filter((d) => !d.auto && d.res === 'miss'); if (m.length >= 2) { m[0].res = 'norm'; m[0].indo = true; p.norms++; } };
@@ -70,7 +70,7 @@ export function adRoll(g, op, pool, retally) {
 }
 /** Auspex: shooting an obscured target within 8", enemies within 8" of the shooter cannot be obscured until the end of the activation. */
 export function adShootStart(g, op, target, obscured) {
-  if (!isAD(op) || op.side > 1 || !equip(g, op.side, 'adAuspex') || g.adUsed?.[op.side]?.auspex === g.tp || !obscured || edgeDist(op, target) > 8) return;
+  if (!isAD(op) || op.side > 1 || !(equip(g, op.side, 'adAuspex') && abilityArmed(g, op.side, 'adAuspex')) || g.adUsed?.[op.side]?.auspex === g.tp || !obscured || edgeDist(op, target) > 8) return;
   g.adUsed[op.side].auspex = g.tp;
   op.adAuspex = true;
   note(g, op.side, `偵測儀：${opName(op, 'zh')} 8" 內的敵人不能被遮蔽`, `Auspex: enemies within 8" of ${opName(op, 'en')} can't be obscured`);
@@ -79,7 +79,7 @@ export function adAuspexOn(op, target) { return !!op.adAuspex && edgeDist(op, ta
 export function adEnd(op) { if (op) op.adAuspex = false; }
 /** Tilting Shields: the opponent cannot retain results below 6 as critical successes against this fighter (once per TP). */
 export function adTilting(g, me) {
-  if (!isAD(me) || me.side > 1 || !equip(g, me.side, 'adTilting') || g.adUsed?.[me.side]?.tilting === g.tp) return false;
+  if (!isAD(me) || me.side > 1 || !(equip(g, me.side, 'adTilting') && abilityArmed(g, me.side, 'adTilting')) || g.adUsed?.[me.side]?.tilting === g.tp) return false;
   g.adUsed[me.side].tilting = g.tp;
   note(g, me.side, '傾斜盾：對手只有擲出 6 才算暴擊', "Tilting Shields: the opponent's crits need a 6");
   return true;

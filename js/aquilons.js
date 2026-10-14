@@ -2,7 +2,7 @@
 // the ploys and the faction equipment. game.js calls these hooks; the team data is in data/aquilons.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, hasPloy, ffArmed, ffReady, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, deployZones, moveStat, changeApl, actionCost, controller } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d3, d6, edgeDist, engagedEnemies, foes, forcedShot, hasPloy, ffArmed, ffReady, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, deployZones, moveStat, changeApl, actionCost, controller } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx } from './path.js';
 import { bestStep, stepTo } from './sanctifiers.js';
@@ -153,7 +153,7 @@ export function aqLandCheck(g, op, p) {
   // Adjust Coordinates (firefight ploy): within 5" of a Drop marker
   if (markers.some((m) => dist(p, m) - r <= 5 + 0.01) && ffReady(g, side, 'aqAdjust') && ffArmed(g, side, 'aqAdjust')) return { ok: true, adjust: true };
   // Drop Augury (equipment, once per battle): a marker can be moved again (not closer to the enemy drop zone)
-  if (equip(g, side, 'aqAugury') && !g.aq.used[side].augury && markers.some((m) => dist(p, m) - r <= rng + 4 + 0.01)) return { ok: true, augury: true };
+  if ((equip(g, side, 'aqAugury') && abilityArmed(g, side, 'aqAugury')) && !g.aq.used[side].augury && markers.some((m) => dist(p, m) - r <= rng + 4 + 0.01)) return { ok: true, augury: true };
   return { ok: false, why: { zh: `要在空降標記 ${rng}" 內，或完全在己方降落區內`, en: `Must be within ${rng}" of a Drop marker or wholly in your drop zone` } };
 }
 export function aqDoLand(g, op, p) {

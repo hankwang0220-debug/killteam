@@ -3,7 +3,7 @@
 // game.js calls these hooks; the team data is in data/voiddancers.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { ACTIONS, TARGET_ACTIONS, applyDamage, autoFF, d3, d6, edgeDist, foes, getOp, hasPloy, living, log, opName, radius, tpl, visibility, weaponsFor, avgDmg } from './game.js';
+import { abilityArmed, ACTIONS, TARGET_ACTIONS, applyDamage, autoFF, d3, d6, edgeDist, foes, getOp, hasPloy, living, log, opName, radius, tpl, visibility, weaponsFor, avgDmg } from './game.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { VOIDDANCERS_TEAM, voidDancersRosterError } from './data/voiddancers.js';
 
@@ -85,7 +85,7 @@ export function vdActivate(g, op) {
   op.vdElusive = false; // Elusive Target lasts until the start of its next activation
   // Understudy's Mask: the Pivotal operative is gone — this one takes the role.
   const piv = g.vd.pivotal[op.side] && getOp(g, g.vd.pivotal[op.side]);
-  if (piv && piv.dead && equip(g, op.side, 'vdUnderstudy') && !g.vd.used[op.side].understudy) {
+  if (piv && piv.dead && (equip(g, op.side, 'vdUnderstudy') && abilityArmed(g, op.side, 'vdUnderstudy')) && !g.vd.used[op.side].understudy) {
     g.vd.used[op.side].understudy = true; g.vd.pivotal[op.side] = op.uid;
     note(g, op.side, `替身面具：${opName(op, 'zh')} 接下主角`, `Understudy's Mask: ${opName(op, 'en')} takes the Pivotal Role`);
   }
@@ -102,7 +102,7 @@ export function vdRules(g, op, weapon, target, r) {
 /** The Shoot begins: Shrieker Toxin Rounds (once per TP) for a shuriken pistol or the focused shrieker cannon. */
 export function vdShootStart(g, op, weapon) {
   op.vdToxin = null;
-  if (!isVD(op) || op.side > 1 || !equip(g, op.side, 'vdToxin') || g.vd.used[op.side].toxin === g.tp) return;
+  if (!isVD(op) || op.side > 1 || !(equip(g, op.side, 'vdToxin') && abilityArmed(g, op.side, 'vdToxin')) || g.vd.used[op.side].toxin === g.tp) return;
   if (weapon.id !== 'vdShuriken' && weapon.id !== 'vdShriekF') return;
   g.vd.used[op.side].toxin = g.tp; op.vdToxin = weapon.id;
   note(g, op.side, `尖嘯毒彈：${opName(op, 'zh')} 的武器「毀滅 1」`, `Shrieker Toxin Rounds: ${opName(op, 'en')}'s weapon has Devastating 1`);
@@ -122,7 +122,7 @@ export function vdDefence(g, target, defRules) { if (isVD(target) && target.side
 export function vdElusiveHidden(g, from, to) { return isVD(to) && to.vdElusive && to.order === 'conceal' && visibility(g, from, to).cover && edgeDist(from, to) > 2; }
 /** Wraithbone Talisman (once per TP): two or more fails — one is retained as a normal success. */
 export function vdRoll(g, op, pool, retally) {
-  if (!isVD(op) || op.side > 1 || !pool || !equip(g, op.side, 'vdTalisman') || g.vd.used[op.side].talisman === g.tp) return;
+  if (!isVD(op) || op.side > 1 || !pool || !(equip(g, op.side, 'vdTalisman') && abilityArmed(g, op.side, 'vdTalisman')) || g.vd.used[op.side].talisman === g.tp) return;
   if (pool.dice.filter((d) => !d.auto && d.res === 'miss').length < 2) return;
   g.vd.used[op.side].talisman = g.tp;
   const fix = (p) => { const m = p.dice.filter((d) => !d.auto && d.res === 'miss'); if (m.length >= 2) { m[0].res = 'norm'; m[0].indo = true; p.norms++; } };
