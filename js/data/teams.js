@@ -10,6 +10,7 @@ import { SANCTIFIERS_TEAM } from './sanctifiers.js';
 import { RAVENERS_TEAM } from './raveners.js';
 import { SPECTRES_TEAM } from './spectres.js';
 import { AQUILONS_TEAM } from './aquilons.js';
+import { VOIDDANCERS_TEAM } from './voiddancers.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2265,6 +2266,7 @@ TEAMS.push(SANCTIFIERS_TEAM);
 TEAMS.push(RAVENERS_TEAM);
 TEAMS.push(SPECTRES_TEAM);
 TEAMS.push(AQUILONS_TEAM);
+TEAMS.push(VOIDDANCERS_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the
@@ -2646,6 +2648,7 @@ export const RULE_LABELS = {
   crush: { zh: '碾壓（每次攻擊擲骰比大小，贏的差距加傷害，最多 3）', en: 'Crush (roll-off on each strike: the difference adds damage, max 3)' },
   rvVenom: { zh: '毒液彈', en: 'Venom bolt' },
   spMissile: { zh: '飛彈發射器', en: 'Missile launcher' },
+  vdHumbling: { zh: '殘酷羞辱（命中後目標 Move -2"、命中變差 1）', en: 'Humbling Cruelty (a damaged target gets -2" Move and worse Hit)' },
   spSuppressive: { zh: '壓制射擊（敵人在 3" 內時 Atk -1）', en: 'Suppressive (enemies within 3" get -1 Atk)' },
   wreathed: { zh: '烈焰纏身（交戰中也能射擊自己周圍）', en: 'Wreathed (shoots around itself, even engaged)' },
   twinTorrent: { zh: '雙重洪流（兩個不同目標）', en: 'Twin Torrent (two different targets)' },

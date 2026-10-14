@@ -20,6 +20,7 @@ import { dkAiStrategy, dkMine } from './deathkorps.js';
 import { rvAiStrategy, rvAiUnderground, rvAiBurrow } from './raveners.js';
 import { spAiStrategy } from './spectres.js';
 import { aqAiStrategy, aqAiAbove } from './aquilons.js';
+import { vdAiStrategy } from './voiddancers.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -32,6 +33,7 @@ export function aiStrategy(g, side) {
   rvAiStrategy(g, side); // Raveners: the next Tunnel marker, Synaptic Link
   spAiStrategy(g, side); // Spectre Squad: Starshell Flare
   aqAiStrategy(g, side); // Tempestus Aquilons: Rapid Insertion, Drop markers
+  vdAiStrategy(g, side); // Void-dancer Troupe: Saedath
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }

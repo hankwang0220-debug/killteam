@@ -18,6 +18,8 @@ import { DEATHKORPS_EQUIPMENT } from './data/deathkorps.js';
 import { RAVENERS_EQUIPMENT } from './data/raveners.js';
 import { SPECTRES_EQUIPMENT } from './data/spectres.js';
 import { AQUILONS_EQUIPMENT } from './data/aquilons.js';
+import { VOIDDANCERS_EQUIPMENT } from './data/voiddancers.js';
+import { isVD, vdSetup, vdFill, vdActivate, vdEnd, vdRules, vdShootStart, vdShootEnd, vdPanoply, vdDefence, vdElusiveHidden, vdRoll, vdDomino, vdJest, vdCurtain, vdDeath, vdLuckFree, vdLuckUsed, vdLuckReroll, vdActions, vdFogged, registerVoidDancerActions } from './voiddancers.js';
 import { isAQ, aqSetup, aqReady, aqTPEnd, aqActivate, aqEnd, aqActions, aqSelf, aqWeapons, aqRules, aqDefence, aqDetectedBlock, aqStimms, aqControl, aqPloyBought, aqVetFree, aqVetUsed, aqVetReroll, aqVetRerollUsed, aqTrack, aqAfterShoot, aqDynamic, aqObscure, aqPlaceAuto, aqOverseerOk, aqUseOverseer, registerAquilonActions } from './aquilons.js';
 import { isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
 import { rvSensesOk, rvUseSenses, isRV, rvSetup, rvStart, rvActivate, rvEnd, rvActions, rvSelf, rvRules, rvShot, rvDefence, rvNoReroll, rvCrestExtra, rvCrestControl, rvLurkCover, rvChroma, rvCarapace, rvCrush, rvAcidBlood, rvHorror, rvDeath, rvPloyBought, rvAmbush, rvPoisonHit, rvPlaceAuto, rvEndBattle, rvFreeBurrow, registerRavenerActions } from './raveners.js';
@@ -109,7 +111,7 @@ function contagion(g, op) {
     && living(g, foe).some((pm) => (op.poison || tpl(pm).iconBearer) && seen(pm)));
 }
 /** -2" Move and Hit worsened by 1: injured (unless ignored) or Contagion; the two aren't cumulative. */
-export const statPenalty = (g, op) => injuredPenalty(g, op) || contagion(g, op) || mdProjected(g, op);
+export const statPenalty = (g, op) => injuredPenalty(g, op) || contagion(g, op) || mdProjected(g, op) || op.vdHumbled != null; // (Humbling Cruelty: Void-dancer Death Jester, not cumulative with being injured)
 
 export function moveStat(g, op) {
   // Injured: -2" Move, but never below 4" (unless the Move stat itself is lower).
@@ -155,6 +157,7 @@ export function moveAllowance(g, op, kind) {
   if (tpl(op).blinkPack && op.blinkOn && kind !== 'dash') return op.counter ? 2 : 7;
   if (kind === 'dash') d = tpl(op).blademaster && op.acted?.charge ? Math.min(3, op.acted.chargeRemaining || 0) : 3;
   if (kind === 'reposition' && op.mvb) d = Math.max(0, d - 2); // Move With Barricade
+  if (kind === 'reposition' && op.acted?.vdRestOn) return op.acted.vdRest || 0; // Darting Salvo: the rest of that Reposition
   if (kind === 'reposition' && hasOrder(g, op, 'moveMove')) d += 1; // Move! Move! Move!
   if (kind === 'reposition' && skillOn(g, op, 'strikeFast')) d += 1; // Strike Fast (Kasrkin)
   if (kind === 'reposition' && isES(op) && hasPloy(g, op.side, 'quickMarch') && !op.counter) d += 1; // Quick March (Elucidian Starstriders)
@@ -264,6 +267,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   rvSetup(g, roster); // Raveners: roster limits, the Tunnel
   spSetup(g, roster); // Spectre Squad: roster limits, Fieldcraft points
   aqSetup(g, roster); // Tempestus Aquilons: roster limits, Drop markers
+  vdSetup(g, roster); // Void-dancer Troupe: roster limits, Saedath
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -773,6 +777,7 @@ export function finishPloys(g) {
   g.stratTurn = 1 - side;
   if (g.stratPasses >= 2) {
     fillPrimary(g);
+    vdFill(g); // Void-dancer Troupe: an allegory and a Pivotal Role if nobody picked one
     for (const s of [g.initiative, 1 - g.initiative]) finalizeStrategy(g, s);
     startFirefight(g);
   }
@@ -908,6 +913,7 @@ export function readyOps(g, side) {
   ready = ready.filter((o) => !scrambled(g, o, ready) && !dwBlocked(g, o) && o.mdWhisperTP !== g.tp); // Omni-scrambler (Phobos), Harrowing Whispers
   if (g.ncScream && ready.some((o) => o.uid !== g.ncScream)) ready = ready.filter((o) => o.uid !== g.ncScream); // Vox Scream (Nemesis Claw)
   ready = ready.filter((o) => !denounced(g, o, ready)); // Denounce (Inquisition)
+  ready = ready.filter((o) => !vdFogged(g, o, ready)); // Fog of Dreams (Void-dancer Shadowseer)
   return ready.some((o) => !o.jam) ? ready.filter((o) => !o.jam) : ready;
 }
 
@@ -1034,6 +1040,7 @@ export function activate(g, op) {
   rvActivate(g, op); // Raveners: Poison tokens, Metamorphic Flesh
   spActivate(g, op); // Spectre Squad: Ambushing Volley, Weapons Team
   aqActivate(g, op); // Tempestus Aquilons: Sudden Offensive count
+  vdActivate(g, op); // Void-dancer Troupe: Humbling Cruelty, Elusive Target, Understudy's Mask
 }
 
   // Archon effects are committed only when an action begins.
@@ -1074,7 +1081,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side // Ba
 
 export function endActivation(g) {
   const op = activeOp(g);
-  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); }
+  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
@@ -2259,10 +2266,10 @@ export function availableActions(g, op) {
   const free = op.acted.free || {};
   // Mobile: may Charge while within control range of an enemy.
   const chargeEngaged = engaged && !hasTactic(g, op, 'mobile') && !op.acted.rvSlither; // (Slithering Evasion: Charge from engagement)
-  add('reposition', !engaged && !heavyBlocks('reposition') && !did('reposition', 'fallBack', 'charge'), engaged ? ENG : heavyBlocks('reposition') ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
+  add('reposition', !engaged && !heavyBlocks('reposition') && (!did('reposition', 'fallBack', 'charge') || !!op.acted.vdRestOn), engaged ? ENG : heavyBlocks('reposition') ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
   const bladeDash = tpl(op).blademaster && count(op, 'charge') && (op.acted.chargeRemaining || 0) > 0;
   const caprice = free.dash === 'capricious' || free.dash === 'fade' || free.dash === 'murder'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
-  add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
+  add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash || (isVD(op) && hasPloy(g, op.side, 'vdCrescendo'))))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
   const noCharge = conceal && !(tpl(op).rvTremor && op.acted.rvBurrow) && !op.acted.spSilent && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
@@ -2302,6 +2309,7 @@ export function availableActions(g, op) {
   kfActions(g, op, add); // Farstalker Kinband: Gather
   dkActions(g, op, add); // Death Korps: the Sapper's mine
   aqActions(g, op, add); // Tempestus Aquilons: Land, Expend
+  vdActions(g, op, add); // Void-dancer Troupe: Mirror of Minds, Fog of Dreams
   spActions(g, op, add); // Spectre Squad: Issue Mission, Signal, Load Weapon, Advanced Camouflage
   rvActions(g, op, add); // Raveners: Burrow, Toxic Lunge, Distend Dorsal Sac
   if (tpl(op).signal) unique('signal');
@@ -2749,6 +2757,9 @@ export function doMove(g, op, kind, path) {
   dwAfterAction(g, op);
   if (kind === 'fallBack') op.fellBackTP = g.tp; // (Instinctive Behaviour: Raveners)
   if (kind === 'charge') op.chargedTP = g.tp; // (Suppressive Fire: Spectre Squad)
+  op.vdMovedTP = g.tp; // (Prismatic Blur: Void-dancer Troupe)
+  if (isVD(op) && op.acted.vdRestOn) { op.acted.vdRestOn = false; op.acted.vdRest = 0; } // (Darting Salvo: the rest of the move is used)
+  else if (kind === 'reposition' && isVD(op) && hasPloy(g, op.side, 'vdSalvo')) op.acted.vdRest = Math.max(0, moveAllowance(g, op, 'reposition') - (path?.len || 0)); // Darting Salvo
   rvAmbush(g, op, movedFrom); // Subterranean Ambush (Raveners): a Tremorscythe lunges from the tunnel
   return true;
 }
@@ -2795,7 +2806,7 @@ const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, 
 function validTarget(g, op, target, weapon) {
   const v = shotVisibility(g, op, target, weapon);
   if ((target.mdGlyph || target.scCovert || rtShifty(g, target) || tpl(target).sneaky) && target.order === 'conceal' && visibility(g, op, target).cover && edgeDist(op, target) > 2) return null; // (Covert Position: Scout Squad)
-  if (!v.visible || spCamoHidden(g, op, target)) return null; // (Advanced Camouflage: Spectre Squad)
+  if (!v.visible || spCamoHidden(g, op, target) || vdElusiveHidden(g, op, target)) return null; // (Elusive Target: Void-dancer Troupe) // (Advanced Camouflage: Spectre Squad)
   if (weapon.rules?.psychic && isCI(target) && target.side !== op.side) return null; // (Psychic ranged weapons can't damage Insidiants)
   if (target.reserve) return null; // (an Exodite rider still in reserve isn't in the killzone)
   if (target.order === 'conceal') {
@@ -2863,6 +2874,7 @@ export function effectiveRules(g, op, weapon, target) {
   scRules(g, op, weapon, target, r); // Scout Squad: Trip Alarm, Track Enemy, Designate Target, Ambush, Grapnel Assault
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
+  vdRules(g, op, weapon, target, r); // Void-dancer Troupe: Accolade, Shrieker Toxin Rounds
   aqRules(g, op, weapon, target, r); // Tempestus Aquilons: Sudden Offensive, Maintain Momentum, Drop and Secure
   spRules(g, op, weapon, target, r); // Spectre Squad: Ambushing Volley, Hidden Engagement, Weapon Assist, Suppressive Fire
   rvRules(g, op, weapon, target, r); // Raveners: Instinctive Behaviour, Death From Below, Distend Dorsal Sac
@@ -4609,7 +4621,7 @@ const isPsyker = (op) => !!tpl(op).psyker || !!tpl(op).sorcerer || tpl(op).weapo
 /** Null Rod (Condemnor): an enemy within 6" of a Condemnor can't use PSYCHIC ranged weapons or actions. */
 const nullRodded = (g, op) => op.side < 2 && (living(g, 1 - op.side).some((c) => tpl(c).nullRodAura && edgeDist(c, op) <= 6)
   || living(g).some((c) => c !== op && tpl(c).psychicNull && edgeDist(c, op) <= 6)); // (Psychic Null, Sisters of Silence: friend or foe)
-const PSYCHIC_ACTIONS = ['fate', 'ravage', 'alight', 'miasma', 'soulChannel', 'soulHeal', 'wardingShield', 'warpFold', 'telepathicOverload', 'mentalOnslaught', 'ruinousInvig', 'ruinousDeter', 'heinousDeluge', 'maleficVortex', 'songOne', 'songAll', 'cleansing', 'wails', 'windsGrace', 'scryGuide', 'scryProtect'];
+const PSYCHIC_ACTIONS = ['vdMirror', 'vdFog', 'fate', 'ravage', 'alight', 'miasma', 'soulChannel', 'soulHeal', 'wardingShield', 'warpFold', 'telepathicOverload', 'mentalOnslaught', 'ruinousInvig', 'ruinousDeter', 'heinousDeluge', 'maleficVortex', 'songOne', 'songAll', 'cleansing', 'wails', 'windsGrace', 'scryGuide', 'scryProtect'];
 // Weapons of the Witch Hunters: Psychic actions can't select enemy Insidiants (nor count them within their distances).
 for (const id of PSYCHIC_ACTIONS) {
   const ta = TARGET_ACTIONS[id];
@@ -4634,7 +4646,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
+Object.assign(EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
@@ -4642,7 +4654,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
+  voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4662,6 +4674,7 @@ registerKinbandActions();
 registerRavenerActions();
 registerSpectreActions();
 registerAquilonActions();
+registerVoidDancerActions();
 ACTIONS.mvBarricade = { ap: 1, name: { zh: '隨路障移動', en: 'Move With Barricade' } };
 registerDeathKorpsActions();
 registerMandrakeActions();
@@ -4851,7 +4864,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => aqVetFree(g, side, id) ? 0 : (g.ccFree || ccAwakenedFree(g, side, id)) && id === 'animateNodes' ? 0 : scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => aqVetFree(g, side, id) || vdLuckFree(g, side, id) ? 0 : (g.ccFree || ccAwakenedFree(g, side, id)) && id === 'animateNodes' ? 0 : scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id, target = g.dwAuspexTarget) => ffBaseCost(g, side, id, target) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id, target = g.dwAuspexTarget) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id, target) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -4861,6 +4874,7 @@ function spendFF(g, side, id) {
   scrivener(g, side, id); // (Scrivener)
   const paid = ffCostNow(g, side, id);
   if (!(id === 'wrathVengeance' && adReliquaries(g, side)) && adHeroicFree(g, side, id, g.ffSpec)) adHeroicUsed(g, side); // Heroic Leader (Space Marine Captain): once per TP
+  if (!aqVetFree(g, side, id) && vdLuckFree(g, side, id)) vdLuckUsed(g, side, id); // Luck of the Laughing God (Void-dancer Players)
   if (aqVetFree(g, side, id)) aqVetUsed(g, side); // Tempestus Veteran: the once-per-battle free ploy
   if (scVoxFree(g, side, id)) (g.scVoxTP ||= [0, 0])[side] = g.tp; // Tactical Vox-link (Scout Squad): free once per TP (after the cost above was worked out)
   if (dwCommandFree(g, side, 'firefight') && !(id === 'dwAuspex' && dwTriangulation(g, side, g.dwAuspexTarget))) dwConsumeCommand(g, side, 'firefight');
@@ -5006,6 +5020,10 @@ const FF = {
   aqHotDrop: { kind: 'attack', cond: (g, op, t) => (isAQ(op) && t && edgeDist(op, t) <= 6 && ((op.aqLandAct === op.uid && op.aqLandTP === g.tp) || whollyIn(g, op, 1 - op.side)) ? null : { zh: '需要降落或在敵方領地內，且目標在 6" 內', en: 'Needs to have landed or be in enemy territory, target within 6"' }) },
   aqExemplar: { kind: 'button', cond: (g, o) => (!isAQ(o) || tpl(o).aqSentry || tpl(o).apl > 2 ? { zh: '需要 APL 2 以下的風暴天鷹（非伺服哨兵）', en: 'Needs a TEMPESTUS AQUILON with APL 2 or less (not the Servo-sentry)' } : null), apply(g, o) { o.acted.aqExemplar = true; return { zh: '風暴楷模：本次啟動撿標記、放標記與任務行動少 1AP', en: 'Tempestus Exemplars: Pick Up, Place Marker and mission actions cost 1 less AP this activation' }; } },
   aqProgena: { kind: 'button', start: true, cond: (g, o) => (!isAQ(o) || tpl(o).aqSentry ? { zh: '需要風暴天鷹（非伺服哨兵）', en: 'Needs a TEMPESTUS AQUILON (not the Servo-sentry)' } : null), apply(g, o) { const h = Math.min(o.maxW - o.wounds, d3() + d3()); o.wounds += h; o.ap = tpl(o).apl; return { zh: `孤兒學院：回復  生命，本次啟動無視 APL 改變`, en: `Progena: regains  wounds and ignores APL changes this activation` }; } },
+  vdCurtain: { kind: 'auto' },
+  vdDomino: { kind: 'auto' },
+  vdElusive: { kind: 'button', cond: (g, o) => (isVD(o) ? null : { zh: '只有虛空舞者', en: 'VOID-DANCER TROUPE only' }), apply(g, o) { o.vdElusive = true; return { zh: '難以捉摸：到下次啟動前，隱蔽且在掩護中時 2" 外不能被選為目標', en: 'Elusive Target: until its next activation, Concealed and in cover it can\'t be targeted beyond 2"' }; } },
+  vdMurder: { kind: 'attack', fight: true, cond: (g, op) => (isVD(op) && count(op, 'charge') ? null : { zh: '本次啟動沒有衝鋒', en: 'Didn\'t Charge this activation' }) },
   rvSlither: { kind: 'button', cond: (g, o) => (isRV(o) ? null : { zh: '只有蛇蟲', en: 'RAVENERs only' }), apply(g, o) { o.acted.rvSlither = true; return { zh: '滑溜閃避：撤退少 1AP，且可以在交戰中衝鋒', en: 'Slithering Evasion: Fall Back for 1 less AP and Charge while engaged' }; } },
   rvFrenzy: { kind: 'auto' },
   rvHorror: { kind: 'auto' },
@@ -5461,7 +5479,7 @@ const noRerollHere = (g, op) => (!!mission(g).noRerollNearObjective && op.side !
 export function canCommandReroll(g, side, holder, which) {
   if (!holder || holder.rerolled?.[which] || holder.noReroll?.[which]) return false;
   const pool = holder[which === 'a' ? 'a' : 'd'];
-  return !!pool && (g.cp[side] >= 1 || dutyFree(g, side, holder, which) || aqVetReroll(g, side, holder, which)) && pool.dice.some((d) => !d.auto);
+  return !!pool && (g.cp[side] >= 1 || dutyFree(g, side, holder, which) || aqVetReroll(g, side, holder, which) || vdLuckReroll(g, side, holder)) && pool.dice.some((d) => !d.auto);
 }
 /** Duty of Reclamation (Battleclade ploy): a free Command Re-roll for a friendly contesting an objective marker (once per sequence). */
 function dutyFree(g, side, holder, which) {
@@ -5476,7 +5494,7 @@ export function commandReroll(g, side, holder, which, index) {
   const pool = holder[which === 'a' ? 'a' : 'd'], die = pool.dice[index];
   if (!die || die.auto || die.locked) return false; // (locked: a 3 hit by Curse of Rot)
   let free = dutyFree(g, side, holder, which);
-  if (free) holder.dutyUsed = true; else if (aqVetReroll(g, side, holder, which)) { aqVetRerollUsed(g, side); free = true; } else g.cp[side]--; // (Tempestus Veteran: the Tempestor's first Command Re-roll is free)
+  if (free) holder.dutyUsed = true; else if (aqVetReroll(g, side, holder, which)) { aqVetRerollUsed(g, side); free = true; } else if (vdLuckReroll(g, side, holder)) { vdLuckUsed(g, side, 'commandReroll'); free = true; } else g.cp[side]--; // (Tempestus Veteran: the Tempestor's first Command Re-roll is free)
   (holder.rerolled ||= {})[which] = true;
   const old = die.v;
   die.v = d6(); die.rr = true;
@@ -5732,6 +5750,7 @@ function killOff(g, src, target) {
     sfDeath(g, src, target); // Sanctifiers: Redeemed Through Fire, Imperial Cult Devotion
     dkDeath(g, src, target); // In Death, Atonement (Death Korps)
     rvDeath(g, src, target); // Death Frenzy (Raveners)
+    vdDeath(g, src, target); // Void-dancer Troupe: the performance, Death Mask
     wkBoom(g, target); // Boom! (Wrecka Bomb Squig): it may explode before it's removed
     if (g.pechra?.[target.side]?.by === target.uid) g.pechra[target.side] = null;
     if (g.pan?.[target.side]?.by === target.uid) g.pan[target.side] = null; // Pan Spectral Scan marker
@@ -5869,6 +5888,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   wkRoll(g, op, a, target, tally); // Wrecka Rampage: 6s gain Wrecka points, points retain fails
   rtEquipRoll(g, op, weapon, a, tally); // Ratlings equipment: Purloined Rations, Lucky Round
   sfRoll(g, op, a, tally); // Sanctifiers equipment: Purity Seals
+  vdRoll(g, op, a, tally); // Wraithbone Talisman (Void-dancer Troupe)
   adRoll(g, op, a, tally); // Purity Seals (Angels of Death)
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
@@ -5903,6 +5923,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     let pierce = tpl(target).xenotech || tpl(target).daemonic ? 0 : tpl(target).cultAgent || ferric || isMandrake(target) ? (crits > 0 ? rules.piercingCrits || 0 : 0) : (rules.piercing || 0) + (crits > 0 ? rules.piercingCrits || 0 : 0);
     // Extra Defence (NEMESIS): one more defence die unless injured (Xenotech: even when injured).
     if (tpl(target).dwStormShield && rules.piercing && !ferric) pierce = Math.max(0, pierce - 1);
+    if (vdPanoply(target, crits)) pierce = Math.max(0, pierce - 1); // Harlequin's Panoply (Void-dancer Troupe): no critical retained
     const extraDef = tpl(target).nemesis && (!isInjured(target) || tpl(target).xenotech) ? 1 : 0;
     // The number of defence dice is the target's Defence stat (datacards without one roll 3).
     const defDice = Math.max(0, (tpl(target).def ?? DEFENCE_DICE) + extraDef - pierce);
@@ -6014,6 +6035,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
   archonDefence(g, target, op, defRules);
   rvDefence(g, target, defRules); // Whipcord Emergence (Raveners)
+  vdDefence(g, target, defRules); // Prismatic Blur (Void-dancer Troupe)
   aqDefence(g, op, target, defRules); // Eye Above (Tempestus Aquilons)
   corsairDefence(g, target, weapon, defRules);
   dwDefence(g, target, defRules);
@@ -6047,7 +6069,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // War Gong: crits that get through inflict Normal Dmg instead (when that's better, or to keep a Frenzied Fellgor up).
   const wasFrenzy = !!target.frenzy;
   const gong = warGong(g, target) && (dn < dc || wasFrenzy);
-  let block = bestBlock(a.crits, a.norms, d.crits + coverC, d.norms + coverN, dn, gong ? dn : dc);
+  const dom = vdDomino(g, target, a, d, dn, gong ? dn : dc); // Domino Field (Void-dancer Troupe)
+  let block = bestBlock(dom.ac, dom.an, dom.dcr + coverC, dom.dno + coverN, dn, gong ? dn : dc);
   // Survival Instincts (Ratlings firefight ploy, automatic): normal saves block a critical success, critical saves two successes — when it helps.
   if (isSmall(target) && target.side < 2) {
     const si = rtBlockSI(a.crits, a.norms, d.crits + coverC, d.norms + coverN, dn, gong ? dn : dc);
@@ -6082,6 +6105,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   let killed = target.dead || applyDamage(g, op, target, res.dmg);
   sfShootBlaze(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); // Blaze (Sanctifiers)
   rvPoisonHit(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); rvShot(op, weapon); // Poison (Raveners)
+  vdShootEnd(g, op, weapon, target, dmg > 0); // Humbling Cruelty (Void-dancer Death Jester)
   // Excess attack dice are excluded once the enemy's remaining wounds have been inflicted.
   if (res.dmg > 0) {
     let leftW = before - devDmg, damaging = 0;
@@ -6193,6 +6217,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
   pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
   kfShootStart(g, op, weapon); // Piercing Shot / Toxin Shot (Farstalker Kinband)
+  vdShootStart(g, op, weapon); // Shrieker Toxin Rounds (Void-dancer Troupe)
   ccPhaseStart(g, op, target); // Phase Shifter (Canoptek Circle)
   adShootStart(g, op, target, shotVisibility(g, op, target, weapon).obscured); // Auspex (Angels of Death)
   mwActionStart(g);
@@ -6335,6 +6360,7 @@ export function* shootFlow(g, op, weapon, target) {
   demolitionJob(g, op, target); // Demolition Job (Wrecka Krew)
   if (op.acted.contemptuous) op.acted.contemptUsed = true;
   corsairAfterAction(g, op);
+  if (isVD(op) && (op.acted.vdRest || 0) > 0.5 && !op.acted.vdRestOn && count(op, 'reposition')) op.acted.vdRestOn = true; // Darting Salvo: the Reposition can go on after the Shoot
   aqAfterShoot(g, op); // Gunfight (Aquilon Gunfighter); Dynamic (Precursor)
   aqDynamic(g, op);
   dwAfterAction(g, op);
@@ -6458,6 +6484,7 @@ export function startFight(g, op, weapon, target) {
   claimBoost(g, op, target, aRoll); claimBoost(g, target, op, dRoll); // Stake Claim (Elucidian Starstriders)
   wkRoll(g, op, aRoll, target, tally); wkRoll(g, target, dRoll, op, tally); // Wrecka Rampage (fighting or retaliating)
   sfRoll(g, op, aRoll, tally); sfRoll(g, target, dRoll, tally); // Purity Seals (Sanctifiers)
+  vdRoll(g, op, aRoll, tally); vdRoll(g, target, dRoll, tally); // Wraithbone Talisman (Void-dancer Troupe)
   pmCurse(g, op, target, dRoll, tally); pmCurse(g, target, op, aRoll, tally); // Curse of Rot (Plague Marines)
   adRoll(g, op, aRoll, tally); adRoll(g, target, dRoll, tally); // Purity Seals (Angels of Death)
   spend(g, op, 'fight');
@@ -6500,7 +6527,7 @@ export function startFight(g, op, weapon, target) {
   for (const [k, o, foe] of [['A', op, target], ['D', target, op]]) if (souldrained(g, o, foe)) g.fight[k].drain = true;
   if (tpl(target).viciousReflexes) g.fight.turn = 'D'; // Vicious Reflexes (Shrivetalon): it resolves first when retaliating
   if (rvHorror(g, target)) g.fight.turn = 'D'; // Subterranean Horror (Raveners)
-  if (tpl(op).aqPrecursor) g.fight.A.extraStrike = true; // Vicious Knife Fighter (Aquilon Precursor): another die straight after its first
+  if (tpl(op).aqPrecursor || ffOn(g, op, 'vdMurder')) g.fight.A.extraStrike = true; // (Murderous Entrance: Void-dancer Troupe) // Vicious Knife Fighter (Aquilon Precursor): another die straight after its first
   if (tpl(target).aqPrecursor) g.fight.D.extraStrike = true;
   if (isAQ(target) && aqDetectedBlock(g, op, target)) g.fight.D.doubleOnce = true; // Eye Above (Aquilons): one block stops two successes
   if (isAQ(op) && aqDetectedBlock(g, target, op)) g.fight.A.doubleOnce = true;
@@ -6641,6 +6668,7 @@ export function fightApply(g, optId) {
   const k = f.turn, me = f[k], foe = f[other(k)];
   if (opt.act === 'strike' && opt.die === 'n' && kmKunnin(g, f, k, me, fightOp(g, k))) { me.n--; me.c++; return fightApply(g, 'strike-c'); } // Kunnin' But Brutal (Kommandos): the first strike counts as a crit
   me[opt.die]--;
+  if (opt.act === 'strike' && opt.die === 'n' && vdJest(g, fightOp(g, other(k)), foe, fightWeapon(g, k))) { f.steps.push({ side: k, act: 'parry', crit: false, blocked: false }); f.turn = other(k); advanceFight(g); return; } // Cegorach's Jest (Void-dancer Troupe)
   if (me.dirty) { me.dirty = false; me.c = 0; me.n = 0; } // Dirty Fighter: no other success is resolved this sequence
   if (mwHonour(g, fightOp(g, k), fightOp(g, other(k)), opt.die === 'c', autoFF)) { advanceFight(g); return; }
   if (opt.act === 'strike' && wkDetonate(g, f, fightOp(g, k), fightOp(g, other(k)), fightWeapon(g, k), opt.die === 'c')) { advanceFight(g); return; } // Detonate (Demolisha)
@@ -6752,6 +6780,7 @@ export function fightApply(g, optId) {
     me.extraStrike = false;
     f.steps.push({ side: k, act: 'strike', crit: opt.die === 'c', dmg: res.dmg, killed, resil: res.rolls[0], shocked, again, shrug });
     f.turn = again ? k : other(k);
+    if (opt.die === 'c' && !killed && !foeOp.dead) vdCurtain(g, meOp, foeOp, f); // The Curtain Falls (Void-dancer Troupe)
     // Bruiser: incapacitated in the fight, it strikes back once with an unresolved success before it's removed.
     // Blood Offering (Butcher): the first critical strike in the sequence gains a Blooded token.
     if (opt.die === 'c' && fightWeapon(g, k).rules.bloodOffering && !me.offered) { me.offered = true; gainBlood(g, meOp.side, { zh: '血之獻祭', en: 'Blood Offering' }); }

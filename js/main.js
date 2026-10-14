@@ -14,6 +14,8 @@ import { ravenersRosterError } from './data/raveners.js';
 import { spectresRosterError } from './data/spectres.js';
 import { spPatienceOk, spPatience, spStarshellOk, spStarshell } from './spectres.js';
 import { aquilonsRosterError } from './data/aquilons.js';
+import { voidDancersRosterError } from './data/voiddancers.js';
+import { vdChooseOk, vdChoose, vdGrantOk, vdGrantGambit, vdCandidates, vdLeadOk, vdLead, vdHasAccolade } from './voiddancers.js';
 import { aqCanAbove, aqSetAbove, aqLandCheck, aqDoLand, aqDropLeft, aqRapidOk, aqRapid, aqAutoDrop, aqMoveDrop, aqOverseerOk, aqUseOverseer } from './aquilons.js';
 import { pathfindersRosterError } from './data/pathfinders.js';
 import { angelsRosterError } from './data/angels.js';
@@ -544,6 +546,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'aquilons') { const error = aquilonsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'spectres') { const error = spectresRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'raveners') { const error = ravenersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -752,6 +755,8 @@ function opRoster(side) {
       !o.dead && o.counteracted && g.phase === 'firefight' ? `<span class="tag">${L('↺已反應', '↺ Countered')}</span>` : '',
       !o.dead && o.underground ? `<span class="tag">${L('🕳地下', '🕳 Underground')}</span>` : '',
       !o.dead && o.above ? `<span class="tag">${L('🪂天上', '🪂 Above')}</span>` : '',
+      !o.dead && vdHasAccolade(g, o) ? `<span class="tag">${g.vd.pivotal[o.side] === o.uid ? L('🎭主角', '🎭 Pivotal') : L('🎭讚譽', '🎭 Accolade')}</span>` : '',
+      !o.dead && o.vdHumbled != null ? `<span class="tag">${L('😖羞辱', '😖 Humbled')}</span>` : '',
       !o.dead && o.rvPoison?.some(Boolean) ? `<span class="tag">${L('☠毒素', '☠ Poison')}</span>` : '',
     ].join('');
     const cls = ['opchip', o.dead ? 'dead' : '', !o.dead && !o.ready && g.active !== o.uid ? 'spent' : '', g.active === o.uid ? 'active' : '', (ui.peek || ui.sel) === o.uid ? 'sel' : ''].join(' ');
@@ -1258,6 +1263,16 @@ function gambitView(side) {
     html += `<div class="gambit"><h4>${L('主要任務（Primary Op，策略謀略）', 'Primary Op (strategic gambit)')}</h4>
       <p class="hint small">${L('秘密選一個：該任務的得分 ×1.5（無條件進位），遊戲結束才公布；選 Kill Op 則是（擊殺等級分＋較高者 1 分）×1.5。', 'Choose one in secret: its VP x1.5 (rounded up), revealed at the end; for Kill Op, (grade VP + 1 for the higher grade) x1.5.')}</p>
       <div class="row">${PRIMARY_OPS.map((id) => `<button data-act="primaryop" data-side="${side}" data-id="${id}">${name[id]}</button>`).join('')}</div></div>`;
+  }
+  if (g.teams[side] === 'voidDancers' && !isAI(side) && (vdChooseOk(g, side) || vdGrantOk(g, side) || vdLeadOk(g, side))) {
+    const opts = (list) => list.map((o) => `<option value="${o.uid}">${nm(o)}</option>`).join('');
+    html += `<div class="gambit"><h4>${L('劇目（策略謀略）', 'Saedath (strategic gambits)')}</h4>`;
+    if (vdChooseOk(g, side)) html += `<p class="hint small">${L('選寓言與主角：史詩＝近戰時近戰武器「平衡」，主角近戰中使敵人殘廢即完成演出；通俗劇＝遠程武器「平衡」，射擊使敵人殘廢即完成演出。', 'Pick the allegory and the Pivotal Role: Epic = Balanced melee weapons when fighting, completed by incapacitating an enemy in a fight; Melodrama = Balanced ranged weapons, completed by incapacitating an enemy by shooting.')}</p>
+      <label>${L('主角', 'Pivotal Role')} <select id="vdPivot">${opts(living(g, side))}</select></label>
+      <div class="row"><button data-act="vdchoose" data-side="${side}" data-al="epic">${L('史詩', 'Epic')}</button><button data-act="vdchoose" data-side="${side}" data-al="melodrama">${L('通俗劇', 'Melodrama')}</button></div>`;
+    if (vdGrantOk(g, side)) html += `<label>${L('讓一名友方獲得讚譽', 'One friendly gains the Accolade')} <select id="vdGrant">${opts(vdCandidates(g, side))}</select></label><button data-act="vdgrant" data-side="${side}">${L('確定', 'Confirm')}</button>`;
+    if (vdLeadOk(g, side)) html += `<button data-act="vdlead" data-side="${side}">${L('領銜演出：更換寓言（整場一次）', 'Lead the Performance: change the allegory (once per battle)')}</button>`;
+    html += `</div>`;
   }
   if (g.teams[side] === 'aquilons' && !isAI(side) && (aqDropLeft(g, side) || aqRapidOk(g, side))) html += `<div class="gambit"><h4>${L('空降（策略謀略）', 'Drop Insertion (strategic gambits)')}</h4>${aqDropLeft(g, side) ? `<p class="hint small">${L('把空降標記水平移動最多 4"：按「移動標記」，點一個標記再點目的地。', 'Move the Drop markers up to 4": press Move markers, tap a marker, then its destination.')}</p><div class="row"><button class="${ui.dropMode?.side === side ? 'on' : ''}" data-act="dropmode" data-side="${side}">${ui.dropMode?.side === side ? L('取消', 'Cancel') : L('移動標記', 'Move markers')}</button><button data-act="dropauto" data-side="${side}">${L('自動（往敵人靠近）', 'Auto (towards the enemy)')}</button></div>` : ''}${aqRapidOk(g, side) ? `<button data-act="aqrapid" data-side="${side}">${L('快速空降：降落區內的士兵免費重新定位（距降落區 3" 內）', 'Rapid Insertion: Troopers in the drop zone make a free Reposition (within 3" of it)')}</button>` : ''}</div>`;
   if (g.teams[side] === 'spectres' && !isAI(side) && spStarshellOk(g, side)) html += `<div class="gambit"><h4>${L('照明彈（策略謀略）', 'Starshell Flare (strategic gambit)')}</h4><button data-act="spstarshell" data-side="${side}">${L('投擲：一名友方魅影免費震撼手雷（自動選目標）', 'Throw: a friendly Spectre makes a free Stun Grenade (target picked automatically)')}</button></div>`;
@@ -1958,6 +1973,11 @@ const ABILITIES = {
   kfWarrior: () => ['準備好面對一切', 'Ready for Anything', '每回合一次，友方戰士啟動中可以額外使用生肉、穿甲彈或毒彈（不佔每回合一次的限制）。', 'Once per TP during a Warrior\'s activation, use Meat, Piercing Shot or Toxin Shot once more (it doesn\'t count towards their limit).'],
   kmGrapple: () => ['鉤爪', 'Grappling Hook', '1AP（視為重新定位，不在交戰中，不能和衝鋒或撤退同一次啟動）：選一個看得到的地形點，被移走後放回該點 1" 內、看得到該點的位置。', '1AP (a Reposition; not engaged; not with Charge or Fall Back): pick a visible point on terrain and be set up again within 1" of it, seeing it.'],
   sneaky: () => ['鬼祟搗蛋', 'Sneaky Zogger', '不能有交戰指令；在掩護中時，2" 外不能被選為有效目標（優先於其他規則）。', 'Can\'t have an Engage order; in cover it can\'t be selected as a valid target beyond 2" (taking precedence over other rules).'],
+  vdTroupe: () => ['丑角裝備', 'Harlequin\'s Panoply', '被射擊時若沒有攻擊骰保留為暴擊，穿甲 X 減 1（穿甲 1 無效）。可以穿過敵人的控制範圍移動。（攀爬一律算 2" 在 2D 版本沒有效果）', 'When shot with no critical attack dice retained, Piercing is worsened by 1 (Piercing 1 is ignored). It can move through enemy control range. (Climbing as 2" has no effect in 2D.)'],
+  vdLead: () => ['領銜演出', 'Lead the Performance', '整場一次策略謀略：它在場上時，更換你選的寓言（讚譽跟著改變）。', 'Once per battle strategic gambit, while it is in the killzone: change your allegory (the Accolades change with it).'],
+  vdPlayer: () => ['笑神的好運', 'Luck of the Laughing God', '每回合一次（全隊共用）：它是指定特工時，一個交戰計謀 0CP（含為它擲的骰子的指揮重擲）；同一個計謀整場只能這樣用一次。', 'Once per TP (team-wide): a firefight ploy costs 0CP when it is the specified operative (including the Command Re-roll for its dice); each ploy only once per battle this way.'],
+  vdJester: () => ['殘酷羞辱', 'Humbling Cruelty', '尖嘯炮命中但沒殺死目標時，目標獲得羞辱標記：Move -2"、武器命中變差 1（不與重傷疊加），它下次啟動結束時移除。', 'When its shrieker cannon damages but doesn\'t incapacitate the target, the target gains a Humbling Cruelty token: -2" Move and its weapons\' Hit worsened by 1 (not cumulative with being injured), removed at the end of its next activation.'],
+  vdSeer: () => ['心靈之鏡・夢境迷霧', 'Mirror of Minds · Fog of Dreams', '靈能，1AP，不在敵人控制範圍內。心靈之鏡：8" 內的有效目標，雙方各擲 5D6，每一對相同點數造成 D3 傷害（最多 8）。夢境迷霧：看得到的一名準備中敵人，擲 D6；本回合它要等對手再啟動那麼多名特工（或它是最後一名）才能啟動。', 'Psychic, 1AP, not in enemy control range. Mirror of Minds: a valid target within 8"; both roll 5D6, each matching pair deals D3 (max 8). Fog of Dreams: a visible ready enemy, roll a D6; this TP it can\'t activate until that many more enemies have activated (or it is the last).'],
   aqAquilon: () => ['空降部署', 'Drop Insertion', '被放在天上時，啟動時可以「降落」（1AP，視為重新定位：空降標記 3" 內或己方降落區內）或「消耗」留在天上。第 2 回合結束時還在天上就殘廢。降落後到下一次啟動結束前處於遮蔽狀態。', 'When set up above it can Land on activation (1AP, a Reposition: within 3" of a Drop marker or in your drop zone) or Expend and stay above. Still above at the end of TP2 it is incapacitated. A landed operative is obscured until the end of the next activation.'],
   aqTempestor: () => ['風暴老兵・指揮', 'Tempestus Veteran · Command', '整場一次：指揮官啟動中使用一個交戰計謀 0CP；整場一次：指揮官的指揮重擲 0CP。指揮（1AP，沒被交戰）：6" 內看得到的另一名友方風暴天鷹（伺服哨兵除外）下次啟動 APL +1。', 'Once per battle a firefight ploy during its activation costs 0CP, and once per battle its Command Re-roll is free. Command (1AP, not engaged): another friendly TEMPESTUS AQUILON (not the Servo-sentry) visible within 6" gets +1 APL.'],
   aqSentry: () => ['機械・砲塔', 'Machine · Turret', '只能衝刺、撤退、重新定位和射擊；不能反擊或協助近戰。每次啟動可以射擊兩次。', 'Only Dash, Fall Back, Reposition and Shoot; it can\'t retaliate or assist in a fight. It can Shoot twice per activation.'],
@@ -3040,6 +3060,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'voidDancers' && voidDancersRosterError(TEAM_MAP.voidDancers, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'aquilons' && aquilonsRosterError(TEAM_MAP.aquilons, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'spectres' && spectresRosterError(TEAM_MAP.spectres, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'raveners' && ravenersRosterError(TEAM_MAP.raveners, ui.setup.roster?.[side])) return render();
@@ -3056,6 +3077,9 @@ function handle(act, d) {
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'vdchoose': vdChoose(g, +d.side, d.al, document.getElementById('vdPivot')?.value); return afterChange();
+    case 'vdgrant': vdGrantGambit(g, +d.side, document.getElementById('vdGrant')?.value); return afterChange();
+    case 'vdlead': vdLead(g, +d.side); return afterChange();
     case 'depabove': aqSetAbove(g, g.dep.turn); return afterChange();
     case 'dropmode': ui.dropMode = ui.dropMode?.side === +d.side ? null : { side: +d.side, idx: null }; return render();
     case 'dropauto': aqAutoDrop(g, +d.side); ui.dropMode = null; return afterChange();
