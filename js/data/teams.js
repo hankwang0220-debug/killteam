@@ -13,6 +13,7 @@ import { AQUILONS_TEAM } from './aquilons.js';
 import { VOIDDANCERS_TEAM } from './voiddancers.js';
 import { VESPIDS_TEAM } from './vespids.js';
 import { STEALTH_TEAM } from './stealthsuits.js';
+import { WOLF_TEAM } from './wolfscouts.js';
 
 // Team data. Stats follow Kill Team conventions (APL / Move / Save / Wounds,
 // weapons ATK / HIT / DMG normal/crit). Every team uses the official online datacards (stats only, ability
@@ -2271,6 +2272,7 @@ TEAMS.push(AQUILONS_TEAM);
 TEAMS.push(VOIDDANCERS_TEAM);
 TEAMS.push(VESPIDS_TEAM);
 TEAMS.push(STEALTH_TEAM);
+TEAMS.push(WOLF_TEAM);
 
 // ---- Inquisitorial Agents ----
 // (Requisitioned operatives from other kill teams are copies of their datacards: prefixed ids, the

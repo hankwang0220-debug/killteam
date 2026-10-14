@@ -21,6 +21,8 @@ import { AQUILONS_EQUIPMENT } from './data/aquilons.js';
 import { VOIDDANCERS_EQUIPMENT } from './data/voiddancers.js';
 import { VESPIDS_EQUIPMENT } from './data/vespids.js';
 import { STEALTH_EQUIPMENT } from './data/stealthsuits.js';
+import { WOLF_EQUIPMENT } from './data/wolfscouts.js';
+import { isWS, wsSetup, wsActivate, wsEnd, wsRules, wsActions, wsSelf, wsWeapons, wsObscure, wsChirurgy, wsConcealCharge, wsChargeEndOk, wsMoved, wsSecondShot, wsNoObscure, wsCharms, wsTeeth, wsDefence, wsTranshumanOk, wsLokyar, wsBite, wsTrophy, wsFightEnd, wsAfterFight, wsRuneFree, wsRuneUsed, wsGuileOk, wsUseGuile, wsCanPickUp, wsDeath, wsFilter, registerWolfActions } from './wolfscouts.js';
 import { isXV, xvSetup, xvStealth, xvFallBackCheap, xvRules, xvShootStart, xvShootEnd, xvHolowave, xvChaffStart, xvChaffOn, xvChaffEnd, xvObscure, xvSwap, xvRetro, xvActivate, xvEnd, xvCanCounter, xvFilter, xvActions, xvSelf, xvActionCost, xvAfterPickUp, xvReady, xvPloyBought, xvJamControl, registerStealthActions } from './stealthsuits.js';
 import { isVS, vsSetup, vsReady, vsTargetOk, vsShootStart, vsReroll, vsWeapons, vsRules, vsNoPierce, vsCamo, vsHidden, vsAgility, vsExo, vsVenom, vsShootEnd, vsActivate, vsMoved, vsChargeOk, vsGate, vsMissionSpend, vsCommuneFree, vsActions, vsSelf, registerVespidActions } from './vespids.js';
 import { isVD, vdSetup, vdFill, vdActivate, vdEnd, vdRules, vdShootStart, vdShootEnd, vdPanoply, vdDefence, vdElusiveHidden, vdRoll, vdDomino, vdJest, vdCurtain, vdDeath, vdLuckFree, vdLuckUsed, vdLuckReroll, vdActions, vdFogged, registerVoidDancerActions } from './voiddancers.js';
@@ -95,7 +97,7 @@ export const rollCount = () => rolls;
 export const d6 = () => { rolls++; return 1 + Math.floor(Math.random() * 6); };
 export const d3 = () => { rolls++; return 1 + Math.floor(Math.random() * 3); };
 /** Injured stat changes apply (And They Shall Know No Fear ignores them). */
-export const injuredPenalty = (g, op) => isInjured(op) && !pmBells(g, op) && !op.acted?.mwIgnoreInjury && !op.scRaw && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat // (Raging Heat of the Dying Flame)
+export const injuredPenalty = (g, op) => isInjured(op) && !wsChirurgy(g, op) && !pmBells(g, op) && !op.acted?.mwIgnoreInjury && !op.scRaw && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat // (Raging Heat of the Dying Flame)
   && !(markOf(op) === 'nurgle' && hasPloy(g, op.side, 'implacable')); // Implacable (Legionaries)
 /** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
 export const hasTactic = (g, op, id) => !!adTactics(g, op.side)?.includes(id) || adVeteran(g, op, id) || (id === 'hardy' && !!tpl(op).repulsive) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).weavewerke || !!tpl(op).wastelandStalker)); // (Repulsive Fortitude: Plague Marine Warrior) // (Wasteland Stalker: Ruststalkers)
@@ -277,6 +279,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   vdSetup(g, roster); // Void-dancer Troupe: roster limits, Saedath
   vsSetup(g, roster, vsCommune); // Vespid Stingwings: roster limits, Commune
   xvSetup(g, roster); // XV26 Stealth Battlesuits: roster limits, the Homing Beacon
+  wsSetup(g, roster); // Wolf Scouts: roster limits, the Haywire Mine, Cast the Runes
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -424,7 +427,8 @@ export function canPickUpMarker(g, op, m) {
   if (m.kind === 'retrieval' || m.kind === 'intel') return m.owner === op.side; // Retrieval / Steal Intelligence tac ops
   if (m.kind === 'banner') return true; // Plant Banner tac op: either side
   if (m.kind === 'dkMine') return m.owner === op.side && !!tpl(op).dkSapper; // the Death Korps Mine marker: its Sapper
-  if (m.kind === 'xvBeacon') return !isDrone(op); // the XV26 Homing Beacon: anyone but a drone (an enemy discards it)
+  if (m.kind === 'xvBeacon') return !isDrone(op);
+  if (m.kind === 'wsMine') return wsCanPickUp(op, m); // the Haywire Mine: its Trapmaster // the XV26 Homing Beacon: anyone but a drone (an enemy discards it)
   if (g.objectives.includes(m)) return !!mission(g).carryObjectives && !!mission(g).canPickUpObjective?.(g, op, m);
   return !!mission(g).canPickUp?.(g, op, m);
 }
@@ -742,6 +746,7 @@ export function aiInitCards(g) {
   const s = g.ai;
   if (s == null || s > 1 || g.initLocked) return;
   if (initWinner(g) !== s && rvSensesOk(g, s)) rvUseSenses(g, s); // Heightened Senses (Raveners)
+  if (initWinner(g) !== s && wsGuileOk(g, s)) wsUseGuile(g, s); // Lupine Guile (Wolf Scout Pack Leader)
   const cards = g.initCards[s];
   if (!cards.length || initWinner(g) === s) return;
   for (const id of ['pm1', 'pm2', 'pm3'].filter((c) => cards.includes(c))) {
@@ -753,7 +758,7 @@ export function aiInitCards(g) {
   }
   if (cards.includes('reroll') && g.initRoll[s] <= 3) useInitCard(g, s, 'reroll');
 }
-export { rvSensesOk, rvUseSenses };
+export { rvSensesOk, rvUseSenses, wsGuileOk, wsUseGuile };
 
 /** The roll-off winner's choice: who has initiative this turning point. Then each player gains CP. */
 export function setInitiative(g, side) {
@@ -1058,6 +1063,7 @@ export function activate(g, op) {
   aqActivate(g, op); // Tempestus Aquilons: Sudden Offensive count
   vdActivate(g, op); // Void-dancer Troupe: Humbling Cruelty, Elusive Target, Understudy's Mask
   vsActivate(g, op); // Vespid Stingwings: Neutron Fragment, Neutron Fallout
+  wsActivate(g, op); // Wolf Scouts: Tempestuous Wrath, Hunter's Senses, Call the Storm
   xvActivate(g, op); // XV26 Stealth Battlesuits: Multispectrum Sensor Package, Bonds of Unity, Target Locks
 }
 
@@ -1099,7 +1105,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side // Ba
 
 export function endActivation(g) {
   const op = activeOp(g);
-  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); xvEnd(g, op); }
+  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); xvEnd(g, op); wsEnd(g, op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
@@ -2241,6 +2247,9 @@ export function shootWeapon(g, op, w) {
       if (op.acted.archonMark || count(op, 'shoot') >= 2 || ((first === 'haRazorwing') === (w.id === 'haRazorwing'))) return no('雙射必須恰好一次使用剃刀翼，且本次不能標記', 'Exactly one Razorwing Shoot; cannot Mark');
       return { ok: op.ap >= ap, ap, why: null };
     }
+    const wsTwo = wsSecondShot(op, first, w); // Hunting Astartes (Wolf Scouts): never two PSYCHIC weapons, +1AP for plasma twice
+    if (wsTwo?.no) return no(wsTwo.no.zh, wsTwo.no.en);
+    if (wsTwo) ap += wsTwo.extra;
     if (TEAM_MAP[op.team].rapidFire && !rapidWeapon(w)) return no('快速射擊兩次都要用爆彈手槍或熱射雷射槍／手槍', 'Rapid Fire: both Shoots need a bolt pistol or hot-shot lasgun / laspistol');
     // Astartes Training (Scout Squad ploy) for an operative that isn't Astartes itself: a shotgun / bolt pistol / boltgun in one of the two
     // Shoots, or both with heavy weapons (a heavy bolter, missile launcher or sniper rifle) — the second one costs 1 more AP.
@@ -2291,7 +2300,7 @@ export function availableActions(g, op) {
   const caprice = free.dash === 'capricious' || free.dash === 'fade' || free.dash === 'murder'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
   add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash || (isVD(op) && hasPloy(g, op.side, 'vdCrescendo'))))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
-  const noCharge = conceal && !(tpl(op).rvTremor && op.acted.rvBurrow) && !op.acted.spSilent && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
+  const noCharge = conceal && !(tpl(op).rvTremor && op.acted.rvBurrow) && !op.acted.spSilent && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !wsConcealCharge(g, op) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
   const rampage = free.charge === 'rampage' || free.charge === 'woe' || free.charge === 'bloodlust' || free.charge === 'murder'; // (murder: Proclivity for Murder) // Ruthless Rampage / The Woe / Obsessive Bloodlust: a free Charge even after one
   add('charge', !chargeEngaged && !noCharge && (rampage || (!heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'))), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
@@ -2331,6 +2340,7 @@ export function availableActions(g, op) {
   aqActions(g, op, add); // Tempestus Aquilons: Land, Expend
   vdActions(g, op, add); // Void-dancer Troupe: Mirror of Minds, Fog of Dreams
   vsActions(g, op, add); // Vespid Stingwings: Aerial Guidance, Skytorch Assault
+  wsActions(g, op, add); // Wolf Scouts: Healing Balms, Hunter's Senses, Call the Storm, Guard, the Haywire Mine
   xvActions(g, op, add); // XV26 Stealth Battlesuits: Focused Markerlight, System Jam, Photon Grenade Launcher, Homing Beacon
   spActions(g, op, add); // Spectre Squad: Issue Mission, Signal, Load Weapon, Advanced Camouflage
   rvActions(g, op, add); // Raveners: Burrow, Toxic Lunge, Distend Dorsal Sac
@@ -2507,7 +2517,8 @@ export function availableActions(g, op) {
   if (tpl(op).dashSpray) add('dashSpray', !engaged && !conceal && !count(op, 'dashSpray') && !count(op, 'dash') && !count(op, 'charge') && attackAllowed(op, 'shoot'), engaged ? ENG : conceal ? CONC : DONE);
   const allowed = op.ctlOnly || (op.xvFreeDrone ? null : tpl(op).actionsOnly); // (XV26 Drone Controller: no Drone limits) // (ctlOnly: Incite Slaughter / Urgency's one free action)
   vsGate(g, op, list, missionActionsFor(g, op.side));
-  { const f = xvFilter(g, op, list, missionActionsFor(g, op.side)); if (f !== list) { list.length = 0; list.push(...f); } } // XV26: Covert Protocols, Target Locks // Communion: Pick Up and mission actions need a point (Vespid Stingwings)
+  { const f = xvFilter(g, op, list, missionActionsFor(g, op.side)); if (f !== list) { list.length = 0; list.push(...f); } }
+  { const f = wsFilter(g, op, list); if (f !== list) { list.length = 0; list.push(...f); } } // Pounce (Wolf Scouts) // XV26: Covert Protocols, Target Locks // Communion: Pick Up and mission actions need a point (Vespid Stingwings)
   if (op.vsNoAtkTP === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Darting Flight (Vespid Stingwings)
   if (op.aqNoAtk === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['dash', 'shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Adjust Coordinates (Aquilons)
   const nulled = nullRodded(g, op) || witchHunted(g, op) ? list.filter((a) => !PSYCHIC_ACTIONS.includes(a.id)) : list; // Null Rod (Condemnor) / Weapons of the Witch Hunters
@@ -2538,6 +2549,7 @@ export function doSelfAction(g, op, id) {
   if (kmSelf(g, op, id)) return; // Kommandos: Breach
   if (kfSelf(g, op, id)) return; // Farstalker Kinband: Gather
   if (dkSelf(g, op, id)) return; // Death Korps: the Sapper's mine
+  if (wsSelf(g, op, id)) return; // Wolf Scouts
   if (xvSelf(g, op, id)) return; // XV26 Stealth Battlesuits: Place Homing Beacon
   if (vsSelf(g, op, id)) return; // Vespid Stingwings: Aerial Guidance
   if (aqSelf(g, op, id)) return; // Tempestus Aquilons: Expend
@@ -2661,7 +2673,8 @@ export function doMove(g, op, kind, path) {
   if (kind === 'fallBack' && !mwFallBack(g, op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
   const dest = path?.pts?.at(-1);
-  if (kind === 'charge' && !vsChargeOk(g, op, dest)) return false; // Communion (Vespid Stingwings): the closest enemy unless a point is spent
+  if (kind === 'charge' && !vsChargeOk(g, op, dest)) return false;
+  if (kind === 'charge' && !wsChargeEndOk(g, op, dest)) return false; // Elemental Storm (Wolf Scouts): a Concealed Charge ends wholly within the storm // Communion (Vespid Stingwings): the closest enemy unless a point is spent
   if (hasPloy(g, op.side, 'bound') && !op.acted.boundUsed && ctx.climbRaw?.(path.pts) > 0) op.acted.boundUsed = true; // Bound (Kinband): the first 2" of one climb was free
   if (kind === 'charge' && isMandrake(op) && op.order === 'conceal' && hasPloy(g, op.side, 'mdBladeDark') && !withinShadow(g, op) && !withinShadow(g, { ...op, ...dest })) return false;
   if (kind === 'charge') wkActionStart(g, op, 'charge'); // Tanked Up (Wrecka Krew): at the start of the Charge
@@ -2788,6 +2801,7 @@ export function doMove(g, op, kind, path) {
   op.vdMovedTP = g.tp; // (Prismatic Blur: Void-dancer Troupe)
   vsMoved(g, op); // Vespid Stingwings: Neutron Charge, Airborne Predators, Neutron Fallout
   if (kind === 'charge') xvRetro(g, op); // Vectored Retro-Thrusters (XV26)
+  wsMoved(g, op, path); // the Haywire Mine (Wolf Scout Trapmaster)
   if (isVD(op) && op.acted.vdRestOn) { op.acted.vdRestOn = false; op.acted.vdRest = 0; } // (Darting Salvo: the rest of the move is used)
   else if (kind === 'reposition' && isVD(op) && hasPloy(g, op.side, 'vdSalvo')) op.acted.vdRest = Math.max(0, moveAllowance(g, op, 'reposition') - (path?.len || 0)); // Darting Salvo
   rvAmbush(g, op, movedFrom); // Subterranean Ambush (Raveners): a Tremorscythe lunges from the tunnel
@@ -2813,7 +2827,7 @@ export function visibility(g, from, to, opts = {}) {
     v.obscured = true;
     v.defenceOptions = v.defenceOptions.map(o => ({ ...o, obscured: true }));
   }
-  return xvObscure(g, from, to, aqObscure(g, from, to, rvLurkCover(g, from, to, xvStealth(g, from, to, v), opts), opts), opts); // Tunnel Lurkers (Raveners); a just-landed Aquilon is obscured
+  return wsObscure(g, from, to, xvObscure(g, from, to, aqObscure(g, from, to, rvLurkCover(g, from, to, xvStealth(g, from, to, v), opts), opts), opts), opts); // (Call the Storm: Wolf Scouts) // Tunnel Lurkers (Raveners); a just-landed Aquilon is obscured
 }
 
 export function inRange(op, target, weapon, extra = 0) {
@@ -2829,7 +2843,7 @@ const spTvidLive = (g, op, target) => g.spTvidOn === op.uid || spTvid(g, op, tar
 const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, target, {
   noObscure: (op.archonMark?.tp === g.tp && op.archonMark.uid === target.uid) || !!op.optics || !!tpl(op).multiVision || mlLevel(g, op, weapon, target) >= 3 || adAuspexOn(op, target)
     || (!!op.longSightOn && weapon.group === 'huntingRifle') || spotOn(g, op, target)
-    || spTvidLive(g, op, target) || !!tpl(op).incursor || auspexOn(g, op, target) || !!tpl(op).incorporealSight || !!weapon.rules.hypersense || dwAuspexOn(g, op, target) || (!!tpl(op).panVisor && edgeDist(op, target) <= 6), ...extra, // Multi-spectrum Array, Auspex Scan, Incorporeal Sight
+    || spTvidLive(g, op, target) || !!tpl(op).incursor || auspexOn(g, op, target) || !!tpl(op).incorporealSight || !!weapon.rules.hypersense || dwAuspexOn(g, op, target) || wsNoObscure(g, op, weapon) || (!!tpl(op).panVisor && edgeDist(op, target) <= 6), ...extra, // Multi-spectrum Array, Auspex Scan, Incorporeal Sight
 });
 
 /** Is target a valid target for op with this weapon (visible, and not a Concealed operative in cover)? */
@@ -2905,6 +2919,7 @@ export function effectiveRules(g, op, weapon, target) {
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
   vdRules(g, op, weapon, target, r); // Void-dancer Troupe: Accolade, Shrieker Toxin Rounds
+  wsRules(g, op, weapon, target, r); // Wolf Scouts: Tempestuous Wrath, Acute Senses
   xvRules(g, op, weapon, target, r); // XV26 Stealth Battlesuits: Kauyon, Markerlight, Focused Markerlight, Prepare Ambush, Patient Hunters
   vsRules(g, op, weapon, target, r); // Vespid Stingwings: Neutron Charge, Airborne Predators, Warrior Instincts, Aerial Guidance
   aqRules(g, op, weapon, target, r); // Tempestus Aquilons: Sudden Offensive, Maintain Momentum, Drop and Secure
@@ -4678,7 +4693,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
+Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
@@ -4686,7 +4701,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
+  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4709,6 +4724,7 @@ registerAquilonActions();
 registerVoidDancerActions();
 registerVespidActions();
 registerStealthActions();
+registerWolfActions();
 ACTIONS.mvBarricade = { ap: 1, name: { zh: '隨路障移動', en: 'Move With Barricade' } };
 registerDeathKorpsActions();
 registerMandrakeActions();
@@ -4738,6 +4754,7 @@ export function weaponsFor(g, op) {
   ws = spWeapons(g, op, ws); // Spectre Squad: Weapons Team, Sniper Overwatch
   ws = aqWeapons(g, op, ws); // Tempestus Daggers (Tempestus Aquilons equipment)
   ws = vsWeapons(g, op, ws); // Sting (Vespid Stingwings ploy)
+  ws = wsWeapons(g, op, ws); // Wolf Scouts: Tempest's Fury, Fierce Temperament, Frost Weapons, Hunter's Senses
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -5056,6 +5073,10 @@ const FF = {
   aqExemplar: { kind: 'button', cond: (g, o) => (!isAQ(o) || tpl(o).aqSentry || tpl(o).apl > 2 ? { zh: '需要 APL 2 以下的風暴天鷹（非伺服哨兵）', en: 'Needs a TEMPESTUS AQUILON with APL 2 or less (not the Servo-sentry)' } : null), apply(g, o) { o.acted.aqExemplar = true; return { zh: '風暴楷模：本次啟動撿標記、放標記與任務行動少 1AP', en: 'Tempestus Exemplars: Pick Up, Place Marker and mission actions cost 1 less AP this activation' }; } },
   aqProgena: { kind: 'button', start: true, cond: (g, o) => (!isAQ(o) || tpl(o).aqSentry ? { zh: '需要風暴天鷹（非伺服哨兵）', en: 'Needs a TEMPESTUS AQUILON (not the Servo-sentry)' } : null), apply(g, o) { const h = Math.min(o.maxW - o.wounds, d3() + d3()); o.wounds += h; o.ap = tpl(o).apl; return { zh: `孤兒學院：回復  生命，本次啟動無視 APL 改變`, en: `Progena: regains  wounds and ignores APL changes this activation` }; } },
   xvSaviour: { kind: 'auto' },
+  wsAcute: { kind: 'attack', shoot: true, cond: (g, o, t) => (!isWS(o) ? { zh: '只有狼偵查兵', en: 'Wolf Scouts only' } : t && edgeDist(o, t) > 6 ? { zh: '目標要在 6" 內', en: 'The target must be within 6"' } : null) },
+  wsCounter: { kind: 'auto' },
+  wsLokyar: { kind: 'auto' },
+  wsTranshuman: { kind: 'auto' },
   xvRetro: { kind: 'auto' },
   xvJet: { kind: 'button', start: true, cond: (g, o) => (isXV(o) && !tpl(o).xvDrone ? null : { zh: '只有隱形戰鬥服（非無人機）', en: 'XV26 suits only (not drones)' }), apply(g, o) { o.acted.xvJet = true; return { zh: '噴射背包：本次無視攀爬與下落的垂直距離', en: 'Engage Jet Pack: climbs and drops cost nothing this time' }; } },
   xvGhost: { kind: 'button', cond: (g, o) => (!isXV(o) ? { zh: '只有隱形戰鬥服', en: 'XV26 only' } : o.xvGhostUsed ? { zh: '這名特工整場只能一次', en: 'Once per operative per battle' } : null), apply(g, o) { o.acted.xvGhost = true; o.xvGhostUsed = true; return { zh: '幽靈罩：啟動結束時改為隱蔽指令', en: 'Ghostshroud: it switches to Conceal at the end of the activation' }; } },
@@ -5522,7 +5543,7 @@ const noRerollHere = (g, op) => (!!mission(g).noRerollNearObjective && op.side !
 export function canCommandReroll(g, side, holder, which) {
   if (!holder || holder.rerolled?.[which] || holder.noReroll?.[which]) return false;
   const pool = holder[which === 'a' ? 'a' : 'd'];
-  return !!pool && (g.cp[side] >= 1 || dutyFree(g, side, holder, which) || aqVetReroll(g, side, holder, which) || vdLuckReroll(g, side, holder)) && pool.dice.some((d) => !d.auto);
+  return !!pool && (g.cp[side] >= 1 || dutyFree(g, side, holder, which) || aqVetReroll(g, side, holder, which) || vdLuckReroll(g, side, holder) || wsRuneFree(g, side)) && pool.dice.some((d) => !d.auto);
 }
 /** Duty of Reclamation (Battleclade ploy): a free Command Re-roll for a friendly contesting an objective marker (once per sequence). */
 function dutyFree(g, side, holder, which) {
@@ -5537,7 +5558,7 @@ export function commandReroll(g, side, holder, which, index) {
   const pool = holder[which === 'a' ? 'a' : 'd'], die = pool.dice[index];
   if (!die || die.auto || die.locked) return false; // (locked: a 3 hit by Curse of Rot)
   let free = dutyFree(g, side, holder, which);
-  if (free) holder.dutyUsed = true; else if (aqVetReroll(g, side, holder, which)) { aqVetRerollUsed(g, side); free = true; } else if (vdLuckReroll(g, side, holder)) { vdLuckUsed(g, side, 'commandReroll'); free = true; } else g.cp[side]--; // (Tempestus Veteran: the Tempestor's first Command Re-roll is free)
+  if (free) holder.dutyUsed = true; else if (aqVetReroll(g, side, holder, which)) { aqVetRerollUsed(g, side); free = true; } else if (vdLuckReroll(g, side, holder)) { vdLuckUsed(g, side, 'commandReroll'); free = true; } else if (wsRuneFree(g, side)) { wsRuneUsed(g, side); free = true; } else g.cp[side]--; // (Tempestus Veteran: the Tempestor's first Command Re-roll is free)
   (holder.rerolled ||= {})[which] = true;
   const old = die.v;
   die.v = d6(); die.rr = true;
@@ -5549,7 +5570,7 @@ export function commandReroll(g, side, holder, which, index) {
 
 /** The computer's Command Re-roll decision for one roll: the index of a failed die to re-roll, or -1. */
 export function aiRerollChoice(g, side, holder, which) {
-  if (!canCommandReroll(g, side, holder, which) || g.cp[side] < 1) return -1;
+  if (!canCommandReroll(g, side, holder, which) || (g.cp[side] < 1 && !wsRuneFree(g, side))) return -1; // (Cast the Runes: free)
   const pool = holder[which === 'a' ? 'a' : 'd'];
   const misses = pool.dice.map((d, i) => [d, i]).filter(([d]) => !d.auto && !d.locked && d.res === 'miss');
   if (!misses.length) return -1;
@@ -5594,7 +5615,7 @@ function medicFor(g, target) {
 export function applyDamage(g, src, target, dmg) {
   const before = target.wounds;
   const killed = inflict(g, src, target, dmg);
-  if (killed) mdDeath(g, target);
+  if (killed) { mdDeath(g, target); wsDeath(g, target); } // (the Haywire Mine falls with its Trapmaster)
   grandfathersBlessing(g, target, before - Math.max(0, target.wounds));
   return killed;
 }
@@ -5913,6 +5934,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // Contempt (Blades of Khaine firefight ploy): the shooter can't re-roll its attack dice this sequence.
   if (!noReroll && target.side < 2 && isBlade(target) && (rules.balanced || rules.ceaseless || rules.relentless) && autoFF(g, target.side, 'contempt')) noReroll = true;
   if (corsairEquip(g, target, 'mistfield') && edgeDist(op, target) > 3 && rules.piercing && g.mistfieldTP?.[target.side] !== g.tp) { rules.piercing--; (g.mistfieldTP ||= [0, 0])[target.side] = g.tp; }
+  wsCharms(g, op, target, rules); // Runic Charms (Wolf Scouts)
   if (noReroll) { delete rules.balanced; delete rules.ceaseless; delete rules.relentless; } // Suppressing Fire
   let hit = weapon.hit;
   if (!rules.fixedHit) {
@@ -5935,6 +5957,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   vdRoll(g, op, a, tally); // Wraithbone Talisman (Void-dancer Troupe)
   vsReroll(g, op, a, tally); // Communion: a point to re-roll one attack die
   adRoll(g, op, a, tally); // Purity Seals (Angels of Death)
+  wsTeeth(g, op, a, tally); // Wolfteeth Necklaces (Wolf Scouts)
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
   const inCover = vis.cover && !rules.ignoreCover;
@@ -6085,6 +6108,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     rerollFails: voidArmour ? (tpl(target).voidGrenadier ? 2 : 1) : 0 };
   archonDefence(g, target, op, defRules);
   rvDefence(g, target, defRules); // Whipcord Emergence (Raveners)
+  wsDefence(g, target, defRules); // Cloaked by the Storm (Wolf Scouts)
   vdDefence(g, target, defRules); // Prismatic Blur (Void-dancer Troupe)
   aqDefence(g, op, target, defRules); // Eye Above (Tempestus Aquilons)
   corsairDefence(g, target, weapon, defRules);
@@ -6113,7 +6137,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   if (markOf(target) === 'tzeentch' && target.ready && hasPloy(g, target.side, 'fickleFates') && d.crits > 0) { const x = d.dice.find((y) => y.res === 'miss'); if (x) { x.res = 'norm'; x.indo = true; d.norms++; } }
   // Transhuman Physiology (Angels / Phobos firefight ploy): one normal save is retained as a critical one,
   // when that could block a crit that would otherwise get through.
-  if (d.norms > 0 && a.crits > d.crits + coverC && autoFFSpec(g, target.side, 'transhuman', target)) {
+  if (d.norms > 0 && a.crits > d.crits + coverC && (autoFFSpec(g, target.side, 'transhuman', target) || (wsTranshumanOk(target) && autoFF(g, target.side, 'wsTranshuman')))) {
     const x = d.dice.find((y) => y.res === 'norm'); x.res = 'crit'; x.prom = true; d.norms--; d.crits++;
   }
   // War Gong: crits that get through inflict Normal Dmg instead (when that's better, or to keep a Frenzied Fellgor up).
@@ -6490,6 +6514,7 @@ export function startFight(g, op, weapon, target) {
   dwDigital(g, op, target);
   const ar = effectiveRules(g, op, weapon, target);
   const dr = effectiveRules(g, target, dWeapon, op);
+  wsBite(g, op, target, dWeapon, dr); // Storm's Bite (Wolf Scouts)
   // Rage (Goremonger Sanguavitae): +1 Atk on its melee weapons for this Fight. Gore-fuel is used up by the fleshskewer.
   if (op.acted.sangArm?.rage) { op.acted.sangArm.rage = false; ar.atkPlus = (ar.atkPlus || 0) + 1; ar.atkMax = 99; }
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.group === 'gmSkewer') o.goreFuelOn = false;
@@ -6542,6 +6567,7 @@ export function startFight(g, op, weapon, target) {
   vdRoll(g, op, aRoll, tally); vdRoll(g, target, dRoll, tally); // Wraithbone Talisman (Void-dancer Troupe)
   pmCurse(g, op, target, dRoll, tally); pmCurse(g, target, op, aRoll, tally); // Curse of Rot (Plague Marines)
   adRoll(g, op, aRoll, tally); adRoll(g, target, dRoll, tally); // Purity Seals (Angels of Death)
+  wsLokyar(g, op, aRoll, tally); wsTeeth(g, op, aRoll, tally); wsTeeth(g, target, dRoll, tally); // Touched by Lokyar, Wolfteeth Necklaces (Wolf Scouts)
   spend(g, op, 'fight');
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons
   if (free) { op.acted.free.fight = null; if (op.acted.ancestors && op.acted.free.shoot === 'any') op.acted.free.shoot = null; }
@@ -6760,6 +6786,7 @@ export function fightApply(g, optId) {
     if (amount >= 4 && foeOp.inspiring && isCI(foeOp) && hasPloy(g, foeOp.side, 'holyResilience')) amount--;
     if (amount >= 4 && sfSermon(g, foeOp)) amount--; // the Ministorum Sermon (Sanctifiers): Normal and Critical Dmg of 4+ deals 1 less
     amount = vsExo(g, foeOp, amount, asNormal); // Hardened Exoskeleton (Vespid Stingwings)
+    amount = wsTrophy(g, foeOp, amount, asNormal, foe); // Talismanic Trophies (Wolf Scouts)
     amount = rvCarapace(foeOp, amount); // Reinforced Carapace (Raveners Wrecker)
     // Gory Tenacity (Goremongers ploy): the opponent's first strike on it this sequence is halved (rounding up, minimum 2).
     if (amount > 2 && !foe.tenacityUsed && isGM(foeOp) && foeOp.side < 2 && hasPloy(g, foeOp.side, 'goryTenacity')) { foe.tenacityUsed = true; amount = Math.max(2, Math.ceil(amount / 2)); }
@@ -6999,11 +7026,13 @@ export function endFight(g) {
   }
   if (fa && g.fight) demolitionJob(g, fa, getOp(g, g.fight.D.uid)); // Demolition Job (Wrecka Krew)
   if (fa) aqDynamic(g, fa); // Dynamic (Aquilon Precursor): a free Dash after a Fight
+  if (fa && g.fight) wsFightEnd(g, fa, getOp(g, g.fight.D.uid)); // Savage Fighters (Wolf Scouts)
   g.fight = null;
   // Chaos Cult: a Devotee that incapacitated its enemy in the fight mutates now that the fight is over.
   for (const uid of g.mutateQueue || []) mutate(g, getOp(g, uid), { zh: '使敵人殘廢', en: 'incapacitated an enemy' });
   g.mutateQueue = null;
   if (fa) rtAfterEnemyAction(g, fa, false); // Ratlings: Evade after an enemy Fight
+  if (fa) wsAfterFight(g, fa); // Counterattack (Wolf Scouts)
 }
 
 /** Computer choice for the current fight die. */

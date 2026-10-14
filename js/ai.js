@@ -23,6 +23,7 @@ import { aqAiStrategy, aqAiAbove } from './aquilons.js';
 import { vdAiStrategy } from './voiddancers.js';
 import { vsChargeAmong } from './vespids.js';
 import { xvAiStrategy } from './stealthsuits.js';
+import { wsAiStrategy, wsAiAction, wsChargeEndOk } from './wolfscouts.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -37,6 +38,7 @@ export function aiStrategy(g, side) {
   aqAiStrategy(g, side); // Tempestus Aquilons: Rapid Insertion, Drop markers
   vdAiStrategy(g, side); // Void-dancer Troupe: Saedath
   xvAiStrategy(g, side); // XV26 Stealth Battlesuits: Drone Controller, Counter-Network Jammers
+  wsAiStrategy(g, side, chargePath); // Wolf Scouts: the Storm marker, Pounce
   for (const p of team(g, side).ploys) {
     if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
   }
@@ -246,7 +248,7 @@ function chargePath(g, op, among = foes(g, op)) {
       if (!ctx.free(p)) continue;
       const raw = findPath(ctx, p);
       const path = raw && wholeInchPath(ctx, raw, max, ctx.inEnemyER);
-      if (path && path.len <= max && (!best || path.len < best.len)) best = path;
+      if (path && path.len <= max && wsChargeEndOk(g, op, path.pts.at(-1)) && (!best || path.len < best.len)) best = path; // (Wolf Scouts: a Concealed Charge ends in the storm)
     }
     if (best) return best;
   }
@@ -713,6 +715,7 @@ export function aiStep(g) {
     if (near.filter((o) => o.side !== op.side).length >= 1 && near.filter((o) => o.side === op.side).length === 0) { doSelfAction(g, op, 'dkDetonate'); return null; }
   }
   if (can.dkPlaceMine && foes(g, op).some((e) => edgeDist(op, e) <= 14)) { doSelfAction(g, op, 'dkPlaceMine'); return null; }
+  if (wsAiAction(g, op, can, doSelfAction, doTargetAction)) return null; // Wolf Scouts: Healing Balms, Hunter's Senses, the Haywire Mine
   if (can.sfTrained && op.order === 'conceal' && foes(g, op).some((e) => edgeDist(op, e) <= 12)) { doSelfAction(g, op, 'sfTrained'); return null; }
   if (can.medikit) {
     const t = TARGET_ACTIONS.medikit.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds - b.wounds)[0];

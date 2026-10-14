@@ -17,6 +17,8 @@ import { aquilonsRosterError } from './data/aquilons.js';
 import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
+import { wolfRosterError } from './data/wolfscouts.js';
+import { wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
 import { adHeroicDocOk, adHeroicDocs, adHeroicDoc } from './angels.js';
@@ -551,6 +553,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'wolfScouts') { const error = wolfRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -1104,8 +1107,8 @@ function initCardsPanel() {
       return [[s, 1, L(`自己 +${n}`, `Yours +${n}`)], [s, -1, L(`自己 −${n}`, `Yours −${n}`)], [1 - s, 1, L(`${other} +${n}`, `${other} +${n}`)], [1 - s, -1, L(`${other} −${n}`, `${other} −${n}`)]]
         .map(([die, sign, lab]) => `<button data-act="initcard" data-side="${s}" data-id="${id}" data-die="${die}" data-sign="${sign}">±${n}：${esc(lab)}</button>`).join('');
     }).join('');
-    return `<div class="gambit"><h4 style="color:${tm.color}">${esc(bi(tm.name))}</h4><div class="row">${btns}${rvSensesOk(g, s) ? `<button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button>` : ''}</div></div>`;
-  }).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && rvSensesOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button></div></div>`).join('');
+    return `<div class="gambit"><h4 style="color:${tm.color}">${esc(bi(tm.name))}</h4><div class="row">${btns}${wsGuileOk(g, s) ? `<button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button>` : ''}${rvSensesOk(g, s) ? `<button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button>` : ''}</div></div>`;
+  }).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && wsGuileOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && rvSensesOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button></div></div>`).join('');
   return `<section class="card">
     <h2>${L(`第 ${g.tp} 回合・先攻階段`, `TP ${g.tp} · Initiative Phase`)}</h2>
     <p>${L('主動權擲骰', 'Initiative roll')}：<b style="color:${team(g, 0).color}">${g.initRoll[0]}</b> : <b style="color:${team(g, 1).color}">${g.initRoll[1]}</b>${moved ? L(`（原本 ${g.initRolled[0]} : ${g.initRolled[1]}）`, ` (rolled ${g.initRolled[0]} : ${g.initRolled[1]})`) : ''}</p>
@@ -1277,6 +1280,16 @@ function gambitView(side) {
     html += `<div class="gambit"><h4>${L('主要任務（Primary Op，策略謀略）', 'Primary Op (strategic gambit)')}</h4>
       <p class="hint small">${L('秘密選一個：該任務的得分 ×1.5（無條件進位），遊戲結束才公布；選 Kill Op 則是（擊殺等級分＋較高者 1 分）×1.5。', 'Choose one in secret: its VP x1.5 (rounded up), revealed at the end; for Kill Op, (grade VP + 1 for the higher grade) x1.5.')}</p>
       <div class="row">${PRIMARY_OPS.map((id) => `<button data-act="primaryop" data-side="${side}" data-id="${id}">${name[id]}</button>`).join('')}</div></div>`;
+  }
+  if (g.teams[side] === 'wolfScouts' && !isAI(side) && (wsStormOk(g, side) || wsPounceOk(g, side))) {
+    html += `<div class="gambit"><h4>${L('狼偵查小隊策略謀略', 'Wolf Scout strategic gambits')}</h4>`;
+    if (wsStormOk(g, side)) html += `<p class="hint small">${L('元素風暴：點棋盤放風暴標記（完全在 6" 內就是在風暴內）。', 'Elemental Storm: tap the board for the Storm marker (wholly within 6" is within the storm).')}</p><div class="row"><button class="${ui.stormMode?.side === side ? 'on' : ''}" data-act="wsstorm" data-side="${side}">${ui.stormMode?.side === side ? L('取消', 'Cancel') : L('放置風暴標記', 'Place the Storm marker')}</button><button data-act="wsstormauto" data-side="${side}">${L('自動放置', 'Place automatically')}</button></div>`;
+    if (wsPounceOk(g, side)) {
+      const kinds = [['charge', L('衝鋒', 'Charge')], ['reposition', L('移動', 'Reposition')], ['fallBack', L('撤退', 'Fall Back')]];
+      html += `<p class="hint small">${L('撲擊（整場一次）：芬里斯狼免費衝鋒、移動或撤退；之後到下次啟動結束 APL -1，不能做這三種動作。', 'Pounce (once per battle): the Fenrisian Wolf makes a free Charge, Reposition or Fall Back; then -1 APL and none of those until the end of its next activation.')}</p><div class="row">${kinds.map(([k, lab]) => `<button class="${ui.pounce?.kind === k ? 'on' : ''}" data-act="wspounce" data-side="${side}" data-kind="${k}">${lab}</button>`).join('')}</div>`;
+      if (ui.pounce?.side === side) html += `<p>${L('點棋盤選終點', 'Tap the board for the destination')}</p><div class="row"><button data-act="wspounceok" ${ui.path?.ok ? '' : 'disabled'}>${L('確定撲擊', 'Confirm Pounce')}</button><button data-act="wspouncex">${L('取消', 'Cancel')}</button></div>`;
+    }
+    html += `</div>`;
   }
   if (g.teams[side] === 'stealthSuits' && !isAI(side) && (xvDroneOk(g, side) || xvJamOk(g, side))) {
     html += `<div class="gambit"><h4>${L('XV26 策略謀略', 'XV26 strategic gambits')}</h4>`;
@@ -1996,6 +2009,15 @@ const ABILITIES = {
   kfWarrior: () => ['準備好面對一切', 'Ready for Anything', '每回合一次，友方戰士啟動中可以額外使用生肉、穿甲彈或毒彈（不佔每回合一次的限制）。', 'Once per TP during a Warrior\'s activation, use Meat, Piercing Shot or Toxin Shot once more (it doesn\'t count towards their limit).'],
   kmGrapple: () => ['鉤爪', 'Grappling Hook', '1AP（視為重新定位，不在交戰中，不能和衝鋒或撤退同一次啟動）：選一個看得到的地形點，被移走後放回該點 1" 內、看得到該點的位置。', '1AP (a Reposition; not engaged; not with Charge or Fall Back): pick a visible point on terrain and be set up again within 1" of it, seeing it.'],
   sneaky: () => ['鬼祟搗蛋', 'Sneaky Zogger', '不能有交戰指令；在掩護中時，2" 外不能被選為有效目標（優先於其他規則）。', 'Can\'t have an Engage order; in cover it can\'t be selected as a valid target beyond 2" (taking precedence over other rules).'],
+  wsScout: () => ['元素風暴・狩獵阿斯塔特', 'Elemental Storm · Hunting Astartes', '完全在己方風暴標記 6" 內就是「在風暴內」；在風暴內結束的衝鋒可以用隱蔽指令。可以兩次射擊或兩次近戰（兩次都用電漿第二次 +1AP，不能兩次靈能）；任何指令都能反應，在風暴內反應可以改指令。', 'Wholly within 6" of your Storm marker is within your storm; a Charge ending there can be made on Conceal. Two Shoots or two Fights (plasma twice: +1AP for the second; never two PSYCHIC); counteracts on any order, and in the storm can change order.'],
+  wsLupine: () => ['狼之狡詐・老練老兵', 'Lupine Guile · Grizzled Veteran', '整場一次：擲先攻後，若它在場上可以重擲自己的骰子。第一次會殘廢時改為剩 1 生命，本次動作不會殘廢，剩下的攻擊骰全部作廢（之後不能觸發反擊與兇猛鬥士）。', 'Once per battle, after the initiative roll-off, while it\'s in the killzone: re-roll your die. The first time it would be incapacitated it stays on 1 wound for the rest of the action and the remaining attack dice are discarded (no Counterattack or Savage Fighters after it).'],
+  wsFang: () => ['靈性外科・治療香膏', 'Spiritual Chirurgy · Healing Balms', '選了它，友方狼偵查兵（芬里斯狼除外）就不受重傷的屬性改變（它之後殘廢也一樣）。治療香膏（1AP，每回合一次，不能在交戰中）：控制範圍內一名友方回復 D3+3 生命。', 'With it in the kill team, friendly Wolf Scouts (not the Wolf) ignore stat changes from being injured (even if it\'s incapacitated later). Healing Balms (1AP, once per TP, not while engaged): a friendly in its control range regains D3+3 wounds.'],
+  wsFrost: () => ['風暴處決・獵人感官', 'Storm-veiled Execution · Hunter\'s Senses', '完全在風暴內時，任何戰場、任何指令都能做警戒動作（敵人行動後自動攻擊）。獵人感官（1AP）：到下次啟動前卡賓槍「嚴重」，或「飽和」且敵人不能被遮蔽。', 'Wholly within the storm it can Guard in any killzone and with either order (an automatic attack after an enemy action). Hunter\'s Senses (1AP): until its next activation the carbine has Severe, or Saturate and enemies can\'t be obscured.'],
+  wsGunner: () => ['暴風之怒', 'Tempest\'s Fury', '完全在風暴內時，電漿槍「懲罰」，超載模式沒有「過熱」。', 'Wholly within the storm its plasma gun has Punishing and the supercharge profile loses Hot.'],
+  wsHunter: () => ['兇暴性情', 'Fierce Temperament', '完全在風暴內時，武器「嚴重」。', 'Wholly within the storm its weapons have Severe.'],
+  wsTrap: () => ['干擾地雷', 'Haywire Mine', '攜帶干擾地雷標記（可放下、可撿回，不能放在其他特工控制範圍內）。第一次有其他特工進入地雷控制範圍時：移除標記，該特工下次啟動 APL -1，受 2D3+3 傷害（地雷在風暴標記 6" 內則 D3+6）。地雷兵自己不會觸發。', 'Carries the Haywire Mine marker (placed and picked up again; never within another operative\'s control range). The first time another operative has it within its control range: the marker goes, that operative gets -1 APL and takes 2D3+3 damage (D3+6 within 6" of the Storm marker). The Trapmaster never sets it off.'],
+  wsSkjald: () => ['擲符文・召喚風暴', 'Cast the Runes · Call the Storm', '戰鬥前擲 3D6：每個 1-4 在對應回合可以免費指揮重擲一次；有 5-6 得 1CP。召喚風暴（1AP，不能在交戰中）：把風暴標記移到一名友方身上，或讓一名友方在風暴內、離行動中的敵人 3" 外時被遮蔽（到它下次啟動）。', 'Before the battle roll 3D6: each 1-4 is a free Command Re-roll in that turning point; any 5-6 is 1CP. Call the Storm (1AP, not while engaged): move the Storm marker onto a friendly, or make a friendly obscured while wholly within the storm and more than 3" from the active operative (until its next activation).'],
+  wsWolf: () => ['本能掠食者・撲擊', 'Instinctive Predator · Pounce', '只能衝鋒、衝刺、撤退、近戰、警戒、移動；隱蔽指令也能衝鋒。撲擊（整場一次的策略謀略）：免費衝鋒、撤退或移動，之後到下次啟動結束 APL -1、不能再做這三種。', 'Only Charge, Dash, Fall Back, Fight, Guard and Reposition; it can Charge on Conceal. Pounce (once per battle, strategic gambit): a free Charge, Fall Back or Reposition, then -1 APL and none of those until the end of its next activation.'],
   xvSuit: () => ['隱形力場・耐心獵人', 'Stealth Fields · Kauyon', '隱蔽指令時，3" 外的敵人看不到它，撤退少 1AP。射擊敵人時依敵人位置得到「精準 X」：在你領地 3" 內 1、在你領地內 2、在你降落區 3" 內 3。', 'With a Conceal order enemies more than 3" away can\'t see it, and it Falls Back for 1 less AP. Shooting an enemy: Accurate 1 within 3" of your territory, 2 in your territory, 3 within 3" of your drop zone.'],
   xvShasvre: () => ['為了善善上道・無人機控制', 'For the Greater Good · Drone Controller', '它在場上時，若有 2 名以上友方戰鬥服（不含無人機）殘廢，耐心獵人的精準 +1（最多 3）。無人機控制（策略謀略）：一架友方無人機到下次啟動結束不受無人機的前兩條限制。', 'While it is in the killzone and two or more friendly suits (not drones) are incapacitated, Kauyon\'s Accurate is 1 higher (max 3). Drone Controller (strategic gambit): one friendly drone ignores the first two Drone restrictions until the end of its next activation.'],
   xvMarker: () => ['標記光', 'Markerlight', '它的有效目標（或它看得到、在伏擊標記 2" 內的敵人）被標記：友方射擊被標記的敵人時武器「嚴重」。', 'An enemy that is a valid target for it (or visible to it within 2" of the Ambush marker) is marked: friendlies shooting a marked enemy have Severe.'],
@@ -2646,6 +2668,17 @@ function onBoardClick(evt) {
     ui.notice = L('超過 4" 或不在戰場上。', 'More than 4" away, or off the board.');
     return render();
   }
+  if (g.phase === 'strategy' && ui.stormMode && !isAI(ui.stormMode.side)) { // Wolf Scouts: placing the Storm marker
+    if (wsPlaceStorm(g, ui.stormMode.side, svgPoint(evt))) ui.stormMode = null; else ui.notice = L('風暴標記要放在戰場上。', 'The Storm marker goes on the board.');
+    return afterChange();
+  }
+  if (g.phase === 'strategy' && ui.pounce && !isAI(ui.pounce.side)) { // Wolf Scouts: the Pounce destination
+    const path = wsPouncePath(g, ui.pounce.side, ui.pounce.kind, svgPoint(evt));
+    const w = living(g, ui.pounce.side).find((o) => tpl(o).wsWolf);
+    const max = w ? moveAllowance(g, w, ui.pounce.kind) : 0, ok = !!path && path.len <= max + 0.01;
+    ui.path = path ? { ...path, ok, r: w ? radius(w) : 1, why: ok ? '' : L('超過移動距離，或終點不合法。', 'Too far, or an illegal end point.') } : null;
+    return render();
+  }
   if (g.phase === 'strategy' && ui.tunnelMode && !isAI(ui.tunnelMode.side)) { // Raveners: placing a Tunnel marker
     if (rvPlaceMarker(g, ui.tunnelMode.side, svgPoint(evt))) ui.tunnelMode = null; else ui.notice = L('標記要在上一個標記 5" 內、戰場內、不在地形上。', 'The marker goes within 5" of the last one, on the board, not on terrain.');
     return afterChange();
@@ -3107,6 +3140,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'wolfScouts' && wolfRosterError(TEAM_MAP.wolfScouts, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'stealthSuits' && stealthRosterError(TEAM_MAP.stealthSuits, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'vespids' && vespidsRosterError(TEAM_MAP.vespids, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'voidDancers' && voidDancersRosterError(TEAM_MAP.voidDancers, ui.setup.roster?.[side])) return render();
@@ -3126,6 +3160,12 @@ function handle(act, d) {
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
+    case 'wsstorm': ui.stormMode = ui.stormMode?.side === +d.side ? null : { side: +d.side }; return render();
+    case 'wsstormauto': wsPlaceStorm(g, +d.side, wsBestStorm(g, +d.side)); ui.stormMode = null; return afterChange();
+    case 'wspounce': ui.pounce = { side: +d.side, kind: d.kind }; ui.path = null; return render();
+    case 'wspounceok': if (ui.pounce && ui.path?.ok) wsPounce(g, ui.pounce.side, ui.pounce.kind, ui.path); ui.pounce = null; ui.path = null; return afterChange();
+    case 'wspouncex': ui.pounce = null; ui.path = null; return render();
+    case 'initguile': if (!isAI(+d.side) && wsGuileOk(g, +d.side)) { wsUseGuile(g, +d.side); aiInitCards(g); } return afterChange();
     case 'xvdrone': xvDrone(g, +d.side, document.getElementById('xvDroneSel')?.value); return afterChange();
     case 'xvjam': xvJammers(g, +d.side); return afterChange();
     case 'vdchoose': vdChoose(g, +d.side, d.al, document.getElementById('vdPivot')?.value); return afterChange();
@@ -3284,7 +3324,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

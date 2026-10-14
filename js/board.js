@@ -130,6 +130,8 @@ export function renderBoard(g, ui) {
   }
   // Drop markers (Tempestus Aquilons)
   for (const side of [0, 1]) for (const m of g.aq?.drop?.[side] || []) s.push(`<g pointer-events="none"><circle cx="${f(m.x)}" cy="${f(m.y)}" r="3" fill="${team(g, side).color}" fill-opacity="0.07" stroke="${team(g, side).color}" stroke-width="0.08" stroke-dasharray="0.4 0.3"/><circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.45" fill="${team(g, side).color}"/><text x="${f(m.x)}" y="${f(m.y + 0.3)}" text-anchor="middle" font-size="0.8" fill="#fff">▼</text></g>`);
+  // Storm markers (Wolf Scouts): 6" around them is the storm.
+  for (const side of [0, 1]) { const m = g.ws?.storm?.[side]; if (m) s.push(`<g pointer-events="none"><circle cx="${f(m.x)}" cy="${f(m.y)}" r="6" fill="${team(g, side).color}" fill-opacity="0.06" stroke="${team(g, side).color}" stroke-width="0.1" stroke-dasharray="0.6 0.4"/><circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.5" fill="${team(g, side).color}"/><text x="${f(m.x)}" y="${f(m.y + 0.3)}" text-anchor="middle" font-size="0.8" fill="#fff">ϟ</text></g>`); }
   // Tunnel (Raveners): numbered markers and the 2"-wide strips between consecutive ones.
   for (const side of [0, 1]) {
     const t = g.rv?.tunnel?.[side] || [];
@@ -144,7 +146,7 @@ export function renderBoard(g, ui) {
     s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
     // (Hernkyn Yaegir Minefield markers: face down "?", flipped a HY-Pex mine "✸" or a blank "○"; the Fallen Kin marker "⚑".)
     const sym = m.kind === 'hyMine' ? (!m.flipped ? '?' : m.live ? '✸' : '○')
-      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i', pulsa: '◎', breach: '⛏', demolition: '✹', tripAlarm: '❗', boobyTrap: '💣', tripwire: '〰', flies: '🪰', dkMine: '✸', gas: '☁' }[m.kind] || '✦';
+      : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i', pulsa: '◎', breach: '⛏', demolition: '✹', tripAlarm: '❗', boobyTrap: '💣', tripwire: '〰', flies: '🪰', dkMine: '✸', wsMine: '⚡', gas: '☁' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
     if (m.owner != null) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.55" fill="none" stroke="${team(g, m.owner).color}" stroke-width="0.06" stroke-dasharray="0.12 0.08" pointer-events="none"/>`);
