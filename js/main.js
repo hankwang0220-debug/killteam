@@ -15,6 +15,8 @@ import { spectresRosterError } from './data/spectres.js';
 import { spPatienceOk, spPatience, spStarshellOk, spStarshell } from './spectres.js';
 import { aquilonsRosterError } from './data/aquilons.js';
 import { voidDancersRosterError } from './data/voiddancers.js';
+import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
+import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
 import { vdChooseOk, vdChoose, vdGrantOk, vdGrantGambit, vdCandidates, vdLeadOk, vdLead, vdHasAccolade } from './voiddancers.js';
 import { aqCanAbove, aqSetAbove, aqLandCheck, aqDoLand, aqDropLeft, aqRapidOk, aqRapid, aqAutoDrop, aqMoveDrop, aqOverseerOk, aqUseOverseer } from './aquilons.js';
 import { pathfindersRosterError } from './data/pathfinders.js';
@@ -445,7 +447,7 @@ function setupView() {
     ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : tacticsPick(side)}
     ${tacOpPick(side)}
     ${equipPick(side)}
-    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side)}
+    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side) + vsCommunePick(side)}
   </div>`;
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
   return `${topBar()}
@@ -546,6 +548,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'scoutSquad') { const error = scoutsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'aquilons') { const error = aquilonsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'spectres') { const error = spectresRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -611,6 +614,13 @@ function scoutingPick(side) {
 }
 
 /** Death Korps: the Trooper slots traded for a ploy that costs 0CP for the battle. */
+/** Vespid Stingwings: Commune (the strategy ploy the Strain Leader makes free). */
+function vsCommunePick(side) {
+  if (ui.setup.teams[side] !== 'vespids' || (side === 1 && ui.setup.ai === 1)) return '';
+  const t = TEAM_MAP.vespids, cur = VS_COMMUNE_PLOYS.includes(ui.setup.vsCommune?.[side]) ? ui.setup.vsCommune[side] : 'vsPredators';
+  return `<div class="tactics"><h4>${L('交融（首領在場上且沒交戰時 0CP 的策略計謀）', 'Commune (a strategy ploy that costs 0CP while the Strain Leader is in the killzone and not engaged)')}</h4>
+    <select data-act="vscommune" data-side="${side}">${t.ploys.filter((p) => VS_COMMUNE_PLOYS.includes(p.id)).map((p) => `<option value="${p.id}" ${p.id === cur ? 'selected' : ''}>${esc(tx(p.name))}</option>`).join('')}</select></div>`;
+}
 function dkFreePick(side) {
   if (ui.setup.teams[side] !== 'deathKorps' || (side === 1 && ui.setup.ai === 1)) return '';
   const t = TEAM_MAP.deathKorps, n = dkFreeCount(t, ui.setup.roster?.[side] || {});
@@ -1024,7 +1034,7 @@ function statusBox({ color, icon, phase, tp, who, doing, last, key }) {
 function boardUi() {
   const b = { sel: ui.sel, peek: ui.peek, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy', terrainRanges: ui.setup.terrainRanges };
   const op = activeOp(g);
-  if (op && ui.mode?.kind === 'move' && !['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand'].includes(ui.mode.action)) b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
+  if (op && ui.mode?.kind === 'move' && !['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(ui.mode.action)) b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   // Exodite riders: where a Sprint can go (or the turn arc).
   if (op && ui.mode?.kind === 'sprint') {
     const tpLeft = 12 - (op.movedTP || 0);
@@ -1189,7 +1199,7 @@ function strategyPanel() {
   const summary = (s) => {
     const t = team(g, s);
     const state = s === cur ? L('選擇中…', 'choosing…') : L('等待中', 'waiting');
-    return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))}${g.ai === s ? ' 🤖' : ''} · CP ${g.cp[s]} <small>${state}</small></h3>
+    return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))}${g.ai === s ? ' 🤖' : ''} · CP ${g.cp[s]}${g.teams[s] === 'vespids' ? ` · ${L('交融', 'Communion')} ${vsPoints(g, s)}` : ''} <small>${state}</small></h3>
       <p class="hint">${chosen(s)}</p></div>`;
   };
   const t = team(g, cur);
@@ -1501,7 +1511,7 @@ function recentView() {
 function ffToggles(op, kind, weapon, target, aim) {
   const opts = ffAttackOptions(g, op, kind, weapon, target, aim);
   if (!opts.length) return '';
-  return `<div class="ffploys"><h4>${L(`交戰計謀 · CP ${g.cp[op.side]}（擲骰時才扣）`, `Firefight ploys · CP ${g.cp[op.side]} (paid when rolling)`)}</h4>${opts.map((o) => {
+  return `<div class="ffploys">${g.teams[op.side] === 'vespids' ? `<p class="small">${L(`交融點數：${vsPoints(g, op.side)}`, `Communion points: ${vsPoints(g, op.side)}`)}</p>` : ''}<h4>${L(`交戰計謀 · CP ${g.cp[op.side]}（擲骰時才扣）`, `Firefight ploys · CP ${g.cp[op.side]} (paid when rolling)`)}</h4>${opts.map((o) => {
     const p = ffDef(g, op.side, o.id);
     return `<label class="small ${o.ok ? '' : 'off'}"><input type="checkbox" data-act="fftoggle" data-id="${o.id}" data-uid="${op.uid}" data-target="${target?.uid || ''}" ${o.on ? 'checked' : ''} ${o.ok || o.on ? '' : 'disabled'}> ${esc(tx(p.name))}（${o.cp}CP）<span class="hint">${esc(tx(p.desc))}${o.why ? ` — ${esc(tx(o.why))}` : ''}</span></label>`;
   }).join('')}</div>`;
@@ -1750,13 +1760,14 @@ function modeView(op) {
     return `<div class="mode"><h3>${esc(tx(ACTIONS.edTurn.name))}</h3><p class="hint">${L('點棋盤指定要面向的方向（最多轉 45°）。', 'Tap the board towards where it should face (45° at most).')}</p><div class="row">${cancel}<button class="primary" data-act="confirmturn" ${m.dest ? '' : 'disabled'}>${L('確認轉向（1AP）', 'Turn (1AP)')}</button></div></div>`;
   }
   if (m.kind === 'move') {
-    const max = m.action === 'mdPass' ? 40 : m.action === 'rtSlingshot' ? 12 : m.action === 'kmGrapple' || m.action === 'rvBurrow' || m.action === 'aqLand' ? 40 : moveAllowance(g, op, m.action);
+    const max = m.action === 'mdPass' ? 40 : m.action === 'rtSlingshot' ? 12 : m.action === 'kmGrapple' || m.action === 'rvBurrow' || m.action === 'aqLand' ? 40 : m.action === 'vsSkytorch' ? moveStat(g, op) + 2 : moveAllowance(g, op, m.action);
     let info = L(`點擊棋盤選擇目的地（最多 ${max}"），落點可自由選擇，總移動距離無條件進位計算。要轉彎：先點轉彎處，按「設為折點」，再點下一段。`, `Tap the board to choose a destination (max ${max}"); choose any legal endpoint; total movement cost rounds up. To turn: tap the corner, press "Set waypoint", then tap the next leg.`);
     if (m.action === 'charge') info += L('必須結束於敵人交戰範圍 1" 內。', ' Must end within 1" of an enemy.');
     if (m.action === 'fallBack') info += L('必須離開所有敵人的交戰範圍。', ' Must end outside all enemy engagement ranges.');
-    if (m.action !== 'charge' && m.action !== 'fallBack' && m.action !== 'rtSlingshot' && m.action !== 'kmGrapple' && m.action !== 'rvBurrow' && m.action !== 'aqLand') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
+    if (m.action !== 'charge' && m.action !== 'fallBack' && m.action !== 'rtSlingshot' && m.action !== 'kmGrapple' && m.action !== 'rvBurrow' && m.action !== 'aqLand' && m.action !== 'vsSkytorch') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
     if (m.action === 'mdPass') info = L('點擊暗影落點：不限距離，不能成為敵人的有效目標。本回合不能射擊／近戰。', 'Tap a shadow destination at any distance, outside valid enemy targeting. No Shoot/Fight this TP.');
     if (m.action === 'rtSlingshot') info = L('點擊彈弓落點：看得到、6" 內的地形點，且落點完全在其 6" 內並看得到它。', 'Tap a slingshot destination: a terrain point visible within 6", the destination wholly within 6" of it and seeing it.');
+    if (m.action === 'vsSkytorch') info = L('點擊落點（飛行，最多 Move +2"）：火焰會掃過出發點和落點之間的所有特工（敵我皆然，無掩護）。', 'Tap the landing spot (flying, up to Move +2"): the flames sweep over every operative between the start and the landing spot (friend or foe, no cover).');
     if (m.action === 'aqLand') info = L('點擊降落位置：空降標記 3"（士兵 4"）內，或完全在己方降落區內；不能在敵人控制範圍內（先驅除外）。花 1AP（視為重新定位）。', 'Tap where to land: within 3" (Troopers 4") of a Drop marker or wholly in your drop zone; not in enemy control range (Precursors can). Costs 1AP (a Reposition).');
     if (m.action === 'rvBurrow') info = L('點擊你的隧道上的位置：從地下鑽出，可以在敵人控制範圍內；本次啟動 Move -2"。', 'Tap a spot on your TUNNEL: it emerges there, even within enemy control range; Move -2" for this activation.');
     if (m.action === 'kmGrapple') info = L('點擊鉤爪落點：落點要在一個看得到的地形點 1" 內，並看得到那一點；落點可以離得很遠。', 'Tap the grappling destination: within 1" of a terrain point visible to the Grot, and seeing that point; any distance.');
@@ -1765,7 +1776,7 @@ function modeView(op) {
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
     const canPin = !!(p && m.dest && !p.unreachable && !p.breach && (p.exactLen ?? p.len) < max - 0.05);
-    const wpRow = ['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
+    const wpRow = ['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
     return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
@@ -1973,6 +1984,14 @@ const ABILITIES = {
   kfWarrior: () => ['準備好面對一切', 'Ready for Anything', '每回合一次，友方戰士啟動中可以額外使用生肉、穿甲彈或毒彈（不佔每回合一次的限制）。', 'Once per TP during a Warrior\'s activation, use Meat, Piercing Shot or Toxin Shot once more (it doesn\'t count towards their limit).'],
   kmGrapple: () => ['鉤爪', 'Grappling Hook', '1AP（視為重新定位，不在交戰中，不能和衝鋒或撤退同一次啟動）：選一個看得到的地形點，被移走後放回該點 1" 內、看得到該點的位置。', '1AP (a Reposition; not engaged; not with Charge or Fall Back): pick a visible point on terrain and be set up again within 1" of it, seeing it.'],
   sneaky: () => ['鬼祟搗蛋', 'Sneaky Zogger', '不能有交戰指令；在掩護中時，2" 外不能被選為有效目標（優先於其他規則）。', 'Can\'t have an Engage order; in cover it can\'t be selected as a valid target beyond 2" (taking precedence over other rules).'],
+  vsVespid: () => ['飛行・中子充能', 'Fly · Neutron Charge', '移動時可以飛行：直接重新放在移動距離內（越過地形與特工）。移動或飛行後，本回合中子武器「穿甲 1」。受交融點數限制（見隊伍規則）。', 'It can FLY whenever it moves: set up again within its move (over terrain and operatives). After moving or flying, its neutron weapons have Piercing 1 for the TP. Bound by Communion (see the team rule).'],
+  vsLeader: () => ['交融頭盔・交融', 'Communion Helm · Commune', '它每次啟動可以免費花 1 點交融點數。交融：組隊時選一個策略計謀，它在場上且沒交戰時那個計謀 0CP。（「讓友方免費做任務行動」的選項沒做）', 'Once per activation it can spend a Communion point for free. Commune: a strategy ploy chosen at set-up costs 0CP while it is in the killzone and not engaged. (The free mission action for a friendly isn\'t done.)'],
+  vsDrone: () => ['迴避無人機・空中導引', 'Evasive Drone · Aerial Guidance', '只能空中導引、衝鋒、衝刺、撤退、近戰、重新定位；爭奪標記 APL 視為少 1；隱蔽且在掩護中時 2" 外不能被選為目標；射擊它時無視穿甲。空中導引（1AP，支援）：到它下次啟動前，它 6" 內看得到的友方胡蜂射擊它看得到的敵人時「致命 5+」與「飽和」。', 'Only Aerial Guidance, Charge, Dash, Fall Back, Fight and Reposition; counts 1 lower APL at markers; Concealed in cover it can\'t be targeted beyond 2"; Piercing is ignored when it\'s shot. Aerial Guidance (1AP, support): until its next activation, friendly Vespids visible within 6" of it shooting enemies it can see have Lethal 5+ and Saturate.'],
+  vsShadestrain: () => ['幽靈裝置・迷彩', 'Ghost Rig · Camouflaged', '隱蔽指令時，敵人要在 6" 內才能選它為目標。被選為目標射擊時，無視穿甲，所有掩護豁免都當成暴擊保留。', 'With a Conceal order it can only be targeted from within 6". Shot as the valid target, Piercing is ignored and all its cover saves are retained as criticals.'],
+  vsSwarmguard: () => ['天焰突擊', 'Skytorch Assault', '2AP（Engage 指令、沒交戰）：飛行重新定位最多 Move +2"，再用天焰噴火器射擊出發點與落點之間的每名特工（敵我皆然，無掩護、無遮蔽，從最遠的開始）。', '2AP (Engage order, not engaged): fly up to Move +2", then the skytorch flamer shoots every operative between the start and the landing spot (friend or foe, no cover or obscuring, furthest first).'],
+  vsWarrior: () => ['戰士本能', 'Warrior Instincts', '射擊時若這次沒有花交融點數，中子爆能槍「精準 1」。', 'Shooting without spending a Communion point in that sequence, its neutron blaster has Accurate 1.'],
+  vsLongsting: () => ['中子碎片', 'Neutron Fragment', '中子軌道步槍：目標沒殘廢但有攻擊骰結算時獲得中子碎片標記，每次啟動時每個標記受 D3 傷害（不能重擲）。', 'Neutron rail rifle: a target that survives with any attack dice resolved gains a Neutron Fragment token; on each activation it takes D3 per token (no re-rolls).'],
+  vsSkyblast: () => ['中子轟炸', 'Neutron Bombardment', '中子榴彈發射器射擊後（不論有沒有命中），在主要目標控制範圍內放中子落塵標記。敵人每次啟動（反應不算）第一次進入落塵 2" 內時受 D3 傷害（多個標記不疊加）。標記會一直留在場上。', 'After shooting its neutron grenade launcher (hit or miss), a Neutron Fallout marker goes within the primary target\'s control range. An enemy takes D3 the first time in each of its activations (not counteractions) it is within 2" of one (markers aren\'t cumulative). The markers stay all battle.'],
   vdTroupe: () => ['丑角裝備', 'Harlequin\'s Panoply', '被射擊時若沒有攻擊骰保留為暴擊，穿甲 X 減 1（穿甲 1 無效）。可以穿過敵人的控制範圍移動。（攀爬一律算 2" 在 2D 版本沒有效果）', 'When shot with no critical attack dice retained, Piercing is worsened by 1 (Piercing 1 is ignored). It can move through enemy control range. (Climbing as 2" has no effect in 2D.)'],
   vdLead: () => ['領銜演出', 'Lead the Performance', '整場一次策略謀略：它在場上時，更換你選的寓言（讚譽跟著改變）。', 'Once per battle strategic gambit, while it is in the killzone: change your allegory (the Accolades change with it).'],
   vdPlayer: () => ['笑神的好運', 'Luck of the Laughing God', '每回合一次（全隊共用）：它是指定特工時，一個交戰計謀 0CP（含為它擲的骰子的指揮重擲）；同一個計謀整場只能這樣用一次。', 'Once per TP (team-wide): a firefight ploy costs 0CP when it is the specified operative (including the Command Re-roll for its dice); each ploy only once per battle this way.'],
@@ -2755,6 +2774,12 @@ function previewMove(op, action, p) {
       why: L(`${tpl(op).base}mm 底盤${reasons.join('、')}。`, `${tpl(op).base}mm base ${reasons.join(' and ')}.`) };
     return render();
   }
+  if (action === 'vsSkytorch') {
+    const c = vsSkytorchCheck(g, op, p);
+    ui.mode.dest = p;
+    ui.path = { pts: [{ x: op.x, y: op.y }, p], len: 0, ok: c.ok, why: c.why ? tx(c.why) : null, r: radius(op) };
+    return render();
+  }
   if (action === 'aqLand') {
     const c = aqLandCheck(g, op, p);
     ui.mode.dest = p;
@@ -2935,6 +2960,7 @@ app.addEventListener('change', (e) => {
   }
   if (e.target.dataset.act === 'darkness') { const o = activeOp(g); if (o?.darknessTargets?.includes(e.target.value) && !o.orderSet) o.acted.darknessTarget = e.target.value; return afterChange(); }
   if (e.target.dataset.act === 'ai') { ui.setup.ai = e.target.checked ? 1 : null; render(); }
+  if (e.target.dataset.act === 'vscommune') { (ui.setup.vsCommune ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
   if (e.target.dataset.act === 'aicustom') { ui.setup.aiCustom = e.target.checked; render(); }
   if (e.target.dataset.act === 'mission') { ui.setup.mission = e.target.value; render(); }
   if (e.target.dataset.act === 'tacop') { (ui.setup.tacOps ||= [null, null])[+e.target.dataset.side] = e.target.value; render(); }
@@ -3060,6 +3086,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'vespids' && vespidsRosterError(TEAM_MAP.vespids, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'voidDancers' && voidDancersRosterError(TEAM_MAP.voidDancers, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'aquilons' && aquilonsRosterError(TEAM_MAP.aquilons, ui.setup.roster?.[side])) return render();
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'spectres' && spectresRosterError(TEAM_MAP.spectres, ui.setup.roster?.[side])) return render();
@@ -3073,7 +3100,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
       clearSave();
       resetRecorder();
-      g = newGame({ roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
+      g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
       ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.result = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.endDismissed = false; ui.turnKey = null; ui.turnBanner = null;
       return afterChange();
     case 'depsel': ui.sel = d.uid; return render();
@@ -3221,7 +3248,7 @@ function handle(act, d) {
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
     case 'ffarm': if (!isAI(+d.side)) ffToggleArm(g, +d.side, d.id); return render(); // take back a declared (not yet rolled) attack
     case 'action': {
-      if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass', 'rtSlingshot', 'kmGrapple'].includes(d.id) || (d.id === 'rvBurrow' && op.underground) || d.id === 'aqLand') ui.mode = { kind: 'move', action: d.id };
+      if (['reposition', 'dash', 'charge', 'fallBack', 'mdPass', 'rtSlingshot', 'kmGrapple'].includes(d.id) || (d.id === 'rvBurrow' && op.underground) || d.id === 'aqLand' || d.id === 'vsSkytorch') ui.mode = { kind: 'move', action: d.id };
       else if (d.id === 'edSprint') ui.mode = { kind: 'sprint' }; // Exodite riders
       else if (d.id === 'edTurn') ui.mode = { kind: 'turn' };
       else if (d.id === 'shoot' || d.id === 'fight') {
@@ -3232,7 +3259,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
@@ -3271,7 +3298,7 @@ function handle(act, d) {
       return render();
     }
     case 'confirmmove':
-      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => action === 'mdPass' ? doShadowPassage(g, op, path.pts.at(-1)) : action === 'rtSlingshot' ? doSlingshot(g, op, path.pts.at(-1)) : action === 'kmGrapple' ? kmDoGrapple(g, op, path.pts.at(-1)) : action === 'rvBurrow' ? rvDoEmerge(g, op, path.pts.at(-1)) : action === 'aqLand' ? aqDoLand(g, op, path.pts.at(-1)) : doMove(g, op, action, path)); }
+      if (ui.path?.ok) { const { action } = ui.mode, path = ui.path; undoable(() => action === 'mdPass' ? doShadowPassage(g, op, path.pts.at(-1)) : action === 'rtSlingshot' ? doSlingshot(g, op, path.pts.at(-1)) : action === 'kmGrapple' ? kmDoGrapple(g, op, path.pts.at(-1)) : action === 'rvBurrow' ? rvDoEmerge(g, op, path.pts.at(-1)) : action === 'aqLand' ? aqDoLand(g, op, path.pts.at(-1)) : action === 'vsSkytorch' ? vsDoSkytorch(g, op, path.pts.at(-1)) : doMove(g, op, action, path)); }
       ui.mode = null; ui.path = null;
       return afterChange();
     case 'endact':

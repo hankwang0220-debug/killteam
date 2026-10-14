@@ -21,6 +21,7 @@ import { rvAiStrategy, rvAiUnderground, rvAiBurrow } from './raveners.js';
 import { spAiStrategy } from './spectres.js';
 import { aqAiStrategy, aqAiAbove } from './aquilons.js';
 import { vdAiStrategy } from './voiddancers.js';
+import { vsChargeAmong } from './vespids.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
@@ -230,6 +231,7 @@ function sprintSpot(g, op) {
 }
 
 function chargePath(g, op, among = foes(g, op)) {
+  among = vsChargeAmong(g, op, among); // Vespid Stingwings without a Communion point: only the closest enemy
   const ctx = moveCtx(g, op, 'charge');
   const max = moveAllowance(g, op, 'charge');
   const r = radius(op);

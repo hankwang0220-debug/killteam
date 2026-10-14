@@ -19,6 +19,8 @@ import { RAVENERS_EQUIPMENT } from './data/raveners.js';
 import { SPECTRES_EQUIPMENT } from './data/spectres.js';
 import { AQUILONS_EQUIPMENT } from './data/aquilons.js';
 import { VOIDDANCERS_EQUIPMENT } from './data/voiddancers.js';
+import { VESPIDS_EQUIPMENT } from './data/vespids.js';
+import { isVS, vsSetup, vsReady, vsTargetOk, vsShootStart, vsReroll, vsWeapons, vsRules, vsNoPierce, vsCamo, vsHidden, vsAgility, vsExo, vsVenom, vsShootEnd, vsActivate, vsMoved, vsChargeOk, vsGate, vsMissionSpend, vsCommuneFree, vsActions, vsSelf, registerVespidActions } from './vespids.js';
 import { isVD, vdSetup, vdFill, vdActivate, vdEnd, vdRules, vdShootStart, vdShootEnd, vdPanoply, vdDefence, vdElusiveHidden, vdRoll, vdDomino, vdJest, vdCurtain, vdDeath, vdLuckFree, vdLuckUsed, vdLuckReroll, vdActions, vdFogged, registerVoidDancerActions } from './voiddancers.js';
 import { isAQ, aqSetup, aqReady, aqTPEnd, aqActivate, aqEnd, aqActions, aqSelf, aqWeapons, aqRules, aqDefence, aqDetectedBlock, aqStimms, aqControl, aqPloyBought, aqVetFree, aqVetUsed, aqVetReroll, aqVetRerollUsed, aqTrack, aqAfterShoot, aqDynamic, aqObscure, aqPlaceAuto, aqOverseerOk, aqUseOverseer, registerAquilonActions } from './aquilons.js';
 import { isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
@@ -157,6 +159,8 @@ export function moveAllowance(g, op, kind) {
   if (tpl(op).blinkPack && op.blinkOn && kind !== 'dash') return op.counter ? 2 : 7;
   if (kind === 'dash') d = tpl(op).blademaster && op.acted?.charge ? Math.min(3, op.acted.chargeRemaining || 0) : 3;
   if (kind === 'reposition' && op.mvb) d = Math.max(0, d - 2); // Move With Barricade
+  if (kind === 'reposition' && op.acted?.vsDart) d += op.acted.vsDart; // Darting Flight (Vespid Stingwings)
+  if ((kind === 'charge' || kind === 'dash') && isVS(op) && !tpl(op).vsDrone && g.equip?.[op.side]?.includes('vsAccelerant')) d += 1; // Accelerant Stimulant
   if (kind === 'reposition' && op.acted?.vdRestOn) return op.acted.vdRest || 0; // Darting Salvo: the rest of that Reposition
   if (kind === 'reposition' && hasOrder(g, op, 'moveMove')) d += 1; // Move! Move! Move!
   if (kind === 'reposition' && skillOn(g, op, 'strikeFast')) d += 1; // Strike Fast (Kasrkin)
@@ -201,7 +205,7 @@ function makeTerrain() {
 const OBJECTIVES = [{ x: 15, y: 11 }, { x: 10, y: 4.5 }, { x: 20, y: 4.5 }, { x: 10, y: 17.5 }, { x: 20, y: 17.5 }];
 
 // ---------- setup ----------
-export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], primaryOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [], dkFree = [] }) {
+export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], primaryOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [], dkFree = [], vsCommune = [] }) {
   const m = MISSIONS[missionId] || MISSIONS.standard;
   const map = m.terrain ? null : TOMB_WORLD_MAPS.find((v) => v.id === mapId);
   const g = {
@@ -268,6 +272,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   spSetup(g, roster); // Spectre Squad: roster limits, Fieldcraft points
   aqSetup(g, roster); // Tempestus Aquilons: roster limits, Drop markers
   vdSetup(g, roster); // Void-dancer Troupe: roster limits, Saedath
+  vsSetup(g, roster, vsCommune); // Vespid Stingwings: roster limits, Commune
   setupArchon(g, loadouts);
   setupCorsair(g, loadouts);
   // Other teams' weapon options (Blades of Khaine Exarchs).
@@ -450,6 +455,7 @@ export function doPickUp(g, op) {
   const ownBanner = (m) => (m.kind === 'banner' && m.owner === op.side ? 1 : 0);
   const mk = pickUpTargets(g, op).sort((a, b) => ownBanner(a) - ownBanner(b) || dist(op, a) - dist(op, b))[0];
   if (!mk) return;
+  vsMissionSpend(g, op, 'pickUp'); // Communion: a point for Pick Up Marker (Vespid Stingwings)
   spend(g, op, 'pickUp');
   mk.carriedBy = op.uid; mk.x = op.x; mk.y = op.y;
   log(g, { zh: `${opName(op, 'zh')} 撿起標記`, en: `${opName(op, 'en')} picks up a marker` }, `side${op.side}`);
@@ -461,6 +467,7 @@ function dropMarkers(g, op) {
 }
 export function doMissionAction(g, op, id) {
   if (/^tw(Open|Close)_/.test(id) && (g.phase !== 'firefight' || g.active !== op.uid || op.dead || !availableActions(g,op).some(a=>a.id === id && a.ok))) return false;
+  vsMissionSpend(g, op, id); // Communion: a point for a mission action (Vespid Stingwings)
   spend(g, op, id);
   if (tpl(op).gotIt) op.acted.gotItUsed = true;
   const msg = MISSION_ACTIONS[id].apply(g, op);
@@ -667,6 +674,7 @@ function startTP(g) {
   sfReady(g); // Sanctifiers: a new Orator when needed, Ecclesiarchy Texts
   spReady(g); // Spectre Squad: Fieldcraft points
   aqReady(g); // Tempestus Aquilons: a Drop marker goes in TP2 and TP3
+  vsReady(g); // Vespid Stingwings: Communion points
   mission(g).onReady?.(g); // the Ready step
 }
 
@@ -822,7 +830,7 @@ const inEnemyTerritory = (g, op) => {
 
 // Icon of Contagion: Contagion is free while the Icon Bearer is in the opponent's territory.
 // Command Breach (Sergeant-at-Arms): Attack / Defence Order cost 0CP.
-export const ployCost = (g, side, ploy) => (dwCommandFree(g, side, 'strategy') || freePloyOp(g, side, ploy)
+export const ployCost = (g, side, ploy) => (dwCommandFree(g, side, 'strategy') || vsCommuneFree(g, side, ploy) || freePloyOp(g, side, ploy)
   || (ploy.id === 'contagion' && living(g, side).some((o) => tpl(o).iconBearer && inEnemyTerritory(g, o)))
   || (ploy.group === 'navyOrder' && living(g, side).some((o) => tpl(o).commandBreach))
   || broodFreePloy(g, side, ploy)
@@ -1041,6 +1049,7 @@ export function activate(g, op) {
   spActivate(g, op); // Spectre Squad: Ambushing Volley, Weapons Team
   aqActivate(g, op); // Tempestus Aquilons: Sudden Offensive count
   vdActivate(g, op); // Void-dancer Troupe: Humbling Cruelty, Elusive Target, Understudy's Mask
+  vsActivate(g, op); // Vespid Stingwings: Neutron Fragment, Neutron Fallout
 }
 
   // Archon effects are committed only when an action begins.
@@ -2310,6 +2319,7 @@ export function availableActions(g, op) {
   dkActions(g, op, add); // Death Korps: the Sapper's mine
   aqActions(g, op, add); // Tempestus Aquilons: Land, Expend
   vdActions(g, op, add); // Void-dancer Troupe: Mirror of Minds, Fog of Dreams
+  vsActions(g, op, add); // Vespid Stingwings: Aerial Guidance, Skytorch Assault
   spActions(g, op, add); // Spectre Squad: Issue Mission, Signal, Load Weapon, Advanced Camouflage
   rvActions(g, op, add); // Raveners: Burrow, Toxic Lunge, Distend Dorsal Sac
   if (tpl(op).signal) unique('signal');
@@ -2484,6 +2494,8 @@ export function availableActions(g, op) {
   if (tpl(op).goreFuel) add('goreFuel', !engaged && goreOf(op) > 0 && !op.goreFuelOn && !count(op, 'goreFuel'), engaged ? ENG : goreOf(op) <= 0 ? { zh: '血槽是空的', en: 'GORE TANK is empty' } : DONE);
   if (tpl(op).dashSpray) add('dashSpray', !engaged && !conceal && !count(op, 'dashSpray') && !count(op, 'dash') && !count(op, 'charge') && attackAllowed(op, 'shoot'), engaged ? ENG : conceal ? CONC : DONE);
   const allowed = op.ctlOnly || tpl(op).actionsOnly; // (ctlOnly: Incite Slaughter / Urgency's one free action)
+  vsGate(g, op, list, missionActionsFor(g, op.side)); // Communion: Pick Up and mission actions need a point (Vespid Stingwings)
+  if (op.vsNoAtkTP === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Darting Flight (Vespid Stingwings)
   if (op.aqNoAtk === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['dash', 'shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Adjust Coordinates (Aquilons)
   const nulled = nullRodded(g, op) || witchHunted(g, op) ? list.filter((a) => !PSYCHIC_ACTIONS.includes(a.id)) : list; // Null Rod (Condemnor) / Weapons of the Witch Hunters
   return allowed ? nulled.filter((a) => allowed.includes(a.id)) : nulled;
@@ -2513,6 +2525,7 @@ export function doSelfAction(g, op, id) {
   if (kmSelf(g, op, id)) return; // Kommandos: Breach
   if (kfSelf(g, op, id)) return; // Farstalker Kinband: Gather
   if (dkSelf(g, op, id)) return; // Death Korps: the Sapper's mine
+  if (vsSelf(g, op, id)) return; // Vespid Stingwings: Aerial Guidance
   if (aqSelf(g, op, id)) return; // Tempestus Aquilons: Expend
   if (spSelf(g, op, id)) return; // Spectre Squad: Advanced Camouflage
   if (rvSelf(g, op, id)) return; // Raveners: Burrow (underground), Distend Dorsal Sac
@@ -2634,6 +2647,7 @@ export function doMove(g, op, kind, path) {
   if (kind === 'fallBack' && !mwFallBack(g, op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
   const dest = path?.pts?.at(-1);
+  if (kind === 'charge' && !vsChargeOk(g, op, dest)) return false; // Communion (Vespid Stingwings): the closest enemy unless a point is spent
   if (hasPloy(g, op.side, 'bound') && !op.acted.boundUsed && ctx.climbRaw?.(path.pts) > 0) op.acted.boundUsed = true; // Bound (Kinband): the first 2" of one climb was free
   if (kind === 'charge' && isMandrake(op) && op.order === 'conceal' && hasPloy(g, op.side, 'mdBladeDark') && !withinShadow(g, op) && !withinShadow(g, { ...op, ...dest })) return false;
   if (kind === 'charge') wkActionStart(g, op, 'charge'); // Tanked Up (Wrecka Krew): at the start of the Charge
@@ -2758,6 +2772,7 @@ export function doMove(g, op, kind, path) {
   if (kind === 'fallBack') op.fellBackTP = g.tp; // (Instinctive Behaviour: Raveners)
   if (kind === 'charge') op.chargedTP = g.tp; // (Suppressive Fire: Spectre Squad)
   op.vdMovedTP = g.tp; // (Prismatic Blur: Void-dancer Troupe)
+  vsMoved(g, op); // Vespid Stingwings: Neutron Charge, Airborne Predators, Neutron Fallout
   if (isVD(op) && op.acted.vdRestOn) { op.acted.vdRestOn = false; op.acted.vdRest = 0; } // (Darting Salvo: the rest of the move is used)
   else if (kind === 'reposition' && isVD(op) && hasPloy(g, op.side, 'vdSalvo')) op.acted.vdRest = Math.max(0, moveAllowance(g, op, 'reposition') - (path?.len || 0)); // Darting Salvo
   rvAmbush(g, op, movedFrom); // Subterranean Ambush (Raveners): a Tremorscythe lunges from the tunnel
@@ -2806,7 +2821,7 @@ const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, 
 function validTarget(g, op, target, weapon) {
   const v = shotVisibility(g, op, target, weapon);
   if ((target.mdGlyph || target.scCovert || rtShifty(g, target) || tpl(target).sneaky) && target.order === 'conceal' && visibility(g, op, target).cover && edgeDist(op, target) > 2) return null; // (Covert Position: Scout Squad)
-  if (!v.visible || spCamoHidden(g, op, target) || vdElusiveHidden(g, op, target)) return null; // (Elusive Target: Void-dancer Troupe) // (Advanced Camouflage: Spectre Squad)
+  if (!v.visible || spCamoHidden(g, op, target) || vdElusiveHidden(g, op, target) || vsHidden(g, op, target) || !vsTargetOk(g, op, target)) return null; // (Ghost Rig / Evasive Drone; Communion: the closest enemy) // (Elusive Target: Void-dancer Troupe) // (Advanced Camouflage: Spectre Squad)
   if (weapon.rules?.psychic && isCI(target) && target.side !== op.side) return null; // (Psychic ranged weapons can't damage Insidiants)
   if (target.reserve) return null; // (an Exodite rider still in reserve isn't in the killzone)
   if (target.order === 'conceal') {
@@ -2875,6 +2890,7 @@ export function effectiveRules(g, op, weapon, target) {
   rtRules(g, op, weapon, target, r); // Ratlings: Target Designation, Crack Shots, Sniper Positions, Frontline Assault, Hunter, Optics
   sfRules(g, op, weapon, target, r); // Sanctifiers: Doused, Spread the Word, Fervent Brawl, Zealous Persecution
   vdRules(g, op, weapon, target, r); // Void-dancer Troupe: Accolade, Shrieker Toxin Rounds
+  vsRules(g, op, weapon, target, r); // Vespid Stingwings: Neutron Charge, Airborne Predators, Warrior Instincts, Aerial Guidance
   aqRules(g, op, weapon, target, r); // Tempestus Aquilons: Sudden Offensive, Maintain Momentum, Drop and Secure
   spRules(g, op, weapon, target, r); // Spectre Squad: Ambushing Volley, Hidden Engagement, Weapon Assist, Suppressive Fire
   rvRules(g, op, weapon, target, r); // Raveners: Instinctive Behaviour, Death From Below, Distend Dorsal Sac
@@ -4646,7 +4662,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
+Object.assign(EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
@@ -4654,7 +4670,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
+  vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4675,6 +4691,7 @@ registerRavenerActions();
 registerSpectreActions();
 registerAquilonActions();
 registerVoidDancerActions();
+registerVespidActions();
 ACTIONS.mvBarricade = { ap: 1, name: { zh: '隨路障移動', en: 'Move With Barricade' } };
 registerDeathKorpsActions();
 registerMandrakeActions();
@@ -4703,6 +4720,7 @@ export function weaponsFor(g, op) {
   ws = dkWeapons(g, op, ws); // Hand Axes (Death Korps equipment)
   ws = spWeapons(g, op, ws); // Spectre Squad: Weapons Team, Sniper Overwatch
   ws = aqWeapons(g, op, ws); // Tempestus Daggers (Tempestus Aquilons equipment)
+  ws = vsWeapons(g, op, ws); // Sting (Vespid Stingwings ploy)
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -5020,6 +5038,10 @@ const FF = {
   aqHotDrop: { kind: 'attack', cond: (g, op, t) => (isAQ(op) && t && edgeDist(op, t) <= 6 && ((op.aqLandAct === op.uid && op.aqLandTP === g.tp) || whollyIn(g, op, 1 - op.side)) ? null : { zh: '需要降落或在敵方領地內，且目標在 6" 內', en: 'Needs to have landed or be in enemy territory, target within 6"' }) },
   aqExemplar: { kind: 'button', cond: (g, o) => (!isAQ(o) || tpl(o).aqSentry || tpl(o).apl > 2 ? { zh: '需要 APL 2 以下的風暴天鷹（非伺服哨兵）', en: 'Needs a TEMPESTUS AQUILON with APL 2 or less (not the Servo-sentry)' } : null), apply(g, o) { o.acted.aqExemplar = true; return { zh: '風暴楷模：本次啟動撿標記、放標記與任務行動少 1AP', en: 'Tempestus Exemplars: Pick Up, Place Marker and mission actions cost 1 less AP this activation' }; } },
   aqProgena: { kind: 'button', start: true, cond: (g, o) => (!isAQ(o) || tpl(o).aqSentry ? { zh: '需要風暴天鷹（非伺服哨兵）', en: 'Needs a TEMPESTUS AQUILON (not the Servo-sentry)' } : null), apply(g, o) { const h = Math.min(o.maxW - o.wounds, d3() + d3()); o.wounds += h; o.ap = tpl(o).apl; return { zh: `孤兒學院：回復  生命，本次啟動無視 APL 改變`, en: `Progena: regains  wounds and ignores APL changes this activation` }; } },
+  vsVenom: { kind: 'auto' },
+  vsOcelli: { kind: 'button', cond: () => ({ zh: '2D 版本沒有高度，沒有效果', en: 'No effect in 2D (no heights)' }), apply() { return null; } },
+  vsDart: { kind: 'button', cond: (g, o) => (!isVS(o) ? { zh: '只有胡蜂', en: 'VESPID STINGWINGS only' } : o.acted.reposition ? { zh: '已經重新定位過', en: 'Already repositioned' } : null), apply(g, o) { const r = d6(), n = Math.ceil(r / 2); o.acted.vsDart = n; o.vsNoAtkTP = g.tp; return { zh: `疾飛：擲 ${r} → 重新定位多 ${n}"，本回合不能射擊或近戰`, en: `Darting Flight: rolled ${r} → Reposition ${n}" further; no Shoot or Fight this TP` }; } },
+  vsOverload: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (isVS(op) && op.acted?.vsMoved && t && edgeDist(op, t) <= 4 && (!w || w.rules?.vsNeutron) ? null : { zh: '需要在移動過的啟動中、用中子武器打 4" 內的目標', en: 'Needs a neutron weapon, a target within 4" and to have moved this activation' }) },
   vdCurtain: { kind: 'auto' },
   vdDomino: { kind: 'auto' },
   vdElusive: { kind: 'button', cond: (g, o) => (isVD(o) ? null : { zh: '只有虛空舞者', en: 'VOID-DANCER TROUPE only' }), apply(g, o) { o.vdElusive = true; return { zh: '難以捉摸：到下次啟動前，隱蔽且在掩護中時 2" 外不能被選為目標', en: 'Elusive Target: until its next activation, Concealed and in cover it can\'t be targeted beyond 2"' }; } },
@@ -5889,6 +5911,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   rtEquipRoll(g, op, weapon, a, tally); // Ratlings equipment: Purloined Rations, Lucky Round
   sfRoll(g, op, a, tally); // Sanctifiers equipment: Purity Seals
   vdRoll(g, op, a, tally); // Wraithbone Talisman (Void-dancer Troupe)
+  vsReroll(g, op, a, tally); // Communion: a point to re-roll one attack die
   adRoll(g, op, a, tally); // Purity Seals (Angels of Death)
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
@@ -5923,7 +5946,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     let pierce = tpl(target).xenotech || tpl(target).daemonic ? 0 : tpl(target).cultAgent || ferric || isMandrake(target) ? (crits > 0 ? rules.piercingCrits || 0 : 0) : (rules.piercing || 0) + (crits > 0 ? rules.piercingCrits || 0 : 0);
     // Extra Defence (NEMESIS): one more defence die unless injured (Xenotech: even when injured).
     if (tpl(target).dwStormShield && rules.piercing && !ferric) pierce = Math.max(0, pierce - 1);
-    if (vdPanoply(target, crits)) pierce = Math.max(0, pierce - 1); // Harlequin's Panoply (Void-dancer Troupe): no critical retained
+    if (vdPanoply(target, crits)) pierce = Math.max(0, pierce - 1);
+    if (vsNoPierce(target)) pierce = 0; // Camouflaged / Evasive Drone (Vespid Stingwings) // Harlequin's Panoply (Void-dancer Troupe): no critical retained
     const extraDef = tpl(target).nemesis && (!isInjured(target) || tpl(target).xenotech) ? 1 : 0;
     // The number of defence dice is the target's Defence stat (datacards without one roll 3).
     const defDice = Math.max(0, (tpl(target).def ?? DEFENCE_DICE) + extraDef - pierce);
@@ -5940,6 +5964,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     coverN += skulk;
     if (isMandrake(target) && withinShadow(g, target) && hasPloy(g, target.side, 'mdShroud')) coverN++;
     if (base && tpl(target).camo1) coverN++; // Camo Cloak (Blooded Sharpshooter): one more cover save
+    if (base && vsCamo(target)) { coverC += coverN; coverN = 0; } // Camouflaged (Vespid Shadestrain): cover saves as criticals
     if (base && rvChroma(g, target)) coverN++; // Chromatospore Camouflage (Raveners): one more cover save
     if (base && scCamoExtra(g, target)) coverN++; // Camo Cloak equipment (Scout Squad, not Snipers): one more cover save
     // Reckless Determination (Fellgor ploy): an expended friendly without cover saves retains one die as a normal success.
@@ -6082,6 +6107,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const crest = block.remN > 0 && dn > 0 && (useCrest(g, target) || pfShield(g, target) || adIronHalo(g, target)); // (Shield Generator: MV4 Shield Drone; Iron Halo: Space Marine Captain)
   const normals = Array(Math.max(0, block.remN - (crest ? 1 : 0))).fill(dn);
   if (normals.length && corsairShield(g, target)) normals.shift();
+  else if (normals.length && vsAgility(g, op, target)) normals.shift(); // Aerial Agility (Vespid Stingwings)
   else if (normals.length && target.side < 2 && isCC(target) && matrixCovers(g, target.side, op, target) && autoFF(g, target.side, 'shieldFlare')) normals.shift(); // Shield Flare
   // Just a Scratch (Kommandos) ignores one normal hit; All Is Dust (Rubric Marines) makes one deal 1.
   if (normals.length && dn > 0 && !tpl(target).kmSmall && autoFF(g, target.side, 'justScratch')) normals.pop();
@@ -6106,6 +6132,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   sfShootBlaze(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); // Blaze (Sanctifiers)
   rvPoisonHit(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); rvShot(op, weapon); // Poison (Raveners)
   vdShootEnd(g, op, weapon, target, dmg > 0); // Humbling Cruelty (Void-dancer Death Jester)
+  vsShootEnd(g, op, weapon, target, a.crits + a.norms > 0, block.remC > 0); // Neutron Fragment / Fallout / Overload (Vespid Stingwings)
   // Excess attack dice are excluded once the enemy's remaining wounds have been inflicted.
   if (res.dmg > 0) {
     let leftW = before - devDmg, damaging = 0;
@@ -6218,6 +6245,7 @@ export function* shootFlow(g, op, weapon, target) {
   pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
   kfShootStart(g, op, weapon); // Piercing Shot / Toxin Shot (Farstalker Kinband)
   vdShootStart(g, op, weapon); // Shrieker Toxin Rounds (Void-dancer Troupe)
+  vsShootStart(g, op, weapon, target); // Communion: a point for a target that isn't the closest
   ccPhaseStart(g, op, target); // Phase Shifter (Canoptek Circle)
   adShootStart(g, op, target, shotVisibility(g, op, target, weapon).obscured); // Auspex (Angels of Death)
   mwActionStart(g);
@@ -6704,6 +6732,7 @@ export function fightApply(g, optId) {
     // Holy Resilience (Celestian Insidiants ploy): an inspiring friendly takes 1 less from Normal and Critical Dmg of 4+.
     if (amount >= 4 && foeOp.inspiring && isCI(foeOp) && hasPloy(g, foeOp.side, 'holyResilience')) amount--;
     if (amount >= 4 && sfSermon(g, foeOp)) amount--; // the Ministorum Sermon (Sanctifiers): Normal and Critical Dmg of 4+ deals 1 less
+    amount = vsExo(g, foeOp, amount, asNormal); // Hardened Exoskeleton (Vespid Stingwings)
     amount = rvCarapace(foeOp, amount); // Reinforced Carapace (Raveners Wrecker)
     // Gory Tenacity (Goremongers ploy): the opponent's first strike on it this sequence is halved (rounding up, minimum 2).
     if (amount > 2 && !foe.tenacityUsed && isGM(foeOp) && foeOp.side < 2 && hasPloy(g, foeOp.side, 'goryTenacity')) { foe.tenacityUsed = true; amount = Math.max(2, Math.ceil(amount / 2)); }
@@ -6714,6 +6743,7 @@ export function fightApply(g, optId) {
     if (!shrug) { const a2 = daemonShell(foeOp, amount); amount = a2 < amount ? a2 : asNormal ? nurgleVigour(g, foeOp, amount) : amount; }
     const res = shrug ? { dmg: 0, rolls: [] } : resolveDice(foeOp, [amount], g); // Disgustingly Resilient
     if (!shrug) res.dmg += rvCrush(fightWeapon(g, k), foeOp); // Crush (Raveners Wrecker)
+    if (!shrug && opt.die === 'c') res.dmg += vsVenom(g, meOp); // Vicious Venom (Vespid Stingwings)
     if (!shrug && meOp.acted?.spSilent && !me.silentUsed) { me.silentUsed = true; res.dmg += 3; me.silentDiscard = true; } // Silent Killers (Spectre Squad)
     // Shock: the first crit strike in the sequence also discards an unresolved enemy normal (else a crit).
     let shocked = null;
