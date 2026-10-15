@@ -6684,12 +6684,15 @@ export function startFight(g, op, weapon, target) {
   // Assist: another friendly operative within the enemy's control range improves the Hit stat by 1.
   // Brawler (Dôzr): enemies fighting it can't be assisted.
   // Devastating Onslaught (Legionary Butcher): enemies fighting it can't be assisted either.
-  const assist = (me, foe) => !tpl(foe).brawler && !tpl(foe).noAssistVs && !hasGift(g, foe, 'barbed') && living(g, me.side).some((f) => f !== me && inEngagement(f, foe, g));
+  // Each other friendly in the enemy's control range that isn't in another enemy's control range assists: +1 Hit each (2+ at best; a 1 always fails).
+  // (Machines and the Aquilon Servo-sentry can't assist.)
+  const assist = (me, foe) => (tpl(foe).brawler || tpl(foe).noAssistVs || hasGift(g, foe, 'barbed') ? 0
+    : living(g, me.side).filter((f) => f !== me && f.x > -50 && !tpl(f).machine && !tpl(f).aqSentry && inEngagement(f, foe, g) && !foes(g, f).some((e) => e !== foe && e.x > -50 && inEngagement(f, e, g))).length);
   const aAssist = assist(op, target), dAssist = assist(target, op);
   // Quicksilver Speed (Legionaries): against a Legionary that moved this TP, melee Hit is worsened by 1 (not with injured).
-  const aHit = weapon.rules.fixedHit ? weapon.hit : clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) + pfGravHit(g, op, weapon) + (shokked(g, op) ? 1 : 0) - (aAssist ? 1 : 0)); // (Shokkwave)
+  const aHit = weapon.rules.fixedHit ? weapon.hit : clampHit(weapon.hit + (hitWorse(g, op, weapon) || quick(g, target) ? 1 : 0) + pfGravHit(g, op, weapon) + (shokked(g, op) ? 1 : 0) - aAssist); // (Shokkwave)
   // Banshee Mask (Howling Banshees): fighting, the enemy's melee Hit is worsened by 1 (not cumulative with injured).
-  const dHit = dWeapon.rules.fixedHit ? dWeapon.hit : clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) || tpl(op).bansheeMask ? 1 : 0) + pfGravHit(g, target, dWeapon) + (shokked(g, target) ? 1 : 0) - (dAssist ? 1 : 0)); // (Shokkwave)
+  const dHit = dWeapon.rules.fixedHit ? dWeapon.hit : clampHit(dWeapon.hit + (hitWorse(g, target, dWeapon) || quick(g, op) || tpl(op).bansheeMask ? 1 : 0) + pfGravHit(g, target, dWeapon) + (shokked(g, target) ? 1 : 0) - dAssist); // (Shokkwave)
   // Cut-throats: +1 Atk to a maximum of 5.
   const atk = (w, r) => Math.max(1, (r.atkPlus ? Math.max(w.atk, Math.min(r.atkMax || 5, w.atk + r.atkPlus)) : w.atk) - (r.atkMinus || 0)); // (For Cadia!: max 4; atkMinus: Sanctification)
   // Whip Control (Herd-goad): -1 Atk on the melee weapons of a whipped enemy (to a minimum of 1).

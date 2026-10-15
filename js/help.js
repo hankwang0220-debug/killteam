@@ -29,7 +29,7 @@ export const HELP = {
     <li>未被擋下的命中造成武器的普通/暴擊傷害。</li>
   </ol>
   <h3>近戰結算</h3>
-  <p>雙方同時擲骰，由啟動中的一方先結算，之後輪流<b>自己選擇</b>處理一顆成功骰：<b>打擊</b>（造成傷害）或<b>格擋</b>（抵消對方一顆尚未結算的成功骰；普通只能擋普通，暴擊可擋任意）。成功骰也可以選擇<b>放棄</b>不用。<b>友軍協助</b>：敵方的控制範圍內有你的其他友軍時，你的命中值改善 1（防守方也適用）。</p>
+  <p>雙方同時擲骰，由啟動中的一方先結算，之後輪流<b>自己選擇</b>處理一顆成功骰：<b>打擊</b>（造成傷害）或<b>格擋</b>（抵消對方一顆尚未結算的成功骰；普通只能擋普通，暴擊可擋任意）。成功骰也可以選擇<b>放棄</b>不用。<b>友軍協助</b>：每有一名其他友軍也在那名敵人的控制範圍內、而且本身不在另一名敵人的控制範圍內，你的近戰命中就改善 1（可疊加，最好到 2+，擲出 1 一律失敗；防守方也適用）。</p>
   <h3>視線、掩體與遮蔽</h3>
   <p><b>可見</b>與<b>介於其間</b>分開判定：先確認能看到模型，再由射手底座的一點向目標底座朝向射手的部分畫出射線區域；任一射線碰到的地形部分都算介於其間。</p>
   <p><b>掩護</b>：介於其間的地形部分在目標底座 1" 內；射手與目標底座距離 2" 內時不算掩護。交戰目標仍可射擊，隱蔽＋掩護通常不能選為目標。「搜尋」可忽略選目標時的掩護，「飽和」只移除掩護豁免。</p>
@@ -134,7 +134,7 @@ export const HELP = {
     <li>Unblocked hits deal the weapon's normal/critical damage.</li>
   </ol>
   <h3>Fighting</h3>
-  <p>Both roll. The active player resolves first, then players alternate, <b>choosing</b> per die: <b>strike</b> (deal damage) or <b>block</b> (cancel an unresolved enemy success; normal blocks normal, critical blocks either). A success may also be <b>held back</b> (discarded unused). <b>Assist</b>: if another friendly operative is within the enemy's control range, your Hit improves by 1 (for the defender too).</p>
+  <p>Both roll. The active player resolves first, then players alternate, <b>choosing</b> per die: <b>strike</b> (deal damage) or <b>block</b> (cancel an unresolved enemy success; normal blocks normal, critical blocks either). A success may also be <b>held back</b> (discarded unused). <b>Assist</b>: each other friendly operative within the enemy's control range that isn't within another enemy's control range improves your melee Hit by 1 (cumulative, 2+ at best, a 1 always fails; for the defender too).</p>
   <h3>Cover & obscured</h3>
   <p>Model visibility and intervening base lines are separate checks. Choose one point on the shooter's base, then check the fan to the target's facing base. Any crossing terrain part intervenes.</p>
   <p><b>Cover</b>: an intervening part within 1" of the target's base; not when the bases are within 2". Engage targets remain valid; Conceal plus cover prevents targeting. Seek affects target selection; Saturate only removes cover saves.</p>

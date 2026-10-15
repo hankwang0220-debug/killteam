@@ -2500,7 +2500,7 @@ function fightView(readonly = false) {
     const p = f[k];
     const chips = '<span class="die crit small">★</span>'.repeat(p.c) + '<span class="die norm small">✓</span>'.repeat(p.n);
     return `<div class="fside ${!f.done && f.turn === k ? 'now' : ''}" style="--tc:${col(k)}">
-      <div class="fhead">${who(k)} <small>${esc(bi(fightWeapon(g, k).name))} · ${f[k].hit}+${p.assist ? L('（友軍協助 +1）', ' (assisted +1)') : ''} · ${fightWeapon(g, k).dmg.join('/')}${p.brutal ? ` · ${bi(RULE_LABELS.brutal)}` : ''}</small></div>
+      <div class="fhead">${who(k)} <small>${esc(bi(fightWeapon(g, k).name))} · ${f[k].hit}+${p.assist ? L(`（友軍協助 +${p.assist}）`, ` (assisted +${p.assist})`) : ''} · ${fightWeapon(g, k).dmg.join('/')}${p.brutal ? ` · ${bi(RULE_LABELS.brutal)}` : ''}</small></div>
       <div class="dicerow ${f.steps.length ? 'still' : ''}"><label>${k === 'A' ? L('攻方擲骰', 'Attacker roll') : L('守方擲骰', 'Defender roll')}</label>${p.dice.map((d, i) => (!readonly && f.rrOpen?.[k] && !d.auto && p.a.balancedLeft
         ? `<button class="diebtn" data-act="fightbal" data-k="${k}" data-i="${i}" ${d.rr ? 'disabled' : ''} title="${L('平衡：免費重擲這顆骰', 'Balanced: re-roll this die for free')}">${die(d, i)}</button>`
         : !readonly && f.rrOpen?.[k] && !d.auto && canCommandReroll(g, ops[k].side, p, 'a')
