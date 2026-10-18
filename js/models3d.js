@@ -499,7 +499,7 @@ export function createModelKit(THREE) {
       if (L.body === 'vespid') add(upper, sph(B.tw * 0.55, main, 0, hipY - 0.04, -B.td * 0.9, 10, 8), cone(0.04, 0.12, main, 0, hipY - 0.12, -B.td * 1.3));
     }
     // Skirts: robes reach the ground, coats reach the knees, marines and sisters have tassets.
-    const robe = L.robe || L.body === 'skitarii' || (L.body === 'sister' && L.robe) || L.hood && L.body === 'guard' && L.robe;
+    const robe = L.robe || L.body === 'skitarii' && !L.sicarian || (L.body === 'sister' && L.robe) || L.hood && L.body === 'guard' && L.robe;
     if (robe) add(upper, cyl(B.tw * 0.5, B.tw * 0.75, hipY * 0.9, cloth, 0, hipY * 0.55, 0, 10));
     else if (L.coat || L.cloak && L.body === 'guard') add(upper, cyl(B.tw * 0.52, B.tw * 0.68, hipY * 0.55, L.coat ? mat(L.main, { rough: 0.9 }) : cloth, 0, hipY * 0.72, -0.01, 10));
     else if (L.rags || L.body === 'gor' || L.body === 'kroot') add(upper, box(B.tw * 0.5, hipY * 0.4, 0.02, cloth, 0, hipY * 0.8, B.td * 0.42));
@@ -800,6 +800,7 @@ export function createModelKit(THREE) {
       }
     });
 
+    fig.userData.hands = { R: handR.at, L: handL.at }; // for team details (cables, leashes)
     for (const [s, h] of [[Rs, handR.at], [Ls, handL.at]]) {
       if (!h) continue;
       const side = s.x < 0 ? -1 : 1;
