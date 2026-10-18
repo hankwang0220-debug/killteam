@@ -462,6 +462,75 @@ export function teamDetails(h) {
         add(head, box(B.head * 0.2, B.head * 1.0, B.head * 2.6, mat('#e8c040'), 0, B.head * 1.4, -B.head * 0.4));
       }
     },
+
+    handOfArchon(c) {
+      const { upper, head, fig, B, k, torsoY, front, back, L } = c;
+      add(head, cyl(B.head * 0.12, B.head * 0.25, B.head * 0.4, mat('#1a1a1e'), 0, B.head * 1.2, -B.head * 0.3, 6), limb(V(0, B.head * 1.3, -B.head * 0.35), V(0, -B.head * 1.2, -B.head * 1.6), B.head * 0.12, mat('#1a1a1e'), B.head * 0.05)); // topknot
+      for (const s of [-1, 1]) add(fig, aimY(box(0.01, 0.16 * k, 0.04 * k, METAL(), s * B.sx * 1.3, c.shY - 0.18 * k, -0.02), V(s * 0.3, 1, -0.6))); // forearm blade fins
+      for (let i = 0; i < 3; i++) add(upper, aimY(cone(0.015 * k, 0.12 * k, METAL(), (i - 1) * 0.07 * k, torsoY + B.th * 0.4, back - 0.03, 4), V((i - 1) * 0.3, 0.6, -1))); // back spines
+      add(upper, box(0.05 * k, 0.08 * k, 0.012, mat('#a8a8b0', { metal: 0.7 }), 0, torsoY + B.th * 0.22, front + 0.015).rotateZ(Math.PI / 4)); // kabal sigil
+      belt(c, mat('#1e1e24'), METAL(), 3);
+      if (/elixicant/i.test(L.name)) for (let i = 0; i < 4; i++) add(upper, cyl(0.012 * k, 0.012 * k, 0.05 * k, glow('#7fe03a'), (i - 1.5) * 0.04 * k, c.hipY + 0.02, front + 0.02, 6));
+      if (/crimson/i.test(L.name)) add(upper, mesh(new THREE.CylinderGeometry(B.tw * 0.5, B.tw * 0.8, B.th + c.hipY * 0.8, 10, 1, true, Math.PI * 0.6, Math.PI * 0.8), mat('#8a1e2a', { rough: 1, side: 'double' }), 0, c.hipY * 0.2 + (B.th + c.hipY * 0.8) / 2, back * 0.3));
+      if (/flayer/i.test(L.name)) for (let i = 0; i < 3; i++) add(upper, mesh(new THREE.TorusGeometry(0.025 * k, 0.005, 4, 8, Math.PI * 1.4), METAL(), (i - 1) * 0.06 * k, c.hipY - 0.03, front + 0.02)); // flaying hooks
+      if (L.leader) add(head, box(B.head * 1.3, B.head * 0.5, B.head * 0.1, mat('#c9ccd1', { metal: 0.8, rough: 0.2 }), 0, -B.head * 0.1, B.head * 0.98)); // mirrored face mask
+    },
+
+    corsairVoidscarred(c) {
+      const { upper, head, fig, B, k, torsoY, front, back, L } = c;
+      const scarf = box(B.tw * 0.9, 0.05 * k, B.td * 1.1, mat('#a82a4a', { rough: 1 }), 0, c.shY + 0.01, 0);
+      add(upper, scarf, box(0.06 * k, B.th * 0.5, 0.01, mat('#a82a4a', { rough: 1 }), B.tw * 0.2, torsoY + B.th * 0.1, front + 0.01)); // scarf and its tail
+      const sash = box(0.05 * k, B.th * 1.0, 0.012, mat('#c9a227'), 0, torsoY - 0.02, front + 0.012); sash.rotation.z = 0.6; add(upper, sash);
+      add(upper, box(B.armR * 3.4, B.armR * 1.4, B.armR * 3.4, mat('#5a5a6a', { metal: 0.5 }), -(B.sx + 0.02), c.shY + 0.03, 0)); // one mismatched pauldron
+      add(upper, sph(0.025 * k, glow('#4af0ff'), 0, torsoY + B.th * 0.25, front + 0.02, 6, 5)); // spirit stone
+      add(head, limb(V(0, B.head * 0.9, -B.head * 0.2), V(0, B.head * 0.6, -B.head * 1.8), B.head * 0.2, mat('#e8e0d0'), B.head * 0.06)); // plume
+      if (/shade runner/i.test(L.name)) add(upper, box(B.tw * 0.5, B.th * 0.4, 0.08 * k, DARK(), 0, torsoY + 0.05, back - 0.05 * k), sph(0.04 * k, glow('#b06aff'), 0, torsoY + 0.05, back - 0.1 * k, 8, 6)); // blink pack
+      if (/fate dealer/i.test(L.name)) add(upper, ...[0, 1].map((i) => box(0.03 * k, 0.03 * k, 0.03 * k, glow('#ffd040'), B.tw * 0.4 + i * 0.04 * k, c.hipY, front * 0.5)));
+      if (L.leader) add(head, limb(V(0, B.head * 0.9, -B.head * 0.2), V(B.head * 0.4, B.head * 2.0, -B.head * 1.0), B.head * 0.2, mat('#e8c040'), B.head * 0.05));
+    },
+
+    deathwatch(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      aquila(upper, 0, torsoY + B.th * 0.24, front + 0.035, 0.24 * k, mat('#c9ccd1', { metal: 0.8, rough: 0.3 }));
+      // The Inquisition's "I" on the right pauldron.
+      const x = -(B.sx + 0.02 + B.armR * 2.25);
+      add(upper, box(0.012, 0.09 * k, 0.025 * k, RED(), x, c.shY + B.armR * 0.55, 0), ...[-1, 1].map((s) => box(0.012, 0.015 * k, 0.06 * k, RED(), x, c.shY + B.armR * 0.55 + s * 0.045 * k, 0)));
+      puritySeal(upper, B.tw * 0.28, torsoY - B.th * 0.05, front + 0.012);
+      belt(c, mat('#1a1a1e', { metal: 0.5 }), mat('#c9ccd1', { metal: 0.8 }), 3);
+      add(upper, sph(0.04 * k, BONE(), -B.tw * 0.45, c.hipY - 0.05 * k, front * 0.4, 6, 5), cone(0.01 * k, 0.06 * k, BONE(), -B.tw * 0.45, c.hipY - 0.01, front * 0.4 + 0.03, 4)); // xenos skull trophy
+      if (L.leader) add(upper, mesh(new THREE.CylinderGeometry(B.tw * 0.5, B.tw * 0.8, B.th + c.hipY * 0.8, 10, 1, true, Math.PI * 0.6, Math.PI * 0.8), mat('#1a1a1e', { rough: 1, side: 'double' }), 0, c.hipY * 0.2 + (B.th + c.hipY * 0.8) / 2, back * 0.3));
+    },
+
+    mandrakes(c) {
+      const { upper, head, fig, B, k, torsoY, front, back, L } = c;
+      const rune = glow('#4affd0');
+      for (let i = 0; i < 5; i++) add(upper, box(0.012, 0.06 * k, 0.006, rune, ((i * 37) % 7 / 7 - 0.5) * B.tw * 0.8, torsoY + ((i * 53) % 5 / 5 - 0.4) * B.th, front + 0.006).rotateZ(i * 0.7)); // glowing runes
+      for (let i = 0; i < 4; i++) add(upper, box(0.04 * k, c.hipY * (0.4 + (i % 2) * 0.2), 0.008, mat('#14181e', { rough: 1 }), (i - 1.5) * B.tw * 0.22, c.hipY * 0.75, (i % 2 ? front : back))); // tattered rags
+      add(upper, mesh(new THREE.TorusGeometry(B.tw * 0.45, 0.01 * k, 4, 16), METAL(), 0, torsoY - B.th * 0.1, 0).rotateX(Math.PI / 2 - 0.3)); // chain
+      for (let i = 0; i < 4; i++) add(fig, sph(0.12 * k, mat('#0a0e14', { opacity: 0.35 }), Math.cos(i * 1.6) * 0.15 * k, 0.12 + i * 0.12, Math.sin(i * 1.6) * 0.15 * k, 6, 5)); // shadow wisps
+      if (L.leader) add(head, ...[-1, 1].map((s) => aimY(cone(B.head * 0.15, B.head * 1.2, mat('#3a4a5a'), s * B.head * 0.7, B.head * 0.8, 0, 5), V(s * 0.6, 1, -0.3))));
+    },
+
+    murderwing(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      add(head, cone(B.head * 0.35, B.head * 1.0, mat(L.main, { metal: 0.4 }), 0, -B.head * 0.25, B.head * 1.05, 6).rotateX(Math.PI / 2)); // shrieking beaked faceplate
+      chaosStar(upper, 0, torsoY + B.th * 0.22, front + 0.03, 0.1 * k, BRASS());
+      for (const s of [-1, 1]) for (let i = 0; i < 3; i++) add(upper, aimY(box(0.012, (0.35 - i * 0.07) * k, 0.06 * k, mat('#2a1a1e'), s * (0.18 + i * 0.07) * k, torsoY + 0.3 * k - i * 0.06, back - 0.14 * k), V(s * (0.6 + i * 0.25), 1 - i * 0.2, -0.3))); // wing vanes
+      for (const s of [-1, 1]) add(upper, sph(0.03 * k, BONE(), s * B.tw * 0.4, c.hipY - 0.04, front * 0.4, 6, 5));
+      belt(c, mat('#2a1a1e'), BRASS(), 2);
+    },
+
+    wreckaKrew(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      const plate = mat(L.main, { metal: 0.5, rough: 0.5 });
+      for (let i = 0; i < 6; i++) add(upper, sph(0.01 * k, METAL(), (i % 3 - 1) * B.tw * 0.35, torsoY + (i < 3 ? 0.08 : -0.08) * k, front + 0.03, 4, 3)); // rivets
+      add(upper, box(B.tw * 0.5, 0.04 * k, 0.012, mat('#1a1a1a'), 0, torsoY - B.th * 0.25, front + 0.03), box(B.tw * 0.5, 0.04 * k, 0.012, mat('#e8c040'), 0, torsoY - B.th * 0.32, front + 0.03)); // hazard stripes
+      add(upper, box(0.08 * k, 0.07 * k, 0.012, mat('#e8e0d0'), 0, torsoY + B.th * 0.05, front + 0.035), ...[-1, 1].map((s) => box(0.02 * k, 0.02 * k, 0.012, mat('#1a1a1a'), s * 0.02 * k, torsoY + B.th * 0.07, front + 0.042))); // painted glyph skull
+      add(upper, ...[-1, 1].map((s) => box(B.armR * 3.6, B.armR * 1.8, B.armR * 3.6, plate, s * (B.sx + 0.03), c.shY + 0.05 * k, 0)));
+      if (/rokkiteer|tankbusta|gunner/i.test(L.name)) for (let i = 0; i < 4; i++) add(upper, cyl(0.025 * k, 0.025 * k, B.th * 0.9, mat('#5a5a3a'), (i - 1.5) * 0.055 * k, torsoY + 0.05, back - 0.07 * k, 8), cone(0.025 * k, 0.06 * k, RED(), (i - 1.5) * 0.055 * k, torsoY + B.th * 0.5 + 0.08, back - 0.07 * k, 6));
+      if (/demolisha/i.test(L.name)) for (let i = 0; i < 5; i++) add(upper, cyl(0.02 * k, 0.02 * k, 0.16 * k, RED(), (i - 2) * 0.045 * k, torsoY + 0.05, back - 0.06 * k, 6), cyl(0.004, 0.004, 0.05 * k, mat('#e8e0d0'), (i - 2) * 0.045 * k, torsoY + 0.16 * k, back - 0.06 * k, 4)); // stikkbomb bundle
+      if (L.leader) add(head, ...[-1, 1].map((s) => aimY(cone(B.head * 0.22, B.head * 1.3, METAL(), s * B.head * 0.85, B.head * 0.7, 0, 6), V(s * 0.8, 1, 0.1))));
+    },
   };
 
   const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; return o; };
