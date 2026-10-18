@@ -1,0 +1,1011 @@
+// Procedural 3D miniatures for every operative, built from simple shapes with three.js.
+// Each team has a body style (power armour, guardsman, eldar, ork, necron, ...); operatives are told apart
+// mainly by the weapons they hold, picked from their datacard weapons, plus a few role props
+// (leader cape, vox antenna, medic pack, icon banner).
+// Units are inches, like the board: a model faces +Z and stands on its base at y = 0.
+
+const MM = 1 / 25.4;
+
+// ---------- weapon recognition (by English weapon name) ----------
+const PISTOL = /pistol|revolver|slugga|handbow|wroughtlock|autostubs|stinger|needler/;
+const FLAMER = /flamer|burna|spewer|igniter|pyregut|brazier|censer|effluence|firestorm|fireblast|ripper gun/;
+const LAUNCHER = /missile|rokkit launcha|rokkit rack|pulsa|grenade launcher|apm launcher|mortar|frag cannon/;
+const HEAVY = /heavy bolter|cannon|chaincannon|rotary|multi-melta|seismic|mining laser|dark lance|heavy arc|volley|dakka|big shoota|heavy plasma|autostubber|transuranic/;
+const SHOTGUN = /shotgun|scattergun/;
+const SNIPER = /sniper|long-las|long rifle|marksman|hunting rifle|tankstopper|galvanic|rail rifle|magna-coil|stalker bolt|stalker marksman|executioner$/;
+const BOW = /bow|tribalest|stakethrower/;
+const RIFLE = /rifle|gun|carbine|bolter|boltgun|catapult|blaster|shardcarbine|shredder|lascutter|caliver|arquebus|kroot|splinter|shuriken|disintegrator|neutron sting/;
+const NOT_HELD = /grenade|bomb|charge|explosive|detonator|vial|throwing|spit|gaze|scream|glands|isolator|tech-curse|holy light|voice|wreathe|barrage|thunderclap|lightning strike|doombolt|mindburn|baleblast|balesurge|entropy|plague wind|earthen|freezing|infernal|horrifying|siphon|dartmask|arcane|venom bolt|burning hands|stimm|stim-needler|diabolyk|melta bomb|emp/;
+
+/** Shape of a ranged weapon: pistol, rifle, sniper, shotgun, heavy, launcher, flamer, bow — or null (not held). */
+export function rangedForm(name) {
+  const n = name.toLowerCase().replace(/\s*\(.*\)/, '');
+  if (NOT_HELD.test(n) && !LAUNCHER.test(n)) return null;
+  if (PISTOL.test(n)) return 'pistol';
+  if (FLAMER.test(n)) return 'flamer';
+  if (LAUNCHER.test(n)) return 'launcher';
+  if (HEAVY.test(n)) return 'heavy';
+  if (SHOTGUN.test(n)) return 'shotgun';
+  if (SNIPER.test(n)) return 'sniper';
+  if (BOW.test(n)) return 'bow';
+  if (RIFLE.test(n)) return 'rifle';
+  return null;
+}
+/** What a ranged weapon looks like it fires, for its colour accents. */
+function rangedFlavour(n) {
+  n = n.toLowerCase();
+  if (/plasma|ion |caliver|etacarn|radium|incinerat/.test(n)) return 'plasma';
+  if (/melta|fusion|inferno|atomiser|incendine/.test(n)) return 'melta';
+  if (FLAMER.test(n) || /fire|flame|burn/.test(n)) return 'flame';
+  if (/gauss|tesla|synaptic|staff of light|transdimensional|gauss|particle/.test(n)) return 'gauss';
+  if (/pulse|rail|neutron|ion|burst/.test(n)) return 'pulse';
+  if (/las|hot-shot|long-las/.test(n)) return 'las';
+  if (/shuriken|splinter|shard|shredder|blaster|dark lance|fusion/.test(n)) return 'xenos';
+  if (/bolt|bolter|boltgun/.test(n)) return 'bolt';
+  return 'solid';
+}
+
+const MELEE_FORMS = [
+  [/power fist|klaw|chainfist|gauntlet|knux|knucklebustas|bionic fist|mancrusher|pincer|hydraulic|servo|breacha ram|tankhammer|smash hammer/, 'fist'],
+  [/lightning claw|claws|talons|scalpel claw|claw|scythes|pickrippers/, 'claws'],
+  [/hammer|maul|mace|club|bludgeon|baton|null rod|goad|crusher|censure|incentiviser/, 'hammer'],
+  [/axe|hatchet|choppa|cleaver|skullcleaver|chopper|entrencher/, 'axe'],
+  [/chainsword|chainblade|eviscerator|chainglaive|chain/, 'chainsword'],
+  [/stave|staff|conduit|polearm|glaive|spear|tremorglaive|virge|braystave|soulstave|miststave/, 'staff'],
+  [/flail|whip|razorflail|crackthorn/, 'flail'],
+  [/knife|knives|dagger|bayonet|scalpel|saw|sculptors|needle|spark|huskblade|dataspikes/, 'knife'],
+  [/sword|blade|weapon|rapier|mirrorswords|diresword|moonblades|kiss|caress|embrace|khopesh|executioner|razorwing|triskele|faolch|agoniser|fleshskewer|impaler/, 'sword'],
+];
+const NATURAL = /^(fists|bite|fangs|gun butts?|ram|vicious|ripping|tail|barbed|pincer tail|mechanical|blasphemous|hideous|mutant tentacles|mutated|diseased|daemonic claw|toxic|drakesteed|jaws|claws & tail|claws & spark|claws$|vicious claws|fleshmelded|array of blades|improvised|crude|bionic arm|augmetic|shield bash)/;
+
+/** Shape of a melee weapon: fist, claws, hammer, axe, chainsword, staff, flail, knife, sword — or null (bare hands, teeth...). */
+export function meleeForm(name) {
+  const n = name.toLowerCase().replace(/\s*\(.*\)/, '');
+  if (NATURAL.test(n)) return null;
+  // "X & Y" / "X and Y": the first part that is a weapon.
+  for (const part of n.split(/ & | and /)) for (const [re, f] of MELEE_FORMS) if (re.test(part)) return f;
+  return null;
+}
+const isShield = (n) => /shield|praesidium|slabshield/.test(n.toLowerCase());
+const isDual = (n) => /twin|dual|paired|two |^ritual blades|duelling blades|transonic blades|locus blades|hekatarii|tzaangor blades|flensing|skinning|combat knives|mirrorswords|moonblades|lightning claws|claws/.test(n.toLowerCase());
+const isPowered = (n) => /power|lightning|thunder|force|shock|null|daemon|soul|witch|psychic|tesla|arc|xenophase|glimmersteel|voltaic|commune|hammer of|warp|blessed|executioner|plasma knife|phase|mirror|kiss|caress|embrace|agoniser|diresword/.test(n.toLowerCase());
+const isTwoHanded = (n, f) => /great|double-handed|eviscerator|heavy (axe|thunder|club)|polearm|glaive|executioner|trench club|tremorglaive|skullcleaver|mancrusher|dominator/.test(n.toLowerCase()) || f === 'staff';
+
+const RANGED_RANK = { heavy: 8, launcher: 7, sniper: 6, flamer: 5, rifle: 4, shotgun: 4, bow: 3, pistol: 1 };
+const MELEE_RANK = { fist: 9, hammer: 8, axe: 7, chainsword: 6, sword: 6, claws: 5, staff: 5, flail: 4, knife: 2 };
+
+/** The weapons a model holds: its main ranged and melee weapon, chosen from its datacard weapons. */
+export function pickWeapons(weapons) {
+  const seen = new Set(), ranged = [], melee = [];
+  let shield = false, psychic = false;
+  for (const w of weapons || []) {
+    const key = `${w.type}:${w.group || w.id}`; // a staff of light's ranged and melee profiles share a group
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const n = w.name.en;
+    if (w.rules?.psychic) psychic = true;
+    if (isShield(n)) shield = true;
+    if (w.type === 'ranged') { const f = rangedForm(n); if (f) ranged.push({ w, n, form: f, flav: rangedFlavour(n), dual: isDual(n) }); }
+    else { const f = meleeForm(n); if (f) melee.push({ w, n, form: f, power: isPowered(n), dual: isDual(n), twoHand: isTwoHanded(n, f) }); }
+  }
+  ranged.sort((a, b) => RANGED_RANK[b.form] - RANGED_RANK[a.form]);
+  melee.sort((a, b) => MELEE_RANK[b.form] - MELEE_RANK[a.form] || (b.w.atk * b.w.dmg[0]) - (a.w.atk * a.w.dmg[0]));
+  return { ranged: ranged[0] || null, ranged2: ranged[1] || null, melee: melee[0] || null, shield, psychic };
+}
+
+// ---------- team looks ----------
+// body: the figure builder; the colours are the main armour/cloth, trim, cloth, skin, eye/lens glow.
+const LOOKS = {
+  angels: { body: 'marine', main: '#2f5fb8', trim: '#d8b04a', cloth: '#d9cfb0', eye: '#e03a2a' },
+  deathwatch: { body: 'marine', main: '#24262b', trim: '#c9ccd1', cloth: '#5a2a24', eye: '#e03a2a', silverArm: true },
+  nemesisClaw: { body: 'marine', chaos: true, main: '#1f3a6e', trim: '#b88a3a', cloth: '#5b1e1e', eye: '#e8e0ff', batWings: true },
+  legionaries: { body: 'marine', chaos: true, main: '#6b1d27', trim: '#b88a3a', cloth: '#2a2a2a', eye: '#ff6a2a' },
+  murderwing: { body: 'marine', chaos: true, main: '#7a2638', trim: '#c49a4a', cloth: '#222', eye: '#ff4a8a', jump: true },
+  plagueMarines: { body: 'marine', chaos: true, plague: true, main: '#7d8a46', trim: '#9c7a3e', cloth: '#d0c9a8', eye: '#c8ff3a' },
+  warpcoven: { body: 'marine', chaos: true, rubric: true, main: '#2763a8', trim: '#d8b04a', cloth: '#d4c9a0', eye: '#4af0ff' },
+  phobos: { body: 'marine', phobos: true, main: '#3d6b4c', trim: '#a8a8a0', cloth: '#4a4f3a', eye: '#e03a2a' },
+  scoutSquad: { body: 'marine', scout: true, main: '#4f6a85', trim: '#8a8f94', cloth: '#5a5f45', skin: '#d6a785' },
+  wolfScouts: { body: 'marine', scout: true, wolf: true, main: '#6d8aa3', trim: '#c8b07a', cloth: '#8a8c88', skin: '#e0b494' },
+  deathKorps: { body: 'guard', coat: true, gasmask: true, main: '#5d6a5c', trim: '#3a3f3a', cloth: '#6f7466', eye: '#cf3a2a' },
+  kasrkin: { body: 'guard', carapace: true, visor: true, main: '#5c7a3a', trim: '#2d3a26', cloth: '#7a6f52', eye: '#e8a02a' },
+  aquilons: { body: 'guard', carapace: true, visor: true, main: '#3c4c75', trim: '#9aa0aa', cloth: '#2e3242', eye: '#e03a2a' },
+  spectres: { body: 'guard', carapace: true, cloak: true, visor: true, main: '#56634a', trim: '#2f362a', cloth: '#6b7d5a', eye: '#7fe03a' },
+  blooded: { body: 'guard', gasmask: true, rags: true, main: '#6e3a30', trim: '#3c2a24', cloth: '#a33a2f', eye: '#ff3a2a' },
+  broodBrothers: { body: 'guard', helmet: true, main: '#6c5a8c', trim: '#3e3550', cloth: '#a89f8a', skin: '#c7a9c0' },
+  navyBreachers: { body: 'guard', carapace: true, visor: true, void: true, main: '#3f6a8a', trim: '#c9a227', cloth: '#2c3a46', eye: '#4ad0ff' },
+  exaction: { body: 'guard', carapace: true, visor: true, main: '#2d3442', trim: '#b8bcc4', cloth: '#1e232c', eye: '#e03a2a' },
+  elucidianStarstriders: { body: 'guard', coat: true, bare: true, main: '#2f5f9a', trim: '#d8b04a', cloth: '#d8d0b8', skin: '#d8a888' },
+  inquisitorialAgents: { body: 'guard', coat: true, bare: true, main: '#6e1824', trim: '#b8a070', cloth: '#2a2a2a', skin: '#d8a888' },
+  novitiates: { body: 'sister', robe: true, main: '#a8303e', trim: '#2a2a2a', cloth: '#e8e0d0', skin: '#e0b494', hair: '#e8e8e8' },
+  celestianInsidiants: { body: 'sister', main: '#2a2a2e', trim: '#d8b04a', cloth: '#e8e0d0', skin: '#e0b494', hair: '#f0f0f0' },
+  sanctifiers: { body: 'guard', robe: true, hood: true, main: '#7a6f52', trim: '#c9a227', cloth: '#d8d0b8', skin: '#d8a888' },
+  chaosCult: { body: 'guard', rags: true, hood: true, main: '#6a3a3a', trim: '#8a6a3a', cloth: '#9b2c2c', skin: '#c9a08a' },
+  goremongers: { body: 'guard', rags: true, mask: true, main: '#8a1e1a', trim: '#c9a227', cloth: '#3a2a24', skin: '#c9a08a' },
+  wyrmblade: { body: 'guard', helmet: true, goggles: true, main: '#c9a227', trim: '#5a4a3a', cloth: '#7a5aa6', skin: '#b8a0c8' },
+  gellerpox: { body: 'guard', bloated: true, rags: true, main: '#8a5a6a', trim: '#5a4a3a', cloth: '#a0607a', skin: '#c8b090' },
+  bladesOfKhaine: { body: 'eldar', aspect: true, main: '#2f8f5b', trim: '#e8d8a0', cloth: '#d8d0b0', eye: '#e03a2a' },
+  corsairVoidscarred: { body: 'eldar', cloak: true, main: '#2a6f74', trim: '#c9c9c9', cloth: '#3a2a4a', eye: '#4af0ff' },
+  voidDancers: { body: 'eldar', harlequin: true, main: '#c2398f', trim: '#e8c040', cloth: '#2a2a2a', eye: '#ffffff' },
+  handOfArchon: { body: 'eldar', drukhari: true, main: '#4a2a66', trim: '#a8a8b0', cloth: '#1e1e24', eye: '#7fe03a' },
+  mandrakes: { body: 'eldar', mandrake: true, main: '#1f2a36', trim: '#3a4a5a', cloth: '#14181e', skin: '#2a3a4a', eye: '#4affd0' },
+  exoditeDragonMasters: { body: 'eldar', cloak: true, main: '#4f8a3c', trim: '#d8b04a', cloth: '#a8603a', eye: '#4af0ff' },
+  tauPathfinders: { body: 'tau', main: '#c88a3a', trim: '#5a5a52', cloth: '#3a3a36', skin: '#5a6a8a', eye: '#3af0ff' },
+  stealthSuits: { body: 'battlesuit', main: '#4f6f7f', trim: '#2a3236', cloth: '#2a3236', eye: '#3af0ff' },
+  vespids: { body: 'vespid', main: '#3a9ac0', trim: '#2a2a3a', cloth: '#5a4a3a', skin: '#6a8a5a', eye: '#3affd0' },
+  farstalkers: { body: 'kroot', main: '#8a6a3a', trim: '#5a4a3a', cloth: '#b9772f', skin: '#7a8a5a', eye: '#e8c040' },
+  kommandos: { body: 'ork', main: '#4a5a3a', trim: '#5a4a3a', cloth: '#5f6a42', skin: '#4f8a2b', eye: '#ff3a2a' },
+  wreckaKrew: { body: 'ork', armoured: true, main: '#d9661f', trim: '#5a5a5a', cloth: '#3a3a3a', skin: '#4f8a2b', eye: '#ff3a2a' },
+  hearthkyn: { body: 'votann', main: '#d07a2a', trim: '#4a4a4e', cloth: '#5a5a5e', skin: '#d8a888', eye: '#4af0ff' },
+  hernkynYaegirs: { body: 'votann', bare: true, main: '#8a6a3a', trim: '#4a4a4e', cloth: '#b8742a', skin: '#d8a888', hair: '#c8642a' },
+  ratlings: { body: 'ratling', main: '#7a7a4a', trim: '#5a4a3a', cloth: '#a58b3c', skin: '#d8a888' },
+  hierotek: { body: 'necron', main: '#a8b0b8', trim: '#d8b04a', cloth: '#2a2a2a', eye: '#3aff6a' },
+  canoptekCircle: { body: 'necron', main: '#9aa4ac', trim: '#2fb59a', cloth: '#2a2a2a', eye: '#3affc0' },
+  hunterClade: { body: 'skitarii', main: '#a8382a', trim: '#c9b9a0', cloth: '#8a2a20', skin: '#c9b9a0', eye: '#3aff6a' },
+  battleclade: { body: 'skitarii', servitor: true, main: '#8f3b2a', trim: '#9a9a9a', cloth: '#6a2a20', skin: '#c8b0a0', eye: '#3aff6a' },
+  fellgor: { body: 'gor', main: '#5a3a24', trim: '#8a8a8a', cloth: '#7a5a2a', skin: '#6a4a30', eye: '#ffa03a' },
+  raveners: { body: 'ravener', main: '#8a4ab8', trim: '#e8dcc0', cloth: '#5a2a7a', skin: '#e8dcc0', eye: '#ff3a3a' },
+};
+const DEFAULT_LOOK = { body: 'guard', helmet: true, main: '#6a6a6a', trim: '#3a3a3a', cloth: '#5a5a5a', skin: '#d8a888' };
+
+/** The look of one operative: its team's look with operative-specific changes, from its name and abilities. */
+export function operativeLook(team, op) {
+  const base = { ...DEFAULT_LOOK, ...(LOOKS[team.id] || {}), main: (LOOKS[team.id] || {}).main || team.color, team: team.id };
+  const n = op.name.en;
+  const L = { ...base, name: n };
+  L.leader = op === team.ops?.[0] || !!op.leader || /sergeant|leader|boss|nob\b|captain|commander|exarch|archsybarite|felarch|shas'ui|chieftain|watchmaster|champion|despotek|technomancer|geomancer|theyn|superior|primus|magus|proctor|kill-broker|technoarcheologist|chaos lord|visionary|demagogue|herald|tempestor|fixer|confessor|vhane|princeps|strain leader|shas'vre|lead player|nightfiend|chosen|prime/i.test(n);
+  L.medic = !!(op.medic || op.medikit) || /medic|medicae|corpseman|hospitaller|chirurgant|rejuvenat|medical|technomedic|elixicant/i.test(n);
+  L.vox = /vox|comms|signifier|commsman|void-jammer|voxbreaker|ventrilokar|kinlynk/i.test(n);
+  L.icon = /icon|reliquarius|reliquant|iconward|iconarch/i.test(n);
+  L.psyker = !!(op.psyker || op.destiny) || /sorcerer|psyker|mindwitch|shaman|caster|stonesinger|soul weaver|shadowseer|magus|rune priest|mystic|hexorcist|warpcoven/i.test(n) && !/rubric|tzaangor/i.test(n);
+  L.big = 1;
+  // Model kinds that don't follow the team's body.
+  if (/hound|mastiff|canid|battlemutt|fenrisian wolf/i.test(n)) L.body = 'beast';
+  else if (/drone(?! controller)/i.test(n)) L.body = 'drone';
+  else if (/squig/i.test(n)) L.body = 'squig';
+  else if (/^grot$/i.test(n)) { L.body = 'ork'; L.grot = true; }
+  else if (/gheistskull|tome-skull|servo-skull|skull$/i.test(n) && !/skullclaimer/i.test(n)) L.body = 'skull';
+  else if (/cherub|familiar/i.test(n)) L.body = 'cherub';
+  else if (/ogryn|bullgryn/i.test(n)) L.body = 'ogryn';
+  else if (/beacon|servo-sentry|c\.a\.t\./i.test(n)) L.body = 'gadget';
+  else if (/plasmacyte|macrocyte/i.test(n)) L.body = 'macrocyte';
+  else if (/tomb crawler/i.test(n)) L.body = 'crawler';
+  else if (/drakolithe/i.test(n)) L.body = 'beast';
+  else if (/dragon master/i.test(n)) L.body = 'rider';
+  else if (/tzaangor/i.test(n)) { L.body = 'gor'; L.bird = true; L.main = '#2763a8'; L.skin = '#3a8ab0'; }
+  else if (/patriarch|kelermorph|locus|primus|magus/i.test(n) && team.id !== 'warpcoven') { L.hybrid = true; }
+  else if (/sicarian/i.test(n)) L.sicarian = true;
+  else if (/servitor|underseer|servitor/i.test(n) && team.id === 'battleclade') L.servitor = /underseer/i.test(n) ? false : true;
+  if (team.id === 'battleclade' && /technoarcheologist|underseer/i.test(n)) L.servitor = false;
+  if (/glitchling/i.test(n)) { L.big = 0.6; L.daemon = true; }
+  if (/vulgrar|bloatspawn|fleshscreamer|lumberghast|chaos torment|patriarch/i.test(n)) { L.big = 1.35; L.bloated = true; }
+  if (team.id === 'gellerpox' && /mutant/i.test(n)) L.bloated = false;
+  if (/heavy intercessor|captain|chaos lord|bombard|breacher veteran|horde-slayer|boss nob|wrecka boss/i.test(n)) L.big = 1.12;
+  if (/immortal|deathmark/i.test(n)) L.big = 1.08;
+  if (/technomancer|geomancer/i.test(n)) L.float = true;
+  if (/raptor|warp talon|chaos lord|champion|curseclaw|depredator|huntmaster|shrieker|skysear/i.test(n) && team.id === 'murderwing') L.jump = true;
+  if (/jump pack/i.test(n)) L.jump = true;
+  if (/sorcerer/i.test(n)) { L.rubric = false; L.cape = true; }
+  if (/eliminator|sniper|sharpshooter|marksman|long-sight|longsting|incursor/i.test(n) && !['stealthSuits', 'vespids', 'tauPathfinders'].includes(team.id)) L.cloak = true;
+  if (team.id === 'bladesOfKhaine') L.aspectKind = /scorpion/i.test(n) ? 'scorpion' : /banshee/i.test(n) ? 'banshee' : 'avenger';
+  if (L.aspectKind === 'scorpion') { L.main = '#3f8a2f'; L.trim = '#e8c040'; }
+  if (L.aspectKind === 'banshee') { L.main = '#d8d0c0'; L.trim = '#a82a2a'; L.cloth = '#a82a2a'; }
+  if (L.aspectKind === 'avenger') { L.main = '#2a4fa8'; L.trim = '#e8e0d0'; }
+  if (/death cult|assassin|executioner/i.test(n) && /sanctifiers|elucidian/.test(team.id)) { L.hood = true; L.main = '#2a2a2e'; }
+  return L;
+}
+
+// ---------- the model kit ----------
+/** Builds models with the given three.js namespace. */
+export function createModelKit(THREE) {
+  const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+  const UP = V(0, 1, 0);
+  const mats = new Map();
+  const mat = (color, o = {}) => {
+    const key = `${color}|${o.metal ?? 0}|${o.rough ?? 0.7}|${o.glow ?? ''}|${o.opacity ?? 1}|${o.side ?? ''}`;
+    if (!mats.has(key)) {
+      mats.set(key, new THREE.MeshStandardMaterial({
+        side: o.side === 'double' ? THREE.DoubleSide : THREE.FrontSide,
+        color, metalness: o.metal ?? 0.1, roughness: o.rough ?? 0.7, flatShading: true,
+        emissive: o.glow ? new THREE.Color(o.glow) : new THREE.Color(0), emissiveIntensity: o.glow ? 1.4 : 0,
+        transparent: (o.opacity ?? 1) < 1, opacity: o.opacity ?? 1,
+      }));
+    }
+    return mats.get(key);
+  };
+  const glow = (c) => mat(c, { glow: c, rough: 0.4 });
+  const METAL = () => mat('#8c9096', { metal: 0.8, rough: 0.35 });
+  const DARK = () => mat('#2a2c30', { metal: 0.5, rough: 0.5 });
+  const BRASS = () => mat('#b8913f', { metal: 0.85, rough: 0.35 });
+
+  const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; return o; };
+  const box = (w, h, d, m, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z);
+  /** A box narrower at the bottom (chests, waists). */
+  const tbox = (w, h, d, m, x, y, z, taper = 0.78) => { const o = mesh(new THREE.CylinderGeometry(Math.SQRT1_2, Math.SQRT1_2 * taper, 1, 4, 1), m, x, y, z); o.geometry.rotateY(Math.PI / 4); o.scale.set(w, h, d); return o; };
+  const cyl = (rt, rb, h, m, x, y, z, seg = 10) => mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m, x, y, z);
+  const sph = (r, m, x, y, z, ws = 10, hs = 8) => mesh(new THREE.SphereGeometry(r, ws, hs), m, x, y, z);
+  const cone = (r, h, m, x, y, z, seg = 8) => mesh(new THREE.ConeGeometry(r, h, seg), m, x, y, z);
+  const tz = (o) => { o.rotation.x = Math.PI / 2; return o; }; // cylinder along Z
+  const add = (p, ...cs) => { cs.forEach((c) => c && p.add(c)); return p; };
+  const group = (...cs) => add(new THREE.Group(), ...cs);
+  /** A cylinder from point a to point b. */
+  const limb = (a, b, r, m, r2 = r) => {
+    const d = V().subVectors(b, a), len = d.length() || 1e-4;
+    const o = mesh(new THREE.CylinderGeometry(r2, r, len, 8), m);
+    o.position.copy(a).addScaledVector(d, 0.5);
+    o.quaternion.setFromUnitVectors(UP, d.normalize());
+    return o;
+  };
+  /** Turns o so its local +Z points along z, with local +Y as close to up as possible. */
+  const aimZ = (o, z, up = UP) => {
+    const Z = z.clone().normalize(), X = V().crossVectors(up, Z).normalize(), Y = V().crossVectors(Z, X);
+    o.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+    return o;
+  };
+  /** Turns o so its local +Y points along y, with local +Z towards zHint. */
+  const aimY = (o, y, zHint = V(0, 0, 1)) => {
+    const Y = y.clone().normalize(), X = V().crossVectors(Y, zHint).normalize(), Z = V().crossVectors(X, Y);
+    o.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+    return o;
+  };
+  /** A point given in o's local space, in its parent's space. */
+  const toParent = (o, p) => { o.updateMatrix(); return p.clone().applyMatrix4(o.matrix); };
+
+  // ----- ranged weapons: grip at the origin, barrel along +Z; `fore` is where a supporting hand goes -----
+  const FLAV = { plasma: '#4ab8ff', melta: '#ff7a1a', flame: '#ff8a1a', gauss: '#3aff6a', pulse: '#3ae0ff', las: '#ff3a2a', xenos: '#7fe03a', bolt: null, solid: null };
+  function rangedModel(r, L) {
+    const g = new THREE.Group(), body = DARK(), m2 = mat(L.weaponColor || '#3a3c40', { metal: 0.6, rough: 0.45 });
+    const fl = FLAV[r.flav], acc = fl ? glow(fl) : null;
+    const tau = ['tauPathfinders', 'stealthSuits', 'vespids'].includes(L.team), eldar = L.body === 'eldar';
+    const casing = tau ? mat('#d8d0c0', { rough: 0.5 }) : eldar ? mat(L.trim, { rough: 0.4, metal: 0.3 }) : m2;
+    let fore = null;
+    switch (r.form) {
+      case 'pistol': {
+        add(g, box(0.03, 0.08, 0.04, body, 0, -0.035, -0.01), box(0.035, 0.05, 0.15, casing, 0, 0.02, 0.05), tz(cyl(0.012, 0.012, 0.05, body, 0, 0.025, 0.14)));
+        if (r.flav === 'plasma') add(g, tz(cyl(0.022, 0.022, 0.06, acc, 0, 0.02, 0.08)));
+        if (r.flav === 'melta') add(g, tz(cyl(0.025, 0.016, 0.05, acc, 0, 0.02, 0.15)));
+        if (r.flav === 'flame') add(g, sph(0.015, acc, 0, 0.02, 0.18));
+        break;
+      }
+      case 'rifle': {
+        const thick = r.flav === 'bolt' ? 1.25 : 1;
+        add(g, box(0.045 * thick, 0.075 * thick, 0.3, casing, 0, 0.02, 0.07), box(0.035, 0.06, 0.14, body, 0, -0.01, -0.15),
+          box(0.03, 0.09, 0.05, body, 0, -0.07, 0.07), tz(cyl(0.013, 0.013, 0.16, body, 0, 0.03, 0.29)));
+        if (r.flav === 'bolt') add(g, box(0.03, 0.1, 0.05, body, 0, -0.08, 0.12));
+        if (r.flav === 'plasma') add(g, tz(cyl(0.03, 0.03, 0.12, acc, 0, 0.04, 0.2)), tz(cyl(0.022, 0.03, 0.05, casing, 0, 0.04, 0.3)));
+        if (r.flav === 'melta') add(g, tz(cyl(0.022, 0.022, 0.14, body, 0.018, 0.03, 0.27)), tz(cyl(0.022, 0.022, 0.14, body, -0.018, 0.03, 0.27)), sph(0.02, acc, 0, 0.03, 0.35));
+        if (r.flav === 'gauss') add(g, box(0.012, 0.012, 0.22, acc, 0.03, 0.04, 0.15), box(0.012, 0.012, 0.22, acc, -0.03, 0.04, 0.15));
+        if (r.flav === 'pulse' || r.flav === 'las') add(g, sph(0.012, acc, 0, 0.03, 0.375));
+        if (r.flav === 'xenos') add(g, tz(cyl(0.04, 0.04, 0.02, mat(L.trim, { metal: 0.4 }), 0, 0.075, 0.05, 12)), sph(0.012, acc, 0, 0.03, 0.375));
+        fore = V(0, -0.02, 0.2);
+        break;
+      }
+      case 'shotgun': {
+        add(g, box(0.05, 0.07, 0.26, casing, 0, 0.02, 0.06), box(0.035, 0.06, 0.13, body, 0, -0.01, -0.13),
+          tz(cyl(0.02, 0.02, 0.18, body, 0, 0.035, 0.24)), tz(cyl(0.022, 0.022, 0.08, mat('#5a3a24'), 0, -0.015, 0.22)));
+        fore = V(0, -0.02, 0.22);
+        break;
+      }
+      case 'sniper': {
+        add(g, box(0.04, 0.065, 0.36, casing, 0, 0.02, 0.1), box(0.03, 0.07, 0.16, body, 0, -0.015, -0.16),
+          tz(cyl(0.012, 0.012, 0.34, body, 0, 0.03, 0.44)), tz(cyl(0.022, 0.022, 0.15, body, 0, 0.08, 0.06)),
+          tz(cyl(0.024, 0.024, 0.01, glow(fl || '#3ae0ff'), 0, 0.08, 0.14)));
+        add(g, limb(V(0, 0, 0.32), V(0.04, -0.09, 0.36), 0.006, body), limb(V(0, 0, 0.32), V(-0.04, -0.09, 0.36), 0.006, body));
+        if (acc) add(g, sph(0.014, acc, 0, 0.03, 0.61));
+        fore = V(0, -0.02, 0.24);
+        break;
+      }
+      case 'heavy': {
+        const rotary = /rotary|chaincannon|autostub|dakka|cannon|stubber/.test(r.n.toLowerCase());
+        add(g, box(0.1, 0.12, 0.3, casing, 0, 0.03, 0.08), box(0.05, 0.08, 0.06, body, 0, -0.06, -0.02), box(0.02, 0.06, 0.12, body, 0, 0.11, 0.08));
+        if (rotary) for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; add(g, tz(cyl(0.012, 0.012, 0.26, body, Math.cos(a) * 0.025, 0.03 + Math.sin(a) * 0.025, 0.34))); }
+        else add(g, tz(cyl(0.028, 0.03, 0.24, body, 0, 0.04, 0.34)), tz(cyl(0.035, 0.035, 0.04, casing, 0, 0.04, 0.45)));
+        add(g, tz(cyl(0.06, 0.06, 0.05, m2, 0.075, -0.01, 0.02, 12)));
+        if (acc) add(g, tz(cyl(0.04, 0.04, 0.1, acc, 0, 0.04, 0.2)), sph(0.02, acc, 0, 0.04, 0.47));
+        fore = V(0, -0.04, 0.24);
+        break;
+      }
+      case 'launcher': {
+        // Shoulder-fired tube above the grip.
+        add(g, tz(cyl(0.045, 0.045, 0.55, casing, 0, 0.07, 0.05, 12)), tz(cyl(0.05, 0.05, 0.04, body, 0, 0.07, 0.33, 12)), box(0.03, 0.08, 0.04, body, 0, -0.0, 0.0),
+          tz(cone(0.035, 0.09, mat('#a8302a'), 0, 0.07, 0.38)), box(0.02, 0.04, 0.06, glow('#3ae0ff'), -0.055, 0.1, 0.05));
+        fore = V(0, 0.0, 0.18);
+        break;
+      }
+      case 'flamer': {
+        add(g, box(0.045, 0.06, 0.26, casing, 0, 0.02, 0.07), box(0.03, 0.06, 0.1, body, 0, -0.01, -0.1),
+          tz(cyl(0.035, 0.035, 0.14, mat('#a8302a', { metal: 0.4 }), 0, -0.05, 0.08, 10)),
+          tz(cyl(0.016, 0.03, 0.08, body, 0, 0.03, 0.24)), sph(0.018, glow('#ff8a1a'), 0, 0.03, 0.29));
+        if (r.flav === 'plasma') add(g, sph(0.03, glow('#4ab8ff'), 0, 0.03, 0.29));
+        fore = V(0, -0.02, 0.17);
+        break;
+      }
+      case 'bow': {
+        const arc = mesh(new THREE.TorusGeometry(0.22, 0.012, 6, 14, Math.PI * 0.9), mat('#6a4a2a'));
+        arc.rotation.z = Math.PI / 2 + Math.PI * 0.05; arc.rotation.y = Math.PI / 2;
+        add(g, arc, limb(V(0, 0.21, 0.04), V(0, -0.21, 0.04), 0.003, mat('#e8e0d0')));
+        if (/stakethrower|tribalest|accelerator/.test(r.n.toLowerCase())) add(g, box(0.04, 0.05, 0.3, casing, 0, 0, 0.08));
+        break;
+      }
+    }
+    return { g, fore };
+  }
+
+  // ----- melee weapons: grip at the origin, blade along +Y -----
+  function meleeModel(m, L) {
+    const g = new THREE.Group(), grip = mat('#3a2a20'), steel = METAL();
+    const edge = m.power ? glow(L.powerColor || '#6ac8ff') : steel;
+    const n = m.n.toLowerCase();
+    switch (m.form) {
+      case 'sword': {
+        const long = /great|executioner|broadsword|diresword/.test(n) ? 1.5 : /khopesh|rapier|kiss|caress/.test(n) ? 1.05 : 1;
+        add(g, cyl(0.014, 0.014, 0.1, grip, 0, 0, 0), box(0.1, 0.022, 0.035, BRASS(), 0, 0.055, 0),
+          box(0.014, 0.36 * long, 0.045, steel, 0, 0.065 + 0.18 * long, 0), box(0.016, 0.36 * long, 0.012, edge, 0, 0.065 + 0.18 * long, 0.026),
+          cone(0.023, 0.06, steel, 0, 0.065 + 0.36 * long + 0.03, 0, 4));
+        break;
+      }
+      case 'chainsword': {
+        const long = /eviscerator|chainglaive/.test(n) ? 1.6 : 1;
+        add(g, cyl(0.016, 0.016, 0.1, grip, 0, 0, 0), box(0.045, 0.09, 0.07, mat(L.trim, { metal: 0.6 }), 0, 0.09, 0),
+          box(0.022, 0.32 * long, 0.06, DARK(), 0, 0.13 + 0.16 * long, 0), box(0.026, 0.32 * long, 0.012, steel, 0, 0.13 + 0.16 * long, 0.034));
+        break;
+      }
+      case 'axe': {
+        const big = /great|double|heavy|chainaxe|skull/.test(n) ? 1.4 : 1;
+        add(g, cyl(0.014, 0.014, 0.38 * big, grip, 0, 0.12 * big, 0), box(0.02, 0.12 * big, 0.14 * big, steel, 0, 0.27 * big, 0.06 * big),
+          box(0.022, 0.12 * big, 0.015, edge, 0, 0.27 * big, 0.135 * big));
+        break;
+      }
+      case 'hammer': {
+        const big = /thunder|great|heavy|tankhammer|dominator|maul of/.test(n) ? 1.3 : 0.9;
+        add(g, cyl(0.016, 0.016, 0.42 * big, grip, 0, 0.14 * big, 0));
+        if (/thunder|hammer/.test(n)) add(g, box(0.17 * big, 0.08 * big, 0.08 * big, mat(L.trim, { metal: 0.7, rough: 0.35 }), 0, 0.36 * big, 0), box(0.02, 0.085 * big, 0.085 * big, edge, 0.09 * big, 0.36 * big, 0), box(0.02, 0.085 * big, 0.085 * big, edge, -0.09 * big, 0.36 * big, 0));
+        else add(g, cyl(0.04 * big, 0.03 * big, 0.12 * big, m.power ? edge : steel, 0, 0.38 * big, 0, 8), ...[0, 1, 2, 3].map((i) => cone(0.015, 0.04, steel, Math.cos(i * 1.57) * 0.045 * big, 0.38 * big, Math.sin(i * 1.57) * 0.045 * big)));
+        break;
+      }
+      case 'staff': {
+        add(g, cyl(0.013, 0.013, 1.0, mat('#4a3a2a'), 0, 0.12, 0));
+        if (/glaive|polearm|spear|tremor|virge|executioner/.test(n)) add(g, box(0.014, 0.2, 0.05, steel, 0, 0.7, 0), box(0.016, 0.2, 0.012, edge, 0, 0.7, 0.03));
+        else add(g, sph(0.04, m.power || L.psyker ? glow(L.eye || '#6ac8ff') : BRASS(), 0, 0.64, 0), cyl(0.05, 0.02, 0.05, BRASS(), 0, 0.6, 0));
+        break;
+      }
+      case 'flail': {
+        add(g, cyl(0.014, 0.014, 0.16, grip, 0, 0.04, 0), limb(V(0, 0.12, 0), V(0.04, 0.26, 0.06), 0.006, steel), sph(0.045, m.power ? edge : DARK(), 0.04, 0.29, 0.06));
+        break;
+      }
+      case 'knife': {
+        add(g, cyl(0.012, 0.012, 0.07, grip, 0, 0, 0), box(0.05, 0.015, 0.025, steel, 0, 0.04, 0), box(0.01, 0.13, 0.03, m.power ? edge : steel, 0, 0.11, 0));
+        break;
+      }
+      case 'fist': {
+        // Worn over the hand: a big armoured fist, a klaw or a chainfist.
+        const big = mat(L.trim === '#c9ccd1' ? L.main : L.trim, { metal: 0.6, rough: 0.4 });
+        add(g, box(0.13, 0.13, 0.15, big, 0, 0.02, 0), box(0.1, 0.05, 0.08, big, 0, -0.04, 0.08));
+        if (/klaw|pincer|hydraulic|crusher/.test(n)) add(g, box(0.035, 0.03, 0.14, steel, 0.04, 0.06, 0.12), box(0.035, 0.03, 0.14, steel, -0.04, -0.03, 0.12));
+        else if (/chainfist/.test(n)) add(g, box(0.03, 0.06, 0.18, DARK(), 0, 0.0, 0.14));
+        if (m.power) add(g, box(0.135, 0.02, 0.155, edge, 0, 0.09, 0));
+        break;
+      }
+      case 'claws': {
+        for (let i = -1; i <= 1; i++) add(g, aimY(box(0.008, 0.2, 0.02, m.power ? edge : steel, i * 0.025, 0.1, 0), V(i * 0.1, 1, 0.1)));
+        add(g, box(0.08, 0.06, 0.08, mat(L.main, { metal: 0.3 }), 0, -0.01, 0));
+        break;
+      }
+    }
+    return g;
+  }
+
+  // ----- bases -----
+  function baseFor(op, L, teamColor) {
+    const [w, d] = op.oval ? [op.oval[0] * MM, op.oval[1] * MM] : [op.base * MM, op.base * MM];
+    const g = new THREE.Group();
+    const top = cyl(0.5, 0.52, 0.12, mat('#2b2d31', { rough: 0.9 }), 0, -0.06, 0, 24);
+    const rim = cyl(0.522, 0.522, 0.03, mat(teamColor, { rough: 0.5 }), 0, -0.105, 0, 24);
+    const grass = cyl(0.47, 0.47, 0.012, mat('#4a4636', { rough: 1 }), 0, 0.001, 0, 24);
+    add(g, top, rim, grass);
+    g.scale.set(d, 1, w); // an oval base's long axis runs front to back
+    return g;
+  }
+
+  // ----- humanoid figures -----
+  // Proportions per body style (inches): leg length, leg radius, torso width/height/depth, head radius,
+  // shoulder half-width, arm radius, arm length, weapon scale.
+  const BUILD = {
+    marine: { leg: 0.5, legR: 0.07, tw: 0.34, th: 0.34, td: 0.21, head: 0.075, sx: 0.2, armR: 0.05, arm: 0.36, wk: 1.25 },
+    guard: { leg: 0.46, legR: 0.05, tw: 0.24, th: 0.3, td: 0.14, head: 0.07, sx: 0.14, armR: 0.034, arm: 0.33, wk: 1 },
+    sister: { leg: 0.47, legR: 0.055, tw: 0.26, th: 0.3, td: 0.16, head: 0.068, sx: 0.16, armR: 0.04, arm: 0.33, wk: 1.05 },
+    eldar: { leg: 0.56, legR: 0.042, tw: 0.22, th: 0.32, td: 0.13, head: 0.065, sx: 0.13, armR: 0.03, arm: 0.37, wk: 1.05 },
+    tau: { leg: 0.5, legR: 0.05, tw: 0.25, th: 0.3, td: 0.15, head: 0.08, sx: 0.16, armR: 0.036, arm: 0.34, wk: 1.1 },
+    battlesuit: { leg: 0.58, legR: 0.08, tw: 0.36, th: 0.36, td: 0.24, head: 0.06, sx: 0.23, armR: 0.06, arm: 0.36, wk: 1.35 },
+    kroot: { leg: 0.56, legR: 0.04, tw: 0.2, th: 0.3, td: 0.13, head: 0.07, sx: 0.13, armR: 0.03, arm: 0.4, wk: 1.1 },
+    ork: { leg: 0.42, legR: 0.07, tw: 0.36, th: 0.34, td: 0.22, head: 0.09, sx: 0.22, armR: 0.055, arm: 0.42, wk: 1.3 },
+    votann: { leg: 0.32, legR: 0.07, tw: 0.32, th: 0.3, td: 0.2, head: 0.08, sx: 0.18, armR: 0.048, arm: 0.3, wk: 1.05 },
+    ratling: { leg: 0.3, legR: 0.04, tw: 0.2, th: 0.22, td: 0.12, head: 0.075, sx: 0.11, armR: 0.03, arm: 0.24, wk: 0.85 },
+    ogryn: { leg: 0.7, legR: 0.11, tw: 0.6, th: 0.5, td: 0.36, head: 0.09, sx: 0.36, armR: 0.1, arm: 0.6, wk: 1.8 },
+    necron: { leg: 0.56, legR: 0.035, tw: 0.24, th: 0.32, td: 0.13, head: 0.07, sx: 0.16, armR: 0.028, arm: 0.38, wk: 1.15 },
+    skitarii: { leg: 0.48, legR: 0.04, tw: 0.24, th: 0.3, td: 0.14, head: 0.068, sx: 0.14, armR: 0.032, arm: 0.33, wk: 1 },
+    gor: { leg: 0.56, legR: 0.07, tw: 0.32, th: 0.34, td: 0.2, head: 0.08, sx: 0.2, armR: 0.05, arm: 0.4, wk: 1.25 },
+    vespid: { leg: 0.58, legR: 0.03, tw: 0.2, th: 0.26, td: 0.14, head: 0.075, sx: 0.13, armR: 0.028, arm: 0.36, wk: 1.15 },
+  };
+
+  function humanoid(op, L, picks) {
+    const B = { ...(BUILD[L.body] || BUILD.guard) };
+    const k = L.big * (L.grot ? 0.55 : 1) * (L.scout ? 0.92 : 1) * (L.sicarian ? 1.12 : 1);
+    for (const key of Object.keys(B)) if (key !== 'wk') B[key] *= k;
+    B.wk *= k;
+    if (L.bloated) { B.tw *= 1.3; B.td *= 1.5; }
+    if (L.scout) { B.tw *= 0.85; B.td *= 0.8; B.armR *= 0.75; B.legR *= 0.8; }
+    if (L.sicarian) { B.leg *= 1.25; }
+    const fig = new THREE.Group();
+    const main = mat(L.main, { metal: ['marine', 'battlesuit', 'sister', 'necron'].includes(L.body) ? 0.35 : 0.05, rough: ['marine', 'battlesuit', 'necron'].includes(L.body) ? 0.45 : 0.8 });
+    const trim = mat(L.trim, { metal: 0.7, rough: 0.35 });
+    const cloth = mat(L.cloth, { rough: 0.95 });
+    const skin = mat(L.skin || '#d8a888', { rough: 0.8 });
+    const eye = glow(L.eye || '#e03a2a');
+    const necron = L.body === 'necron';
+    const limbMat = necron ? METAL() : ['ork', 'gor', 'kroot', 'vespid'].includes(L.body) || L.mandrake ? skin : L.body === 'guard' && !L.carapace ? cloth : main;
+    const hunch = ['ork', 'gor', 'ogryn'].includes(L.body) ? 0.06 * k : L.servitor ? 0.05 : 0;
+
+    // Legs.
+    const hipY = L.float ? B.leg + 0.15 : B.leg, hx = B.tw * 0.26;
+    const legs = [];
+    for (const s of [-1, 1]) {
+      const fwd = s === -1 ? 0.06 * k : -0.05 * k;
+      const hip = V(s * hx, hipY, 0), foot = V(s * hx * 1.3, 0.04, fwd);
+      if (L.float || L.seated) continue;
+      if (L.body === 'gor' || L.sicarian || L.body === 'vespid' || L.body === 'kroot') {
+        // Digitigrade legs: thigh forward, shin back, foot forward.
+        const knee = V(s * hx * 1.15, hipY * 0.6, fwd + 0.1 * k), hock = V(s * hx * 1.25, hipY * 0.25, fwd - 0.08 * k);
+        legs.push(limb(hip, knee, B.legR, limbMat), limb(knee, hock, B.legR * 0.75, limbMat), limb(hock, foot, B.legR * 0.6, limbMat));
+        legs.push(L.body === 'gor' ? cyl(B.legR * 0.8, B.legR, 0.05, DARK(), foot.x, 0.025, foot.z) : box(B.legR * 1.6, 0.03, B.legR * 3, limbMat, foot.x, 0.015, foot.z + 0.03));
+        if (L.sicarian) legs.push(limb(knee, hock, B.legR * 0.4, METAL()));
+      } else {
+        const knee = V(s * hx * 1.2, hipY * 0.5, fwd + 0.04 * k);
+        const legM = necron ? METAL() : L.carapace || ['marine', 'sister', 'battlesuit', 'votann', 'tau', 'eldar'].includes(L.body) || L.armoured ? main : cloth;
+        legs.push(limb(hip, knee, B.legR, legM, B.legR * 1.05), limb(knee, foot, B.legR * 0.9, legM));
+        legs.push(box(B.legR * 2, B.legR * 1.2, B.legR * 3, L.body === 'marine' || L.body === 'battlesuit' ? main : DARK(), foot.x, B.legR * 0.6, foot.z + B.legR * 0.6));
+        if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, L.body === 'marine' ? main : trim, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
+        if (necron) legs.push(sph(B.legR * 1.3, METAL(), knee.x, knee.y, knee.z));
+      }
+    }
+    add(fig, ...legs);
+
+    // Pelvis, torso, robes and coats.
+    const torsoY = hipY + B.th / 2 + 0.02;
+    const upper = new THREE.Group();
+    upper.position.set(0, 0, hunch);
+    add(upper, box(B.tw * 0.85, 0.1 * k, B.td * 0.9, necron ? METAL() : L.body === 'marine' ? main : DARK(), 0, hipY + 0.02, 0));
+    if (necron) {
+      add(upper, box(B.tw * 0.9, B.th * 0.45, B.td, main, 0, torsoY + B.th * 0.2, 0), cyl(0.025, 0.025, B.th * 0.6, METAL(), 0, torsoY - 0.05, -0.02));
+      for (let i = 0; i < 3; i++) add(upper, box(B.tw * 0.7, 0.012, B.td * 0.9, METAL(), 0, torsoY - 0.05 - i * 0.04, 0.005));
+      add(upper, sph(0.025, eye, 0, torsoY + B.th * 0.18, B.td * 0.52));
+    } else {
+      const chest = tbox(B.tw, B.th, B.td, L.body === 'guard' && !L.carapace ? cloth : main, 0, torsoY, 0);
+      add(upper, chest);
+      if (L.body === 'marine' || L.body === 'sister') add(upper, box(B.tw * 0.7, B.th * 0.35, 0.03, trim, 0, torsoY + B.th * 0.18, B.td / 2 + 0.01));
+      if (L.body === 'marine' && !L.scout) add(upper, ...[-1, 1].map((s) => box(B.tw * 0.28, 0.025, 0.02, trim, s * B.tw * 0.18, torsoY + B.th * 0.28, B.td / 2 + 0.03)));
+      if (L.carapace || L.body === 'tau' || L.body === 'votann') add(upper, box(B.tw * 1.04, B.th * 0.5, B.td * 1.1, main, 0, torsoY + B.th * 0.18, 0));
+      if (L.body === 'guard' && !L.carapace) add(upper, box(B.tw * 1.02, B.th * 0.45, B.td * 1.08, mat(L.main, { rough: 0.7 }), 0, torsoY + B.th * 0.15, 0));
+      if (L.bloated) add(upper, sph(B.tw * 0.55, skin, 0, torsoY - B.th * 0.12, B.td * 0.3, 10, 8));
+      if (L.plague) add(upper, sph(B.tw * 0.42, mat('#c8b890', { rough: 0.9 }), 0, torsoY - B.th * 0.15, B.td * 0.35, 10, 8), ...[0, 1, 2].map((i) => cone(0.02, 0.07, BRASS(), (i - 1) * 0.07, torsoY + B.th * 0.4, -B.td * 0.4)));
+      if (L.harlequin) for (let i = 0; i < 4; i++) add(upper, aimY(box(0.05, 0.05, 0.01, mat(i % 2 ? L.trim : '#2a2a2a'), (i % 2 ? 1 : -1) * 0.04, torsoY - 0.06 + Math.floor(i / 2) * 0.1, B.td / 2 + 0.006), V(0, 1, 0)).rotateZ(Math.PI / 4));
+      if (L.body === 'ork') add(upper, box(B.tw * 0.9, B.th * 0.35, 0.04, L.armoured ? mat(L.main, { metal: 0.5 }) : cloth, 0, torsoY + B.th * 0.12, B.td / 2 + 0.01));
+      if (L.body === 'battlesuit') add(upper, box(B.tw * 0.7, B.th * 0.5, 0.05, mat(L.trim), 0, torsoY + B.th * 0.12, B.td / 2 + 0.01), sph(0.025, eye, 0, torsoY + B.th * 0.12, B.td / 2 + 0.045));
+      if (L.body === 'vespid') add(upper, sph(B.tw * 0.55, main, 0, hipY - 0.04, -B.td * 0.9, 10, 8), cone(0.04, 0.12, main, 0, hipY - 0.12, -B.td * 1.3));
+    }
+    // Skirts: robes reach the ground, coats reach the knees, marines and sisters have tassets.
+    const robe = L.robe || L.body === 'skitarii' || (L.body === 'sister' && L.robe) || L.hood && L.body === 'guard' && L.robe;
+    if (robe) add(upper, cyl(B.tw * 0.5, B.tw * 0.75, hipY * 0.9, cloth, 0, hipY * 0.55, 0, 10));
+    else if (L.coat || L.cloak && L.body === 'guard') add(upper, cyl(B.tw * 0.52, B.tw * 0.68, hipY * 0.55, L.coat ? mat(L.main, { rough: 0.9 }) : cloth, 0, hipY * 0.72, -0.01, 10));
+    else if (L.rags || L.body === 'gor' || L.body === 'kroot') add(upper, box(B.tw * 0.5, hipY * 0.4, 0.02, cloth, 0, hipY * 0.8, B.td * 0.42));
+    else if (L.body === 'marine' || L.body === 'sister' || L.body === 'eldar') add(upper, ...[-1, 1].map((s) => box(B.tw * 0.36, hipY * 0.28, B.td * 0.9, main, s * B.tw * 0.25, hipY * 0.86, 0)));
+    if (L.body === 'sister' && !L.robe) add(upper, box(B.tw * 0.45, hipY * 0.6, 0.02, cloth, 0, hipY * 0.68, B.td * 0.48));
+    if (L.float) add(upper, cone(B.tw * 0.7, hipY, mat(L.cloth, { rough: 0.9 }), 0, hipY / 2, 0, 8));
+    add(fig, upper);
+
+    // Head.
+    const shY = hipY + B.th * 0.92, headY = hipY + B.th + B.head * 0.85 + 0.015 - hunch * 0.6;
+    const head = new THREE.Group();
+    head.position.set(0, headY, hunch * 2.2 + (L.body === 'marine' ? 0.01 : 0));
+    buildHead(head, L, B, { main, trim, cloth, skin, eye, k });
+    add(fig, head);
+
+    // Shoulders and back.
+    const shoulders = [-1, 1].map((s) => V(s * B.sx, shY, hunch));
+    addShoulders(upper, L, B, shoulders, { main, trim, cloth, k });
+    addBack(upper, L, B, { main, trim, cloth, torsoY, k, op });
+
+    // Arms and weapons.
+    poseArms(fig, L, B, shoulders, picks, { limbMat, main, trim, skin, k });
+    if (L.body === 'vespid') addWings(fig, L, B, torsoY, k);
+    if (L.hybrid && /patriarch/i.test(L.name)) {
+      for (const s of [-1, 1]) {
+        const sh = V(s * B.sx * 0.9, shY - 0.12, hunch + 0.02), hand = V(s * B.sx * 1.6, shY - 0.2, 0.3);
+        add(fig, limb(sh, hand, B.armR * 0.9, skin), ...[-1, 0, 1].map((i) => aimY(box(0.01, 0.12, 0.02, mat('#e8dcc0'), hand.x + i * 0.02, hand.y + 0.04, hand.z + 0.04), V(0, 0.6, 1))));
+      }
+    }
+    if (L.body === 'gor' && !L.bird) add(fig, limb(V(0, hipY, -B.td * 0.4), V(0, hipY * 0.6, -B.td * 1.2), 0.012, skin));
+    fig.userData.humanoid = true;
+    return fig;
+  }
+
+  function buildHead(h, L, B, c) {
+    const r = B.head;
+    const lens = (x, y, z, rr = r * 0.18) => sph(rr, c.eye, x, y, z, 6, 4);
+    const body = L.body;
+    if (body === 'marine' && !L.scout && !L.wolf) {
+      if (L.rubric || L.batWings || L.chaos) {
+        add(h, sph(r, c.main, 0, 0, 0, 10, 8), box(r * 1.2, r * 0.5, r * 0.8, c.main, 0, -r * 0.45, r * 0.35), lens(r * 0.4, r * 0.05, r * 0.85), lens(-r * 0.4, r * 0.05, r * 0.85));
+        if (L.rubric) add(h, cone(r * 0.35, r * 2.2, c.trim, 0, r * 1.5, -r * 0.1, 6), box(r * 2.4, r * 0.25, r * 0.15, c.trim, 0, r * 0.4, 0));
+        else if (L.batWings) add(h, ...[-1, 1].map((s) => aimY(cone(r * 0.3, r * 1.6, c.main, s * r * 1.0, r * 0.7, -r * 0.1, 4), V(s * 0.6, 1, -0.2))));
+        else if (L.plague) add(h, cone(r * 0.2, r * 1.0, c.trim, 0, r * 1.0, r * 0.4, 5));
+        else add(h, ...[-1, 1].map((s) => aimY(cone(r * 0.18, r * 1.4, mat('#d8d0b8'), s * r * 0.9, r * 0.6, 0, 6), V(s * 0.8, 1, 0.3))));
+        if (L.leader && !L.rubric) add(h, ...[-1, 1].map((s) => aimY(cone(r * 0.2, r * 1.1, c.trim, s * r * 0.6, r * 0.9, -r * 0.2, 6), V(s * 0.3, 1, -0.3))));
+      } else {
+        // Mk X helmet: dome, face plate, grille and red lenses.
+        add(h, sph(r, c.main, 0, 0, 0, 10, 8), box(r * 1.2, r * 0.9, r * 0.6, c.main, 0, -r * 0.25, r * 0.6), box(r * 0.5, r * 0.35, r * 0.2, DARK(), 0, -r * 0.5, r * 0.95),
+          lens(r * 0.38, r * 0.05, r * 0.92), lens(-r * 0.38, r * 0.05, r * 0.92));
+        if (L.phobos) add(h, box(r * 0.9, r * 0.3, r * 0.3, DARK(), 0, -r * 0.4, r * 0.95));
+        if (L.leader) add(h, box(r * 0.25, r * 0.5, r * 1.8, c.trim, 0, r * 0.95, -r * 0.1));
+      }
+      if (L.team === 'deathwatch') add(h, box(r * 0.25, r * 0.15, r * 0.8, c.trim, 0, r * 0.95, 0));
+      return;
+    }
+    switch (body) {
+      case 'guard': case 'sister': case 'skitarii': case 'ratling': case 'ogryn': case 'marine': {
+        add(h, sph(r, c.skin, 0, 0, 0, 10, 8), box(r * 0.25, r * 0.3, r * 0.3, c.skin, 0, -r * 0.1, r * 0.9));
+        if (L.servitor) { add(h, sph(r * 1.02, METAL(), 0, r * 0.15, -r * 0.1, 8, 6), lens(r * 0.4, 0, r * 0.85, r * 0.25), cyl(r * 0.15, r * 0.15, r * 0.8, DARK(), 0, -r * 0.9, -r * 0.4)); return; }
+        if (body === 'skitarii') { add(h, sph(r * 1.25, c.cloth, 0, r * 0.15, -r * 0.2, 10, 8), box(r * 1.3, r * 1.2, r * 0.3, DARK(), 0, -r * 0.05, r * 0.85), lens(r * 0.35, r * 0.1, r * 1.0), lens(-r * 0.35, r * 0.1, r * 1.0)); return; }
+        if (L.wolf) add(h, sph(r * 1.05, mat('#c8642a'), 0, r * 0.2, -r * 0.15, 8, 6), cone(r * 0.7, r * 1.0, mat('#c8642a'), 0, -r * 0.75, r * 0.5, 6));
+        if (L.gasmask) add(h, box(r * 1.15, r * 0.9, r * 0.6, DARK(), 0, -r * 0.2, r * 0.6), cyl(r * 0.3, r * 0.3, r * 0.4, DARK(), 0, -r * 0.6, r * 1.0), lens(r * 0.4, r * 0.05, r * 0.95), lens(-r * 0.4, r * 0.05, r * 0.95));
+        if (L.visor) add(h, box(r * 1.3, r * 0.4, r * 0.8, DARK(), 0, -r * 0.1, r * 0.55), box(r * 1.1, r * 0.18, r * 0.1, c.eye, 0, 0, r * 0.98), box(r * 1.2, r * 0.5, r * 0.6, c.main, 0, -r * 0.65, r * 0.55));
+        if (L.goggles) add(h, lens(r * 0.4, r * 0.1, r * 0.9, r * 0.25), lens(-r * 0.4, r * 0.1, r * 0.9, r * 0.25));
+        if (L.mask) add(h, box(r * 1.2, r * 1.2, r * 0.5, mat('#c9a227', { metal: 0.8 }), 0, -r * 0.1, r * 0.7), ...[-1, 1].map((s) => aimY(cone(r * 0.15, r * 1.0, BRASS(), s * r * 0.8, r * 0.6, 0, 6), V(s, 1, 0))));
+        if (L.hybrid) add(h, sph(r * 1.15, c.skin, 0, r * 0.35, -r * 0.3, 8, 6), ...[0, 1, 2].map((i) => box(r * 0.2, r * 0.15, r * 1.4, mat('#5a3a6a'), 0, r * 0.9 - i * r * 0.3, -r * 0.3 - i * 0.02)));
+        if (L.hood) add(h, sph(r * 1.3, c.cloth, 0, r * 0.2, -r * 0.25, 10, 8), box(r * 1.1, r * 1.0, r * 0.3, DARK(), 0, -r * 0.05, r * 0.75), lens(r * 0.35, r * 0.05, r * 0.9, r * 0.12), lens(-r * 0.35, r * 0.05, r * 0.9, r * 0.12));
+        else if (L.void) add(h, sph(r * 1.3, mat('#a8d8f0', { opacity: 0.45, rough: 0.1 }), 0, 0, r * 0.1, 10, 8));
+        else if (body === 'sister') add(h, sph(r * 1.08, mat(L.hair || '#e8e8e8'), 0, r * 0.1, -r * 0.15, 10, 8), box(r * 2, r * 0.5, r * 1.2, mat(L.hair || '#e8e8e8'), 0, -r * 0.55, -r * 0.4));
+        else if (L.coat && L.gasmask) add(h, sph(r * 1.15, c.main, 0, r * 0.25, 0, 10, 6), cone(r * 0.12, r * 0.6, METAL(), 0, r * 1.45, 0, 6), cyl(r * 1.6, r * 1.6, r * 0.08, c.main, 0, r * 0.1, 0, 12));
+        else if (L.carapace || L.helmet || body === 'ogryn' && !L.bare) add(h, sph(r * 1.12, c.main, 0, r * 0.25, -r * 0.05, 10, 6), cyl(r * 1.25, r * 1.25, r * 0.08, c.main, 0, r * 0.05, 0, 12));
+        else if (body === 'ratling') add(h, cyl(r * 0.9, r * 1.1, r * 0.5, c.cloth, 0, r * 0.8, 0, 10), cyl(r * 1.5, r * 1.5, r * 0.05, c.cloth, 0, r * 0.55, 0, 12));
+        else if (L.rags) add(h, sph(r * 1.08, mat('#3a2a24'), 0, r * 0.25, -r * 0.1, 8, 6));
+        else if (L.scout) add(h, sph(r * 1.03, mat('#3a2a20'), 0, r * 0.3, -r * 0.15, 8, 6));
+        if (L.leader && (L.coat || L.bare) && !L.gasmask) add(h, cyl(r * 1.0, r * 1.15, r * 0.5, c.main, 0, r * 0.9, 0, 10), cyl(r * 1.4, r * 1.4, r * 0.05, c.main, 0, r * 0.7, 0, 12));
+        break;
+      }
+      case 'eldar': {
+        if (L.mandrake) {
+          add(h, sph(r, c.skin, 0, 0, 0, 10, 8), lens(r * 0.4, 0, r * 0.85), lens(-r * 0.4, 0, r * 0.85), ...[0, 1, 2].map((i) => limb(V(0, r * 0.5, -r * 0.5), V((i - 1) * r * 1.2, -r * 2.5, -r * 2), r * 0.15, mat('#e8e8f0'))));
+          break;
+        }
+        add(h, sph(r, c.main, 0, 0, r * 0.1, 10, 8), cone(r * 0.6, r * 1.0, c.main, 0, -r * 0.3, r * 0.75, 6).rotateX(Math.PI / 2), lens(r * 0.4, r * 0.1, r * 0.85, r * 0.22), lens(-r * 0.4, r * 0.1, r * 0.85, r * 0.22));
+        if (L.harlequin) add(h, box(r * 1.4, r * 1.4, r * 0.1, mat('#e8e8e8', { metal: 0.6, rough: 0.2 }), 0, 0, r * 0.95), cone(r * 0.4, r * 1.2, c.trim, 0, r * 1.2, -r * 0.2, 6));
+        else if (L.drukhari) add(h, ...[-1, 0, 1].map((s) => aimY(cone(r * 0.15, r * 1.4, c.trim, s * r * 0.6, r * 0.8, -r * 0.3, 4), V(s * 0.4, 1, -0.6))));
+        else if (L.aspectKind === 'banshee') add(h, limb(V(0, r * 0.8, -r * 0.2), V(0, -r * 2.5, -r * 2.2), r * 0.35, mat('#e8e0d0'), r * 0.15));
+        else if (L.aspectKind === 'scorpion') add(h, ...[-1, 1].map((s) => cyl(r * 0.2, r * 0.2, r * 0.8, c.trim, s * r * 0.6, -r * 0.6, r * 0.7)), cone(r * 0.25, r * 1.2, c.trim, 0, r * 1.1, 0, 6));
+        else add(h, box(r * 0.25, r * 0.6, r * 2.2, L.leader ? mat('#e8c040') : c.trim, 0, r * 1.05, -r * 0.2));
+        break;
+      }
+      case 'tau': {
+        add(h, sph(r, c.main, 0, 0, 0, 10, 8), box(r * 2.0, r * 0.35, r * 1.4, c.main, 0, -r * 0.2, -r * 0.1), box(r * 1.1, r * 0.4, r * 0.4, DARK(), 0, 0, r * 0.85),
+          lens(r * 0.3, 0.0, r * 1.05), lens(-r * 0.3, 0.0, r * 1.05), cyl(r * 0.25, r * 0.25, r * 0.4, DARK(), r * 1.0, 0, r * 0.3));
+        break;
+      }
+      case 'battlesuit': add(h, box(r * 1.8, r * 1.0, r * 1.6, c.main, 0, 0, 0), lens(0, 0, r * 0.85, r * 0.35), box(r * 0.2, r * 0.9, r * 0.2, DARK(), r * 0.9, r * 0.9, -r * 0.4)); break;
+      case 'kroot': {
+        add(h, sph(r * 0.9, c.skin, 0, 0, 0, 8, 6), aimZ(cone(r * 0.4, r * 1.8, mat('#c8b890'), 0, -r * 0.2, r * 1.2, 6), V(0, -0.3, 1).normalize(), UP).rotateX(Math.PI / 2), lens(r * 0.4, r * 0.2, r * 0.6), lens(-r * 0.4, r * 0.2, r * 0.6));
+        for (let i = 0; i < 5; i++) add(h, limb(V(0, r * 0.5, -r * 0.3), V((i - 2) * r * 0.5, r * (1.2 + (i % 2) * 0.4), -r * 1.8), r * 0.12, mat(L.cloth), r * 0.04));
+        break;
+      }
+      case 'ork': {
+        const sk = c.skin;
+        add(h, sph(r, sk, 0, 0, 0, 10, 8), box(r * 1.5, r * 0.7, r * 1.0, sk, 0, -r * 0.55, r * 0.55), lens(r * 0.4, r * 0.15, r * 0.85), lens(-r * 0.4, r * 0.15, r * 0.85),
+          ...[-1, 1].map((s) => cone(r * 0.1, r * 0.3, mat('#e8e0c0'), s * r * 0.5, -r * 0.2, r * 1.05, 4)));
+        if (L.grot) add(h, ...[-1, 1].map((s) => aimY(cone(r * 0.35, r * 1.4, sk, s * r * 1.2, r * 0.3, 0, 4), V(s, 0.4, 0))), cone(r * 0.25, r * 0.8, sk, 0, 0, r * 1.2, 5).rotateX(Math.PI / 2));
+        else if (L.armoured || L.leader) add(h, sph(r * 1.05, mat(L.trim, { metal: 0.6 }), 0, r * 0.35, -r * 0.1, 8, 6), cone(r * 0.12, r * 0.6, METAL(), 0, r * 1.3, 0, 5));
+        else add(h, box(r * 2.2, r * 0.2, r * 0.3, mat('#2a2a2a'), 0, r * 0.4, r * 0.3));
+        break;
+      }
+      case 'votann': {
+        add(h, sph(r, c.skin, 0, 0, 0, 10, 8), cone(r * 0.85, r * 1.6, mat(L.hair || '#e8e8e8'), 0, -r * 1.0, r * 0.55, 8).rotateX(Math.PI));
+        if (!L.bare) add(h, sph(r * 1.15, c.main, 0, r * 0.25, -r * 0.05, 10, 6), box(r * 1.6, r * 0.25, r * 0.3, c.trim, 0, r * 0.15, r * 0.95), lens(r * 0.35, r * 0.1, r * 1.0), lens(-r * 0.35, r * 0.1, r * 1.0));
+        else add(h, sph(r * 1.03, mat(L.hair || '#c8642a'), 0, r * 0.3, -r * 0.15, 8, 6));
+        break;
+      }
+      case 'necron': {
+        add(h, box(r * 1.3, r * 1.5, r * 1.3, c.main, 0, 0, 0), box(r * 1.4, r * 0.25, r * 0.2, c.trim, 0, r * 0.6, r * 0.6), lens(r * 0.35, r * 0.15, r * 0.66, r * 0.22), lens(-r * 0.35, r * 0.15, r * 0.66, r * 0.22));
+        if (L.leader || L.float) add(h, ...[-1, 1].map((s) => box(r * 0.4, r * 1.8, r * 1.0, c.trim, s * r * 0.85, -r * 0.3, -r * 0.2)));
+        break;
+      }
+      case 'gor': {
+        if (L.bird) {
+          add(h, sph(r, c.skin, 0, 0, 0, 8, 6), cone(r * 0.4, r * 1.6, mat('#e8c040'), 0, -r * 0.2, r * 1.1, 4).rotateX(Math.PI / 2), lens(r * 0.5, r * 0.2, r * 0.6), lens(-r * 0.5, r * 0.2, r * 0.6),
+            cone(r * 0.3, r * 1.5, mat('#e8c040'), 0, r * 1.1, -r * 0.3, 4));
+        } else {
+          add(h, sph(r, c.skin, 0, 0, 0, 8, 6), box(r * 0.8, r * 0.7, r * 1.2, c.skin, 0, -r * 0.35, r * 0.75), lens(r * 0.45, r * 0.2, r * 0.75), lens(-r * 0.45, r * 0.2, r * 0.75),
+            ...[-1, 1].map((s) => aimY(cone(r * 0.25, r * 1.8, mat('#d8ccb0'), s * r * 0.9, r * 0.8, -r * 0.2, 6), V(s * 0.9, 1, -0.6))));
+        }
+        break;
+      }
+      case 'vespid': add(h, sph(r, c.skin, 0, 0, 0, 8, 6), sph(r * 0.45, c.eye, r * 0.55, r * 0.15, r * 0.55, 8, 6), sph(r * 0.45, c.eye, -r * 0.55, r * 0.15, r * 0.55, 8, 6), ...[-1, 1].map((s) => limb(V(s * r * 0.3, r * 0.6, r * 0.3), V(s * r * 0.9, r * 2.0, r * 0.6), r * 0.06, c.skin))); break;
+      default: add(h, sph(r, c.skin, 0, 0, 0));
+    }
+  }
+
+  function addShoulders(p, L, B, sh, c) {
+    const sx = B.sx, y = sh[0].y;
+    if (L.body === 'marine' && !L.scout) {
+      sh.forEach((s, i) => {
+        const side = i ? 1 : -1, pm = L.silverArm && side === 1 ? mat('#c9ccd1', { metal: 0.8, rough: 0.3 }) : c.main;
+        const pad = mesh(new THREE.SphereGeometry(B.armR * 2.3, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), pm, s.x + side * 0.02, y - 0.01, s.z);
+        pad.scale.set(1, 0.9, 1.05);
+        add(p, pad, cyl(B.armR * 2.32, B.armR * 2.32, 0.025, c.trim, s.x + side * 0.02, y - 0.015, s.z, 12));
+        if (L.chaos && !L.plague) add(p, ...[0, 1].map((j) => cone(0.018, 0.09, c.trim, s.x + side * 0.04, y + B.armR * 1.6, s.z + (j - 0.5) * 0.06, 5)));
+      });
+    } else if (L.body === 'tau' || L.body === 'battlesuit' || L.carapace || L.body === 'sister' || L.body === 'votann' || L.armoured || L.drukhari || L.aspect || L.body === 'ogryn') {
+      const r = L.body === 'battlesuit' ? B.armR * 2 : B.armR * 1.6;
+      sh.forEach((s, i) => {
+        const side = i ? 1 : -1;
+        const pad = box(r * 1.6, r * 0.5, r * 1.8, c.main, s.x + side * r * 0.25, y + r * 0.1, s.z);
+        pad.rotation.z = side * 0.35;
+        add(p, pad);
+        if (L.drukhari) add(p, cone(0.012, 0.09, c.trim, s.x + side * r * 0.5, y + r * 0.5, s.z));
+      });
+    } else if (L.wolf) {
+      add(p, box(sx * 2.4, 0.07, B.td * 1.4, mat('#8a8c88', { rough: 1 }), 0, y + 0.01, -0.01));
+    } else if (L.scout) {
+      sh.forEach((s, i) => add(p, box(B.armR * 2.6, B.armR * 0.8, B.armR * 2.8, c.main, s.x + (i ? 1 : -1) * 0.01, y + 0.01, s.z)));
+    } else if (L.body !== 'necron' && L.body !== 'kroot' && L.body !== 'gor' && L.body !== 'vespid') {
+      sh.forEach((s) => add(p, sph(B.armR * 1.25, L.body === 'ork' && L.armoured ? mat(L.main, { metal: 0.5 }) : c.main, s.x, y, s.z, 8, 6)));
+    }
+    if (L.body === 'necron') sh.forEach((s, i) => add(p, box(B.armR * 3.2, B.armR * 1.2, B.armR * 3.2, c.main, s.x + (i ? 1 : -1) * 0.01, y + 0.02, s.z)));
+    if (L.body === 'gor' || L.body === 'kroot') add(p, box(sx * 2.2, 0.06, B.td * 1.1, mat('#8a8a8a', { metal: 0.6 }), 0, y + 0.01, 0));
+  }
+
+  function addBack(p, L, B, c) {
+    const y = c.torsoY, back = -B.td / 2;
+    const k = c.k;
+    if (L.body === 'marine' && !L.scout && !L.phobos || L.body === 'marine' && L.phobos && !L.cloak) {
+      add(p, box(B.tw * 0.85, B.th * 0.75, 0.1 * k, c.main, 0, y + 0.06, back - 0.05 * k));
+      if (L.jump) add(p, ...[-1, 1].map((s) => tz(cyl(0.05 * k, 0.04 * k, 0.24 * k, DARK(), s * 0.08 * k, y + 0.1, back - 0.15 * k)).rotateX(-Math.PI / 2)),
+        ...[-1, 1].map((s) => cone(0.04 * k, 0.12 * k, glow('#ff8a1a'), s * 0.08 * k, y - 0.08, back - 0.15 * k).rotateX(Math.PI)),
+        ...[-1, 1].map((s) => aimY(box(0.02, 0.32 * k, 0.12 * k, c.main, s * 0.17 * k, y + 0.25, back - 0.12 * k), V(s * 0.5, 1, -0.3))));
+      else add(p, ...[-1, 1].map((s) => cyl(0.03 * k, 0.03 * k, 0.1 * k, DARK(), s * 0.07 * k, y + B.th * 0.5, back - 0.06 * k)));
+    }
+    if (L.batWings) add(p, ...[-1, 1].map((s) => aimY(box(0.015, 0.36, 0.14, mat('#1a1a2e'), s * 0.14, y + 0.2, back - 0.12), V(s * 0.8, 1, -0.5))));
+    if (L.body === 'battlesuit') add(p, box(B.tw * 0.8, B.th * 0.7, 0.12, c.main, 0, y + 0.04, back - 0.06), ...[-1, 1].map((s) => cone(0.04, 0.1, glow('#3ae0ff'), s * 0.09, y - 0.2, back - 0.08).rotateX(Math.PI)));
+    if (L.body === 'tau' || L.body === 'votann') add(p, box(B.tw * 0.7, B.th * 0.55, 0.08, DARK(), 0, y + 0.03, back - 0.04));
+    if (L.body === 'skitarii' && !L.servitor) add(p, cyl(0.035, 0.035, B.th * 0.8, BRASS(), 0, y + 0.05, back - 0.04), sph(0.03, glow('#3aff6a'), 0, y + B.th * 0.48, back - 0.04));
+    if (L.vox) add(p, box(B.tw * 0.6, B.th * 0.55, 0.09 * k, DARK(), 0, y + 0.02, back - 0.05 * k - (L.body === 'marine' ? 0.1 * k : 0)), cyl(0.005, 0.005, 0.6 * k, METAL(), B.tw * 0.25, y + 0.35 * k, back - 0.08 * k), sph(0.012, glow('#ff3a2a'), B.tw * 0.25, y + 0.65 * k, back - 0.08 * k));
+    if (L.medic) add(p, box(B.tw * 0.55, B.th * 0.45, 0.08 * k, mat('#e8e8e8'), 0, y + 0.02, back - 0.05 * k - (L.body === 'marine' ? 0.1 * k : 0)), box(0.1 * k, 0.025 * k, 0.01, mat('#c02020'), 0, y + 0.02, back - 0.095 * k - (L.body === 'marine' ? 0.1 * k : 0)), box(0.025 * k, 0.1 * k, 0.01, mat('#c02020'), 0, y + 0.02, back - 0.095 * k - (L.body === 'marine' ? 0.1 * k : 0)));
+    if (L.icon) {
+      add(p, cyl(0.008, 0.008, 1.0 * k, BRASS(), B.tw * 0.3, y + 0.25 * k, back - 0.1), box(0.22 * k, 0.28 * k, 0.01, mat(L.cloth), B.tw * 0.3 + 0.11 * k, y + 0.55 * k, back - 0.1), sph(0.03 * k, BRASS(), B.tw * 0.3, y + 0.77 * k, back - 0.1));
+    }
+    if (L.cloak || L.cape || (L.leader && ['marine', 'sister', 'eldar', 'necron'].includes(L.body) && !L.jump)) {
+      const ch = B.th + B.leg * 0.8;
+      const cl = mesh(new THREE.CylinderGeometry(B.tw * 0.55, B.tw * 0.8, ch, 10, 1, true, Math.PI * 0.65, Math.PI * 0.7),
+        mat(L.cloak && !L.leader ? L.cloth : L.leader ? '#8a1e1e' : L.cloth, { rough: 1, side: 'double' }), 0, B.leg * 0.2 + ch / 2, back * 0.2);
+      cl.scale.z = 0.7;
+      add(p, cl);
+    }
+    if (L.body === 'ork' && /comms|rokkit|snipa/i.test(L.name) && !L.vox) add(p, box(B.tw * 0.5, B.th * 0.4, 0.08, mat('#5a4a3a'), 0, y, back - 0.04));
+  }
+
+  function addWings(fig, L, B, y, k) {
+    const wm = mat('#c8e8f0', { opacity: 0.5, rough: 0.2 });
+    for (const s of [-1, 1]) for (const lo of [0, 1]) {
+      const w = box(0.01, 0.4 * k, 0.12 * k, wm, s * 0.15 * k, y + 0.2 - lo * 0.12, -B.td * 0.7);
+      aimY(w, V(s * (0.9 - lo * 0.3), 1 - lo * 0.6, -0.3));
+      add(fig, w);
+    }
+  }
+
+  // Arms: two-bone limbs from the shoulders to where the hands hold the weapons.
+  function poseArms(fig, L, B, sh, picks, c) {
+    const A = B.arm, wk = B.wk, sx = B.sx;
+    const [Rs, Ls] = sh; // right shoulder at -x, left at +x
+    const sy = Rs.y;
+    const handR = { at: null }, handL = { at: null };
+    const P = (x, y, z) => V(x * sx, sy + y * A, Rs.z + z * A);
+    const { ranged: r, melee: m, shield } = picks;
+    const twoHandGun = r && ['rifle', 'sniper', 'heavy', 'launcher', 'flamer', 'shotgun'].includes(r.form);
+    const holster = [];
+    const place = (obj) => { obj.scale.setScalar(wk); add(fig, obj); return obj; };
+
+    const holdGun = (rr, hand, aim, support) => {
+      const { g, fore } = rangedModel(rr, L);
+      g.position.copy(hand); aimZ(g, aim); place(g);
+      if (support && fore) { const f = toParent(g, fore.clone()); return f; }
+      return null;
+    };
+    const holdMelee = (mm, hand, dir) => { const g = meleeModel(mm, L); g.position.copy(hand); aimY(g, dir, V(dir.x < 0 ? -1 : 1, 0, 1)); place(g); return g; };
+    const wearFist = (mm, hand, dir) => { const g = meleeModel(mm, L); g.position.copy(hand); aimZ(g, dir); place(g); return g; };
+
+    if (L.body === 'battlesuit' && r) {
+      // Battlesuit guns sit on the forearm; the off-hand is free.
+      handR.at = P(-0.9, -0.55, 0.55); holdGun(r, handR.at, V(0.05, 0, 1));
+      handL.at = P(1.0, -0.65, 0.4);
+    } else if (twoHandGun) {
+      if (r.form === 'launcher') { handR.at = P(-0.75, -0.08, 0.15); }
+      else if (r.form === 'heavy') { handR.at = P(-0.7, -0.62, 0.38); }
+      else handR.at = P(-0.55, -0.48, 0.45);
+      const aim = r.form === 'heavy' ? V(0.12, 0, 1) : r.form === 'launcher' ? V(0, 0.04, 1) : V(0.22, 0.1, 1);
+      const fore = holdGun(r, handR.at, aim, true);
+      if (m && (m.form === 'fist' || m.form === 'claws')) { handL.at = fore || P(0.8, -0.5, 0.6); wearFist(m, handL.at, V(0.1, -0.2, 1)); }
+      else { handL.at = fore || P(0.8, -0.6, 0.5); if (m) holster.push(m); }
+      if (picks.ranged2?.form === 'pistol' && !m) holster.push(picks.ranged2);
+    } else if (r && r.form === 'bow') {
+      handL.at = P(0.3, 0.02, 0.95);
+      const { g } = rangedModel(r, L); g.position.copy(handL.at); aimZ(g, V(0, 0, 1)); place(g);
+      handR.at = P(-0.25, 0.05, 0.12);
+      if (m) holster.push(m);
+    } else if (r && r.form === 'pistol') {
+      if (m && m.twoHand) {
+        twoHanded(m);
+        holster.push(r);
+      } else {
+        handR.at = P(-1.0, -0.12, 0.85); holdGun(r, handR.at, V(0, 0, 1));
+        if (m) {
+          if (m.form === 'fist' || m.form === 'claws') { handL.at = P(0.95, -0.45, 0.55); wearFist(m, handL.at, V(0.15, -0.1, 1)); }
+          else { handL.at = P(1.2, -0.42, 0.45); holdMelee(m, handL.at, V(0.25, 0.85, 0.45)); }
+        } else if (r.dual) { handL.at = P(1.0, -0.12, 0.85); holdGun(r, handL.at, V(0, 0, 1)); }
+        else if (shield) { handL.at = P(0.9, -0.45, 0.55); addShield(handL.at); }
+        else handL.at = P(1.1, -0.85, 0.15);
+      }
+    } else if (m) {
+      if (m.twoHand) twoHanded(m);
+      else if (m.form === 'fist' || m.form === 'claws') {
+        handR.at = P(-0.9, -0.38, 0.75); wearFist(m, handR.at, V(-0.05, -0.15, 1));
+        handL.at = P(0.95, -0.5, 0.55);
+        if (m.dual || m.form === 'claws') wearFist(m, handL.at, V(0.1, -0.2, 1));
+      } else {
+        handR.at = P(-1.3, 0.18, 0.28); holdMelee(m, handR.at, V(-0.2, 0.9, 0.3));
+        if (shield) { handL.at = P(0.9, -0.45, 0.55); addShield(handL.at); }
+        else if (m.dual) { handL.at = P(1.25, -0.5, 0.45); holdMelee(m, handL.at, V(0.3, 0.6, 0.7)); }
+        else handL.at = P(1.1, -0.85, 0.15);
+      }
+    } else {
+      handR.at = P(-1.0, -0.85, 0.2); handL.at = P(1.0, -0.85, 0.2);
+    }
+    if (L.psyker && !twoHandGun && handL.at && !m?.dual && !shield && !(r?.form === 'pistol' && m) && !(m?.twoHand)) add(fig, sph(0.045 * wk, glow(L.eye || '#6ac8ff'), handL.at.x, handL.at.y + 0.06, handL.at.z + 0.03));
+
+    function twoHanded(mm) {
+      const o = P(-0.2, -0.8, 0.5), dir = V(-0.45, 0.85, 0.25).normalize();
+      if (mm.form === 'staff') { handL.at = P(1.25, -0.45, 0.4); holdMelee(mm, handL.at, V(0.05, 1, 0.08)); handR.at = P(-1.0, -0.6, 0.35); return; }
+      holdMelee(mm, o, dir);
+      handL.at = o.clone().addScaledVector(dir, 0.04 * wk);
+      handR.at = o.clone().addScaledVector(dir, 0.13 * wk);
+    }
+    function addShield(at) {
+      const sh2 = box(0.03, 0.34, 0.24, mat(L.trim, { metal: 0.6, rough: 0.4 }), 0, 0, 0);
+      const g = group(sh2, box(0.035, 0.1, 0.1, mat(L.main, { metal: 0.4 }), 0, 0.03, 0));
+      g.position.copy(at).add(V(0.02 * wk, 0, 0.05 * wk)); g.rotation.y = Math.PI / 2 - 0.25; place(g);
+    }
+
+    // Holstered weapons hang at the hips.
+    holster.slice(0, 2).forEach((h, i) => {
+      const side = i === 0 ? 1 : -1, at = V(side * B.tw * 0.55, B.leg + 0.02, 0.03);
+      if (h.form && MELEE_RANK[h.form] != null && h.w.type === 'melee') {
+        if (h.form === 'fist' || h.form === 'claws') return;
+        const g = meleeModel(h, L); g.position.copy(at); aimY(g, V(side * 0.15, -1, 0.3)); g.scale.setScalar(wk * 0.85); add(fig, g);
+      } else {
+        const { g } = rangedModel(h, L); g.position.copy(at); aimZ(g, V(0, -1, 0.15), V(0, 0, 1)); g.scale.setScalar(wk * 0.85); add(fig, g);
+      }
+    });
+
+    for (const [s, h] of [[Rs, handR.at], [Ls, handL.at]]) {
+      if (!h) continue;
+      const side = s.x < 0 ? -1 : 1;
+      const d = s.distanceTo(h), half = A / 2;
+      const mid = V().addVectors(s, h).multiplyScalar(0.5);
+      const bend = Math.sqrt(Math.max(0, half * half - (d / 2) ** 2));
+      const dir = V().subVectors(h, s).normalize();
+      const pole = V(side * 0.7, -1, -0.5).normalize();
+      const perp = pole.sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
+      const elbow = mid.addScaledVector(perp, bend);
+      add(fig, limb(s, elbow, B.armR, c.limbMat), limb(elbow, h, B.armR * 0.85, c.limbMat), sph(B.armR * 1.05, c.limbMat, elbow.x, elbow.y, elbow.z, 6, 5));
+      if (L.body === 'marine' || L.body === 'battlesuit' || L.body === 'sister' || L.carapace) add(fig, limb(elbow.clone().lerp(h, 0.25), h, B.armR * 1.2, c.main));
+      add(fig, sph(B.armR * 0.95, L.body === 'marine' || L.body === 'necron' ? c.limbMat : L.body === 'battlesuit' ? c.main : mat(L.body === 'guard' || L.body === 'sister' ? '#2a2a2a' : L.skin || '#d8a888'), h.x, h.y, h.z, 6, 5));
+    }
+  }
+
+  // ----- non-humanoid models -----
+  function beast(op, L) {
+    const n = L.name.toLowerCase(), g = new THREE.Group();
+    const wolf = /wolf/.test(n), cyber = /mastiff|battlemutt|cyber/.test(n), kroot = /kroot hound/.test(n), lizard = /drakolithe/.test(n);
+    const k = wolf ? 1.6 : lizard ? 1.3 : 1;
+    const fur = mat(wolf ? '#8a8c88' : kroot ? '#7a8a5a' : lizard ? '#4f8a3c' : cyber ? '#3a3c40' : '#7a5a3a', { metal: cyber ? 0.6 : 0, rough: cyber ? 0.4 : 0.9 });
+    const legY = 0.32 * k, bodyL = 0.55 * k;
+    const torso = sph(0.17 * k, fur, 0, legY + 0.06 * k, 0, 10, 8); torso.scale.set(0.8, 0.75, bodyL / 0.34 / k);
+    add(g, torso);
+    for (const [x, z] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+      const top = V(x * 0.08 * k, legY, z * 0.2 * k), knee = V(x * 0.09 * k, legY * 0.45, z * 0.2 * k + (z > 0 ? 0.03 : -0.05) * k), foot = V(x * 0.09 * k, 0.02, z * 0.22 * k + 0.02);
+      add(g, limb(top, knee, 0.04 * k, fur), limb(knee, foot, 0.03 * k, fur), box(0.05 * k, 0.03, 0.07 * k, fur, foot.x, 0.015, foot.z + 0.02));
+    }
+    const neck = V(0, legY + 0.14 * k, 0.28 * k), headP = V(0, legY + 0.22 * k, 0.38 * k);
+    add(g, limb(V(0, legY + 0.08 * k, 0.2 * k), neck, 0.07 * k, fur), sph(0.09 * k, fur, headP.x, headP.y, headP.z, 8, 6));
+    add(g, tz(cyl(0.04 * k, 0.06 * k, 0.16 * k, kroot ? mat('#c8b890') : fur, 0, headP.y - 0.03 * k, headP.z + 0.1 * k, 8)));
+    add(g, ...[-1, 1].map((s) => sph(0.016 * k, glow(cyber ? '#ff3a2a' : kroot ? '#e8c040' : '#ffd040'), s * 0.045 * k, headP.y + 0.03 * k, headP.z + 0.07 * k, 6, 4)));
+    if (!kroot && !lizard) add(g, ...[-1, 1].map((s) => cone(0.03 * k, 0.08 * k, fur, s * 0.05 * k, headP.y + 0.09 * k, headP.z - 0.02 * k, 4)));
+    if (kroot) for (let i = 0; i < 5; i++) add(g, limb(V(0, headP.y + 0.05, headP.z - 0.03), V((i - 2) * 0.05, headP.y + 0.12, headP.z - 0.22), 0.01, mat('#b9772f'), 0.003));
+    add(g, limb(V(0, legY + 0.06 * k, -0.25 * k), V(0, legY + (lizard ? -0.15 : 0.08) * k, -(lizard ? 0.6 : 0.45) * k), 0.035 * k, fur, 0.01));
+    if (cyber) add(g, box(0.18, 0.06, 0.3, mat(L.trim, { metal: 0.7 }), 0, legY + 0.18, 0), box(0.03, 0.1, 0.03, glow('#ff3a2a'), 0, legY + 0.24, -0.08));
+    if (lizard) add(g, ...[0, 1, 2, 3].map((i) => cone(0.025, 0.08, mat('#d8b04a'), 0, legY + 0.18, 0.15 - i * 0.12)));
+    return g;
+  }
+
+  function drone(op, L) {
+    const n = L.name.toLowerCase(), g = new THREE.Group(), y = 0.75;
+    const shell = mat(L.team === 'vespids' ? '#d8d0c0' : '#d8d0c0', { rough: 0.5 }), tc = mat(L.main);
+    add(g, cyl(0.008, 0.008, y, mat('#a8d8f0', { opacity: 0.5 }), 0, y / 2, 0));
+    const disc = cyl(0.28, 0.3, 0.07, shell, 0, y, 0, 16), dome = mesh(new THREE.SphereGeometry(0.16, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), tc, 0, y + 0.03, 0);
+    add(g, disc, dome, cyl(0.31, 0.31, 0.02, tc, 0, y - 0.01, 0, 16), sph(0.03, glow('#3ae0ff'), 0, y + 0.17, 0, 6, 4));
+    if (/gun|pulse accelerator|oversight/.test(n)) for (const s of [-1, 1]) { const { g: gun } = rangedModel({ form: 'rifle', flav: 'pulse', n: 'pulse carbine' }, L); gun.position.set(s * 0.12, y - 0.07, 0.05); gun.scale.setScalar(0.9); add(g, gun); }
+    else if (/marker|recon|designator/.test(n)) add(g, tz(cyl(0.05, 0.06, 0.12, DARK(), 0, y - 0.04, 0.27)), sph(0.04, glow('#ff3a2a'), 0, y - 0.04, 0.34, 8, 6));
+    else if (/shield/.test(n)) add(g, box(0.4, 0.3, 0.02, mat('#6ac8ff', { opacity: 0.45, glow: '#3a8aff' }), 0, y - 0.05, 0.32));
+    else if (/grav/.test(n)) add(g, mesh(new THREE.TorusGeometry(0.2, 0.02, 6, 16), glow('#b06aff'), 0, y - 0.07, 0).rotateX(Math.PI / 2));
+    if (/recon/.test(n)) add(g, tz(cyl(0.03, 0.03, 0.3, DARK(), 0.15, y + 0.02, 0.1)));
+    return g;
+  }
+
+  function squig(op, L) {
+    const g = new THREE.Group(), red = mat('#d8401a'), y = 0.22;
+    add(g, sph(0.24, red, 0, y + 0.1, 0, 12, 10));
+    const mouth = mesh(new THREE.SphereGeometry(0.245, 12, 6, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.25), mat('#3a0a0a'), 0, y + 0.1, 0.01);
+    add(g, mouth, ...[-1, 1].map((s) => sph(0.04, mat('#f0e040'), s * 0.1, y + 0.25, 0.18, 6, 4)));
+    for (let i = 0; i < 6; i++) add(g, cone(0.018, 0.05, mat('#f0ecd0'), (i - 2.5) * 0.05, y + 0.07, 0.22).rotateX(Math.PI));
+    for (const s of [-1, 1]) add(g, limb(V(s * 0.1, y, -0.02), V(s * 0.14, 0.02, 0.05), 0.04, red), box(0.08, 0.03, 0.1, red, s * 0.14, 0.015, 0.07));
+    if (/bomb/i.test(L.name)) add(g, tz(cyl(0.07, 0.07, 0.22, mat('#3a3a3a', { metal: 0.5 }), 0, y + 0.38, -0.05)), sph(0.02, glow('#ff8a1a'), 0, y + 0.38, 0.08));
+    return g;
+  }
+
+  function skullDrone(op, L) {
+    const g = new THREE.Group(), y = 0.8, bone = mat('#e8dcc0', { rough: 0.8 });
+    add(g, cyl(0.008, 0.008, y, mat('#a8d8f0', { opacity: 0.5 }), 0, y / 2, 0), sph(0.14, bone, 0, y, 0, 10, 8), box(0.14, 0.08, 0.1, bone, 0, y - 0.1, 0.06),
+      sph(0.035, glow('#ff3a2a'), 0.05, y, 0.12, 6, 4), sph(0.035, DARK(), -0.05, y, 0.12, 6, 4), cyl(0.04, 0.04, 0.08, METAL(), 0, y + 0.14, -0.03),
+      limb(V(0.06, y + 0.1, -0.05), V(0.12, y + 0.3, -0.12), 0.006, METAL()));
+    if (/tome/i.test(L.name)) add(g, box(0.22, 0.05, 0.16, mat('#6a1e1e'), 0, y - 0.2, 0.02), box(0.2, 0.04, 0.15, mat('#e8e0c8'), 0, y - 0.17, 0.02));
+    if (/gheist/i.test(L.name)) add(g, tz(cyl(0.05, 0.05, 0.12, DARK(), 0, y - 0.2, 0)), sph(0.02, glow('#ff8a1a'), 0, y - 0.2, 0.07));
+    return g;
+  }
+
+  function cherub(op, L) {
+    const g = new THREE.Group(), y = 0.7, s = mat(/familiar/i.test(L.name) ? '#b8a0c8' : '#e8c0a0');
+    add(g, cyl(0.008, 0.008, y, mat('#a8d8f0', { opacity: 0.5 }), 0, y / 2, 0), sph(0.12, s, 0, y, 0, 10, 8), sph(0.09, s, 0, y + 0.18, 0.02, 10, 8));
+    for (const sd of [-1, 1]) add(g, limb(V(sd * 0.08, y + 0.04, 0), V(sd * 0.14, y - 0.06, 0.1), 0.03, s), limb(V(sd * 0.05, y - 0.08, 0), V(sd * 0.07, y - 0.2, 0.05), 0.035, s),
+      aimY(box(0.01, 0.26, 0.12, mat('#f0f0f0'), sd * 0.16, y + 0.16, -0.1), V(sd * 0.8, 1, -0.3)));
+    if (/familiar/i.test(L.name)) add(g, ...[-1, 1].map((sd) => sph(0.02, glow('#ff3a2a'), sd * 0.035, y + 0.2, 0.09, 6, 4)), limb(V(0, y - 0.05, -0.1), V(0, y - 0.3, -0.3), 0.02, s, 0.005));
+    else add(g, cone(0.06, 0.14, BRASS(), 0.14, y - 0.12, 0.12).rotateX(-1.2), sph(0.06, mat('#c8a050'), 0, y + 0.25, 0.0, 8, 4));
+    return g;
+  }
+
+  function gadget(op, L) {
+    const n = L.name.toLowerCase(), g = new THREE.Group(), m = mat(L.main, { metal: 0.5 });
+    if (/beacon/.test(n)) add(g, box(0.25, 0.22, 0.18, DARK(), 0, 0.11, 0), cyl(0.006, 0.006, 0.7, METAL(), 0.08, 0.55, 0), sph(0.02, glow('#3aff6a'), 0.08, 0.9, 0), box(0.15, 0.05, 0.02, glow('#3aff6a'), 0, 0.15, 0.1));
+    else if (/servo-sentry/.test(n)) {
+      for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; add(g, limb(V(0, 0.35, 0), V(Math.cos(a) * 0.3, 0.02, Math.sin(a) * 0.3), 0.02, METAL())); }
+      add(g, box(0.2, 0.16, 0.22, m, 0, 0.42, 0), sph(0.04, glow('#ff3a2a'), 0, 0.45, 0.12));
+      const { g: gun } = rangedModel({ form: 'heavy', flav: /volley|las/.test(n) ? 'las' : 'bolt', n: 'heavy bolter' }, L); gun.position.set(0, 0.5, 0.05); gun.scale.setScalar(1.1); add(g, gun);
+    } else {
+      add(g, box(0.3, 0.12, 0.36, m, 0, 0.12, 0), ...[-1, 1].map((s) => box(0.06, 0.1, 0.4, DARK(), s * 0.18, 0.06, 0)), cyl(0.03, 0.03, 0.15, METAL(), 0, 0.25, 0.1), sph(0.04, glow('#3ae0ff'), 0, 0.33, 0.1),
+        cyl(0.004, 0.004, 0.35, METAL(), -0.1, 0.35, -0.12));
+    }
+    return g;
+  }
+
+  function macrocyte(op, L) {
+    const g = new THREE.Group(), y = 0.55, m = mat(L.main, { metal: 0.8, rough: 0.3 }), gl = glow(L.eye || '#3aff6a');
+    const plasmacyte = /plasmacyte/i.test(L.name);
+    add(g, cyl(0.008, 0.008, y, mat('#a8d8f0', { opacity: 0.5 }), 0, y / 2, 0));
+    if (plasmacyte) {
+      add(g, sph(0.1, gl, 0, y, 0, 8, 6), ...[0, 1, 2, 3].map((i) => limb(V(0, y, 0), V(Math.cos(i * 1.57) * 0.22, y - 0.12, Math.sin(i * 1.57) * 0.22), 0.012, m)));
+      return g;
+    }
+    add(g, sph(0.13, m, 0, y + 0.1, 0, 10, 8), box(0.14, 0.12, 0.12, m, 0, y + 0.25, 0.08), sph(0.03, gl, 0, y + 0.26, 0.15),
+      ...[-1, 1].map((s) => limb(V(s * 0.1, y + 0.12, 0), V(s * 0.24, y + 0.0, 0.2), 0.02, m)), limb(V(0, y, -0.05), V(0, y - 0.25, -0.25), 0.03, m, 0.01));
+    if (/warrior|accelerator|reanimator/i.test(L.name)) add(g, tz(cyl(0.025, 0.025, 0.25, gl, 0, y + 0.05, 0.22)));
+    return g;
+  }
+
+  function crawler(op, L) {
+    const g = new THREE.Group(), m = mat(L.main, { metal: 0.8, rough: 0.3 }), gl = glow(L.trim || '#3affc0');
+    const body = sph(0.32, m, 0, 0.55, 0, 12, 8); body.scale.set(1, 0.6, 1.4);
+    add(g, body, sph(0.12, gl, 0, 0.62, 0.3, 8, 6), box(0.3, 0.2, 0.25, m, 0, 0.7, 0.45));
+    for (let i = 0; i < 3; i++) for (const s of [-1, 1]) {
+      const z = 0.3 - i * 0.3, hip = V(s * 0.25, 0.55, z), knee = V(s * 0.55, 0.75, z + 0.05), foot = V(s * 0.7, 0.02, z + 0.1);
+      add(g, limb(hip, knee, 0.04, m), limb(knee, foot, 0.03, m, 0.012));
+    }
+    add(g, ...[-1, 1].map((s) => limb(V(s * 0.15, 0.65, 0.55), V(s * 0.25, 0.9, 0.95), 0.03, m)));
+    return g;
+  }
+
+  function ravener(op, L) {
+    const g = new THREE.Group(), carapace = mat(L.main, { rough: 0.5 }), flesh = mat(L.skin, { rough: 0.8 }), bone = mat(L.trim, { rough: 0.6 });
+    const ws = weaponsOf(op).map((w) => w.name.en.toLowerCase()).join('|');
+    const toxic = /toxic/.test(ws), venom = /venom bolt/.test(ws), crush = /crushing/.test(ws), rend = /rending/.test(ws), mace = /bone mace/.test(ws);
+    const tremor = /tremorscythe/i.test(L.name), prime = /prime/i.test(L.name);
+    const blade = toxic ? glow('#9aff3a') : bone;
+    // Serpent body curling over the base, rising into the upper torso.
+    const pts = [V(0.25, 0.06, -0.6), V(-0.25, 0.08, -0.38), V(-0.15, 0.12, 0.05), V(0.05, 0.35, 0.1), V(0, 0.65, 0.12)];
+    for (let i = 0; i < pts.length - 1; i++) add(g, limb(pts[i], pts[i + 1], 0.06 + i * 0.03, i % 2 ? flesh : carapace, 0.05 + i * 0.03), sph(0.065 + i * 0.03, carapace, pts[i + 1].x, pts[i + 1].y, pts[i + 1].z, 8, 6));
+    // The tail ends in a pincer or a blade.
+    const tail = pts[0], tip = V(tail.x + 0.15, tail.y + 0.18, tail.z - 0.15);
+    add(g, limb(tail, tip, 0.04, carapace, 0.02));
+    if (/tail blade/.test(ws)) add(g, aimY(box(0.015, 0.22, 0.06, bone, tip.x, tip.y + 0.1, tip.z), V(0.3, 1, -0.4)));
+    else if (/pincer tail/.test(ws)) add(g, ...[-1, 1].map((s) => aimY(cone(0.025, 0.14, bone, tip.x + s * 0.03, tip.y + 0.06, tip.z), V(s * 0.5, 1, -0.3))));
+    const top = pts[pts.length - 1];
+    add(g, box(0.3, 0.3, 0.22, carapace, top.x, top.y + 0.1, top.z), sph(0.1, carapace, top.x, top.y + 0.32, top.z + 0.12, 8, 6), box(0.12, 0.08, 0.14, flesh, top.x, top.y + 0.26, top.z + 0.2),
+      ...[-1, 1].map((s) => sph(0.02, glow(L.eye), top.x + s * 0.05, top.y + 0.34, top.z + 0.2, 6, 4)));
+    for (let i = 0; i < 4; i++) add(g, cone(0.04, 0.12, bone, top.x, top.y + 0.2 - i * 0.1, top.z - 0.14).rotateX(-0.8));
+    if (prime || tremor) add(g, cone(0.05, 0.22, bone, top.x, top.y + 0.48, top.z + 0.05).rotateX(-0.5));
+    // Upper pair: scything talons (bigger on a Tremorscythe); lower pair: talons, rending claws or crushing claws.
+    const big = tremor ? 1.5 : /felltalon/i.test(L.name) ? 1.25 : 1;
+    for (const s of [-1, 1]) {
+      const sh = V(top.x + s * 0.15, top.y + 0.18, top.z), el = V(top.x + s * 0.32, top.y + 0.35, top.z + 0.12), end = V(top.x + s * 0.28, top.y + 0.35 + 0.25 * big, top.z + 0.12 + 0.3 * big);
+      add(g, limb(sh, el, 0.035, flesh), limb(el, end, 0.03, blade, 0.005));
+      const sh2 = V(top.x + s * 0.15, top.y + 0.04, top.z), el2 = V(top.x + s * 0.3, top.y + 0.1, top.z + 0.12), hand = V(top.x + s * 0.24, top.y + 0.02, top.z + 0.32);
+      add(g, limb(sh2, el2, 0.03, flesh));
+      if (crush) add(g, limb(el2, hand, 0.04, carapace), ...[-1, 1].map((j) => aimY(cone(0.03, 0.14, bone, hand.x, hand.y + j * 0.03, hand.z + 0.05), V(0, j * 0.4, 1))));
+      else if (rend) add(g, limb(el2, hand, 0.025, flesh), ...[-1, 0, 1].map((j) => aimY(cone(0.01, 0.1, bone, hand.x + j * 0.02, hand.y, hand.z + 0.04, 4), V(j * 0.2, -0.2, 1))));
+      else add(g, limb(el2, hand.clone().add(V(0, 0.15, 0.1)), 0.025, blade, 0.004));
+    }
+    if (venom) add(g, tz(cyl(0.05, 0.035, 0.22, carapace, top.x, top.y + 0.08, top.z + 0.2)), sph(0.04, glow('#9aff3a'), top.x, top.y + 0.08, top.z + 0.32, 8, 6));
+    if (mace) add(g, limb(V(top.x - 0.1, top.y - 0.1, top.z - 0.05), V(top.x - 0.35, top.y + 0.1, top.z - 0.2), 0.02, bone), sph(0.07, bone, top.x - 0.37, top.y + 0.12, top.z - 0.21, 6, 5));
+    g.scale.setScalar(1.3);
+    return g;
+  }
+
+  function rider(op, L, picks) {
+    // Exodite Dragon Master on a drakesteed: a two-legged raptor with the rider on top.
+    const g = new THREE.Group(), scale = mat('#5a8a3a', { rough: 0.7 }), belly = mat('#d8c890');
+    const body = sph(0.25, scale, 0, 0.7, 0, 10, 8); body.scale.set(0.8, 0.8, 1.6);
+    add(g, body, sph(0.2, belly, 0, 0.62, 0.08, 8, 6));
+    for (const s of [-1, 1]) {
+      const hip = V(s * 0.15, 0.65, -0.05), knee = V(s * 0.2, 0.4, 0.15), ankle = V(s * 0.2, 0.15, -0.1), foot = V(s * 0.2, 0.02, 0.05);
+      add(g, limb(hip, knee, 0.08, scale), limb(knee, ankle, 0.05, scale), limb(ankle, foot, 0.035, scale), box(0.1, 0.03, 0.18, scale, foot.x, 0.015, foot.z + 0.05));
+    }
+    add(g, limb(V(0, 0.75, 0.3), V(0, 1.0, 0.6), 0.09, scale), sph(0.1, scale, 0, 1.05, 0.68, 8, 6), tz(cyl(0.05, 0.08, 0.22, scale, 0, 1.02, 0.82)),
+      ...[-1, 1].map((s) => sph(0.02, glow('#ffd040'), s * 0.07, 1.08, 0.72, 6, 4)), limb(V(0, 0.7, -0.35), V(0, 0.45, -1.0), 0.07, scale, 0.015));
+    for (let i = 0; i < 5; i++) add(g, cone(0.03, 0.1, mat('#d8b04a'), 0, 0.92 - (i > 2 ? 0.1 : 0), 0.15 - i * 0.12));
+    // The rider sits in the saddle, legs astride.
+    const fig = humanoid(op, { ...L, body: 'eldar', float: false, seated: true, cloak: true }, picks);
+    fig.position.set(0, 0.5, -0.1); fig.scale.setScalar(0.85);
+    add(g, fig, box(0.3, 0.06, 0.35, mat(L.cloth), 0, 0.9, -0.1), ...[-1, 1].map((s) => limb(V(s * 0.08, 0.95, -0.1), V(s * 0.28, 0.72, 0.05), 0.04, mat(L.main))));
+    return g;
+  }
+
+  /** The weapons a model of this operative holds with this loadout (default: its first loadout). */
+  function weaponsOf(op, loadout) {
+    if (op.loadouts) return op.loadouts[loadout] || Object.values(op.loadouts)[0] || [];
+    return op.weapons || [];
+  }
+
+  /** A complete miniature (model + base) for an operative of a team. */
+  function buildOperative(team, op, loadout) {
+    const L = operativeLook(team, op);
+    const picks = pickWeapons(weaponsOf(op, loadout));
+    let fig;
+    switch (L.body) {
+      case 'beast': fig = beast(op, L); break;
+      case 'drone': fig = drone(op, L); break;
+      case 'squig': fig = squig(op, L); break;
+      case 'skull': fig = skullDrone(op, L); break;
+      case 'cherub': fig = cherub(op, L); break;
+      case 'gadget': fig = gadget(op, L); break;
+      case 'macrocyte': fig = macrocyte(op, L); break;
+      case 'crawler': fig = crawler(op, L); break;
+      case 'ravener': fig = ravener(op, L); break;
+      case 'rider': fig = rider(op, L, picks); break;
+      case 'ogryn': fig = humanoid(op, { ...L, skin: '#c89878', main: L.team === 'blooded' ? '#6e3a30' : '#6a6a4a', carapace: true }, picks); break;
+      default: fig = humanoid(op, L, picks);
+    }
+    const root = new THREE.Group();
+    root.add(baseFor(op, L, team.color));
+    fig.position.y += 0.0;
+    if (fig.userData.humanoid) fig.scale.multiplyScalar(1.15);
+    root.add(fig);
+    root.userData = { opId: op.id, look: L, picks };
+    return root;
+  }
+
+  return { buildOperative, pickWeapons, operativeLook, weaponsOf };
+}

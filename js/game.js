@@ -189,7 +189,7 @@ export function moveAllowance(g, op, kind) {
 
 // ---------- killzone ----------
 function mirror(r) { return { ...r, x: BOARD.w - r.x - r.w, y: BOARD.h - r.y - r.h }; }
-function makeTerrain() {
+export function makeTerrain() {
   const half = [
     { kind: 'heavy', x: 7, y: 2, w: 4, h: 0.6 },
     { kind: 'heavy', x: 7, y: 2, w: 0.6, h: 4 },
@@ -207,7 +207,7 @@ function makeTerrain() {
   ];
   return [...half, ...half.map(mirror)];
 }
-const OBJECTIVES = [{ x: 15, y: 11 }, { x: 10, y: 4.5 }, { x: 20, y: 4.5 }, { x: 10, y: 17.5 }, { x: 20, y: 17.5 }];
+export const OBJECTIVES = [{ x: 15, y: 11 }, { x: 10, y: 4.5 }, { x: 20, y: 4.5 }, { x: 10, y: 17.5 }, { x: 20, y: 17.5 }];
 
 // ---------- setup ----------
 export function newGame({ teams, ai, tactics = [], mission: missionId = 'standard', map: mapId = 'default', tacOps = [], primaryOps = [], equip = [], loadouts = [], roster = [], scouting = [], ratFree = [], dkFree = [], vsCommune = [] }) {

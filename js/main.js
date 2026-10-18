@@ -65,6 +65,7 @@ import { findPath, moveCtx, wholeInchPath } from './path.js';
 import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices, setReboot } from './missions.js';
 import { HELP } from './help.js';
+import { modelsView, mountModels, unmountModels } from './viewer3d.js';
 import { archiveGame, deleteHistory, loadHistory, recordStep, resetRecorder, rewindRecorder, stepNotes, trailsAt, viewAt } from './replay.js';
 
 const app = document.getElementById('app');
@@ -146,7 +147,9 @@ function render() {
   else if (ui.screen === 'setup') app.innerHTML = setupView();
   else if (ui.screen === 'tombworld') app.innerHTML = topBar() + tombWorldView(ui.tombWorldStates);
   else if (ui.screen === 'replay') app.innerHTML = replayView();
+  else if (ui.screen === 'models') app.innerHTML = topBar() + modelsView();
   else app.innerHTML = gameView();
+  if (ui.screen === 'models') mountModels(app.querySelector('.m3d')); else unmountModels();
   drawMeasure();
   renderModal();
   scheduleAI();
@@ -425,6 +428,7 @@ function homeView() {
         <button class="primary big" data-act="setup">${L('新遊戲', 'New Game')}</button>
         ${saved && saved.phase !== 'gameover' ? `<button class="big" data-act="resume">${L('繼續上一場', 'Resume')}</button>` : ''}
         <button class="big ghost" data-act="help">${L('規則速查', 'Quick Rules')}</button>
+        <button class="big ghost" data-act="models">${L('3D 模型', '3D Models')}</button>
         <button class="big ghost" data-act="tombworld">${L('Tombworld（墓穴世界）地圖', 'Tomb World Maps')}</button>
       </div>
     </section>
@@ -3199,6 +3203,7 @@ function handle(act, d) {
   switch (act) {
     case 'home': history.replaceState(null, '', location.pathname + location.search); ui.screen = 'home'; return render();
     case 'tombworld': location.hash = 'tombworld'; ui.screen = 'tombworld'; return render();
+    case 'models': location.hash = 'models'; ui.screen = 'models'; return render();
     case 'twplay': ui.setup.map = d.id; ui.setup.mission = 'secure'; ui.screen = 'setup'; return render();
     case 'twstate': {
       const states = (ui.tombWorldStates ||= {});
@@ -3497,6 +3502,7 @@ function handle(act, d) {
 
 setLang(getLang());
 if (location.hash === '#tombworld') ui.screen = 'tombworld';
+if (location.hash === '#models') ui.screen = 'models';
 window.addEventListener('hashchange', () => { if (location.hash === '#tombworld') { ui.screen = 'tombworld'; render(); } });
 render();
 
