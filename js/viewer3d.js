@@ -193,7 +193,7 @@ export async function mountModels(root) {
     if (st.mode === 'maps') {
       const m = mapOf(st.map), d = m.data(st.hatchesOpen);
       box.innerHTML = `<b>${esc(tx(m.name))}</b><span>${d.board.w}″ × ${d.board.h}″ · ${L(`${d.objectives.length} 個目標點`, `${d.objectives.length} objectives`)}</span>
-        <ul><li>${L(`重型地形 ${HEIGHTS.heavy}″ 高`, `Heavy terrain ${HEIGHTS.heavy}″ tall`)}</li><li>${L(`輕型地形 ${HEIGHTS.light}″ 高`, `Light terrain ${HEIGHTS.light}″ tall`)}</li>${m.tombWorld ? `<li>${L('艙門 2″、門楣到 2.6″；輕掩體依零件高度', 'Hatchways 2″ with a lintel to 2.6″; light cover at each part\'s height')}</li>` : ''}</ul>
+        <ul><li>${L(`重型地形 ${HEIGHTS.heavy}″ 高`, `Heavy terrain ${HEIGHTS.heavy}″ tall`)}</li><li>${L(`輕型地形 ${HEIGHTS.light}″ 高`, `Light terrain ${HEIGHTS.light}″ tall`)}</li>${m.tombWorld ? `<li>${L('牆、柱與艙門視為無限高（模型 2.6″）', 'Walls, pillars and hatchways count as infinitely tall (model 2.6″)')}</li><li>${L('艙門 2″、門楣到 2.6″；輕掩體依零件高度', 'Hatchways 2″ with a lintel to 2.6″; light cover at each part\'s height')}</li>` : ''}</ul>
         <small>${L('藍色＝A 方降落區，橘色＝B 方降落區', 'Blue = drop zone A, orange = drop zone B')}</small>`;
       return;
     }

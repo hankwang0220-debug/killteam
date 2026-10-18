@@ -2,6 +2,8 @@
 // Non-T wall/cover geometry is implemented by js/tombworld.js. Only T's pattern
 // awaits the user's image; schematic map layouts are in js/tombworld-maps.js.
 // `height` is vertical height; it must not be confused with the renderer's footprint `h`.
+// For the rules a Tomb World wall (with its pillars and closed hatchways) counts as rising infinitely upwards:
+// nothing climbs, flies or sees over it. `height` is only the model's physical height (3D view, lintels).
 // `squareThickness` is the size of each square end pillar. Both pillars are included
 // in overall length and overlap with the adjoining component's pillar at a join.
 export const TOMB_WORLD_BOARD = {
