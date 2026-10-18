@@ -393,6 +393,7 @@ function topBar(extra = '', status = '') {
   const replayBtn = ui.screen === 'game' && g?.replay?.snaps.length
     ? `<button class="ghost" data-act="replay">📜 ${L('複盤', 'Replay')}</button>` : '';
   const tools = `<button class="ghost" data-act="help">${L('規則', 'Rules')}</button>
+      <button class="ghost" data-act="models" title="${L('3D 模型', '3D Models')}">${L('3D 模型', '3D Models')}</button>
       <button class="ghost" data-act="lang">${L('EN', '中文')}</button>`;
   const settings = `<details class="game-settings" ${ui.settingsOpen ? 'open' : ''}>
       <summary aria-label="${L('設定', 'Settings')}" title="${L('設定', 'Settings')}">
@@ -428,7 +429,6 @@ function homeView() {
         <button class="primary big" data-act="setup">${L('新遊戲', 'New Game')}</button>
         ${saved && saved.phase !== 'gameover' ? `<button class="big" data-act="resume">${L('繼續上一場', 'Resume')}</button>` : ''}
         <button class="big ghost" data-act="help">${L('規則速查', 'Quick Rules')}</button>
-        <button class="big ghost" data-act="models">${L('3D 模型', '3D Models')}</button>
         <button class="big ghost" data-act="tombworld">${L('Tombworld（墓穴世界）地圖', 'Tomb World Maps')}</button>
       </div>
     </section>
@@ -3198,12 +3198,13 @@ document.addEventListener('keydown', (e) => {
 });
 
 function handle(act, d) {
-  if (['home', 'help', 'lang', 'replay'].includes(act)) closeSettings();
+  if (['home', 'help', 'lang', 'replay', 'models'].includes(act)) closeSettings();
   const op = g && activeOp(g);
   switch (act) {
     case 'home': history.replaceState(null, '', location.pathname + location.search); ui.screen = 'home'; return render();
     case 'tombworld': location.hash = 'tombworld'; ui.screen = 'tombworld'; return render();
-    case 'models': location.hash = 'models'; ui.screen = 'models'; return render();
+    case 'models': if (ui.screen !== 'models') ui.modelsFrom = ui.screen; location.hash = 'models'; ui.screen = 'models'; return render();
+    case 'modelsBack': history.replaceState(null, '', location.pathname + location.search); ui.screen = ui.modelsFrom || 'home'; return render();
     case 'twplay': ui.setup.map = d.id; ui.setup.mission = 'secure'; ui.screen = 'setup'; return render();
     case 'twstate': {
       const states = (ui.tombWorldStates ||= {});
@@ -3503,7 +3504,11 @@ function handle(act, d) {
 setLang(getLang());
 if (location.hash === '#tombworld') ui.screen = 'tombworld';
 if (location.hash === '#models') ui.screen = 'models';
-window.addEventListener('hashchange', () => { if (location.hash === '#tombworld') { ui.screen = 'tombworld'; render(); } });
+// The browser's Back/Forward buttons move between the home screen and the Tomb World / 3D model pages.
+window.addEventListener('hashchange', () => {
+  const screen = location.hash === '#tombworld' ? 'tombworld' : location.hash === '#models' ? 'models' : ui.screen === 'models' ? ui.modelsFrom || 'home' : ui.screen === 'tombworld' ? 'home' : null;
+  if (screen && screen !== ui.screen) { if (screen === 'models') ui.modelsFrom = ui.screen; ui.screen = screen; render(); }
+});
 render();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

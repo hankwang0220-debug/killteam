@@ -43,6 +43,7 @@ export function modelsView() {
   const tab = (mode, zh, en) => `<button class="${st.mode === mode ? 'on' : ''}" data-m3mode="${mode}">${L(zh, en)}</button>`;
   return `<main class="m3d">
     <aside class="m3d-side">
+      <button class="ghost wide" data-act="modelsBack">← ${L('返回', 'Back')}</button>
       <div class="m3d-tabs">${tab('ops', '特工', 'Operatives')}${tab('maps', '地圖', 'Maps')}${tab('equip', '裝備', 'Equipment')}</div>
       <div class="m3d-controls"></div>
       <ul class="m3d-ops"></ul>
