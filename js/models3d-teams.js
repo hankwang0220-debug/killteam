@@ -67,6 +67,18 @@ export function teamDetails(h) {
     add(p, sph(s * 0.25, m, x, y, z, 6, 4));
   };
 
+  /** A fleur-de-lis, facing +Z. */
+  const fleur = (p, x, y, z, s, m) => {
+    add(p, box(s * 0.16, s * 0.8, 0.012, m, x, y, z), box(s * 0.6, s * 0.1, 0.012, m, x, y - s * 0.1, z));
+    for (const side of [-1, 1]) add(p, box(s * 0.12, s * 0.45, 0.012, m, x + side * s * 0.2, y + s * 0.1, z).rotateZ(side * 0.5));
+  };
+  /** The rune of Khorne (an X over a bar), facing +Z. */
+  const khorne = (p, x, y, z, s, m) => {
+    for (const side of [-1, 1]) add(p, box(s * 0.16, s * 0.9, 0.015, m, x, y + s * 0.1, z).rotateZ(side * 0.55));
+    add(p, box(s * 0.8, s * 0.16, 0.015, m, x, y - s * 0.38, z));
+  };
+  const khorneMesh = (x, y, z, s) => { const g = new THREE.Group(); khorne(g, x, y, z, s, BRASS()); return g; };
+
   const D = {
     angels(c) {
       const { upper, head, B, k, torsoY, front, L } = c;
@@ -313,6 +325,73 @@ export function teamDetails(h) {
       if (L.leader) add(upper, box(0.07 * k, 0.04 * k, 0.012, GOLD(), B.tw * 0.25, torsoY + B.th * 0.32, front + 0.06)); // rank pin
       if (/demo/i.test(L.name)) add(upper, box(0.14 * k, 0.1 * k, 0.07 * k, mat('#5a5a3a'), 0, torsoY + B.th * 0.45, back - 0.14 * k), sph(0.015 * k, glow('#ff3a2a'), 0, torsoY + B.th * 0.52, back - 0.18 * k, 6, 4)); // melta charge
       if (/recon/i.test(L.name)) add(upper, box(0.1 * k, 0.07 * k, 0.03, DARK(), -B.tw * 0.45, torsoY - B.th * 0.1, front + 0.03), box(0.08 * k, 0.05 * k, 0.005, glow('#3aff8a'), -B.tw * 0.45, torsoY - B.th * 0.1, front + 0.047));
+    },
+
+    legionaries(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      chaosStar(upper, 0, torsoY + B.th * 0.22, front + 0.03, 0.11 * k, BRASS());
+      padBadge(c, 1, mat('#2a2a2a'), 0.05);
+      // Trophy rack: two spikes on the backpack, with skulls.
+      for (const s of [-1, 1]) add(upper, cyl(0.008 * k, 0.012 * k, 0.4 * k, METAL(), s * 0.1 * k, torsoY + B.th * 0.7 + 0.1 * k, back - 0.14 * k, 6), sph(0.035 * k, BONE(), s * 0.1 * k, torsoY + B.th * 0.7 + 0.24 * k, back - 0.14 * k, 6, 5));
+      add(upper, mesh(new THREE.TorusGeometry(B.tw * 0.45, 0.01 * k, 4, 18, Math.PI), METAL(), 0, torsoY - B.th * 0.3, front * 0.2).rotateX(-Math.PI / 2.4)); // hanging chain
+      belt(c, mat('#2a2a2a'), BRASS(), 3);
+      if (/balefire/i.test(L.name)) add(head, sph(B.head * 0.5, glow('#ff6a1a'), 0, B.head * 1.4, 0, 8, 6)); // balefire crown
+      if (/anointed/i.test(L.name)) add(upper, ...[0, 1, 2].map((i) => limb(V((i - 1) * 0.06 * k, torsoY - B.th * 0.1, front), V((i - 1) * 0.12 * k, torsoY - B.th * 0.45, front + 0.12 * k), 0.012 * k, mat('#7a2a4a')))); // daemonic tendrils
+    },
+
+    novitiates(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      fleur(upper, 0, torsoY + B.th * 0.2, front + 0.02, 0.1 * k, GOLD());
+      puritySeal(upper, -B.tw * 0.3, torsoY + B.th * 0.05, front + 0.012); puritySeal(upper, B.tw * 0.32, torsoY - B.th * 0.1, front + 0.012);
+      for (let i = 0; i < 9; i++) { const a = (i / 8) * Math.PI; add(upper, sph(0.012 * k, mat('#3a2a20'), Math.cos(a) * B.tw * 0.28, torsoY + B.th * 0.35 - Math.sin(a) * 0.12 * k, front + 0.015, 4, 3)); } // rosary
+      add(upper, box(0.07 * k, 0.09 * k, 0.03 * k, mat('#6a1e1e'), B.tw * 0.42, c.hipY - 0.02, front * 0.4)); // book of scripture
+      add(upper, mesh(new THREE.TorusGeometry(B.tw * 0.36, 0.03 * k, 5, 16), mat('#e8e0d0', { rough: 1 }), 0, c.shY + 0.01, 0).rotateX(Math.PI / 2)); // cowl
+      if (/dialogus/i.test(L.name)) add(upper, cyl(0.008, 0.008, 0.8 * k, BRASS(), B.tw * 0.32, torsoY + 0.3 * k, back - 0.08), cone(0.06 * k, 0.12 * k, BRASS(), B.tw * 0.32, torsoY + 0.68 * k, back - 0.02, 10).rotateX(Math.PI / 2)); // loudhailer
+      if (/penitent/i.test(L.name)) add(upper, box(B.tw * 0.5, B.th * 0.4, 0.012, mat('#e8dcb0'), 0, torsoY - B.th * 0.05, front + 0.03)); // penitent's placard
+    },
+
+    battleclade(c) {
+      const { upper, head, fig, B, k, torsoY, front, back, L } = c;
+      if (L.servitor) {
+        // Servitors: tubes into the skull, a chest grille, a spine of cables.
+        add(fig, ...[-1, 1].map((s) => limb(V(s * 0.05 * k, torsoY + B.th * 0.45, c.hunch + back - 0.02), V(s * B.head * 0.5, c.headY + B.head * 0.3, c.hunch * 2.2 - B.head * 0.5), 0.012 * k, mat('#3a3a2a', { rough: 0.5 }))));
+        for (let i = 0; i < 4; i++) add(upper, box(B.tw * 0.5, 0.012, 0.012, METAL(), 0, torsoY + B.th * (0.2 - i * 0.08), front + 0.01));
+        add(upper, cyl(0.02 * k, 0.02 * k, B.th * 1.1, DARK(), 0, torsoY, back - 0.02, 6), sph(0.02 * k, glow('#3aff6a'), B.tw * 0.25, torsoY + B.th * 0.3, front + 0.012, 6, 4));
+      } else {
+        cog(upper, 0, torsoY + B.th * 0.15, front + 0.015, 0.06 * k, mat('#e8e0d0', { metal: 0.5 }));
+        for (const s of [-1, 1]) add(upper, limb(V(s * B.tw * 0.25, torsoY + B.th * 0.3, back - 0.05), V(s * B.tw * 0.9, torsoY + B.th * 0.9, back - 0.25 * k), 0.012 * k, METAL()), limb(V(s * B.tw * 0.9, torsoY + B.th * 0.9, back - 0.25 * k), V(s * B.tw * 1.1, torsoY + B.th * 0.5, back * 0 + 0.1 * k), 0.01 * k, METAL()), cone(0.02 * k, 0.06 * k, BRASS(), s * B.tw * 1.1, torsoY + B.th * 0.45, 0.12 * k)); // mechadendrites
+      }
+    },
+
+    exoditeDragonMasters(c) {
+      const { upper, head, B, k, torsoY, front, L } = c;
+      add(upper, sph(0.035 * k, glow('#4af0ff'), 0, torsoY + B.th * 0.25, front + 0.02, 8, 6)); // waystone
+      for (let i = 0; i < 3; i++) add(upper, box(B.tw * 0.9, 0.012, 0.01, mat('#d8b04a'), 0, torsoY - B.th * (0.1 + i * 0.1), front + 0.008)); // war paint bands
+      add(head, ...[0, 1, 2].map((i) => limb(V(0, B.head * 0.8, -B.head * 0.3), V((i - 1) * B.head * 0.6, B.head * 2.0, -B.head * 1.4), 0.01 * k, mat(i === 1 ? '#e8c040' : '#a8603a'), 0.004))); // feathered plume
+      if (/leystalker/i.test(L.name)) add(upper, box(0.03 * k, B.th * 0.7, 0.01, glow('#4af0ff'), -B.tw * 0.3, torsoY, front + 0.01));
+    },
+
+    goremongers(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      khorne(upper, 0, torsoY + B.th * 0.2, front + 0.02, 0.1 * k, BRASS());
+      add(upper, mesh(new THREE.TorusGeometry(B.tw * 0.32, 0.03 * k, 5, 14), BRASS(), 0, c.shY + 0.02, 0).rotateX(Math.PI / 2)); // brass collar
+      belt(c, mat('#3a2a24'), BRASS(), 2);
+      const skulls = /skullclaimer/i.test(L.name) ? 6 : 2;
+      for (let i = 0; i < skulls; i++) { const a = (i / Math.max(1, skulls - 1) - 0.5) * 2.4; add(upper, sph(0.03 * k, BONE(), Math.sin(a) * B.tw * 0.5, c.hipY - 0.05 * k, Math.cos(a) * B.td * 0.55, 6, 5)); }
+      add(upper, mesh(new THREE.TorusGeometry(0.05 * k, 0.008, 4, 10), METAL(), -B.tw * 0.45, c.hipY - 0.12 * k, front * 0.5).rotateY(Math.PI / 2)); // chains
+      if (/herald|inciter/i.test(L.name)) add(upper, cyl(0.008, 0.008, 1.0 * k, BRASS(), B.tw * 0.3, torsoY + 0.25 * k, back - 0.1), box(0.22 * k, 0.28 * k, 0.01, mat('#8a1e1a'), B.tw * 0.3 + 0.11 * k, torsoY + 0.55 * k, back - 0.1), khorneMesh(B.tw * 0.3 + 0.11 * k, torsoY + 0.55 * k, back - 0.09, 0.12 * k));
+    },
+
+    hernkynYaegirs(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      add(upper, mesh(new THREE.CylinderGeometry(B.tw * 0.55, B.tw * 0.8, B.th + c.hipY * 0.5, 10, 1, true, Math.PI * 0.6, Math.PI * 0.8), mat('#6a4a2a', { rough: 1, side: 'double' }), 0, c.hipY * 0.5 + (B.th + c.hipY * 0.5) / 2, back * 0.3), box(B.tw * 1.25, 0.08 * k, B.td * 1.3, mat('#c8b890', { rough: 1 }), 0, c.shY + 0.02, -0.01)); // fur-lined cloak
+      add(head, ...[-1, 1].map((s) => tz(cyl(B.head * 0.24, B.head * 0.24, B.head * 0.25, mat('#2a2a2a', { metal: 0.4 }), s * B.head * 0.38, B.head * 0.62, B.head * 0.75)))); // goggles up
+      add(upper, cyl(0.04 * k, 0.04 * k, 0.02, glow('#4af0ff'), 0, torsoY + B.th * 0.12, front + 0.04, 6).rotateX(Math.PI / 2));
+      strap(c, LEATHER(), 1, 0.035);
+      belt(c, LEATHER(), BRASS(), 4);
+      if (/ironbraek/i.test(L.name)) add(upper, box(B.tw * 1.1, B.th * 0.6, B.td * 1.2, mat('#4a4a4e', { metal: 0.6 }), 0, torsoY + B.th * 0.15, 0));
+      if (/tracker/i.test(L.name)) add(head, tz(cyl(B.head * 0.25, B.head * 0.3, B.head * 0.7, DARK(), -B.head * 0.75, B.head * 0.25, B.head * 0.6)), sph(B.head * 0.2, glow('#ff3a2a'), -B.head * 0.75, B.head * 0.25, B.head * 0.98, 6, 4));
+      if (L.leader) add(head, sph(B.head * 1.12, mat('#8a6a3a', { metal: 0.6 }), 0, B.head * 0.3, -B.head * 0.05, 8, 6));
     },
   };
 
