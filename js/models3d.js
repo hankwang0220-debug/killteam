@@ -4,6 +4,8 @@
 // (leader cape, vox antenna, medic pack, icon banner).
 // Units are inches, like the board: a model faces +Z and stands on its base at y = 0.
 
+import { teamDetails } from './models3d-teams.js';
+
 const MM = 1 / 25.4;
 
 // ---------- weapon recognition (by English weapon name) ----------
@@ -132,7 +134,7 @@ const LOOKS = {
   tauPathfinders: { body: 'tau', main: '#c88a3a', trim: '#5a5a52', cloth: '#3a3a36', skin: '#5a6a8a', eye: '#3af0ff' },
   stealthSuits: { body: 'battlesuit', main: '#4f6f7f', trim: '#2a3236', cloth: '#2a3236', eye: '#3af0ff' },
   vespids: { body: 'vespid', main: '#3a9ac0', trim: '#2a2a3a', cloth: '#5a4a3a', skin: '#6a8a5a', eye: '#3affd0' },
-  farstalkers: { body: 'kroot', main: '#8a6a3a', trim: '#5a4a3a', cloth: '#b9772f', skin: '#7a8a5a', eye: '#e8c040' },
+  farstalkers: { body: 'kroot', main: '#6f7d55', trim: '#5a4a3a', cloth: '#b9772f', skin: '#7a8a5a', eye: '#e8c040' },
   kommandos: { body: 'ork', main: '#4a5a3a', trim: '#5a4a3a', cloth: '#5f6a42', skin: '#4f8a2b', eye: '#ff3a2a' },
   wreckaKrew: { body: 'ork', armoured: true, main: '#d9661f', trim: '#5a5a5a', cloth: '#3a3a3a', skin: '#4f8a2b', eye: '#ff3a2a' },
   hearthkyn: { body: 'votann', main: '#d07a2a', trim: '#4a4a4e', cloth: '#5a5a5e', skin: '#d8a888', eye: '#4af0ff' },
@@ -186,7 +188,9 @@ export function operativeLook(team, op) {
   if (/jump pack/i.test(n)) L.jump = true;
   if (/sorcerer/i.test(n)) { L.rubric = false; L.cape = true; }
   if (/eliminator|sniper|sharpshooter|marksman|long-sight|longsting|incursor/i.test(n) && !['stealthSuits', 'vespids', 'tauPathfinders'].includes(team.id)) L.cloak = true;
+  if (L.cloak && L.body === 'marine') L.cloth = '#5a6446'; // camo cloak
   if (team.id === 'bladesOfKhaine') L.aspectKind = /scorpion/i.test(n) ? 'scorpion' : /banshee/i.test(n) ? 'banshee' : 'avenger';
+  if (team.id === 'deathKorps' && /watchmaster|confidant/i.test(n)) L.peakedCap = true;
   if (L.aspectKind === 'scorpion') { L.main = '#3f8a2f'; L.trim = '#e8c040'; }
   if (L.aspectKind === 'banshee') { L.main = '#d8d0c0'; L.trim = '#a82a2a'; L.cloth = '#a82a2a'; }
   if (L.aspectKind === 'avenger') { L.main = '#2a4fa8'; L.trim = '#e8e0d0'; }
@@ -249,6 +253,7 @@ export function createModelKit(THREE) {
   };
   /** A point given in o's local space, in its parent's space. */
   const toParent = (o, p) => { o.updateMatrix(); return p.clone().applyMatrix4(o.matrix); };
+  const details = teamDetails({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, aimY, aimZ, tz, METAL, DARK, BRASS });
 
   // ----- ranged weapons: grip at the origin, barrel along +Z; `fore` is where a supporting hand goes -----
   const FLAV = { plasma: '#4ab8ff', melta: '#ff7a1a', flame: '#ff8a1a', gauss: '#3aff6a', pulse: '#3ae0ff', las: '#ff3a2a', xenos: '#7fe03a', bolt: null, solid: null };
@@ -327,6 +332,7 @@ export function createModelKit(THREE) {
         break;
       }
     }
+    details.weapon(g, r, L);
     return { g, fore };
   }
 
@@ -524,6 +530,7 @@ export function createModelKit(THREE) {
       }
     }
     if (L.body === 'gor' && !L.bird) add(fig, limb(V(0, hipY, -B.td * 0.4), V(0, hipY * 0.6, -B.td * 1.2), 0.012, skin));
+    details.body({ fig, upper, head, L, B, k, hipY, torsoY, shY, headY, hunch, front: B.td / 2, back: -B.td / 2, M: { main, trim, cloth, skin, eye }, op, picks });
     fig.userData.humanoid = true;
     return fig;
   }
@@ -564,6 +571,7 @@ export function createModelKit(THREE) {
         if (L.hood) add(h, sph(r * 1.3, c.cloth, 0, r * 0.2, -r * 0.25, 10, 8), box(r * 1.1, r * 1.0, r * 0.3, DARK(), 0, -r * 0.05, r * 0.75), lens(r * 0.35, r * 0.05, r * 0.9, r * 0.12), lens(-r * 0.35, r * 0.05, r * 0.9, r * 0.12));
         else if (L.void) add(h, sph(r * 1.3, mat('#a8d8f0', { opacity: 0.45, rough: 0.1 }), 0, 0, r * 0.1, 10, 8));
         else if (body === 'sister') add(h, sph(r * 1.08, mat(L.hair || '#e8e8e8'), 0, r * 0.1, -r * 0.15, 10, 8), box(r * 2, r * 0.5, r * 1.2, mat(L.hair || '#e8e8e8'), 0, -r * 0.55, -r * 0.4));
+        else if (L.peakedCap) add(h, cyl(r * 1.05, r * 1.0, r * 0.45, c.main, 0, r * 0.75, 0, 12), cyl(r * 1.3, r * 1.3, r * 0.12, c.main, 0, r * 0.98, 0, 12), box(r * 1.2, r * 0.06, r * 0.6, DARK(), 0, r * 0.55, r * 0.8), box(r * 0.5, r * 0.15, r * 0.05, mat('#c9ccd1', { metal: 0.8 }), 0, r * 0.82, r * 1.05));
         else if (L.coat && L.gasmask) add(h, sph(r * 1.15, c.main, 0, r * 0.25, 0, 10, 6), cone(r * 0.12, r * 0.6, METAL(), 0, r * 1.45, 0, 6), cyl(r * 1.6, r * 1.6, r * 0.08, c.main, 0, r * 0.1, 0, 12));
         else if (L.carapace || L.helmet || body === 'ogryn' && !L.bare) add(h, sph(r * 1.12, c.main, 0, r * 0.25, -r * 0.05, 10, 6), cyl(r * 1.25, r * 1.25, r * 0.08, c.main, 0, r * 0.05, 0, 12));
         else if (body === 'ratling') add(h, cyl(r * 0.9, r * 1.1, r * 0.5, c.cloth, 0, r * 0.8, 0, 10), cyl(r * 1.5, r * 1.5, r * 0.05, c.cloth, 0, r * 0.55, 0, 12));

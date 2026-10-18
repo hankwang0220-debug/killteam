@@ -161,7 +161,7 @@ export async function mountModels(root) {
     if (id && models.has(id)) {
       const m = models.get(id), bb = new THREE.Box3().setFromObject(m), h = bb.max.y, w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
       cam.goal.set(m.position.x, Math.max(0.5, h * 0.45), m.position.z);
-      cam.rGoal = Math.max(2.6, h * 3.2, w * 2.2);
+      cam.rGoal = Math.max(2, h * 2.3, w * 2);
     } else {
       cam.goal.copy(st.overview.center); cam.rGoal = st.overview.r / Math.min(1, camera.aspect || 1) ** 0.7;
     }
