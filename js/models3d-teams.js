@@ -130,6 +130,95 @@ export function teamDetails(h) {
       belt(c, mat('#4a4636'), METAL(), 4);
       add(upper, box(0.05 * k, 0.08 * k, 0.03 * k, mat('#4a4636'), -B.tw * 0.4, c.hipY - 0.02, front * 0.4), box(0.05 * k, 0.05 * k, 0.03, METAL(), -B.tw * 0.4, c.hipY - 0.1, front * 0.4)); // entrenching tool
     },
+
+    gellerpox(c) {
+      const { upper, fig, head, B, k, torsoY, front, back, L } = c;
+      const flesh = mat(L.skin, { rough: 0.6 }), boil = mat('#d88a7a', { rough: 0.4 }), tent = mat('#b86a8a', { rough: 0.5 });
+      // Boils and pustules over the body.
+      for (let i = 0; i < 9; i++) { const a = i * 2.4, y = torsoY + ((i * 37) % 9 / 9 - 0.5) * B.th; add(upper, sph((0.025 + (i % 3) * 0.01) * k, i % 2 ? boil : mat('#c8d070', { rough: 0.3 }), Math.sin(a) * B.tw * 0.5, y, Math.cos(a) * B.td * 0.52, 6, 5)); }
+      // Tentacles from the back and an extra mouth on the belly.
+      for (let i = 0; i < (L.bloated ? 4 : 2); i++) {
+        const s = i % 2 ? 1 : -1, y0 = torsoY + B.th * (0.3 - i * 0.12);
+        const p0 = V(s * B.tw * 0.3, y0, back), p1 = V(s * B.tw * 0.7, y0 + 0.15 * k, back - 0.25 * k), p2 = V(s * B.tw * 0.9, y0 + 0.05 * k, back - 0.45 * k);
+        add(upper, limb(p0, p1, 0.03 * k, tent), limb(p1, p2, 0.02 * k, tent), sph(0.02 * k, tent, p2.x, p2.y, p2.z, 5, 4));
+      }
+      if (L.bloated) add(upper, box(B.tw * 0.3, 0.04 * k, 0.02, mat('#3a0a0a'), 0, torsoY - B.th * 0.15, front + B.td * 0.55), ...[-1, 0, 1].map((i) => cone(0.012 * k, 0.04 * k, BONE(), i * 0.04 * k, torsoY - B.th * 0.12, front + B.td * 0.56).rotateX(Math.PI)));
+      add(upper, box(B.tw * 0.95, B.th * 0.12, B.td * 1.02, mat('#4a3a30', { rough: 1 }), 0, torsoY + B.th * 0.05, 0)); // tattered strip of void-crew uniform
+      if (/glitchling/i.test(L.name)) add(head, sph(B.head * 0.45, glow('#ff3af0'), 0, B.head * 0.1, B.head * 0.75, 8, 6), ...[-1, 1].map((s) => cone(B.head * 0.2, B.head * 1.2, mat('#5a2a5a'), s * B.head * 0.7, B.head * 0.8, 0, 5)));
+      if (/fleshscreamer/i.test(L.name)) add(head, sph(B.head * 0.55, mat('#3a0a0a'), 0, -B.head * 0.25, B.head * 0.7, 8, 6), ...[0, 1, 2].map((i) => limb(V((i - 1) * B.head * 0.4, -B.head * 0.5, B.head * 0.9), V((i - 1) * B.head * 0.8, -B.head * 1.6, B.head * 1.6), 0.012 * k, tent)));
+      if (/vulgrar/i.test(L.name)) add(head, ...[-1, 1].map((s) => aimY(cone(B.head * 0.25, B.head * 1.6, BONE(), s * B.head * 0.8, B.head * 0.6, 0, 6), V(s * 0.8, 1, 0.2))));
+      if (/lumberghast/i.test(L.name)) add(fig, sph(0.12 * k, flesh, B.sx * 1.3, c.shY + 0.05, 0, 8, 6)); // swollen shoulder growth
+    },
+
+    hearthkyn(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      const plate = mat(L.main, { metal: 0.4, rough: 0.5 }), dark = mat('#3a3a3e', { metal: 0.6, rough: 0.4 });
+      add(upper, cyl(0.05 * k, 0.05 * k, 0.02, glow('#4af0ff'), 0, torsoY + B.th * 0.12, front + 0.06, 6).rotateX(Math.PI / 2)); // ancestor-core rune
+      add(upper, box(B.tw * 0.75, B.th * 0.55, 0.12 * k, dark, 0, torsoY + 0.04, back - 0.06 * k), ...[-1, 1].map((s) => cyl(0.03 * k, 0.03 * k, B.th * 0.5, glow('#4af0ff'), s * B.tw * 0.25, torsoY + 0.04, back - 0.13 * k, 8))); // power-cell pack
+      belt(c, dark, plate, 4);
+      for (const s of [-1, 1]) add(c.fig, box(B.legR * 2.4, c.hipY * 0.3, B.legR * 2.2, plate, s * B.tw * 0.3, c.hipY * 0.62, 0.03 * k)); // thigh plates
+      if (L.leader) add(head, box(B.head * 0.25, B.head * 0.7, B.head * 1.8, mat('#e8e0d0'), 0, B.head * 1.2, -B.head * 0.1)); // Theyn's crest
+      if (/dôzr|dozr/i.test(L.name)) add(upper, ...[-1, 1].map((s) => box(B.armR * 3.4, B.armR * 1.5, B.armR * 3.6, plate, s * (B.sx + 0.03), c.shY + 0.05 * k, 0)));
+      if (/lokâtr|lokatr/i.test(L.name)) add(head, tz(cyl(B.head * 0.25, B.head * 0.3, B.head * 0.7, dark, -B.head * 0.75, B.head * 0.25, B.head * 0.6)), sph(B.head * 0.2, glow('#ff3a2a'), -B.head * 0.75, B.head * 0.25, B.head * 0.98, 6, 4));
+      if (/lugger/i.test(L.name)) add(upper, box(B.tw * 0.9, B.th * 0.9, 0.22 * k, mat('#5a5a3a'), 0, torsoY + 0.1 * k, back - 0.18 * k), box(B.tw * 0.95, 0.03, 0.23 * k, mat(L.main), 0, torsoY + 0.25 * k, back - 0.18 * k));
+      if (/kognit/i.test(L.name)) add(head, ...[-1, 1].map((s) => sph(B.head * 0.18, glow('#4af0ff'), s * B.head * 0.9, B.head * 0.3, B.head * 0.3, 6, 4)), cyl(0.004, 0.004, B.head * 2, METAL(), 0, B.head * 1.6, -B.head * 0.4, 4));
+      if (L.jump) add(upper, ...[-1, 1].map((s) => cyl(0.05 * k, 0.04 * k, 0.26 * k, dark, s * 0.09 * k, torsoY + 0.05, back - 0.16 * k, 10)), ...[-1, 1].map((s) => cone(0.04 * k, 0.12 * k, glow('#4af0ff'), s * 0.09 * k, torsoY - 0.14 * k, back - 0.16 * k, 8).rotateX(Math.PI)));
+    },
+
+    navyBreachers(c) {
+      const { upper, B, k, torsoY, front, back, L } = c;
+      const plate = mat(L.main, { metal: 0.4, rough: 0.5 });
+      add(upper, ...[-1, 1].map((s) => cyl(0.04 * k, 0.04 * k, B.th * 0.75, mat('#c9c9c0', { metal: 0.6 }), s * 0.06 * k, torsoY + 0.02, back - 0.05 * k, 10))); // air tanks
+      aquila(upper, 0, torsoY + B.th * 0.25, front + 0.06, 0.16 * k, GOLD());
+      add(upper, ...[-1, 1].map((s) => tz(cyl(0.022 * k, 0.025 * k, 0.04 * k, glow('#fff6c0'), s * B.sx * 1.05, c.shY + 0.03 * k, 0.05 * k)))); // shoulder lamps
+      belt(c, mat('#2c3a46'), GOLD(), 4);
+      for (const s of [-1, 1]) add(c.fig, box(B.legR * 2.2, B.legR * 2, B.legR * 1.2, plate, s * B.tw * 0.32, c.hipY * 0.5, 0.06 * k)); // knee guards
+      if (/endurant/i.test(L.name)) add(upper, box(B.tw * 1.15, B.th * 0.6, B.td * 1.2, plate, 0, torsoY + B.th * 0.15, 0), ...[-1, 1].map((s) => box(B.armR * 3.6, B.armR * 1.8, B.armR * 3.6, plate, s * (B.sx + 0.02), c.shY + 0.04, 0)));
+      if (/surveyor/i.test(L.name)) add(upper, box(0.1 * k, 0.07 * k, 0.03, DARK(), -B.tw * 0.45, torsoY - B.th * 0.1, front + 0.03), box(0.08 * k, 0.05 * k, 0.005, glow('#3aff8a'), -B.tw * 0.45, torsoY - B.th * 0.1, front + 0.047)); // auspex
+      if (/grenadier/i.test(L.name)) for (let i = 0; i < 4; i++) add(upper, sph(0.025 * k, DARK(), (i - 1.5) * 0.05 * k, torsoY - B.th * 0.05 + (i - 1.5) * 0.035 * k, front + 0.03, 6, 5));
+      if (L.leader) add(upper, box(0.06 * k, 0.1 * k, 0.012, RED(), B.tw * 0.25, torsoY + B.th * 0.05, front + 0.03)); // rank tabard
+    },
+
+    phobos(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      aquila(upper, 0, torsoY + B.th * 0.24, front + 0.035, 0.2 * k, mat('#c9c9c0', { metal: 0.6 }));
+      belt(c, mat('#2a2c30', { metal: 0.5 }), mat('#c9c9c0', { metal: 0.6 }), 4);
+      padBadge(c, 1, mat('#e8e0d0'));
+      if (/reiver/i.test(L.name)) { // skull-faced helmet and grapnel
+        add(head, sph(B.head * 0.75, BONE(), 0, -B.head * 0.1, B.head * 0.55, 8, 6), ...[-1, 1].map((s) => sph(B.head * 0.2, mat('#111'), s * B.head * 0.3, 0, B.head * 1.15, 6, 4)), box(B.head * 0.6, B.head * 0.12, B.head * 0.1, mat('#111'), 0, -B.head * 0.45, B.head * 1.1));
+        add(upper, tz(cyl(0.035 * k, 0.035 * k, 0.12 * k, DARK(), B.tw * 0.35, torsoY + B.th * 0.3, back - 0.08 * k)));
+      }
+      if (/incursor/i.test(L.name)) add(head, box(B.head * 1.3, B.head * 0.35, B.head * 0.3, DARK(), 0, B.head * 0.1, B.head * 0.9), ...[-1, 0, 1].map((i) => sph(B.head * 0.13, glow('#3aff8a'), i * B.head * 0.35, B.head * 0.1, B.head * 1.06, 6, 4))); // multi-spectrum array
+      if (/infiltrator/i.test(L.name)) add(head, tz(cyl(B.head * 0.12, B.head * 0.12, B.head * 0.9, DARK(), B.head * 0.75, -B.head * 0.2, B.head * 0.4))); // comm tube
+    },
+
+    warpcoven(c) {
+      const { upper, head, fig, B, k, torsoY, front, L } = c;
+      const gold = GOLD();
+      if (L.body === 'marine') {
+        // Ornate gold: scarab on the chest, Tzeentch eye on the left pad, gilded belt.
+        add(upper, sph(0.07 * k, gold, 0, torsoY + B.th * 0.2, front + 0.04, 8, 6), ...[-1, 1].map((s) => box(0.1 * k, 0.02 * k, 0.015, gold, s * 0.08 * k, torsoY + B.th * 0.28, front + 0.04).rotateZ(s * 0.5)));
+        padBadge(c, 1, mat('#e8e0d0'), 0.05); padBadge(c, 1, glow('#4af0ff'), 0.02);
+        belt(c, gold, mat('#2763a8'), 3);
+        if (/sorcerer/i.test(L.name)) add(head, ...[-1, 1].map((s) => aimY(cone(B.head * 0.22, B.head * 1.8, gold, s * B.head * 0.75, B.head * 1.0, -B.head * 0.1, 6), V(s * 0.5, 1, -0.2))), cone(B.head * 0.3, B.head * 1.4, gold, 0, B.head * 1.4, -B.head * 0.2, 6), sph(B.head * 0.18, glow('#4af0ff'), 0, B.head * 0.5, B.head * 0.95, 6, 4));
+      } else {
+        // Tzaangors: gilded torc, armbands and a loincloth.
+        add(upper, mesh(new THREE.TorusGeometry(B.tw * 0.3, 0.015 * k, 5, 14), gold, 0, torsoY + B.th * 0.45, 0).rotateX(Math.PI / 2));
+        add(upper, box(B.tw * 0.45, c.hipY * 0.45, 0.012, mat('#2763a8', { rough: 0.9 }), 0, c.hipY * 0.75, front + 0.01));
+        for (const s of [-1, 1]) add(fig, cyl(B.armR * 1.3, B.armR * 1.3, 0.04 * k, gold, s * B.sx * 1.05, c.shY - 0.15 * k, 0.05 * k, 10));
+      }
+    },
+
+    wyrmblade(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      add(head, tz(cyl(B.head * 0.25, B.head * 0.3, B.head * 0.3, mat('#5a4a3a', { metal: 0.5 }), 0, B.head * 0.75, B.head * 0.9)), sph(B.head * 0.2, glow('#fff6c0'), 0, B.head * 0.75, B.head * 1.08, 6, 4)); // mining headlamp
+      add(upper, box(B.tw * 0.55, B.th * 0.5, 0.08 * k, mat('#5a4a3a'), 0, torsoY + 0.02, back - 0.04 * k), cyl(0.035 * k, 0.035 * k, B.th * 0.4, mat('#a8a050', { metal: 0.5 }), B.tw * 0.15, torsoY + 0.02, back - 0.09 * k, 8)); // mining rig
+      belt(c, mat('#3a2e22'), METAL(), 4);
+      add(upper, box(B.tw * 0.3, B.th * 0.3, 0.01, mat('#7a5aa6'), 0, torsoY + B.th * 0.1, front + 0.012)); // cult tabard
+      if (L.icon) add(upper, mesh(new THREE.TorusGeometry(0.06 * k, 0.012, 5, 12), GOLD(), B.tw * 0.3 + 0.11 * k, torsoY + 0.58 * k, back - 0.11)); // wyrm icon
+      if (/kelermorph/i.test(L.name)) add(head, cyl(B.head * 1.0, B.head * 1.05, B.head * 0.6, mat('#2a2030'), 0, B.head * 0.9, 0, 10), cyl(B.head * 1.8, B.head * 1.8, B.head * 0.08, mat('#2a2030'), 0, B.head * 0.62, 0, 14)); // wide-brimmed hat
+      if (/locus/i.test(L.name)) add(head, ...[0, 1, 2, 3].map((i) => box(B.head * 0.2, B.head * 0.2, B.head * 1.6, mat('#5a3a6a'), 0, B.head * (0.9 - i * 0.3), -B.head * (0.4 + i * 0.12))));
+    },
   };
 
   const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; return o; };
@@ -142,6 +231,7 @@ export function teamDetails(h) {
 
   // Weapon add-ons, per team.
   const W = {
+    warpcoven(g, r, L) { if (L.body === 'marine' && (r.form === 'rifle' || r.form === 'heavy' || r.form === 'pistol')) for (let i = 0; i < 3; i++) add(g, cone(0.025 - i * 0.005, 0.1, glow(i ? '#4af0ff' : '#4ab8ff'), (i - 1) * 0.015, 0.03 + (i % 2) * 0.02, (r.form === 'pistol' ? 0.2 : 0.42) + i * 0.02, 5).rotateX(Math.PI / 2)); }, // warpflame at the muzzle
     tauPathfinders(g, r) { if (r.form === 'rifle') add(g, box(0.035, 0.035, 0.08, DARK(), 0, 0.075, 0.12), sph(0.012, glow('#ff3a2a'), 0, 0.075, 0.165, 6, 4)); }, // markerlight
     deathKorps(g, r) { if (r.form === 'rifle' || r.form === 'sniper') add(g, box(0.01, 0.02, 0.12, METAL(), 0, 0.0, r.form === 'sniper' ? 0.66 : 0.42), box(0.03, 0.03, 0.02, DARK(), 0, 0.01, r.form === 'sniper' ? 0.6 : 0.36)); }, // bayonet
     farstalkers(g, r) {

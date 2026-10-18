@@ -123,7 +123,7 @@ const LOOKS = {
   sanctifiers: { body: 'guard', robe: true, hood: true, main: '#7a6f52', trim: '#c9a227', cloth: '#d8d0b8', skin: '#d8a888' },
   chaosCult: { body: 'guard', rags: true, hood: true, main: '#6a3a3a', trim: '#8a6a3a', cloth: '#9b2c2c', skin: '#c9a08a' },
   goremongers: { body: 'guard', rags: true, mask: true, main: '#8a1e1a', trim: '#c9a227', cloth: '#3a2a24', skin: '#c9a08a' },
-  wyrmblade: { body: 'guard', helmet: true, goggles: true, main: '#c9a227', trim: '#5a4a3a', cloth: '#7a5aa6', skin: '#b8a0c8' },
+  wyrmblade: { body: 'guard', helmet: true, goggles: true, main: '#c9a227', trim: '#5a4a3a', cloth: '#6a5a40', skin: '#b8a0c8' },
   gellerpox: { body: 'guard', bloated: true, rags: true, main: '#8a5a6a', trim: '#5a4a3a', cloth: '#a0607a', skin: '#c8b090' },
   bladesOfKhaine: { body: 'eldar', aspect: true, main: '#2f8f5b', trim: '#e8d8a0', cloth: '#d8d0b0', eye: '#e03a2a' },
   corsairVoidscarred: { body: 'eldar', cloak: true, main: '#2a6f74', trim: '#c9c9c9', cloth: '#3a2a4a', eye: '#4af0ff' },
