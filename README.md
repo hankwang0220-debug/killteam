@@ -151,6 +151,8 @@ This remains a flat-board approximation: model centres/silhouettes stand in for 
 
 開門與關門各固定花費 1AP，新對戰門預設關閉；門號、狀態、阻擋地形與回放同步更新。驗證：`node tests/tombworld-hatches.mjs`。
 
+墓穴世界的牆、端柱與關閉的艙門無法攀爬也無法飛越（噴射背包、閃爍背包同樣要繞路或走開啟的門與洞口）；墓穴世界的輕掩體 C1–C5 和一般地圖的地形一樣可以攀爬或飛越。驗證：`node tests/tombworld-flying.mjs`。
+
 所有隊伍的陣營裝備與通用裝備合計最多四項；選隊介面、開局資料與 AI 使用同一上限。死亡守望及萊特林亦依此設定為四項。切換隊伍時保留適用的通用裝備，移除原隊伍限定裝備；重複項目不重複計數。驗證：`node tests/equipment.mjs`。
 
 3D models (3D 模型) are built procedurally in `js/models3d.js` and shown on the home screen's 3D Models page (`js/viewer3d.js`; three.js r160 is bundled in `js/vendor/` under its MIT licence and loaded only when the page opens, so it works offline). Every team has its own body style (power armour, guardsman, eldar, ork, necron, tau, kroot, votann, ratling, beastman, ravener, drakesteed rider, drones, hounds, squigs, ...) and colours; operatives are told apart mainly by the weapons they hold, chosen from their datacard weapons (main ranged and melee weapon, recognised by name), plus role props (leader cape or crest, vox antenna, medic pack, icon banner). Weapon loadouts can be switched in the viewer. Models use inches and stand on their real base size, ready for a later 3D board.
