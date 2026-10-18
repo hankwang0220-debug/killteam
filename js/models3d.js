@@ -151,7 +151,13 @@ const DEFAULT_LOOK = { body: 'guard', helmet: true, main: '#6a6a6a', trim: '#3a3
 
 /** The look of one operative: its team's look with operative-specific changes, from its name and abilities. */
 export function operativeLook(team, op) {
-  const base = { ...DEFAULT_LOOK, ...(LOOKS[team.id] || {}), main: (LOOKS[team.id] || {}).main || team.color, team: team.id };
+  // Inquisitorial Agents: requisitioned operatives, Tempestus Scions and gun servitors look like their own forces.
+  if (team.id === 'inquisitorialAgents') {
+    const rq = /^rq_([a-zA-Z]+)_/.exec(op.id)?.[1];
+    const from = rq ? (rq === 'navy' ? 'navyBreachers' : rq) : /^ts/.test(op.id) ? 'aquilons' : /^iaServitor/.test(op.id) ? 'battleclade' : null;
+    if (from && LOOKS[from]) team = { ...team, id: from, ops: [] };
+  }
+  const base ={ ...DEFAULT_LOOK, ...(LOOKS[team.id] || {}), main: (LOOKS[team.id] || {}).main || team.color, team: team.id };
   const n = op.name.en;
   const L = { ...base, name: n };
   L.leader = op === team.ops?.[0] || !!op.leader || /sergeant|leader|boss|nob\b|captain|commander|exarch|archsybarite|felarch|shas'ui|chieftain|watchmaster|champion|despotek|technomancer|geomancer|theyn|superior|primus|magus|proctor|kill-broker|technoarcheologist|chaos lord|visionary|demagogue|herald|tempestor|fixer|confessor|vhane|princeps|strain leader|shas'vre|lead player|nightfiend|chosen|prime/i.test(n);
