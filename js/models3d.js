@@ -101,51 +101,51 @@ const LOOKS = {
   angels: { body: 'marine', main: '#2f5fb8', trim: '#d8b04a', cloth: '#d9cfb0', eye: '#e03a2a' },
   deathwatch: { body: 'marine', main: '#24262b', trim: '#c9ccd1', cloth: '#5a2a24', eye: '#e03a2a', silverArm: true },
   nemesisClaw: { body: 'marine', chaos: true, main: '#1f3a6e', trim: '#b88a3a', cloth: '#5b1e1e', eye: '#e8e0ff', batWings: true },
-  legionaries: { body: 'marine', chaos: true, main: '#6b1d27', trim: '#b88a3a', cloth: '#2a2a2a', eye: '#ff6a2a' },
-  murderwing: { body: 'marine', chaos: true, main: '#7a2638', trim: '#c49a4a', cloth: '#222', eye: '#ff4a8a', jump: true },
+  legionaries: { body: 'marine', chaos: true, main: '#1e1e22', trim: '#c9a227', cloth: '#5a1a1a', eye: '#ff3a2a' }, // official: Black Legion black and gold
+  murderwing: { body: 'marine', chaos: true, main: '#2a3a5e', trim: '#c49a4a', cloth: '#5a1a1a', eye: '#ff4a3a', jump: true }, // official: midnight-blue armour with brass
   plagueMarines: { body: 'marine', chaos: true, plague: true, main: '#7d8a46', trim: '#9c7a3e', cloth: '#d0c9a8', eye: '#c8ff3a' },
-  warpcoven: { body: 'marine', chaos: true, rubric: true, main: '#2763a8', trim: '#d8b04a', cloth: '#d4c9a0', eye: '#4af0ff' },
-  phobos: { body: 'marine', phobos: true, main: '#3d6b4c', trim: '#a8a8a0', cloth: '#4a4f3a', eye: '#e03a2a' },
-  scoutSquad: { body: 'marine', scout: true, main: '#4f6a85', trim: '#8a8f94', cloth: '#5a5f45', skin: '#d6a785' },
+  warpcoven: { body: 'marine', chaos: true, rubric: true, main: '#2a7a9a', trim: '#d8b04a', cloth: '#d4c9a0', eye: '#4af0ff' }, // official: teal-blue armour heavy with gold
+  phobos: { body: 'marine', phobos: true, main: '#2c55a8', trim: '#c9c9c0', cloth: '#3a4a3a', eye: '#e03a2a' }, // official: Ultramarine blue Phobos armour
+  scoutSquad: { body: 'marine', scout: true, main: '#2e3238', trim: '#8a8f94', cloth: '#4a4f40', skin: '#d6a785' }, // official: dark grey scout armour
   wolfScouts: { body: 'marine', scout: true, wolf: true, main: '#6d8aa3', trim: '#c8b07a', cloth: '#8a8c88', skin: '#e0b494' },
-  deathKorps: { body: 'guard', coat: true, gasmask: true, main: '#5d6a5c', trim: '#3a3f3a', cloth: '#6f7466', eye: '#cf3a2a' },
-  kasrkin: { body: 'guard', carapace: true, visor: true, main: '#5c7a3a', trim: '#2d3a26', cloth: '#7a6f52', eye: '#e8a02a' },
-  aquilons: { body: 'guard', carapace: true, visor: true, main: '#3c4c75', trim: '#9aa0aa', cloth: '#2e3242', eye: '#e03a2a' },
-  spectres: { body: 'guard', carapace: true, cloak: true, visor: true, main: '#56634a', trim: '#2f362a', cloth: '#6b7d5a', eye: '#7fe03a' },
+  deathKorps: { body: 'guard', coat: true, gasmask: true, main: '#4c5862', trim: '#2f353a', cloth: '#7a6e58', eye: '#cf3a2a' }, // official: slate greatcoats, khaki webbing
+  kasrkin: { body: 'guard', carapace: true, visor: true, main: '#7a8f5a', trim: '#2d3a26', cloth: '#6a6450', eye: '#e8a02a' }, // official: pale olive carapace
+  aquilons: { body: 'guard', carapace: true, visor: true, main: '#5a5e60', trim: '#9aa0aa', cloth: '#7a6448', eye: '#e03a2a' }, // official: gunmetal carapace, tan fatigues
+  spectres: { body: 'guard', carapace: true, cloak: true, visor: true, main: '#6a3a2a', trim: '#2f2f2a', cloth: '#4a4a3a', eye: '#7fe03a' }, // official: rust-brown jackets, dark kit
   blooded: { body: 'guard', gasmask: true, rags: true, main: '#6e3a30', trim: '#3c2a24', cloth: '#a33a2f', eye: '#ff3a2a' },
-  broodBrothers: { body: 'guard', helmet: true, main: '#6c5a8c', trim: '#3e3550', cloth: '#a89f8a', skin: '#c7a9c0' },
+  broodBrothers: { body: 'guard', helmet: true, main: '#4a4a52', trim: '#7a2a30', cloth: '#3a3a40', skin: '#c7a9c0' }, // official: dark grey fatigues, maroon armour
   navyBreachers: { body: 'guard', carapace: true, visor: true, void: true, main: '#3f6a8a', trim: '#c9a227', cloth: '#2c3a46', eye: '#4ad0ff' },
   exaction: { body: 'guard', carapace: true, visor: true, main: '#2d3442', trim: '#b8bcc4', cloth: '#1e232c', eye: '#e03a2a' },
   elucidianStarstriders: { body: 'guard', coat: true, bare: true, main: '#2f5f9a', trim: '#d8b04a', cloth: '#d8d0b8', skin: '#d8a888' },
   inquisitorialAgents: { body: 'guard', coat: true, bare: true, main: '#6e1824', trim: '#b8a070', cloth: '#2a2a2a', skin: '#d8a888' },
   novitiates: { body: 'sister', robe: true, main: '#a8303e', trim: '#2a2a2a', cloth: '#e8e0d0', skin: '#e0b494', hair: '#e8e8e8' },
-  celestianInsidiants: { body: 'sister', main: '#2a2a2e', trim: '#d8b04a', cloth: '#e8e0d0', skin: '#e0b494', hair: '#f0f0f0' },
+  celestianInsidiants: { body: 'sister', main: '#24242a', trim: '#b8bcc4', cloth: '#8a1e24', skin: '#e0b494', hair: '#f0f0f0' }, // official: black armour, silver trim, red robes
   sanctifiers: { body: 'guard', robe: true, hood: true, main: '#7a6f52', trim: '#c9a227', cloth: '#d8d0b8', skin: '#d8a888' },
   chaosCult: { body: 'guard', rags: true, hood: true, main: '#6a3a3a', trim: '#8a6a3a', cloth: '#9b2c2c', skin: '#c9a08a' },
-  goremongers: { body: 'guard', rags: true, mask: true, main: '#8a1e1a', trim: '#c9a227', cloth: '#3a2a24', skin: '#c9a08a' },
+  goremongers: { body: 'guard', rags: true, mask: true, main: '#7a1e1a', trim: '#c9a227', cloth: '#b88878', skin: '#c9a08a' }, // official: bare pale flesh, red cloth, brass
   wyrmblade: { body: 'guard', helmet: true, goggles: true, main: '#c9a227', trim: '#5a4a3a', cloth: '#6a5a40', skin: '#b8a0c8' },
   gellerpox: { body: 'guard', bloated: true, rags: true, main: '#8a5a6a', trim: '#5a4a3a', cloth: '#a0607a', skin: '#c8b090' },
   bladesOfKhaine: { body: 'eldar', aspect: true, main: '#2f8f5b', trim: '#e8d8a0', cloth: '#d8d0b0', eye: '#e03a2a' },
-  corsairVoidscarred: { body: 'eldar', cloak: true, main: '#2a6f74', trim: '#c9c9c9', cloth: '#3a2a4a', eye: '#4af0ff' },
+  corsairVoidscarred: { body: 'eldar', cloak: true, main: '#24525e', trim: '#c9a227', cloth: '#6a1e24', eye: '#4af0ff' }, // official: deep teal armour, maroon cloaks, gold
   voidDancers: { body: 'eldar', harlequin: true, main: '#c2398f', trim: '#e8c040', cloth: '#2a2a2a', eye: '#ffffff' },
-  handOfArchon: { body: 'eldar', drukhari: true, main: '#4a2a66', trim: '#a8a8b0', cloth: '#1e1e24', eye: '#7fe03a' },
-  mandrakes: { body: 'eldar', mandrake: true, main: '#1f2a36', trim: '#3a4a5a', cloth: '#14181e', skin: '#2a3a4a', eye: '#4affd0' },
+  handOfArchon: { body: 'eldar', drukhari: true, main: '#1e3a38', trim: '#b0b0b8', cloth: '#3a1e3a', eye: '#7fe03a' }, // official: dark teal-black Kabalite armour, silver blades
+  mandrakes: { body: 'eldar', mandrake: true, main: '#2e3034', trim: '#4a4c50', cloth: '#1a1c20', skin: '#c8ccc6', eye: '#8aff3a' }, // official: pale grey-white skin, dark rags, green glow
   exoditeDragonMasters: { body: 'eldar', cloak: true, main: '#4f8a3c', trim: '#d8b04a', cloth: '#a8603a', eye: '#4af0ff' },
-  tauPathfinders: { body: 'tau', main: '#c88a3a', trim: '#5a5a52', cloth: '#3a3a36', skin: '#5a6a8a', eye: '#3af0ff' },
-  stealthSuits: { body: 'battlesuit', main: '#4f6f7f', trim: '#2a3236', cloth: '#2a3236', eye: '#3af0ff' },
-  vespids: { body: 'vespid', main: '#3a9ac0', trim: '#2a2a3a', cloth: '#5a4a3a', skin: '#6a8a5a', eye: '#3affd0' },
-  farstalkers: { body: 'kroot', main: '#6f7d55', trim: '#5a4a3a', cloth: '#b9772f', skin: '#7a8a5a', eye: '#e8c040' },
-  kommandos: { body: 'ork', main: '#4a5a3a', trim: '#5a4a3a', cloth: '#5f6a42', skin: '#4f8a2b', eye: '#ff3a2a' },
-  wreckaKrew: { body: 'ork', armoured: true, main: '#d9661f', trim: '#5a5a5a', cloth: '#3a3a3a', skin: '#4f8a2b', eye: '#ff3a2a' },
+  tauPathfinders: { body: 'tau', main: '#dcd8cc', trim: '#8a2a24', cloth: '#3a3a40', skin: '#5a6a8a', eye: '#3af0ff' }, // official: white armour, dark fatigues, red markings
+  stealthSuits: { body: 'battlesuit', main: '#dcd8cc', trim: '#a8302a', cloth: '#2a3236', eye: '#3af0ff' }, // official: white armour with red
+  vespids: { body: 'vespid', main: '#e2691a', trim: '#e8e2d4', cloth: '#5a4a3a', skin: '#d65f16', eye: '#ff3a1a' }, // as the official miniatures: orange chitin, white T'au kit
+  farstalkers: { body: 'kroot', main: '#b8a582', trim: '#5a4a3a', cloth: '#a8342a', skin: '#a89878', eye: '#e8c040' }, // official: pale tan skin, brick-red quills
+  kommandos: { body: 'ork', main: '#3a3a36', trim: '#5a4a3a', cloth: '#45483c', skin: '#5f9a2b', eye: '#ff3a2a' }, // official: bright green skin, dark fatigues, red bandanas
+  wreckaKrew: { body: 'ork', armoured: true, main: '#4a4a4c', trim: '#a8302a', cloth: '#3a3a3a', skin: '#5f9a2b', eye: '#ff3a2a' }, // official: gunmetal armour with red
   hearthkyn: { body: 'votann', main: '#d07a2a', trim: '#4a4a4e', cloth: '#5a5a5e', skin: '#d8a888', eye: '#4af0ff' },
-  hernkynYaegirs: { body: 'votann', bare: true, main: '#8a6a3a', trim: '#4a4a4e', cloth: '#b8742a', skin: '#d8a888', hair: '#c8642a' },
+  hernkynYaegirs: { body: 'votann', bare: true, main: '#5a5e62', trim: '#c87a2a', cloth: '#b8742a', skin: '#d8a888', hair: '#c8642a' }, // official: grey armour, orange accents
   ratlings: { body: 'ratling', main: '#7a7a4a', trim: '#5a4a3a', cloth: '#a58b3c', skin: '#d8a888' },
-  hierotek: { body: 'necron', main: '#a8b0b8', trim: '#d8b04a', cloth: '#2a2a2a', eye: '#3aff6a' },
+  hierotek: { body: 'necron', main: '#8f979f', trim: '#b07a4a', cloth: '#2a2a2a', eye: '#3aff6a' }, // official: dark silver with bronze, green glow
   canoptekCircle: { body: 'necron', main: '#9aa4ac', trim: '#2fb59a', cloth: '#2a2a2a', eye: '#3affc0' },
   hunterClade: { body: 'skitarii', main: '#a8382a', trim: '#c9b9a0', cloth: '#8a2a20', skin: '#c9b9a0', eye: '#3aff6a' },
-  battleclade: { body: 'skitarii', servitor: true, main: '#8f3b2a', trim: '#9a9a9a', cloth: '#6a2a20', skin: '#c8b0a0', eye: '#3aff6a' },
-  fellgor: { body: 'gor', main: '#5a3a24', trim: '#8a8a8a', cloth: '#7a5a2a', skin: '#6a4a30', eye: '#ffa03a' },
-  raveners: { body: 'ravener', main: '#8a4ab8', trim: '#e8dcc0', cloth: '#5a2a7a', skin: '#e8dcc0', eye: '#ff3a3a' },
+  battleclade: { body: 'skitarii', servitor: true, main: '#5a5e64', trim: '#a8302a', cloth: '#8a2a20', skin: '#c8b0a0', eye: '#3aff6a' }, // official: gunmetal servitors, red-robed tech-priest
+  fellgor: { body: 'gor', main: '#4a3a30', trim: '#8a8a8a', cloth: '#6a2a24', skin: '#6a5a4a', eye: '#ffa03a' }, // official: grey-brown hide, dark red cloth, iron
+  raveners: { body: 'ravener', main: '#3e4272', trim: '#dcd8cc', cloth: '#5a2a7a', skin: '#c8c4d8', eye: '#ff3a3a' }, // official: dark blue-violet carapace, pale bone flesh
 };
 const DEFAULT_LOOK = { body: 'guard', helmet: true, main: '#6a6a6a', trim: '#3a3a3a', cloth: '#5a5a5a', skin: '#d8a888' };
 
@@ -456,7 +456,7 @@ export function createModelKit(THREE) {
     const eye = glow(L.eye || '#e03a2a');
     const necron = L.body === 'necron';
     const limbMat = necron ? METAL() : ['ork', 'gor', 'kroot', 'vespid'].includes(L.body) || L.mandrake ? skin : L.body === 'guard' && !L.carapace ? cloth : main;
-    const hunch = ['ork', 'gor', 'ogryn'].includes(L.body) ? 0.06 * k : L.servitor ? 0.05 : 0;
+    const hunch = ['ork', 'gor', 'ogryn'].includes(L.body) ? 0.06 * k : L.body === 'vespid' ? 0.07 * k : L.servitor ? 0.05 : 0;
 
     // Legs.
     const hipY = L.float ? B.leg + 0.15 : B.leg, hx = B.tw * 0.26;
@@ -476,7 +476,7 @@ export function createModelKit(THREE) {
         const legM = necron ? METAL() : L.carapace || ['marine', 'sister', 'battlesuit', 'votann', 'tau', 'eldar'].includes(L.body) || L.armoured ? main : cloth;
         legs.push(limb(hip, knee, B.legR, legM, B.legR * 1.05), limb(knee, foot, B.legR * 0.9, legM));
         legs.push(box(B.legR * 2, B.legR * 1.2, B.legR * 3, L.body === 'marine' || L.body === 'battlesuit' ? main : DARK(), foot.x, B.legR * 0.6, foot.z + B.legR * 0.6));
-        if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, L.body === 'marine' ? main : trim, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
+        if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, L.body === 'marine' || L.body === 'votann' ? main : trim, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
         if (necron) legs.push(sph(B.legR * 1.3, METAL(), knee.x, knee.y, knee.z));
       }
     }
@@ -486,7 +486,7 @@ export function createModelKit(THREE) {
     const torsoY = hipY + B.th / 2 + 0.02;
     const upper = new THREE.Group();
     upper.position.set(0, 0, hunch);
-    add(upper, box(B.tw * 0.85, 0.1 * k, B.td * 0.9, necron ? METAL() : L.body === 'marine' ? main : DARK(), 0, hipY + 0.02, 0));
+    add(upper, box(B.tw * 0.85, 0.1 * k, B.td * 0.9, necron ? METAL() : L.body === 'marine' || L.body === 'vespid' ? main : DARK(), 0, hipY + 0.02, 0));
     if (necron) {
       add(upper, box(B.tw * 0.9, B.th * 0.45, B.td, main, 0, torsoY + B.th * 0.2, 0), cyl(0.025, 0.025, B.th * 0.6, METAL(), 0, torsoY - 0.05, -0.02));
       for (let i = 0; i < 3; i++) add(upper, box(B.tw * 0.7, 0.012, B.td * 0.9, METAL(), 0, torsoY - 0.05 - i * 0.04, 0.005));
@@ -503,10 +503,24 @@ export function createModelKit(THREE) {
       if (L.harlequin) for (let i = 0; i < 4; i++) add(upper, aimY(box(0.05, 0.05, 0.01, mat(i % 2 ? L.trim : '#2a2a2a'), (i % 2 ? 1 : -1) * 0.04, torsoY - 0.06 + Math.floor(i / 2) * 0.1, B.td / 2 + 0.006), V(0, 1, 0)).rotateZ(Math.PI / 4));
       if (L.body === 'ork') add(upper, box(B.tw * 0.9, B.th * 0.35, 0.04, L.armoured ? mat(L.main, { metal: 0.5 }) : cloth, 0, torsoY + B.th * 0.12, B.td / 2 + 0.01));
       if (L.body === 'battlesuit') add(upper, box(B.tw * 0.7, B.th * 0.5, 0.05, mat(L.trim), 0, torsoY + B.th * 0.12, B.td / 2 + 0.01), sph(0.025, eye, 0, torsoY + B.th * 0.12, B.td / 2 + 0.045));
-      if (L.body === 'vespid') add(upper, sph(B.tw * 0.55, main, 0, hipY - 0.04, -B.td * 0.9, 10, 8), cone(0.04, 0.12, main, 0, hipY - 0.12, -B.td * 1.3));
+      if (L.body === 'vespid') {
+        // As on the official miniatures: a slender segmented tail curling down and forward under the body,
+        // between the legs, ending in a small stinger.
+        const ridge = mat('#b84e10', { rough: 0.5 }), n = 9;
+        const P = [V(0, hipY + 0.02, -B.td * 0.45), V(0, hipY - 0.2 * k, -B.td * 1.1), V(0, hipY - 0.45 * k, -B.td * 0.3), V(0, hipY - 0.38 * k, 0.12 * k)];
+        const bez = (t) => { const u = 1 - t; return V().addScaledVector(P[0], u * u * u).addScaledVector(P[1], 3 * u * u * t).addScaledVector(P[2], 3 * u * t * t).addScaledVector(P[3], t * t * t); };
+        let prev = bez(0);
+        for (let i = 1; i <= n; i++) {
+          const p = bez(i / n), r = B.tw * (0.3 - (i / n) * 0.22);
+          add(upper, limb(prev, p, r * 0.9, i % 2 ? main : ridge, r), sph(r * 1.05, i % 2 ? ridge : main, p.x, p.y, p.z, 8, 6));
+          prev = p;
+        }
+        const dir = V().subVectors(bez(1), bez(0.9)).normalize();
+        add(upper, aimY(cone(0.018 * k, 0.1 * k, mat('#2a1408', { rough: 0.4 }), prev.x + dir.x * 0.05 * k, prev.y + dir.y * 0.05 * k, prev.z + dir.z * 0.05 * k, 6), dir));
+      }
     }
     // Skirts: robes reach the ground, coats reach the knees, marines and sisters have tassets.
-    const robe = L.robe || L.body === 'skitarii' && !L.sicarian || (L.body === 'sister' && L.robe) || L.hood && L.body === 'guard' && L.robe;
+    const robe = L.robe || L.body === 'skitarii' && !L.sicarian && !L.servitor || (L.body === 'sister' && L.robe) || L.hood && L.body === 'guard' && L.robe;
     if (robe) add(upper, cyl(B.tw * 0.5, B.tw * 0.75, hipY * 0.9, cloth, 0, hipY * 0.55, 0, 10));
     else if (L.coat || L.cloak && L.body === 'guard') add(upper, cyl(B.tw * 0.52, B.tw * 0.68, hipY * 0.55, L.coat ? mat(L.main, { rough: 0.9 }) : cloth, 0, hipY * 0.72, -0.01, 10));
     else if (L.rags || L.body === 'gor' || L.body === 'kroot') add(upper, box(B.tw * 0.5, hipY * 0.4, 0.02, cloth, 0, hipY * 0.8, B.td * 0.42));
@@ -617,7 +631,7 @@ export function createModelKit(THREE) {
           ...[-1, 1].map((s) => cone(r * 0.1, r * 0.3, mat('#e8e0c0'), s * r * 0.5, -r * 0.2, r * 1.05, 4)));
         if (L.grot) add(h, ...[-1, 1].map((s) => aimY(cone(r * 0.35, r * 1.4, sk, s * r * 1.2, r * 0.3, 0, 4), V(s, 0.4, 0))), cone(r * 0.25, r * 0.8, sk, 0, 0, r * 1.2, 5).rotateX(Math.PI / 2));
         else if (L.armoured || L.leader) add(h, sph(r * 1.05, mat(L.trim, { metal: 0.6 }), 0, r * 0.35, -r * 0.1, 8, 6), cone(r * 0.12, r * 0.6, METAL(), 0, r * 1.3, 0, 5));
-        else add(h, box(r * 2.2, r * 0.2, r * 0.3, mat('#2a2a2a'), 0, r * 0.4, r * 0.3));
+        else add(h, mesh(new THREE.TorusGeometry(r * 0.95, r * 0.14, 5, 14), mat(L.team === 'kommandos' ? '#a82a24' : '#2a2a2a', { rough: 0.9 }), 0, r * 0.35, 0).rotateX(Math.PI / 2 - 0.15), L.team === 'kommandos' ? box(r * 0.25, r * 0.6, r * 0.08, mat('#a82a24', { rough: 0.9 }), r * 0.3, r * 0.05, -r * 0.95) : null); // bandana (red for Kommandos, with a knot tail)
         break;
       }
       case 'votann': {
@@ -641,7 +655,23 @@ export function createModelKit(THREE) {
         }
         break;
       }
-      case 'vespid': add(h, sph(r, c.skin, 0, 0, 0, 8, 6), sph(r * 0.45, c.eye, r * 0.55, r * 0.15, r * 0.55, 8, 6), sph(r * 0.45, c.eye, -r * 0.55, r * 0.15, r * 0.55, 8, 6), ...[-1, 1].map((s) => limb(V(s * r * 0.3, r * 0.6, r * 0.3), V(s * r * 0.9, r * 2.0, r * 0.6), r * 0.06, c.skin))); break;
+      case 'vespid': {
+        // As on the official miniatures: a long, narrow insect skull leaning forward, slanted dark eyes,
+        // small mandibles, and a pair of curved, branching antler-like antennae sweeping up and back.
+        const shell = mat(L.main, { rough: 0.45 }), ridge = mat('#b84e10', { rough: 0.5 }), dark = mat('#1e0a04', { metal: 0.4, rough: 0.2 });
+        const skull = sph(r * 0.8, shell, 0, r * 0.1, 0, 12, 10); skull.scale.set(0.85, 1.55, 1.05); skull.rotation.x = 0.35;
+        const snout = sph(r * 0.45, shell, 0, -r * 0.75, r * 0.45, 10, 8); snout.scale.set(0.8, 1.2, 0.9);
+        add(h, skull, snout, box(r * 0.12, r * 1.4, r * 0.12, ridge, 0, r * 0.35, r * 0.62).rotateX(0.35)); // crest ridge down the face
+        for (const s of [-1, 1]) {
+          const e = sph(r * 0.24, dark, s * r * 0.38, -r * 0.15, r * 0.68, 8, 6); e.scale.set(0.7, 1.4, 0.6); e.rotation.z = s * 0.5;
+          add(h, e, sph(r * 0.06, c.eye, s * r * 0.36, -r * 0.1, r * 0.83, 4, 3));
+          add(h, aimY(cone(r * 0.08, r * 0.4, dark, s * r * 0.18, -r * 1.2, r * 0.6, 5), V(-s * 0.6, -1, 0.3))); // mandible
+          // Antler: a main curved horn with one branch.
+          const a0 = V(s * r * 0.3, r * 1.0, r * 0.1), a1 = V(s * r * 0.6, r * 1.9, -r * 0.4), a2 = V(s * r * 0.55, r * 2.6, -r * 1.2), b1 = V(s * r * 1.0, r * 2.2, -r * 0.1);
+          add(h, limb(a0, a1, r * 0.09, shell, r * 0.07), limb(a1, a2, r * 0.07, shell, r * 0.03), limb(a1, b1, r * 0.05, shell, r * 0.02));
+        }
+        break;
+      }
       default: add(h, sph(r, c.skin, 0, 0, 0));
     }
   }
@@ -706,11 +736,21 @@ export function createModelKit(THREE) {
   }
 
   function addWings(fig, L, B, y, k) {
-    const wm = mat('#c8e8f0', { opacity: 0.5, rough: 0.2 });
+    // As on the official miniatures: two pairs of long, narrow, pale membranes with red veins and teal tips,
+    // raised up and back.
+    const wm = mat('#efe4c4', { opacity: 0.6, rough: 0.2, side: 'double' }), vein = mat('#c0401a', { rough: 0.5 }), tipM = mat('#3ab8a0', { opacity: 0.7, rough: 0.2, side: 'double' });
     for (const s of [-1, 1]) for (const lo of [0, 1]) {
-      const w = box(0.01, 0.4 * k, 0.12 * k, wm, s * 0.15 * k, y + 0.2 - lo * 0.12, -B.td * 0.7);
-      aimY(w, V(s * (0.9 - lo * 0.3), 1 - lo * 0.6, -0.3));
-      add(fig, w);
+      const len = (lo ? 0.42 : 0.62) * k, wide = (lo ? 0.09 : 0.12) * k, dir = (lo ? V(s * 0.95, 0.4, -0.7) : V(s * 0.65, 0.9, -0.75)).normalize();
+      const root = V(s * 0.05 * k, y + B.th * 0.38 - lo * 0.06 * k, 0.07 * k - B.td * 0.45); // (the torso leans forward by 0.07k)
+      const tip = sph(0.5, tipM, root.x + dir.x * len * 0.88, root.y + dir.y * len * 0.88, root.z + dir.z * len * 0.88, 10, 5);
+      tip.scale.set(0.014, len * 0.25, wide * 0.7); tip.castShadow = false; aimY(tip, dir, V(s, 0, 0));
+      add(fig, tip, ...[0.25, 0.55].map((f) => limb(root.clone().addScaledVector(dir, len * 0.1), root.clone().addScaledVector(dir, len * 0.9).add(V(0, -wide * f * 0.5, 0)), 0.003 * k, vein)));
+      const w = sph(0.5, wm, root.x + dir.x * len / 2, root.y + dir.y * len / 2, root.z + dir.z * len / 2, 12, 6); // a leaf-shaped membrane
+      w.scale.set(0.012, len, wide);
+      w.castShadow = false;
+      aimY(w, dir, V(s, 0, 0)); // membrane lies flat (thin side up)
+      const edge = root.clone().addScaledVector(dir, len * 0.95);
+      add(fig, w, limb(root, edge, 0.005 * k, vein));
     }
   }
 
@@ -829,7 +869,7 @@ export function createModelKit(THREE) {
     const n = L.name.toLowerCase(), g = new THREE.Group();
     const wolf = /wolf/.test(n), cyber = /mastiff|battlemutt|cyber/.test(n), kroot = /kroot hound/.test(n), lizard = /drakolithe/.test(n);
     const k = wolf ? 1.6 : lizard ? 1.3 : 1;
-    const fur = mat(wolf ? '#8a8c88' : kroot ? '#7a8a5a' : lizard ? '#4f8a3c' : cyber ? '#3a3c40' : '#7a5a3a', { metal: cyber ? 0.6 : 0, rough: cyber ? 0.4 : 0.9 });
+    const fur = mat(wolf ? '#a88a5a' : kroot ? '#a89878' : lizard ? '#4f8a3c' : cyber ? '#3a3c40' : '#7a5a3a', { metal: cyber ? 0.6 : 0, rough: cyber ? 0.4 : 0.9 });
     const legY = 0.32 * k, bodyL = 0.55 * k;
     const torso = sph(0.17 * k, fur, 0, legY + 0.06 * k, 0, 10, 8); torso.scale.set(0.8, 0.75, bodyL / 0.34 / k);
     add(g, torso);
@@ -1018,6 +1058,12 @@ export function createModelKit(THREE) {
     root.add(baseFor(op, L, team.color));
     fig.position.y += 0.0;
     if (fig.userData.humanoid) fig.scale.multiplyScalar(1.15);
+    if (L.body === 'vespid') { // Vespids hover above the base on a ruined strut, as the official miniatures do
+      fig.position.y = 0.35;
+      const strut = mat('#4a4c50', { metal: 0.5, rough: 0.6 });
+      const v0 = V(0.12, 0, 0.05), v1 = V(0.02, 0.62, -0.06);
+      root.add(limb(v0, v1, 0.05, strut, 0.035), box(0.28, 0.08, 0.2, mat('#3a3c40', { rough: 0.9 }), 0.12, 0.04, 0.05), box(0.12, 0.06, 0.1, mat('#5a5448', { rough: 1 }), -0.12, 0.03, -0.1));
+    }
     root.add(fig);
     root.userData = { opId: op.id, look: L, picks };
     return root;

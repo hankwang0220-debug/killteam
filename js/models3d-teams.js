@@ -112,7 +112,7 @@ export function teamDetails(h) {
 
     tauPathfinders(c) {
       const { upper, head, B, k, torsoY, front, L } = c;
-      add(upper, cyl(0.05 * k, 0.05 * k, 0.01, mat('#e8e0d0'), 0, torsoY + B.th * 0.18, front + 0.03, 14).rotateX(Math.PI / 2)); // sept symbol
+      add(upper, cyl(0.05 * k, 0.05 * k, 0.01, mat(L.trim), 0, torsoY + B.th * 0.18, front + 0.03, 14).rotateX(Math.PI / 2)); // sept symbol (red on the white armour)
       add(upper, mesh(new THREE.TorusGeometry(0.035 * k, 0.006, 4, 12, Math.PI), mat(L.main), 0, torsoY + B.th * 0.18, front + 0.04));
       belt(c, mat('#3a3a36'), mat(L.main), 3);
       add(upper, box(B.tw * 0.4, c.hipY * 0.45, 0.012, mat('#3a3a36', { rough: 1 }), 0, c.hipY * 0.75, front + 0.01), box(B.tw * 0.5, c.hipY * 0.45, 0.012, mat('#3a3a36', { rough: 1 }), 0, c.hipY * 0.75, c.back - 0.01)); // loincloth
@@ -503,7 +503,7 @@ export function teamDetails(h) {
 
     mandrakes(c) {
       const { upper, head, fig, B, k, torsoY, front, back, L } = c;
-      const rune = glow('#4affd0');
+      const rune = glow('#8aff3a');
       for (let i = 0; i < 5; i++) add(upper, box(0.012, 0.06 * k, 0.006, rune, ((i * 37) % 7 / 7 - 0.5) * B.tw * 0.8, torsoY + ((i * 53) % 5 / 5 - 0.4) * B.th, front + 0.006).rotateZ(i * 0.7)); // glowing runes
       for (let i = 0; i < 4; i++) add(upper, box(0.04 * k, c.hipY * (0.4 + (i % 2) * 0.2), 0.008, mat('#14181e', { rough: 1 }), (i - 1.5) * B.tw * 0.22, c.hipY * 0.75, (i % 2 ? front : back))); // tattered rags
       add(upper, mesh(new THREE.TorusGeometry(B.tw * 0.45, 0.01 * k, 4, 16), METAL(), 0, torsoY - B.th * 0.1, 0).rotateX(Math.PI / 2 - 0.3)); // chain
@@ -631,10 +631,22 @@ export function teamDetails(h) {
     },
 
     vespids(c) {
-      const { upper, head, B, k, torsoY, front, L } = c;
-      add(upper, box(B.tw * 0.9, B.th * 0.45, 0.05 * k, mat('#d8d0c0', { rough: 0.5 }), 0, torsoY + B.th * 0.15, front + 0.02), cyl(0.04 * k, 0.04 * k, 0.01, mat(L.main), 0, torsoY + B.th * 0.18, front + 0.05, 12).rotateX(Math.PI / 2)); // Tau armour plate with sept symbol
-      add(head, box(B.head * 0.8, B.head * 0.35, B.head * 0.6, mat('#d8d0c0', { rough: 0.5 }), 0, B.head * 0.7, -B.head * 0.1), sph(B.head * 0.15, glow('#3affd0'), B.head * 0.4, B.head * 0.7, B.head * 0.2, 6, 4)); // communion helm
-      if (L.leader) add(head, ...[-1, 1].map((s) => limb(V(s * B.head * 0.3, B.head * 0.8, 0), V(s * B.head * 0.7, B.head * 2.6, -B.head * 0.4), 0.008 * k, mat(L.main))));
+      const { upper, fig, head, B, k, torsoY, front, back, L } = c;
+      const shell = mat(L.main, { rough: 0.45 }), ridge = mat('#b84e10', { rough: 0.5 }), white = mat('#e8e2d4', { rough: 0.5 });
+      // Domed chitin shoulder plates and ridged plates down the thorax, as on the official miniatures.
+      for (const s of [-1, 1]) {
+        const dome = mesh(new THREE.SphereGeometry(B.armR * 2.6, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), shell, s * (B.sx + 0.01), c.shY - 0.01, 0);
+        dome.scale.set(1, 0.85, 1.1); dome.rotation.z = -s * 0.35;
+        add(upper, dome, mesh(new THREE.TorusGeometry(B.armR * 2.2, 0.008 * k, 4, 12), ridge, s * (B.sx + 0.01), c.shY - 0.01, 0).rotateX(Math.PI / 2));
+      }
+      for (let i = 0; i < 3; i++) add(upper, box(B.tw * (0.85 - i * 0.15), 0.025 * k, 0.02, ridge, 0, torsoY + B.th * (0.25 - i * 0.22), front + 0.012));
+      for (let i = 0; i < 3; i++) add(upper, aimY(cone(0.012 * k, 0.06 * k, ridge, 0, torsoY + B.th * (0.35 - i * 0.25), back - 0.01, 5), V(0, 0.4, -1)));
+      // T'au kit: a white armour plate on the left shoulder with a sept symbol, and the communion helm at the back of the head.
+      const plate = box(B.armR * 3, B.armR * 0.8, B.armR * 3.2, white, B.sx + 0.03, c.shY + B.armR * 1.5, 0); plate.rotation.z = -0.4;
+      add(upper, plate, cyl(0.025 * k, 0.025 * k, 0.01, mat(L.main), B.sx + 0.05 + B.armR * 0.9, c.shY + B.armR * 1.3, 0, 10).rotateZ(Math.PI / 2));
+      add(head, box(B.head * 0.45, B.head * 0.3, B.head * 0.4, white, 0, B.head * 0.4, -B.head * 0.85), sph(B.head * 0.1, glow('#3aff8a'), 0, B.head * 0.6, -B.head * 0.85, 6, 4));
+      if (L.leader) add(upper, box(B.tw * 0.85, B.th * 0.4, 0.04 * k, white, 0, torsoY + B.th * 0.18, front + 0.03), mesh(new THREE.TorusGeometry(0.035 * k, 0.006, 4, 12, Math.PI), mat(L.main), 0, torsoY + B.th * 0.2, front + 0.06)); // Strain Leader's chest plate
+      if (/shadestrain/i.test(L.name)) for (let i = 0; i < 3; i++) add(upper, box(B.tw * 0.9, 0.02 * k, B.td * 1.05, mat('#6a2a8a', { rough: 0.5 }), 0, torsoY - B.th * (0.1 + i * 0.12), 0)); // darker shadestrain banding
     },
 
     stealthSuits(c) {
@@ -682,6 +694,7 @@ export function teamDetails(h) {
   // Weapon add-ons, per team.
   const W = {
     warpcoven(g, r, L) { if (L.body === 'marine' && (r.form === 'rifle' || r.form === 'heavy' || r.form === 'pistol')) for (let i = 0; i < 3; i++) add(g, cone(0.025 - i * 0.005, 0.1, glow(i ? '#4af0ff' : '#4ab8ff'), (i - 1) * 0.015, 0.03 + (i % 2) * 0.02, (r.form === 'pistol' ? 0.2 : 0.42) + i * 0.02, 5).rotateX(Math.PI / 2)); }, // warpflame at the muzzle
+    vespids(g, r) { if (r.form !== 'pistol' && r.form !== 'bow') add(g, tz(cyl(0.04, 0.04, 0.14, mat('#e8e2d4', { rough: 0.5 }), 0, 0.03, 0.3, 12)), tz(cyl(0.032, 0.032, 0.02, mat('#2a2c30'), 0, 0.03, 0.38, 12)), tz(cyl(0.022, 0.022, 0.16, glow('#3aff8a'), 0, -0.035, 0.14, 8))); }, // neutron blaster: wide muzzle and a glowing green crystal chamber
     tauPathfinders(g, r) { if (r.form === 'rifle') add(g, box(0.035, 0.035, 0.08, DARK(), 0, 0.075, 0.12), sph(0.012, glow('#ff3a2a'), 0, 0.075, 0.165, 6, 4)); }, // markerlight
     deathKorps(g, r) { if (r.form === 'rifle' || r.form === 'sniper') add(g, box(0.01, 0.02, 0.12, METAL(), 0, 0.0, r.form === 'sniper' ? 0.66 : 0.42), box(0.03, 0.03, 0.02, DARK(), 0, 0.01, r.form === 'sniper' ? 0.6 : 0.36)); }, // bayonet
     farstalkers(g, r) {
