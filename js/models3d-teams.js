@@ -393,6 +393,75 @@ export function teamDetails(h) {
       if (/tracker/i.test(L.name)) add(head, tz(cyl(B.head * 0.25, B.head * 0.3, B.head * 0.7, DARK(), -B.head * 0.75, B.head * 0.25, B.head * 0.6)), sph(B.head * 0.2, glow('#ff3a2a'), -B.head * 0.75, B.head * 0.25, B.head * 0.98, 6, 4));
       if (L.leader) add(head, sph(B.head * 1.12, mat('#8a6a3a', { metal: 0.6 }), 0, B.head * 0.3, -B.head * 0.05, 8, 6));
     },
+
+    elucidianStarstriders(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      for (const s of [-1, 1]) add(upper, box(B.armR * 2.6, 0.03 * k, B.armR * 2.6, GOLD(), s * B.sx, c.shY + 0.04 * k, 0), ...[0, 1, 2].map((i) => box(0.008, 0.05 * k, 0.008, GOLD(), s * B.sx + (i - 1) * 0.02 * k, c.shY + 0.01, B.armR * 1.2))); // epaulettes
+      const sash = box(0.05 * k, B.th * 1.1, 0.012, mat('#a82a24'), 0, torsoY, front + 0.012); sash.rotation.z = -0.6; add(upper, sash);
+      belt(c, mat('#2a2a2a'), GOLD(), 3);
+      if (/vhane/i.test(L.name)) add(head, cyl(B.head * 1.6, B.head * 1.6, B.head * 0.1, mat('#1e2a44'), 0, B.head * 0.75, 0, 3), cyl(B.head * 0.9, B.head * 1.0, B.head * 0.5, mat('#1e2a44'), 0, B.head * 1.0, 0, 10), limb(V(B.head * 0.5, B.head * 1.1, 0), V(B.head * 1.4, B.head * 2.2, -B.head * 0.8), 0.012 * k, mat('#f0f0f0'), 0.004)); // tricorne with a plume
+      if (/voidmaster/i.test(L.name)) add(head, cyl(B.head * 1.05, B.head * 1.0, B.head * 0.45, mat('#1e2a44'), 0, B.head * 0.75, 0, 12), box(B.head * 1.2, B.head * 0.06, B.head * 0.6, DARK(), 0, B.head * 0.55, B.head * 0.8), box(B.head * 0.5, B.head * 0.15, B.head * 0.05, GOLD(), 0, B.head * 0.82, B.head * 1.05));
+      if (/voidsman/i.test(L.name)) add(head, sph(B.head * 1.3, mat('#a8d8f0', { opacity: 0.45, rough: 0.1 }), 0, 0, B.head * 0.1, 10, 8)), add(upper, ...[-1, 1].map((s) => cyl(0.035 * k, 0.035 * k, B.th * 0.7, mat('#c9c9c0', { metal: 0.6 }), s * 0.06 * k, torsoY, back - 0.05 * k, 8)));
+      if (/lectro/i.test(L.name)) add(upper, box(B.tw * 0.6, B.th * 0.6, 0.1 * k, DARK(), 0, torsoY + 0.02, back - 0.06 * k), ...[-1, 1].map((s) => cyl(0.02 * k, 0.02 * k, 0.3 * k, glow('#7ab8ff'), s * 0.07 * k, torsoY + B.th * 0.6, back - 0.08 * k, 6)), mesh(new THREE.TorusGeometry(0.06 * k, 0.008, 4, 10), glow('#7ab8ff'), 0, torsoY + B.th * 0.75, back - 0.08 * k)); // tesla coils
+      if (/executioner/i.test(L.name)) add(upper, box(B.tw * 0.5, B.th * 0.9, 0.01, mat('#1a1a1e'), 0, torsoY - 0.05, front + 0.015));
+    },
+
+    chaosCult(c) {
+      const { upper, head, fig, B, k, torsoY, front, back, L } = c;
+      chaosStar(upper, 0, torsoY + B.th * 0.3, front + 0.02, 0.06 * k, BRASS());
+      add(upper, limb(V(-B.tw * 0.15, torsoY + B.th * 0.48, front + 0.01), V(0, torsoY + B.th * 0.32, front + 0.015), 0.004, LEATHER()), limb(V(B.tw * 0.15, torsoY + B.th * 0.48, front + 0.01), V(0, torsoY + B.th * 0.32, front + 0.015), 0.004, LEATHER())); // pendant cord
+      for (let i = 0; i < 3; i++) add(upper, box(B.tw * 1.02, 0.025 * k, B.td * 1.04, mat('#c8b890', { rough: 1 }), 0, torsoY - B.th * (0.2 - i * 0.15), 0).rotateZ((i - 1) * 0.15)); // crude wrappings
+      if (/mutant|torment|blade/i.test(L.name)) {
+        const tent = mat('#9a6a7a', { rough: 0.5 });
+        const p0 = V(B.sx * 0.9, c.shY - 0.08 * k, c.hunch + back * 0.5), p1 = V(B.sx * 1.8, c.shY - 0.2 * k, 0.15 * k), p2 = V(B.sx * 1.6, c.shY - 0.45 * k, 0.4 * k);
+        add(fig, limb(p0, p1, 0.035 * k, tent), limb(p1, p2, 0.025 * k, tent), cone(0.025 * k, 0.1 * k, BONE(), p2.x, p2.y - 0.04, p2.z, 5).rotateX(Math.PI)); // mutated extra limb
+        add(head, ...[0, 1, 2].map((i) => cone(B.head * 0.12, B.head * 0.5, BONE(), (i - 1) * B.head * 0.5, B.head * 0.9, 0, 5)));
+      }
+      if (/mindwitch/i.test(L.name)) add(head, ...[-1, 1].map((s) => sph(B.head * 0.18, glow('#d04aff'), s * B.head * 0.35, B.head * 0.05, B.head * 0.95, 6, 4)));
+      if (/demagogue/i.test(L.name)) add(upper, mesh(new THREE.CylinderGeometry(B.tw * 0.55, B.tw * 0.8, B.th + c.hipY * 0.85, 10, 1, true, Math.PI * 0.6, Math.PI * 0.8), mat('#5a1a1a', { rough: 1, side: 'double' }), 0, c.hipY * 0.15 + (B.th + c.hipY * 0.85) / 2, back * 0.3));
+      if (L.icon) { const g = new THREE.Group(); chaosStar(g, B.tw * 0.3 + 0.11 * k, torsoY + 0.55 * k, back - 0.09, 0.1 * k, BRASS()); add(upper, g); }
+    },
+
+    celestianInsidiants(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      fleur(upper, 0, torsoY + B.th * 0.2, front + 0.02, 0.12 * k, GOLD());
+      add(upper, box(B.tw * 0.75, B.th * 0.6, 0.1 * k, mat(L.main, { metal: 0.4 }), 0, torsoY + 0.05, back - 0.06 * k), ...[-1, 1].map((s) => cyl(0.025 * k, 0.03 * k, 0.16 * k, DARK(), s * 0.07 * k, torsoY + B.th * 0.55, back - 0.08 * k, 8))); // sororitas pack with exhausts
+      fleur(upper, 0, torsoY + 0.05, back - 0.115 * k, 0.1 * k, GOLD());
+      for (const s of [-1, 1]) { const x = s * (B.sx + 0.03 + B.armR * 1.3); const g = new THREE.Group(); fleur(g, 0, 0, 0, 0.06 * k, GOLD()); g.position.set(x, c.shY + 0.02, 0); g.rotation.y = s * Math.PI / 2; add(upper, g); }
+      puritySeal(upper, B.tw * 0.3, torsoY - B.th * 0.05, front + 0.012);
+      if (/cremator/i.test(L.name)) add(upper, ...[-1, 1].map((s) => cyl(0.04 * k, 0.04 * k, B.th * 0.6, mat('#a8302a', { metal: 0.4 }), s * 0.12 * k, torsoY - 0.02, back - 0.14 * k, 8)));
+      if (L.leader) add(head, mesh(new THREE.TorusGeometry(B.head * 1.1, B.head * 0.08, 5, 14), GOLD(), 0, B.head * 0.5, 0).rotateX(Math.PI / 2)); // circlet
+    },
+
+    canoptekCircle(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      add(upper, ...ankh(0, torsoY + B.th * 0.05, front + 0.02, 0.1 * k, glow('#3affc0')));
+      add(head, box(B.head * 1.0, B.head * 1.4, B.head * 1.0, mat('#2fb59a', { metal: 0.6, rough: 0.3 }), 0, B.head * 1.3, -B.head * 0.1));
+      for (let i = 0; i < 3; i++) add(upper, sph(0.03 * k, glow('#3affc0'), (i - 1) * 0.12 * k, c.shY + 0.2 * k + (i % 2) * 0.06, back - 0.1 * k, 6, 4)); // floating glyph orbs
+    },
+
+    broodBrothers(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      add(upper, mesh(new THREE.TorusGeometry(0.035 * k, 0.01, 4, 12), GOLD(), 0, torsoY + B.th * 0.25, front + 0.06), box(0.012, 0.06 * k, 0.01, GOLD(), 0, torsoY + B.th * 0.15, front + 0.06)); // wyrm-cult badge
+      belt(c, mat('#3e3550'), METAL(), 4);
+      for (const s of [-1, 1]) add(upper, box(0.03 * k, B.th * 0.9, 0.01, mat('#3e3550'), s * B.tw * 0.24, torsoY + 0.02, front + 0.03));
+      if (/magus/i.test(L.name)) add(head, sph(B.head * 1.25, mat('#c7a9c0'), 0, B.head * 0.45, -B.head * 0.2, 10, 8), ...[0, 1, 2].map((i) => box(B.head * 0.15, B.head * 0.15, B.head * 1.6, mat('#9a7ab0'), 0, B.head * (1.3 - i * 0.3), -B.head * 0.4))); // swollen psychic cranium
+      if (/primus/i.test(L.name)) add(upper, mesh(new THREE.CylinderGeometry(B.tw * 0.55, B.tw * 0.85, B.th + c.hipY * 0.8, 10, 1, true, Math.PI * 0.6, Math.PI * 0.8), mat('#3a2a4a', { rough: 1, side: 'double' }), 0, c.hipY * 0.2 + (B.th + c.hipY * 0.8) / 2, back * 0.3));
+      if (L.icon) add(upper, mesh(new THREE.TorusGeometry(0.06 * k, 0.012, 5, 12), GOLD(), B.tw * 0.3 + 0.11 * k, torsoY + 0.58 * k, back - 0.11));
+    },
+
+    bladesOfKhaine(c) {
+      const { upper, head, B, k, torsoY, front, back, L } = c;
+      const gem = glow(L.aspectKind === 'banshee' ? '#ff4a4a' : L.aspectKind === 'scorpion' ? '#ffd040' : '#4af0ff');
+      add(upper, sph(0.035 * k, gem, 0, torsoY + B.th * 0.25, front + 0.025, 8, 6)); // spirit stone
+      add(upper, box(B.tw * 0.7, B.th * 0.5, 0.09 * k, mat(L.main, { metal: 0.3 }), 0, torsoY + 0.05, back - 0.05 * k)); // aspect armour backplate
+      if (L.aspectKind === 'scorpion') add(upper, ...[-1, 1].map((s) => cyl(0.03 * k, 0.025 * k, 0.18 * k, mat(L.trim, { metal: 0.5 }), s * 0.07 * k, torsoY + B.th * 0.6, back - 0.08 * k, 8))); // sumpack exhausts
+      if (L.aspectKind === 'avenger') add(upper, box(B.tw * 0.9, 0.04 * k, B.td * 1.02, mat('#e8e0d0'), 0, torsoY - B.th * 0.3, 0));
+      if (L.leader) { // Exarchs: a second gem, a cloak and a taller crest
+        add(upper, sph(0.025 * k, gem, B.tw * 0.25, c.hipY + 0.05 * k, front * 0.8, 6, 5));
+        add(head, box(B.head * 0.2, B.head * 1.0, B.head * 2.6, mat('#e8c040'), 0, B.head * 1.4, -B.head * 0.4));
+      }
+    },
   };
 
   const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; return o; };

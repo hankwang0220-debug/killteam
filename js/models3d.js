@@ -191,6 +191,7 @@ export function operativeLook(team, op) {
   if (L.cloak && L.body === 'marine') L.cloth = '#5a6446'; // camo cloak
   if (team.id === 'bladesOfKhaine') L.aspectKind = /scorpion/i.test(n) ? 'scorpion' : /banshee/i.test(n) ? 'banshee' : 'avenger';
   if (team.id === 'deathKorps' && /watchmaster|confidant/i.test(n)) L.peakedCap = true;
+  if (team.id === 'broodBrothers' && /magus|primus/i.test(n)) L.helmet = false; // bare, ridged hybrid heads
   if (L.aspectKind === 'scorpion') { L.main = '#3f8a2f'; L.trim = '#e8c040'; }
   if (L.aspectKind === 'banshee') { L.main = '#d8d0c0'; L.trim = '#a82a2a'; L.cloth = '#a82a2a'; }
   if (L.aspectKind === 'avenger') { L.main = '#2a4fa8'; L.trim = '#e8e0d0'; }
