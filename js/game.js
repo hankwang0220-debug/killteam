@@ -11,6 +11,7 @@ import { SANCTIFIERS_EQUIPMENT } from './data/sanctifiers.js';
 import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
 import { ANGELS_EQUIPMENT } from './data/angels.js';
 import { GELLERPOX_EQUIPMENT } from './data/gellerpox.js';
+import { HEARTHKYN_EQUIPMENT, hearthkynRosterError } from './data/hearthkyn.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
@@ -50,7 +51,7 @@ import { isArchon, setupArchon, archonWeapons, archonReady, archonActivate, arch
 
 import { TEAM_MAP, isBoltWeapon, BK_SHRIEK, ES_ASSETS } from './data/teams.js';
 import { MISSIONS, MISSION_ACTIONS, TAC_OPS, npoTargetFor, tacOnKill, tacOnTPEnd, tacOnBattleEnd, tacOnStrategyEnd, scoutTargets } from './missions.js';
-import { dist, distPointRect, segRect, pathLength, truncatePath } from './geometry.js';
+import { dist, distPointRect, distPointSegment, segRect, pathLength, truncatePath } from './geometry.js';
 import { flatSight } from './sight.js';
 import { moveCtx, findPath, wholeInchPath } from './path.js'; // (Exodite Sprint, Goremonger Hunt for Blood; path.js imports this module too — only used at run time)
 
@@ -262,6 +263,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
     }
   }
   gpVerminSetup(g, equip, roster); // Gellerpox: the Mutoid Vermin equipment adds four operatives
+  for (const s of [0, 1]) if (teams[s] === 'hearthkyn') { const e = hearthkynRosterError(TEAM_MAP.hearthkyn, roster[s]); if (e) throw new Error(e.en); } // Hearthkyn roster limits
   dwSetup(g, roster);
   mdSetup(g, roster);
   mwSetup(g, roster, loadouts);
@@ -443,7 +445,7 @@ export function pickUpTargets(g, op) {
   const held = carriables(g).filter((x) => x.carriedBy === op.uid);
   const carried = held.length - (held.some((x) => x.kind === 'intel') ? 1 : 0);
   if (carried >= (m.carryCap?.(g, op) ?? 1)) return [];
-  return carriables(g).filter((x) => !x.carriedBy && canPickUpMarker(g, op, x) && inMarkerRange(op, x) && (controller(g, x) === op.side || (op.rtLarcenous && isRat(op)) || op.kfPoach)); // (Poach, Gather: Kinband; Larcenous: it only has to contest the marker)
+  return carriables(g).filter((x) => !x.carriedBy && canPickUpMarker(g, op, x) && inMarkerRange(op, x) && (controller(g, x) === op.side || (op.rtLarcenous && isRat(op)) || op.kfPoach || hkEquip(g, op, 'hkTools'))); // (Excavation Tools: Hearthkyn) // (Poach, Gather: Kinband; Larcenous: it only has to contest the marker)
 }
 /** A random Tac Op from the team's archetypes (any of them if none match). */
 export function tacOpsFor(teamId) {
@@ -679,7 +681,7 @@ function startTP(g) {
   log(g, { zh: `── 第 ${g.tp} 回合 ── 主動權擲骰 ${a} : ${b}`, en: `── Turning Point ${g.tp} ── Initiative roll ${a} : ${b}` }, 'tp');
   // The computer plays its initiative cards at once; with no card a human player can use, the result stands.
   aiInitCards(g);
-  if (![0, 1].some((s) => s !== g.ai && g.initCards[s].length)) lockInitRoll(g);
+  if (![0, 1].some((s) => s !== g.ai && (g.initCards[s].length || hkWritOk(g, s)))) lockInitRoll(g); // (Writ of Claim: a player may re-roll even without a card)
   wkReady(g); // Wrecka Krew: Pulsa markers lose a point, Demolition markers go
   ncReady(g); // Nemesis Claw: D3 Prescience points
   scReady(g); // Scout Squad: Trip Alarm markers go in the third turning point
@@ -691,6 +693,7 @@ function startTP(g) {
   aqReady(g); // Tempestus Aquilons: a Drop marker goes in TP2 and TP3
   vsReady(g); // Vespid Stingwings: Communion points
   xvReady(g); // XV26 Stealth Battlesuits: the Ambush marker, the Homing Beacon
+  hkReady(g); // Hearthkyn: the Utility Grenade's countdown
   mission(g).onReady?.(g); // the Ready step
 }
 
@@ -752,6 +755,7 @@ export function aiInitCards(g) {
   if (s == null || s > 1 || g.initLocked) return;
   if (initWinner(g) !== s && rvSensesOk(g, s)) rvUseSenses(g, s); // Heightened Senses (Raveners)
   if (initWinner(g) !== s && wsGuileOk(g, s)) wsUseGuile(g, s); // Lupine Guile (Wolf Scout Pack Leader)
+  if (initWinner(g) !== s && hkWritOk(g, s) && g.initRoll[s] <= 3) hkUseWrit(g, s); // Writ of Claim (Hearthkyn)
   const cards = g.initCards[s];
   if (!cards.length || initWinner(g) === s) return;
   for (const id of ['pm1', 'pm2', 'pm3'].filter((c) => cards.includes(c))) {
@@ -903,6 +907,7 @@ export function buyPloy(g, side, ploy) {
   if (ploy.id === 'suspectEliminate') needChoice(g, side, 'suspectEliminate');
   if (ploy.id === 'prioritisedAcq') needChoice(g, side, 'prioritisedAcq');
   if (ploy.id === 'drawnHum') needChoice(g, side, 'drawnHum'); // Drawn to the Hum (Gellerpox): the objective marker
+  if (ploy.id === 'needKeeps' || ploy.id === 'toilEarns') needChoice(g, side, ploy.id); // Need Keeps / Toil Earns (Hearthkyn): the objective marker
   if (ploy.id === 'huntForBlood') needChoice(g, side, 'huntForBlood');
   if (ploy.id === 'ncReturn') ncReturnBought(g, side); // (Return to Darkness: a player moves at once)
   // Attack / Defence Order: the marker starts by the friendly operative nearest the centre of the killzone.
@@ -1126,6 +1131,7 @@ export function endActivation(g) {
   if (g.proxy) endProxy(g); // an unused Interstitial Command Shoot is lost
   g.ffPending = null; g.ffAtk = null;
   if (g.smoke?.length) { for (const s of g.smoke) if (s.left != null) s.left--; g.smoke = g.smoke.filter((s) => s.left == null || s.left > 0); }
+  if (op && !wasCounter) hkAfterActivation(g); // Hearthkyn Utility Grenade countdown
   if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `${opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `${opName(op, 'en')} Slink into Darkness: now Concealed` }, `side${op.side}`); }
   if (op) {
     op.ready = false; op.ap = 0; op.rtLarcenous = false; op.kfPoach = false; sfEnd(op); pfEnd(op); adEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
@@ -1307,6 +1313,8 @@ export function controller(g, obj) {
   xvJamControl(g, obj, sum); // Counter-Network Jammers (XV26)
   // Prioritised Acquisition (Battleclade ploy): +1 to the total while contesting the chosen marker.
   for (const s of [0, 1]) if (sum[s] > 0 && g.acquisition?.[s]?.tp === g.tp && g.acquisition[s].id === obj.id && !obj.kind) sum[s]++;
+  // Need Keeps (Hearthkyn ploy): likewise +1 for the chosen marker.
+  for (const s of [0, 1]) if (sum[s] > 0 && g.teams[s] === 'hearthkyn' && hkMarker(g, s, 'needKeeps') === obj) sum[s]++;
   // Cult Icon (Brood Brother Iconward): +1 to the total for a marker within 4" of it that a friendly contests.
   for (const s of [0, 1]) if (sum[s] > 0 && living(g, s).some((o) => tpl(o).cultIcon && dist(o, obj) - radius(o) <= 4)) sum[s]++;
   // Obelisk nodes (Canoptek Circle) control a marker within 1" that no enemy contests (unless both players' nodes would).
@@ -1461,6 +1469,8 @@ export const ACTIONS = {
   signalAny: { ap: 1, name: { zh: '信號', en: 'Signal' } },
   jamToken: { ap: 1, name: { zh: '系統干擾', en: 'System Jam' } },
   panScan: { ap: 1, name: { zh: '全光譜掃描', en: 'Pan Spectral Scan' } },
+  hkUtility: { ap: 1, name: { zh: '瓦爾-3 多功能手雷', en: 'Vâyr-3 Utility Grenade' } },
+  hkAppraisal: { ap: 1, name: { zh: '加速評估', en: 'Accelerated Appraisal' } },
   systemJam: { ap: 1, name: { zh: '系統干擾', en: 'System Jam' } },
   medikit: { ap: 1, name: { zh: '醫療包', en: 'Medikit' } },
   getItDun: { ap: 1, name: { zh: '快去做！', en: 'Get It Dun!' } },
@@ -1580,7 +1590,9 @@ export function actionCost(g, op, id) {
     // Vanguard (Phobos): once per turning point, one operative with it pays 1 less for Pick Up or a mission action.
     const gotIt = (MISSION_ACTIONS[id] && tpl(op).gotIt && !op.acted?.gotItUsed ? 1 : 0)
       + (tpl(op).vanguard && g.vanguardTP?.[op.side] !== g.tp ? 1 : 0)
-      + (MISSION_ACTIONS[id] && isDeathwatch(op) && op.acted?.dwThrall ? 1 : 0);
+      + (MISSION_ACTIONS[id] && isDeathwatch(op) && op.acted?.dwThrall ? 1 : 0)
+      + (id === 'pickUp' && hkEquip(g, op, 'hkTools') ? 1 : 0) // Excavation Tools (Hearthkyn): Pick Up Marker for 1 less AP
+      - (hkUtilityNear(g, op) ? 1 : 0); // (a Hearthkyn Utility Grenade within 3": 1 more AP)
     // Slow-witted (Blooded Ogryn) pays 1 more as well.
     // Nuncio-aquila (Proctor-exactant): +1AP within 3" of it.
     // Energy Cells (crit op): picking up an objective marker costs extra in TP2-3, and that can't be reduced.
@@ -1857,6 +1869,23 @@ export const TARGET_ACTIONS = {
     apply(g, op, t) {
       (g.pan ||= [null, null])[op.side] = { x: t.x, y: t.y, by: op.uid };
       return { zh: `全光譜掃描：標記放在 ${opName(t, 'zh')} 處（3" 內的敵人被射擊時，射手「精準 1」＋「飽和」）`, en: `Pan Spectral Scan: marker by ${opName(t, 'en')} (shooting enemies within 3" of it: Accurate 1 + Saturate)` };
+    },
+  },
+  // Vâyr-3 Utility Grenade (Hearthkyn Grenadier): a marker within 6" (here: where a visible operative stands); within 3" of it,
+  // Pick Up Marker and mission actions cost 1 more AP. It stays this turning point and goes after D3 activations of the next.
+  hkUtility: {
+    targets: (g, op) => g.ops.filter((t) => !t.dead && t !== op && t.x > -50 && edgeDist(op, t) <= 6 && visibility(g, op, t).visible),
+    apply(g, op, t) {
+      (g.hkUtil ||= [null, null])[op.side] = { x: t.x, y: t.y, tp: g.tp, left: null };
+      return { zh: `多功能手雷：標記放在 ${opName(t, 'zh')} 處（3" 內撿起標記與任務動作 +1AP）`, en: `Utility Grenade: marker by ${opName(t, 'en')} (Pick Up Marker and mission actions within 3" cost +1AP)` };
+    },
+  },
+  // Accelerated Appraisal (Hearthkyn Kognitâar): move the Tactician marker — the Attack marker by an enemy, or the Defence marker by a friendly.
+  hkAppraisal: {
+    targets: (g, op) => g.ops.filter((t) => !t.dead && t !== op && t.side < 2 && t.x > -50),
+    apply(g, op, t) {
+      placeTactician(g, op.side, t.side === op.side ? 'defence' : 'attack', t);
+      return { zh: `加速評估：${t.side === op.side ? '防禦' : '攻擊'}標記移到 ${opName(t, 'zh')} 處`, en: `Accelerated Appraisal: the ${t.side === op.side ? 'Defence' : 'Attack'} marker moves to ${opName(t, 'en')}` };
     },
   },
   // System Jam: a visible enemy gets -1 APL until the end of its next activation.
@@ -2364,6 +2393,8 @@ export function availableActions(g, op) {
   if (tpl(op).signalAny) unique('signalAny');
   if (tpl(op).jamToken) unique('jamToken');
   if (tpl(op).panScan) unique('panScan');
+  if (tpl(op).utilityGrenade) unique('hkUtility'); // Hearthkyn Grenadier
+  if (tpl(op).tactician && op.team === 'hearthkyn') unique('hkAppraisal'); // Hearthkyn Kognitâar
   if (tpl(op).pulse) unique('pulse');
   if (tpl(op).helix) unique('helix');
   if (tpl(op).destiny) { unique('fate'); unique('ravage'); }
@@ -3037,6 +3068,10 @@ export function effectiveRules(g, op, weapon, target) {
   if (target && hasPloy(g, op.side, 'closeAssault') && edgeDist(op, target) <= 3) r.closeAssault = true; // Close Assault
   // ---- Hearthkyn Salvagers ----
   if (target && TEAM_MAP[op.team].grudges && target.grudge?.[op.side]) r.grudge = target.grudge[op.side]; // Grudge tokens
+  // Toil Earns (Hearthkyn ploy): an enemy within 3" of the chosen marker counts one more Grudge token.
+  if (target && TEAM_MAP[op.team].grudges && within3(target, hkMarker(g, op.side, 'toilEarns'))) r.grudge = (r.grudge || 0) + 1;
+  // Need Keeps (Hearthkyn ploy): within 3" of the chosen marker, melee Atk +1 (to 4); a weapon already at Atk 4 has Balanced.
+  if (weapon.type === 'melee' && op.team === 'hearthkyn' && within3(op, hkMarker(g, op.side, 'needKeeps'))) { if (weapon.atk + (r.atkPlus || 0) < 4) r.atkPlus = (r.atkPlus || 0) + 1; else if (weapon.atk === 4) r.balanced = true; }
   if (weapon.rules.forceImpact && count(op, 'charge')) r.brutal = true; // Force Impact
   if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'proximateFire') && edgeDist(op, target) <= 6) r.mlHit = true; // Hit +1 to 3+
   const tac = g.tactician?.[op.side];
@@ -3228,6 +3263,77 @@ export function cursed(g, op, curse) {
   const has = (s, o) => g.tactics?.[s]?.[0] === curse || (g.gpSymptoms?.[s]?.tp === g.tp && g.gpSymptoms[s].uid === o.uid && g.gpSymptoms[s].curse === curse);
   return [0, 1].some((s) => s !== op.side && g.teams[s] === 'gellerpox' && TEAM_MAP[g.teams[s]].tacticSlots === 1
     && living(g, s).some((o) => !tpl(o).vermin && has(s, o) && edgeDist(o, op) <= (tpl(o).glitchling ? rg : r) + 0.01));
+}
+
+// ---------- Hearthkyn Salvagers ----------
+const hkEquip = (g, op, id) => op.side < 2 && op.team === 'hearthkyn' && !!g.equip?.[op.side]?.includes(id);
+/** The objective marker picked for Need Keeps / Toil Earns this turning point (null if the ploy isn't in use). */
+function hkMarker(g, side, ploy) {
+  const m = g.hkMarker?.[ploy]?.[side];
+  return side < 2 && m?.tp === g.tp && hasPloy(g, side, ploy) ? (g.objectives || []).find((o) => o.id === m.id) || null : null;
+}
+const within3 = (o, m) => !!m && dist(o, m) - radius(o) - OBJ_R <= 3 + 0.01;
+/** Writ of Claim (equipment, once per battle): re-roll the initiative die while friendlies contest two or more objective markers. */
+export function hkWritOk(g, side) {
+  return g.teams[side] === 'hearthkyn' && !!g.equip?.[side]?.includes('hkWrit') && !g.hkWritUsed?.[side] && g.phase === 'initiative' && !g.initLocked
+    && (g.objectives || []).filter((o) => living(g, side).some((x) => x.x > -50 && dist(x, o) - radius(x) - OBJ_R <= CONTROL)).length >= 2;
+}
+export function hkUseWrit(g, side) {
+  if (!hkWritOk(g, side)) return false;
+  (g.hkWritUsed ||= [false, false])[side] = true;
+  const before = g.initRoll[side];
+  g.initRoll[side] = d6();
+  log(g, { zh: `${teamZh(g, side)} 主權令狀：重擲先攻骰 ${before} → ${g.initRoll[side]}（${g.initRoll[0]} : ${g.initRoll[1]}）`, en: `${team(g, side).name.en} Writ of Claim: re-rolls the initiative die ${before} → ${g.initRoll[side]} (${g.initRoll[0]} : ${g.initRoll[1]})` }, `side${side}`);
+  return true;
+}
+/** A Utility Grenade marker (either side's) within 3" of the operative. */
+function hkUtilityNear(g, op) { return (g.hkUtil || []).some((m) => m && dist(op, m) - radius(op) <= 3 + 0.01); }
+/** Ready step: a Utility Grenade from the last turning point stays for D3 more activations; older ones go. */
+function hkReady(g) {
+  for (const s of [0, 1]) {
+    const m = g.hkUtil?.[s];
+    if (!m) continue;
+    if (m.tp === g.tp - 1) { m.left = d3(); log(g, { zh: `多功能手雷：再留 ${m.left} 次啟動`, en: `Utility Grenade: stays for ${m.left} more activation(s)` }, `side${s}`); }
+    else g.hkUtil[s] = null;
+  }
+}
+/** After each activation, a Utility Grenade on its countdown loses one. */
+function hkAfterActivation(g) {
+  for (const s of [0, 1]) { const m = g.hkUtil?.[s]; if (m && m.left != null && --m.left <= 0) g.hkUtil[s] = null; }
+}
+/** Well Supplied (Lugger): one more equipment option, but only if the Lugger is in the kill team. */
+function hkTrimEquipment(g, side) {
+  if (g.teams[side] === 'hearthkyn' && !g.ops.some((o) => o.side === side && tpl(o).wellSupplied)) g.equip[side] = g.equip[side].slice(0, EQUIPMENT_LIMIT);
+}
+/** Plasma Knives (equipment): every Hearthkyn has one (the Field Medic keeps its better version). */
+export const HK_PLASMA_KNIFE = { id: 'hkPlasmaKnife', group: 'hkPlasmaKnife', name: { zh: '等離子小刀', en: 'Plasma knife' }, type: 'melee', atk: 3, hit: 4, dmg: [3, 5], rules: { lethal: 5 } };
+/**
+ * Beam (EtaCarn plasma beamer): each retained critical success inflicts D3 damage on each other operative along the beam line —
+ * one a line from the shooter to its base crosses the target's base, beyond the target, without crossing Heavy terrain. The target
+ * itself isn't affected. (2D: the operatives behind the target in its "shadow" from the shooter.)
+ */
+function hkBeam(g, op, target, crits) {
+  const heavy = g.terrain.filter((t) => t.kind === 'heavy');
+  const along = g.ops.filter((o) => !o.dead && o !== op && o !== target && o.x > -50 && dist(op, o) > dist(op, target)
+    && distPointSegment(target, op, o) <= radius(target) + 0.01 && !heavy.some((t) => segRect(op, o, t)));
+  for (const o of along) {
+    let dmg = 0; for (let i = 0; i < crits; i++) dmg += d3();
+    log(g, { zh: `光束：${opName(o, 'zh')} 在光束線上，受到 ${dmg} 傷害`, en: `Beam: ${opName(o, 'en')} is along the beam line and takes ${dmg} damage` }, `side${op.side}`);
+    applyDamage(g, op, o, dmg);
+  }
+}
+/** Secure Salvage (Hearthkyn Warrior): contesting a marker, one success against it deals 1 less damage. */
+export const hkSecureSalvage = (g, target) => !!tpl(target).secureSalvage && [...(g.objectives || []), ...carriables(g).filter((m) => m.owner === target.side)].some((m) => dist(target, m) - radius(target) - OBJ_R <= CONTROL + 0.01);
+/** Worth It (firefight ploy): an incapacitated Hearthkyn performs a free mission action before it's removed. */
+function hkWorthIt(g, target) {
+  if (target.team !== 'hearthkyn') return;
+  // It's still in the killzone for this (it counts for control while it acts).
+  const was = target.dead; target.dead = false;
+  const id = missionActionsFor(g, target.side).find((a) => !/^tw(Open|Close)_/.test(a) && !MISSION_ACTIONS[a].cond(g, target));
+  if (!id || !autoFF(g, target.side, 'worthIt')) { target.dead = was; return; }
+  let msg;
+  try { msg = MISSION_ACTIONS[id].apply(g, target); } finally { target.dead = was; }
+  log(g, { zh: `值得：${opName(target, 'zh')} 倒下前免費執行「${ACTIONS[id].name.zh}」${msg ? `（${msg.zh}）` : ''}`, en: `Worth It: ${opName(target, 'en')} performs a free ${ACTIONS[id].name.en} before it's removed${msg ? ` (${msg.en})` : ''}` }, `side${target.side}`);
 }
 
 /** Drawn to the Hum: a friendly Gellerpox operative's own Reposition or Charge this turning point (not a counteraction). */
@@ -3750,6 +3856,25 @@ function registerCoreChoices() {
       log(g, { zh: `${teamZh(g, side)} 受嗡鳴吸引：目標點 ${id + 1}`, en: `${team(g, side).name.en} Drawn to the Hum: objective ${id + 1}` }, `side${side}`);
     },
   };
+  // Need Keeps / Toil Earns (Hearthkyn strategy ploys): an objective marker for this turning point.
+  for (const [id, zh, en, autoPick] of [
+    ['needKeeps', '需求所迫：選一個目標點（爭奪它時 APL 總和 +1；3" 內近戰 Atk +1）', 'Need Keeps: pick an objective marker (+1 total APL contesting it; +1 melee Atk within 3")', 'mine'],
+    ['toilEarns', '辛勞所得：選一個目標點（3" 內的敵人多算一個宿怨標記）', 'Toil Earns: pick an objective marker (enemies within 3" of it count one more Grudge token)', 'foes'],
+  ]) {
+    CHOICES[id] = {
+      kind: 'objective', title: B(zh, en),
+      options: (g) => (g.objectives || []).map((o) => ({ value: o.id })),
+      // The computer: the marker nearest its own operatives (Need Keeps) or with the most enemies around it (Toil Earns).
+      auto: (g, side) => {
+        const near = (o, list) => list.filter((x) => dist(x, o) - radius(x) - OBJ_R <= 3).length, close = (o) => Math.min(...living(g, side).map((m) => dist(m, o)));
+        return [...(g.objectives || [])].sort((a, b) => (autoPick === 'foes' ? near(b, enemies(g, side)) - near(a, enemies(g, side)) : 0) || close(a) - close(b))[0]?.id ?? null;
+      },
+      apply(g, side, oid) {
+        ((g.hkMarker ||= {})[id] ||= [null, null])[side] = { tp: g.tp, id: oid };
+        log(g, { zh: `${teamZh(g, side)} ${zh.split('：')[0]}：目標點 ${oid + 1}`, en: `${team(g, side).name.en} ${en.split(':')[0]}: objective ${oid + 1}` }, `side${side}`);
+      },
+    };
+  }
   CHOICES.gpSymptoms = {
     kind: 'option', title: B('突變症狀（整場一次）：這名特工本回合多獲得一個技術詛咒？', 'Mutated Symptoms (once per battle): give this operative another Techno-curse this turning point?'),
     options: (g, side) => team(g, side).tactics.filter((t) => t.id !== g.tactics?.[side]?.[0]).map((t) => ({ value: t.id, label: t.name })),
@@ -4852,15 +4977,15 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT);
+Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
-export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
+export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' || teamId === 'hearthkyn' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Hearthkyn: the Lugger's Well Supplied) // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
 const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT,
+  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT, hearthkyn: HEARTHKYN_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -4904,6 +5029,7 @@ export function weaponsFor(g, op) {
   if (tpl(op).aspect === 'hb' && op.side < 2 && g.phase === 'firefight' && g.active === op.uid && ffReady(g, op.side, 'hbShriek') && !techWhy(g, op, 'hbShriek')) ws = [...ws, BK_SHRIEK];
   // Grenadier (Brood Brother Sapper): its own frag and krak grenades, Hit improved by 1, not from the team's uses.
   if (tpl(op).grenadier) ws = [...ws, GRENADIER_FRAG, GRENADIER_KRAK];
+  if (hkEquip(g, op, 'hkKnives') && !ws.some((w) => /plasma knife/i.test(w.name.en))) ws = [...ws, HK_PLASMA_KNIFE]; // Plasma Knives (Hearthkyn)
   ws = [...ws, ...assetsFor(g, op)]; // Privateer Support Assets (Elucidian Starstriders)
   ws = ncWeapons(g, op, ws); // Preysight (Nemesis Claw): Range 6" and Seek Light versions
   ws = scWeapons(g, op, ws); // Combat Blades equipment (Scout Squad)
@@ -4988,6 +5114,7 @@ export function autoPlaceEquipment(g) {
 function setupEquipment(g, side, ids) {
   (g.equip ||= [[], []])[side] = cleanEquipment(g.teams[side], ids);
   spTrimEquipment(g, side); // Spectre Squad: a fifth option only with a Guide, and only an Ammo Cache / terrain
+  hkTrimEquipment(g, side); // Hearthkyn: a fifth option only with the Lugger
   (g.eqUses ||= [{}, {}])[side] = { frag: 0, krak: 0, stun: 0, smoke: 0 };
   const along = g.axis === 'y' ? 'y' : 'x';
   // Where each kind may go: light cover and razor wire wholly within your territory (half); heavy cover wholly
@@ -5369,6 +5496,7 @@ const FF = {
   scrapcode: { kind: 'button', start: true, cond: (g, op) => (tpl(op).infiltrator ? null : { zh: '只有滲透者', en: 'Infiltrators only' }), apply(g, op) { (g.scrapcode ||= [null, null])[op.side] = op.uid; } },
   // ---- Hearthkyn Salvagers ----
   sturdy: { kind: 'auto' },
+  worthIt: { kind: 'auto' },
   engageToAcquire: { kind: 'attack', cond: (g, op, t) => (t && holdsObjective(g, t) ? null : { zh: '目標沒有控制目標點', en: 'The target doesn\'t control an objective' }) },
   ancestorsWatching: { kind: 'button', apply(g, op) { op.acted.ancestors = true; op.acted.free = { ...(op.acted.free || {}), shoot: 'any', fight: 'any' }; } },
   // ---- Hierotek Circle ----
@@ -5983,6 +6111,7 @@ export function frenzyDie(g, op, src = null) {
 function ffOnDeath(g, src, target) {
   const side = target.side;
   if (side > 1) return;
+  hkWorthIt(g, target); // Worth It (Hearthkyn): a free mission action before it's removed
   const near = (r) => foes(g, target).filter((e) => e.side < 2 && edgeDist(e, target) <= r && visibility(g, target, e).visible);
   // Vengeance for the Kinband: Relentless against the killer for the rest of the battle.
   const v = g.vengeance?.[side] && getOp(g, g.vengeance[side]);
@@ -6133,6 +6262,15 @@ function resolveDice(target, amounts, g = null) {
     let dmg = 0;
     for (const a of amounts) dmg += a >= 3 ? Math.max(2, a - 1) : a;
     return { dmg, rolls: [] };
+  }
+  // Secure Salvage (Hearthkyn Warrior): contesting a marker, one success in each attack deals 1 less (keyed to the attacker's action).
+  if (g && amounts.some((x) => x > 0) && hkSecureSalvage(g, target)) {
+    const a = getOp(g, g.active), key = `${g.tp}|${g.active}|${a?.acted?.shoot || 0}|${a?.acted?.fight || 0}|${g.fight ? 'f' : 's'}`;
+    if (target.hkSalvageKey !== key) {
+      target.hkSalvageKey = key;
+      const i = amounts.indexOf(Math.max(...amounts));
+      amounts = amounts.map((x, j) => (j === i ? Math.max(0, x - 1) : x));
+    }
   }
   const brace = !!tpl(target).insensiblePain || !!g && (braced(g, target) || (g.reinforce?.[target.side]?.t === target.uid && !getOp(g, g.reinforce[target.side].by)?.dead));
   let dmg = 0;
@@ -6317,6 +6455,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
       };
     }
   }
+  if (rules.beam && a.crits > 0) hkBeam(g, op, target, a.crits); // Beam (Hearthkyn EtaCarn plasma beamer)
   sfSymbols(g, target, a); // Imperial Cult Symbols (Sanctifiers)
   // Sturdy (Hearthkyn firefight ploy): the attacker's retained crits become normal successes.
   if (a.crits > 0 && autoFF(g, target.side, 'sturdy')) {

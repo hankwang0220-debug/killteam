@@ -18,6 +18,7 @@ import { voidDancersRosterError } from './data/voiddancers.js';
 import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
+import { hearthkynRosterError } from './data/hearthkyn.js';
 import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
@@ -52,7 +53,7 @@ import {
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
   ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor, PRIMARY_OPS, primaryBonus, primaryBase, primaryPending, choosePrimary,
   EQUIPMENT, EQUIPMENT_LIMIT, equipmentLimitFor, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
-  rvSensesOk, rvUseSenses, startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
+  rvSensesOk, rvUseSenses, hkWritOk, hkUseWrit, startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, missionActionsFor, foes,
   sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
   goreOf, SANGUAVITAE, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
@@ -603,6 +604,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'ratlings') { const error = ratlingsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wolfScouts') { const error = wolfRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'hearthkyn') { const error = hearthkynRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -1170,8 +1172,8 @@ function initCardsPanel() {
       return [[s, 1, L(`自己 +${n}`, `Yours +${n}`)], [s, -1, L(`自己 −${n}`, `Yours −${n}`)], [1 - s, 1, L(`${other} +${n}`, `${other} +${n}`)], [1 - s, -1, L(`${other} −${n}`, `${other} −${n}`)]]
         .map(([die, sign, lab]) => `<button data-act="initcard" data-side="${s}" data-id="${id}" data-die="${die}" data-sign="${sign}">±${n}：${esc(lab)}</button>`).join('');
     }).join('');
-    return `<div class="gambit"><h4 style="color:${tm.color}">${esc(bi(tm.name))}</h4><div class="row">${btns}${wsGuileOk(g, s) ? `<button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button>` : ''}${rvSensesOk(g, s) ? `<button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button>` : ''}</div></div>`;
-  }).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && wsGuileOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && rvSensesOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button></div></div>`).join('');
+    return `<div class="gambit"><h4 style="color:${tm.color}">${esc(bi(tm.name))}</h4><div class="row">${btns}${wsGuileOk(g, s) ? `<button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button>` : ''}${rvSensesOk(g, s) ? `<button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button>` : ''}${hkWritOk(g, s) ? `<button data-act="initwrit" data-side="${s}">📜 ${L('主權令狀：重擲自己的骰子', 'Writ of Claim: re-roll your die')}</button>` : ''}</div></div>`;
+  }).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && wsGuileOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && rvSensesOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && hkWritOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initwrit" data-side="${s}">📜 ${L('主權令狀：重擲自己的骰子', 'Writ of Claim: re-roll your die')}</button></div></div>`).join('');
   return `<section class="card">
     <h2>${L(`第 ${g.tp} 回合・先攻階段`, `TP ${g.tp} · Initiative Phase`)}</h2>
     <p>${L('主動權擲骰', 'Initiative roll')}：<b style="color:${team(g, 0).color}">${g.initRoll[0]}</b> : <b style="color:${team(g, 1).color}">${g.initRoll[1]}</b>${moved ? L(`（原本 ${g.initRolled[0]} : ${g.initRolled[1]}）`, ` (rolled ${g.initRolled[0]} : ${g.initRolled[1]})`) : ''}</p>
@@ -2405,9 +2407,11 @@ const ABILITIES = {
   jumpPack: () => ['噴射背包', 'Jump Pack', '移動時可飛越地形與特工，只看落點；墓穴世界的牆、柱與艙門視為無限高，不能飛越（輕掩體仍可）。', 'Moves fly over terrain and operatives; only where it lands matters. Tomb World walls, pillars and hatchways count as infinitely tall and cannot be flown over (its light cover still can).'],
   signalAny: () => ['信號', 'Signal', '1AP（支援）：場上任一名其他友方下次啟動 APL +1。', '1AP (Support): any other friendly gets +1 APL next activation.'],
   jamToken: () => ['系統干擾', 'System Jam', '1AP：一名有效目標的敵人得到干擾標記，要等其他沒有標記的敵人都行動完才能啟動。', '1AP: an enemy valid target gains a token — it can\'t activate until every enemy without one is expended.'],
-  tactician: () => ['戰術家', 'Tactician', '策略階段放置攻擊標記（3" 內的敵人：平衡）或防禦標記（3" 內的友方：被射擊重擲一顆防禦骰）。', 'Strategy phase: an Attack marker (Balanced against enemies within 3") or a Defence marker (friendlies within 3" re-roll one defence die).'],
+  tactician: () => ['戰術家', 'Tactician', '策略階段放置攻擊標記（3" 內的敵人：平衡）或防禦標記（3" 內的友方：被射擊重擲一顆防禦骰）。爐心打撈者的智械參謀另有「加速評估」（1AP：把標記移到一名特工處，敵人＝攻擊、友方＝防禦）。', 'Strategy phase: an Attack marker (Balanced against enemies within 3") or a Defence marker (friendlies within 3" re-roll one defence die). The Hearthkyn Kognitâar also has Accelerated Appraisal (1AP: move the marker to an operative — an enemy for Attack, a friendly for Defence).'],
   panScan: () => ['全光譜掃描', 'Pan Spectral Scan', '1AP：在可見敵人處放標記，射擊它 3" 內的敵人時「精準 1」＋「飽和」，直到它下次啟動。', '1AP: a marker by a visible enemy — shooting enemies within 3" of it: Accurate 1 + Saturate, until its next activation.'],
-  wellSupplied: () => ['補給充足', 'Well Supplied', '第 1 回合多得 1CP。', '+1CP in the first turning point.'],
+  wellSupplied: () => ['補給充足', 'Well Supplied', '可多選一項裝備，第 1 回合多得 1CP。', 'One more equipment option, and +1CP in the first turning point.'],
+  utilityGrenade: () => ['瓦爾-3 多功能手雷', 'Vâyr-3 Utility Grenade', '1AP：在 6" 內一名可見特工處放標記，3" 內撿起標記與任務動作 +1AP；本回合有效，下回合再撐 D3 次啟動。', '1AP: a marker by a visible operative within 6"; Pick Up Marker and mission actions within 3" cost +1AP — this turning point, then D3 more activations.'],
+  secureSalvage: () => ['確保物資', 'Secure Salvage', '爭奪目標點或己方任務標記時，每次被攻擊有一顆成功的傷害 -1。', 'While it contests an objective or one of your mission markers, one success in each attack against it deals 1 less damage.'],
   gotIt: () => ['交給我', 'I\'ve Got It', '每次啟動一次，任務動作少 1AP。', 'Once per activation, a mission action costs 1 less AP.'],
   watchmaster: () => ['看守長', 'Watchmaster', '策略階段下達衛兵命令（6" 內友方），並可「集火摧毀！」：選一名敵人，本回合攻擊它時武器獲得「懲罰」。', 'Issues Guardsman Orders (friendlies within 6") in the Strategy phase, and Bring it Down!: pick an enemy — Punishing against it this TP.'],
   confidant: () => ['心腹', 'Confidant', '副指揮官：看守長殘廢後改由它下達衛兵命令。指令：啟動時選定 6" 內可見的準備中友方，行動完後可接著啟動其中一名（用過副指揮官後不能再用）。', 'Second in Command: issues Guardsman Orders once the Watchmaster falls. Directive: friendlies visible within 6" and ready when it activates — one may activate right after it (not after Second in Command is used).'],
@@ -3297,6 +3301,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'farstalkers' && kinbandRosterError(TEAM_MAP.farstalkers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathKorps' && deathKorpsRosterError(TEAM_MAP.deathKorps, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'hearthkyn' && hearthkynRosterError(TEAM_MAP.hearthkyn, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       clearSave();
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
@@ -3374,6 +3379,7 @@ function handle(act, d) {
       return afterChange();
     }
     case 'initsenses': if (!isAI(+d.side) && rvSensesOk(g, +d.side)) { rvUseSenses(g, +d.side); aiInitCards(g); } return afterChange();
+    case 'initwrit': if (!isAI(+d.side) && hkWritOk(g, +d.side)) { hkUseWrit(g, +d.side); aiInitCards(g); } return afterChange(); // Writ of Claim (Hearthkyn)
     case 'initlock': if (g.phase === 'initiative') lockInitRoll(g); return afterChange();
     case 'initpick': if (g.phase === 'initiative' && g.initiative == null && !isAI(g.initDecider)) setInitiative(g, +d.side); return afterChange();
     case 'seeker': {

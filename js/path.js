@@ -87,7 +87,9 @@ export function moveCtx(g, op, kind = 'reposition') {
   const accessible = (i, p) => breached[i].some((m) => dist(p, m) - r <= 1 + EPS);
   const coverAt = (p) => { const s = []; for (let i = 0; i < cover.length; i++) if (distPointRect(p, cover[i]) < r - EPS && !accessible(i, p) && !accessOverlap(cover[i],p)) s.push(i); return s; };
   // (Grapnel Launcher, Scout Hunter: climbing up counts as 2", whatever the height.)
-  const climbCost = (i) => { const h = climbHeight(cover[i]); if (op.acted?.xvJet) return 0; return Math.round(((tpl(op).scGrapnel || tpl(op).grapple ? 2 : Math.max(2, h)) + Math.max(0, h - 2)) * 10) / 10; };
+  // (Climbing Rigs, Hearthkyn equipment: climbing up counts as 2" or a drop is ignored — in this 2D model both come to the higher of 2" and the height.)
+  const rigs = op.side < 2 && op.team === 'hearthkyn' && !!g.equip?.[op.side]?.includes('hkRigs');
+  const climbCost = (i) => { const h = climbHeight(cover[i]); if (op.acted?.xvJet) return 0; if (rigs) return Math.round(Math.max(2, h) * 10) / 10; return Math.round(((tpl(op).scGrapnel || tpl(op).grapple ? 2 : Math.max(2, h)) + Math.max(0, h - 2)) * 10) / 10; };
   /** Follow a polyline: the climbing cost of the terrain it gets onto, and whether every landing after a climb is legal. */
   function climbWalk(pts) {
     let cost = 0, ok = true, prev = coverAt(pts[0]);

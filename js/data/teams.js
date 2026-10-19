@@ -305,6 +305,21 @@ const rotaryFocused = W('rotaryFocused', 'HYLas 轉管砲（集中）', 'HYLas r
 const rotarySweeping = W('rotarySweeping', 'HYLas 轉管砲（掃射）', 'HYLas rotary cannon (sweeping)', 'ranged', 4, 4, 4, 5, { ceaseless: true, heavy: 'reposition', saturate: true, torrent: 1 }, 'rotary');
 // Force Impact: Brutal when fighting in an activation in which it Charged.
 const plasmaWeaponJP = W('plasmaWeaponJP', '等離子武器', 'Plasma weapon', 'melee', 4, 3, 4, 6, { lethal: 5, forceImpact: true });
+// Theyn options (its bolt pistol and ion pistol hit on 3+).
+const autochPistolTh = W('autochPistolTh', '奧托赫式爆彈手槍', 'Autoch-pattern bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8, accurate: 1 });
+const ionPistolTh = W('ionPistolTh', '離子手槍', 'Ion pistol', 'ranged', 4, 3, 3, 4, { range: 8, piercingCrits: 1 });
+const concussionGauntlet = W('concussionGauntlet', '震盪拳套', 'Concussion gauntlet', 'melee', 4, 4, 5, 7, { brutal: true, shock: true });
+// Gunner options. Beam: each retained crit inflicts D3 on each other operative along the beam line (not the target).
+const plasmaBeamer = W('plasmaBeamer', '伊塔卡恩等離子光束槍', 'EtaCarn plasma beamer', 'ranged', 4, 4, 5, 6, { piercing: 1, beam: true });
+const hylasRifle = W('hylasRifle', 'HYLas 自動步槍', 'HYLas auto rifle', 'ranged', 4, 4, 4, 5, { ceaseless: true, rending: true });
+const l7Blast = W('l7Blast', 'L7 飛彈發射器（爆炸）', 'L7 missile launcher (blast)', 'ranged', 4, 4, 3, 5, { blast: 2 }, 'l7');
+const l7Focused = W('l7Focused', 'L7 飛彈發射器（集中）', 'L7 missile launcher (focused)', 'ranged', 4, 4, 5, 6, { piercing: 1 }, 'l7');
+const magnaRail = W('magnaRail', '磁軌步槍', 'Magna rail rifle', 'ranged', 4, 4, 4, 2, { devastating: 3, heavy: 'dash', piercing: 2 });
+const HK_THEYN_RANGED = { pistol: autochPistolTh, bolter: autochBolter, revolver: boltRevolver, etacarn: etacarnPistol, ionBlaster, ionPistol: ionPistolTh };
+const HK_THEYN_MELEE = { gauntlet: concussionGauntlet, plasma: plasmaWeaponTh };
+const HK_THEYN_LOADOUTS = Object.fromEntries(Object.entries(HK_THEYN_RANGED).flatMap(([r, rw]) => Object.entries(HK_THEYN_MELEE).map(([m, mw]) => [`${r}+${m}`, [rw, mw]])));
+const HK_BOLTER_OR_ION = { bolter: [autochBolter, fistsHK], ion: [ionBlaster, fistsHK] };
+const HK_PICKS = ['dozr', 'medic', 'grenadier', 'gunner', 'hkGunnerBeamer', 'hkGunnerRifle', 'hkGunnerL7', 'hkGunnerMagna', 'jumpPack', 'kinlynk', 'kognitaar', 'lokatr', 'lugger', 'hkWarrior'];
 
 // ---- Imperial Navy Breachers ----
 const shotgunClose = W('shotgunClose', '海軍霰彈槍（近距離）', 'Navis shotgun (close range)', 'ranged', 4, 3, 3, 3, { range: 6, shotgun: true }, 'navisShotgun');
@@ -1154,18 +1169,31 @@ export const TEAMS = [
         desc: { zh: '本回合友方被射擊時，若防禦骰只有 1 顆以下成功，可把一顆失敗當成普通成功。', en: 'This TP, when a friendly operative is shot and rolls one or fewer successes, one fail is retained as a normal success.' } },
       { id: 'proximateFire', cp: 1, name: { zh: '近距火力', en: 'Proximate Firepower' },
         desc: { zh: '本回合友方射擊 6" 內的敵人時，遠程武器命中改善 1（最佳 3+）。', en: 'This TP, friendly ranged weapons improve their Hit by 1 (to 3+) when shooting an enemy within 6".' } },
+      { id: 'needKeeps', cp: 1, name: { zh: '需求所迫', en: 'Need Keeps' },
+        desc: { zh: '選一個目標點。本回合友方爭奪它時 APL 總和 +1；友方在它 3" 內時近戰武器 Atk +1（最多 4），原本就是 4 的改為獲得「平衡」。', en: 'Select one objective marker. This TP, the total APL of friendlies contesting it counts 1 higher; friendlies within 3" of it add 1 to their melee Atk (to a maximum of 4), and a weapon already at Atk 4 has Balanced.' } },
+      { id: 'toilEarns', cp: 1, name: { zh: '辛勞所得', en: 'Toil Earns' },
+        desc: { zh: '選一個目標點。本回合敵人在它 3" 內時，視為多一個宿怨標記。', en: 'Select one objective marker. This TP, an enemy within 3" of it is treated as having one additional Grudge token.' } },
     ],
+    // The Theyn plus nine picks: each once, except Warriors; up to three Gunners (each a different weapon = its own template).
+    perCopyRoster: true,
+    replacements: Object.fromEntries(['dozr', 'medic', 'grenadier', 'gunner', 'jumpPack', 'kinlynk', 'kognitaar', 'lokatr', 'lugger'].map((id) => [id, HK_PICKS])),
     ops: [
-      op('theyn', '領主', 'Theyn', { apl: 2, move: 5, save: 3, wounds: 9, base: 28, eyeOfAncestors: true, weavefield: true }, [etacarnPistol, plasmaWeaponTh]),
+      op('theyn', '領主', 'Theyn', { apl: 2, move: 5, save: 3, wounds: 9, base: 28, eyeOfAncestors: true, weavefield: true, loadouts: { 'etacarn+plasma': [etacarnPistol, plasmaWeaponTh], ...HK_THEYN_LOADOUTS } }, [etacarnPistol, plasmaWeaponTh]),
       op('dozr', '破拳手', 'Dôzr', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, brawler: true, knux: true }, [autochPistol, knux]),
       op('medic', '戰地醫療兵', 'Field Medic', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, medic: true, medikit: true }, [boltRevolver, plasmaKnifeMed]),
-      op('grenadier', '擲彈兵', 'Grenadier', { apl: 2, move: 5, save: 3, wounds: 8, base: 28 }, [autochPistol, c8Charge, fragHK, krakHK, fistsHK]),
-      op('gunner', '槍手（轉管砲）', 'Gunner (rotary cannon)', { apl: 2, move: 5, save: 3, wounds: 8, base: 28 }, [rotaryFocused, rotarySweeping, fistsHK]),
+      op('grenadier', '擲彈兵', 'Grenadier', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, utilityGrenade: true }, [autochPistol, c8Charge, fragHK, krakHK, fistsHK]),
+      op('gunner', '槍手（轉管砲）', 'Gunner (rotary cannon)', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, hkGunner: true }, [rotaryFocused, rotarySweeping, fistsHK]),
+      op('hkGunnerBeamer', '槍手（等離子光束槍）', 'Gunner (plasma beamer)', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, hkGunner: true }, [plasmaBeamer, fistsHK], 0),
+      op('hkGunnerRifle', '槍手（自動步槍）', 'Gunner (auto rifle)', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, hkGunner: true }, [hylasRifle, fistsHK], 0),
+      op('hkGunnerL7', '槍手（L7 飛彈）', 'Gunner (L7 missile launcher)', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, hkGunner: true }, [l7Blast, l7Focused, fistsHK], 0),
+      op('hkGunnerMagna', '槍手（磁軌步槍）', 'Gunner (magna rail rifle)', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, hkGunner: true }, [magnaRail, fistsHK], 0),
       op('jumpPack', '噴射背包戰士', 'Jump Pack Warrior', { apl: 2, move: 8, save: 3, wounds: 8, base: 28, jumpPack: true }, [autochPistol, plasmaWeaponJP]),
-      op('kinlynk', '通聯兵', 'Kinlynk', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, signalAny: true, jamToken: true }, [autochBolter, fistsHK]),
-      op('kognitaar', '智械參謀', 'Kognitâar', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, tactician: true }, [autochBolter, fistsHK]),
-      op('lokatr', '探測兵', 'Lokâtr', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, support: 'spot', panScan: true }, [ionBlaster, fistsHK]),
-      op('lugger', '搬運工', 'Lugger', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, wellSupplied: true, gotIt: true }, [autochBolter, fistsHK]),
+      op('kinlynk', '通聯兵', 'Kinlynk', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, signalAny: true, jamToken: true, loadouts: HK_BOLTER_OR_ION }, [autochBolter, fistsHK]),
+      op('kognitaar', '智械參謀', 'Kognitâar', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, tactician: true, loadouts: HK_BOLTER_OR_ION }, [autochBolter, fistsHK]),
+      op('lokatr', '探測兵', 'Lokâtr', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, support: 'spot', panScan: true, loadouts: { ion: HK_BOLTER_OR_ION.ion, bolter: HK_BOLTER_OR_ION.bolter } }, [ionBlaster, fistsHK]),
+      op('lugger', '搬運工', 'Lugger', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, wellSupplied: true, gotIt: true, loadouts: HK_BOLTER_OR_ION }, [autochBolter, fistsHK]),
+      // Secure Salvage: contesting a marker, one success in each attack against it deals 1 less damage.
+      op('hkWarrior', '戰士', 'Warrior', { apl: 2, move: 5, save: 3, wounds: 8, base: 28, secureSalvage: true, loadouts: HK_BOLTER_OR_ION }, [autochBolter, fistsHK], 0),
     ],
   },
   {
@@ -2504,6 +2532,7 @@ const FIREFIGHT = {
     ff('sturdy', '結實', 'Sturdy', '自動：被射擊時，攻擊方保留的暴擊全部變成普通成功。', 'Auto: when shot, the attacker\'s retained crits become normal successes.'),
     ff('engageToAcquire', '以戰奪寶', 'Engage to Acquire', '攻擊控制目標點的敵人：可重擲任意攻擊骰（毫不留情）。', 'Attacking an enemy that controls an objective: re-roll any attack dice (Relentless).'),
     ff('ancestorsWatching', '先祖注視', 'The Ancestors Are Watching', '啟動中：可免費射擊或近戰一次，且武器無視重傷減益。', 'During an activation: a free Shoot or Fight, ignoring injured weapon penalties.'),
+    ff('worthIt', '值得', 'Worth It', '自動：友方殘廢時，在移除前可以免費執行一個任務動作（有能做的才會用）。', 'Auto: when a friendly is incapacitated, it performs a free mission action before it\'s removed (if one is available).'),
   ],
   hierotek: [
     ff('livingLightning', '活體閃電', 'Living Lightning', '用特斯拉卡賓槍射擊時：改為「爆炸 2\"」（不再有 2" 毀滅）。', 'Shooting a tesla carbine: Blast 2" instead of its 2" Devastating.'),
