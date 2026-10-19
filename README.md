@@ -4,6 +4,14 @@ A browser-based (PWA) Kill Team–style skirmish game. Two players can play on o
 
 > This is an unofficial fan project. The rules are a simplified version of Kill Team. The teams, names, and ability wording are original archetypes.
 
+## 3D 對戰
+
+對戰棋盤上方可切換「2D 棋盤／3D 對戰」，兩個視圖共用對戰進度。3D 中點模型選取、點地面執行目前操作；部署中的特工可拖曳調整。按住 WASD 或方向鍵依目前視角平移；拖空白處或按住右鍵旋轉視角，中鍵或 Shift 拖曳平移，滾輪縮放；觸控使用雙指縮放與平移。另有俯視、重設視角及淡化地形按鈕。在輸入框、選單或對話框操作時，視角快捷鍵暫停。
+
+裝備維持「先預覽、再按右側確認」流程；拖曳預覽的角落節點可旋轉掩體，按住 Shift 以 15° 對齊。測距、目標與移動路徑會同步顯示。此模式提供立體呈現與操作，距離、掩護、視線及移動仍依既有平面規則計算，尚未加入攀爬、樓層或高低差規則。需要支援 WebGL 的瀏覽器。
+
+驗證：`node tests/battle3d.mjs`（座標、模型點選、所有隊伍模型及狀態一致性）。
+
 ## Deathwatch
 
 Deathwatch is selectable as a playable five-operative team using the linked official online datacards. Choose any five of its eleven specialists, with no duplicates and at most one GRAVIS operative. A Watch Sergeant is optional; faction and universal equipment share a four-option cap in this simulator. Collector notes and Seek & Destroy / Security Tac Ops are included.

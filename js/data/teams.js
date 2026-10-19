@@ -410,6 +410,27 @@ const seismicLong = W('seismicLong', '地震砲（長波）', 'Seismic cannon (l
 const seismicShort = W('seismicShort', '地震砲（短波）', 'Seismic cannon (short-wave)', 'ranged', 4, 3, 4, 4, { range: 6, heavy: 'dash', piercingCrits: 1, stun: true }, 'seismic');
 const autogunGSC = W('autogunGSC', '自動步槍', 'Autogun', 'ranged', 4, 4, 2, 3);
 const shotgunGSC = W('shotgunGSC', '霰彈槍', 'Shotgun', 'ranged', 4, 3, 3, 3, { range: 6 });
+// Neophyte Leader options: autogun or shotgun (its own, better profiles), or a pistol and a melee weapon.
+const wbLeaderAutogun = W('wbLeaderAutogun', '自動步槍', 'Autogun', 'ranged', 4, 3, 2, 3);
+const wbLeaderShotgun = W('wbLeaderShotgun', '霰彈槍', 'Shotgun', 'ranged', 4, 2, 3, 3, { range: 6 });
+const wbBoltPistol = W('wbBoltPistol', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8 });
+const webPistol = W('webPistol', '蛛網手槍', 'Web pistol', 'ranged', 4, 3, 3, 4, { range: 6, severe: true, stun: true });
+const wbChainsword = W('wbChainsword', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5);
+const powerPick = W('powerPick', '動力鎬', 'Power pick', 'melee', 4, 3, 4, 5, { rending: true });
+const WB_LEADER_LOADOUTS = Object.fromEntries([
+  ['autopistol+maul', [mcAutopistol, powerMaul]], ['autogun', [wbLeaderAutogun, gunButtGSC]], ['shotgun', [wbLeaderShotgun, gunButtGSC]],
+  ...[['autopistol', mcAutopistol], ['boltPistol', wbBoltPistol], ['web', webPistol]].flatMap(([p, pw]) => [['maul', powerMaul], ['chainsword', wbChainsword], ['pick', powerPick]]
+    .map(([m, mw]) => [`${p}+${m}`, [pw, mw]])).filter(([k]) => k !== 'autopistol+maul'),
+]);
+const webber = W('webber', '蛛網槍', 'Webber', 'ranged', 4, 3, 3, 4, { range: 12, severe: true, stun: true });
+const heavyStubberF = W('heavyStubberF', '重型機槍（集中）', 'Heavy stubber (focused)', 'ranged', 5, 4, 4, 5, { heavy: 'dash' }, 'heavyStubberWB');
+const heavyStubberS = W('heavyStubberS', '重型機槍（掃射）', 'Heavy stubber (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', torrent: 1 }, 'heavyStubberWB');
+// Sanctus: the stationary profile (Heavy, Dash only) gains Lethal 5+ from Target Vulnerability.
+const sanctusMobile = W('sanctusMobile', '聖者狙擊槍（機動）', 'Sanctus sniper rifle (mobile)', 'ranged', 4, 3, 3, 4, {}, 'sanctusRifle');
+const sanctusStationary = W('sanctusStationary', '聖者狙擊槍（定點）', 'Sanctus sniper rifle (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: 'dash', silent: true }, 'sanctusRifle');
+const sanctusFists = W('sanctusFists', '徒手格鬥', 'Fists', 'melee', 4, 3, 2, 4);
+const bioDagger = W('bioDagger', '聖者生物匕首', 'Sanctus bio-dagger', 'melee', 4, 3, 3, 6, { lethal: 4, shock: true });
+const WB_PICKS = ['gunnerFlamer', 'gunnerGL', 'gunnerWebber', 'heavyStubber', 'heavyLaser', 'heavySeismic', 'icon', 'warrior', 'warriorShotgun'];
 
 // ---- Blooded ----
 const laspistolBL = W('laspistolBL', '雷射手槍', 'Laspistol', 'ranged', 4, 3, 2, 3, { range: 8 });
@@ -822,7 +843,7 @@ export const TEAMS = [
       op('grenadier', '突襲仲裁者擲彈兵', 'Assault Intercessor Grenadier', { apl: 3, move: 6, save: 3, wounds: 14, base: 32 }, [heavyBoltPistol, fragGrenade, krakGrenade, chainswordA]),
       op('gunner', '仲裁者槍手', 'Intercessor Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, loadouts: gunnerLoadouts }, gunnerLoadouts.bolt),
       op('heavy', '重裝仲裁者槍手', 'Heavy Intercessor Gunner', { apl: 3, move: 5, save: 3, wounds: 18, base: 40 }, [boltPistol, hbFocused, hbSweeping, fistsA]),
-      op('sniper', '清除者狙擊手', 'Eliminator Sniper', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, camoCloak: true, optics: true }, [boltPistol, sniperExec, sniperHyper, sniperMortis, fistsA]),
+      op('sniper', '清除者狙擊手', 'Eliminator Sniper', { apl: 3, move: 7, save: 3, wounds: 12, base: 40, camoCloak: true, optics: true }, [boltPistol, sniperExec, sniperHyper, sniperMortis, fistsA]),
     ],
   },
   {
@@ -1417,10 +1438,10 @@ export const TEAMS = [
     },
     cultAmbush: true, // engine flag for the Cult Ambush faction rule
     rule: {
-      name: { zh: '教派伏擊・教派特工', en: 'Cult Ambush · Cult Agent' },
+      name: { zh: '教派伏擊・教派特工・熟悉的地盤', en: 'Cult Ambush · Cult Agent · Familiar Territory' },
       desc: {
-        zh: '教派伏擊：啟動時從隱蔽改為交戰、或啟動開始時沒有被敵人看見，本次啟動射擊與近戰時武器「無休」。教派特工（克勒莫夫、基因護衛）：被射擊時無視「穿甲」與「飽和」，能保留掩護豁免時多保留 1 顆或把 1 顆當暴擊。新信徒戰士群體啟動。（隱藏部署未實作）',
-        en: 'Cult Ambush: if its order changed from Conceal to Engage at the start of the activation, or no enemy could see it then, its weapons have Ceaseless that activation. Cult Agents (Kelermorph, Locus): when shot, ignore Piercing and Saturate; with cover saves, retain one more or one as a critical. Neophyte Warriors use Group Activation. (Hiding deployment isn\'t modelled.)',
+        zh: '教派伏擊：啟動時從隱蔽改為交戰、或啟動開始時沒有被敵人看見，本次啟動射擊與近戰時武器「無休」。教派特工（克勒莫夫、基因護衛、聖者）：被射擊時無視「穿甲」與「飽和」，能保留掩護豁免時多保留 1 顆或把 1 顆當暴擊。新信徒戰士群體啟動。熟悉的地盤：部署時最多三分之一的隊伍（不含教派特工）可以躲藏；啟動時可以結束啟動，或在己方降落區 6" 內、離敵人超過 6" 的地方現身（視為轉移）；第二回合結束還在躲藏的特工殘廢。',
+        en: 'Cult Ambush: if its order changed from Conceal to Engage at the start of the activation, or no enemy could see it then, its weapons have Ceaseless that activation. Cult Agents (Kelermorph, Locus, Sanctus): when shot, ignore Piercing and Saturate; with cover saves, retain one more or one as a critical. Neophyte Warriors use Group Activation. Familiar Territory: up to a third of the team (not Cult Agents) can be set up in hiding; when activated, it is expended or emerges wholly within 6" of your drop zone and more than 6" from enemies (a Reposition); any still hiding at the end of TP2 are incapacitated.',
       },
     },
     ploys: [
@@ -1430,18 +1451,28 @@ export const TEAMS = [
         desc: { zh: '本回合友方射擊本回合已被其他友方射擊過的目標時，遠程武器「精準 1」。', en: 'This TP, a friendly shooting an operative another friendly has already shot this TP has Accurate 1.' } },
       { id: 'oneWithShadows', cp: 1, name: { zh: '與暗影同在', en: 'One with the Shadows' },
         desc: { zh: '本回合隱蔽指令的友方被射擊時，若中間有輕型地形（且不在任一方 1" 內），視為被遮擋。', en: 'This TP, a Concealed friendly being shot is obscured by intervening Light terrain (unless it\'s within 1" of either operative).' } },
+      { id: 'divertDisappear', cp: 1, name: { zh: '轉移與消失', en: 'Divert and Disappear' },
+        desc: { zh: '最多三名友方立刻免費衝刺（這裡只做衝刺；教派特工算兩名）。', en: 'Up to three friendlies immediately make a free Dash (here Dash only; a Cult Agent counts as two).' } },
     ],
+    // A Leader, two Cult Agent selections (packages below: each Cult Agent counts as two selections, or two Warriors instead)
+    // and nine Neophyte selections, each copy picked on its own.
+    perCopyRoster: true,
+    replacements: { gunnerFlamer: WB_PICKS, gunnerGL: WB_PICKS, heavyLaser: WB_PICKS, heavySeismic: WB_PICKS, icon: WB_PICKS, warrior: WB_PICKS, warriorShotgun: WB_PICKS },
     ops: [
-      op('leader', '新信徒領袖', 'Neophyte Leader', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, neophyte: true }, [mcAutopistol, powerMaul]),
-      op('kelermorph', '克勒莫夫', 'Kelermorph', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoShoots: true, heroic: true }, [stubsHyper, stubsLong, stubsShort, kelKnife]),
-      op('locus', '基因護衛', 'Locus', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoFights: true }, [barbedTail, locusBlades]),
-      op('gunnerFlamer', '槍手（火焰）', 'Neophyte Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true }, [flamerGSC, gunButtGSC]),
-      op('gunnerGL', '槍手（榴彈）', 'Neophyte Gunner (grenade launcher)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true }, [glFragGSC, glKrakGSC, gunButtGSC]),
-      op('heavyLaser', '重武器手（採礦雷射）', 'Neophyte Heavy Gunner (mining laser)', { apl: 2, move: 6, save: 5, wounds: 7, base: 32, neophyte: true, bipod: true }, [miningLaser, gunButtGSC]),
-      op('heavySeismic', '重武器手（地震砲）', 'Neophyte Heavy Gunner (seismic cannon)', { apl: 2, move: 6, save: 5, wounds: 7, base: 32, neophyte: true, bipod: true }, [seismicLong, seismicShort, gunButtGSC]),
-      op('icon', '新信徒掌旗手', 'Neophyte Icon Bearer', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, iconBearer: true }, [autogunGSC, gunButtGSC]),
-      op('warrior', '新信徒戰士', 'Neophyte Warrior', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, groupAct: 'gscWarrior' }, [autogunGSC, gunButtGSC], 2),
-      op('warriorShotgun', '新信徒戰士（霰彈槍）', 'Neophyte Warrior (shotgun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, groupAct: 'gscWarrior' }, [shotgunGSC, gunButtGSC], 2),
+      op('leader', '新信徒領袖', 'Neophyte Leader', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, neophyte: true, wbLeader: true, loadouts: WB_LEADER_LOADOUTS }, [mcAutopistol, powerMaul]),
+      op('kelermorph', '克勒莫夫', 'Kelermorph', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoShoots: true, heroic: true }, [stubsHyper, stubsLong, stubsShort, kelKnife], 0),
+      op('locus', '基因護衛', 'Locus', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoFights: true, expertSwordsman: true }, [barbedTail, locusBlades], 0),
+      op('wbSniper', '聖者狙擊手', 'Sanctus Sniper', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, sanctus: 'sniper' }, [sanctusMobile, sanctusStationary, sanctusFists], 0),
+      op('wbTalon', '聖者利爪', 'Sanctus Talon', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, sanctus: 'talon', creepingShadow: true }, [bioDagger], 0),
+      op('gunnerFlamer', '槍手（火焰）', 'Neophyte Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, wbGunner: true }, [flamerGSC, gunButtGSC]),
+      op('gunnerGL', '槍手（榴彈）', 'Neophyte Gunner (grenade launcher)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, wbGunner: true }, [glFragGSC, glKrakGSC, gunButtGSC]),
+      op('gunnerWebber', '槍手（蛛網槍）', 'Neophyte Gunner (webber)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, wbGunner: true }, [webber, gunButtGSC], 0),
+      op('heavyStubber', '重武器手（重型機槍）', 'Neophyte Heavy Gunner (heavy stubber)', { apl: 2, move: 6, save: 5, wounds: 7, base: 32, neophyte: true, bipod: true, wbHeavy: true }, [heavyStubberF, heavyStubberS, gunButtGSC], 0),
+      op('heavyLaser', '重武器手（採礦雷射）', 'Neophyte Heavy Gunner (mining laser)', { apl: 2, move: 6, save: 5, wounds: 7, base: 32, neophyte: true, bipod: true, wbHeavy: true }, [miningLaser, gunButtGSC]),
+      op('heavySeismic', '重武器手（地震砲）', 'Neophyte Heavy Gunner (seismic cannon)', { apl: 2, move: 6, save: 5, wounds: 7, base: 32, neophyte: true, bipod: true, wbHeavy: true }, [seismicLong, seismicShort, gunButtGSC]),
+      op('icon', '新信徒掌旗手', 'Neophyte Icon Bearer', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, iconBearer: true, overthrow: true, loadouts: { autogun: [autogunGSC, gunButtGSC], shotgun: [shotgunGSC, gunButtGSC] } }, [autogunGSC, gunButtGSC]),
+      op('warrior', '新信徒戰士', 'Neophyte Warrior', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, groupAct: 'gscWarrior', wbWarrior: true }, [autogunGSC, gunButtGSC], 2),
+      op('warriorShotgun', '新信徒戰士（霰彈槍）', 'Neophyte Warrior (shotgun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, groupAct: 'gscWarrior', wbWarrior: true }, [shotgunGSC, gunButtGSC], 2),
     ],
   },
   {
@@ -2631,6 +2662,8 @@ const FIREFIGHT = {
   wyrmblade: [
     ff('slink', '遁入黑暗', 'Slink into Darkness', '啟動中：啟動結束時從交戰改回隱蔽（每名整場一次）。', 'During an activation: switch from Engage back to Conceal when it ends (once per operative per battle).'),
     ff('coiledSerpent', '盤蛇', 'Coiled Serpent', '從隱蔽轉交戰後的第一次攻擊：一顆普通成功當成暴擊。', 'First attack after switching from Conceal to Engage: one normal success becomes a critical success.'),
+    ff('unquestioningLoyalty', '無條件忠誠', 'Unquestioning Loyalty', '自動：教派特工或領袖被選為射擊或近戰目標時，3" 內看得到的一名新信徒（不含領袖）代替它（爆炸、洪流除外）。', 'Auto: when a Cult Agent or the Leader is picked as a target to shoot or fight, a Neophyte (not the Leader) visible within 3" takes its place (not against Blast or Torrent).'),
+    ff('planGenerations', '世代籌劃之計', 'A Plan Generations in the Making', '自動：友方新信徒殘廢時，倒下前免費做一個任務動作。', 'Auto: when a friendly Neophyte is incapacitated, it performs a free mission action before it is removed.'),
   ],
   kasrkin: [
     ff('neutraliseTarget', '消滅目標', 'Neutralise Target', '射擊沒有掩護豁免、或被偵察兵掃描中的敵人：可重擲任意攻擊骰（毫不留情）。', 'Shooting an enemy that can\'t retain cover saves, or is being scanned: re-roll any attack dice (Relentless).'),
@@ -2701,6 +2734,17 @@ const FIREFIGHT = {
   ],
 };
 for (const t of TEAMS) t.firefight = FIREFIGHT[t.id] || t.firefight || [];
+
+// Wyrmblade: two Cult Agent selections (each counts as two), or two Neophyte Warriors in their place.
+{
+  const wb = TEAMS.find((t) => t.id === 'wyrmblade'), T = (id) => wb.ops.find((o) => o.id === id);
+  const opts = [['kelermorph'], ['locus'], ['wbSniper'], ['wbTalon'], ['warrior', 'warrior'], ['warrior', 'warriorShotgun'], ['warriorShotgun', 'warriorShotgun']];
+  const entry = (ids) => [ids.join('+'), { name: { zh: ids.map((id) => T(id).name.zh).join(' + '), en: ids.map((id) => T(id).name.en).join(' + ') }, ops: ids }];
+  wb.packages = Object.fromEntries([['kelermorph'], ['locus']].map((d, i) => [`wbAgent${i + 1}`, {
+    name: { zh: `教派特工名額 ${i + 1}`, en: `Cult Agent selection ${i + 1}` },
+    options: Object.fromEntries([entry(d), ...opts.filter((o) => o.join('+') !== d.join('+')).map(entry)]),
+  }]));
+}
 
 // Warpcoven: five selections, each a full operative or two Tzaangor (who count as half a selection each).
 {

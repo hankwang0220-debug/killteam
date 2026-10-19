@@ -47,7 +47,7 @@ import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation
 import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
-  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
+  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName, makeTerrain, OBJECTIVES, DEPLOY,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
@@ -55,7 +55,7 @@ import {
   giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
   ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor, PRIMARY_OPS, primaryBonus, primaryBase, primaryPending, choosePrimary,
-  EQUIPMENT, EQUIPMENT_LIMIT, equipmentLimitFor, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
+  EQUIPMENT, EQUIP_IDS, EQUIPMENT_LIMIT, equipmentLimitFor, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
   rvSensesOk, rvUseSenses, hkWritOk, hkUseWrit, phTacInitOk, phTacInit, phCommsChoose, startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, missionActionsFor, foes,
   sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
@@ -64,12 +64,13 @@ import {
   readyOps, passChain, orderIssuer, chooseGuardOrder, GUARD_ORDERS, guardOrder, eyeLeft, eyeOfAncestors, placeTactician, placeNavyOrder, ffReady, zonePending, chooseDropZone, zoneEdge, nodePlace, nodeMove, animateBegin, animateMove, animateEnd, nodalChoose, nodesDone, nodesLeftToPlace, nodeList, placeNodes, scrambleTargets, omniScramble, assignBlood, setGaze, setGloryKill,
 } from './game.js';
 import { renderBoard, tokenLegend, roleGlyph, roleOf } from './board.js';
-import { distPointRect } from './geometry.js';
+import { distPointRect, handleRotation } from './geometry.js';
 import { findPath, moveCtx, wholeInchPath } from './path.js';
 import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices, setReboot } from './missions.js';
 import { HELP } from './help.js';
 import { modelsView, mountModels, unmountModels } from './viewer3d.js';
+import { battle3dMarkup, mountBattle3d, unmountBattle3d, battle3dControl } from './battle3d.js';
 import { archiveGame, deleteHistory, loadHistory, recordStep, resetRecorder, rewindRecorder, stepNotes, trailsAt, viewAt } from './replay.js';
 
 const app = document.getElementById('app');
@@ -88,6 +89,7 @@ const ui = {
   undo: [],           // snapshots before the player's undoable actions this activation
   help: false,
   settingsOpen: false,
+  boardView: (()=>{try{return localStorage.getItem('kt.boardView')==='3d'?'3d':'2d';}catch{return '2d';}})(),
   setup: { teams: ['angels', 'kommandos'], ai: 1, tactics: [null, null], mission: 'standard', map: 'default', terrainRanges: 'nearby', autoFF: (() => { try { return localStorage.getItem('ktAutoFF') === '1'; } catch { return false; } })() },
 };
 try { const mode = localStorage.getItem('kt.terrainRanges'); if (['nearby', 'always', 'off'].includes(mode)) ui.setup.terrainRanges = mode; } catch { /* optional preference */ }
@@ -156,7 +158,25 @@ function render() {
   if (ui.screen === 'models') mountModels(app.querySelector('.m3d')); else unmountModels();
   drawMeasure();
   renderModal();
+  if(ui.screen==='game' && ui.boardView==='3d') {
+    mountBattle3d(app.querySelector('.battle3d-stage'),g,boardUi(),{
+      click:(p,uid,e)=>dispatch3dBoardEvent('click',p,uid,e),
+      hover:(p,uid,e)=>dispatch3dBoardEvent('pointermove',p,uid,e),
+      measuring:()=>measure.mode||angle.mode||measure.pts.length>0,
+      angle:a=>{ui.eqAngle=a;render();},
+      deploy:(uid,p)=>{const o=getOp(g,uid);if(o && !isAI(o.side) && placeOp(g,o,p)){ui.sel=uid;afterChange();}else{ui.notice=L('這個部署位置不合法。','Illegal deployment position.');render();}},
+    });
+  }else unmountBattle3d();
   scheduleAI();
+}
+
+/** Feed WebGL picks through the same DOM interaction path as 2D, including measuring and replay-safe selection. */
+function dispatch3dBoardEvent(type,p,uid,original) {
+  const svg=document.getElementById('board');if(!svg)return;
+  const target=uid?[...svg.querySelectorAll('[data-uid]')].find(n=>n.dataset.uid===uid)||svg:svg;
+  const options={bubbles:true,button:0,clientX:original.clientX,clientY:original.clientY,pointerType:original.pointerType||'mouse'};
+  const event=type==='pointermove'?new PointerEvent(type,options):new MouseEvent(type,options);
+  Object.defineProperty(event,'boardPoint',{value:p});target.dispatchEvent(event);
 }
 
 // ---------- measuring tool ----------
@@ -320,6 +340,7 @@ document.addEventListener('keydown', (e) => {
 // Otherwise a left-click anywhere clears the measurement; on the board that click is used up by the clear.
 document.addEventListener('click', (e) => {
   if (e.button !== 0) return;
+  if(e.target.closest('.battle3d-stage') && !e.target.closest('#board'))return;
   if (angle.mode) {
     if (!e.target.closest('#board')) return;
     e.stopPropagation();
@@ -346,6 +367,36 @@ document.addEventListener('click', (e) => {
 // An invalid drop (outside the drop zone, on terrain, overlapping) snaps it back.
 let drag = null; // { op, from, start, p, moved, el }
 let dragEndedAt = -Infinity;
+let equipmentDrag = null;
+
+app.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || measure.mode || angle.mode || ui.screen !== 'game' || g?.phase !== 'deploy' || !g.eqDeploy || g.eqDeploy.done || isAI(g.eqDeploy.turn) || !ui.eqPoint) return;
+  if (!e.target.closest('#board [data-eq-handle]')) return;
+  e.preventDefault();
+  equipmentDrag = { pointerId:e.pointerId, source:ui.eqSource, center:{...ui.eqPoint}, start:svgPoint(e), angle:ui.eqAngle || 0 };
+  // The app element survives render(), so pointer capture survives the live preview redraws.
+  app.setPointerCapture(e.pointerId);
+});
+app.addEventListener('pointermove', (e) => {
+  if (!equipmentDrag || equipmentDrag.pointerId !== e.pointerId) return;
+  if (equipmentDrag.source !== ui.eqSource) return finishEquipmentDrag(e, true);
+  e.preventDefault();
+  const d = equipmentDrag;
+  ui.eqAngle = handleRotation(d.center, d.start, svgPoint(e), d.angle, e.shiftKey);
+  render();
+});
+function finishEquipmentDrag(e, cancel = false) {
+  if (!equipmentDrag || equipmentDrag.pointerId !== e.pointerId) return;
+  const d = equipmentDrag;
+  equipmentDrag = null;
+  if (cancel && d.source === ui.eqSource) ui.eqAngle = d.angle;
+  dragEndedAt = performance.now();
+  if (app.hasPointerCapture(e.pointerId)) app.releasePointerCapture(e.pointerId);
+  render();
+}
+app.addEventListener('pointerup', (e) => finishEquipmentDrag(e));
+app.addEventListener('pointercancel', (e) => finishEquipmentDrag(e, true));
+app.addEventListener('lostpointercapture', (e) => finishEquipmentDrag(e, true));
 
 // The click that follows a drag must not also act as a board click (or clear the measurement).
 window.addEventListener('click', (e) => {
@@ -599,6 +650,15 @@ function inquisitionRosterWarning(t, cur) {
   if (pierce.length > 3) bad.push(L(`穿甲武器 ${pierce.length} 把，最多 3 把`, `${pierce.length} Piercing weapons — three at most`));
   return bad.length ? `<p class="bad small">⚠ ${bad.map(esc).join('；')}</p>` : '';
 }
+/** Warpcoven: each Sorcerer's Boon of Tzeentch (each boon once). */
+function wcBoonPick(t, side, cur) {
+  const sorc = [...new Set(warpcovenIds(t, cur))].filter((id) => t.ops.find((o) => o.id === id).sorcerer);
+  return sorc.map((id) => {
+    const now = cur[`boon_${id}`] || WC_BOON_DEFAULT[id];
+    return `<label>${esc(bi(t.ops.find((o) => o.id === id).name))} · ${L('奸奇的恩賜', 'Boon of Tzeentch')}<select data-act="roster" data-side="${side}" data-id="boon_${id}">${Object.entries(WC_BOONS).map(([b, x]) => `<option value="${b}" ${now === b ? 'selected' : ''}>${esc(tx(x.name))}</option>`).join('')}</select></label>
+      <p class="hint small">${esc(tx(WC_BOONS[now].desc))}</p>`;
+  }).join('');
+}
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
 function rosterWarning(t, cur, side) {
   if (t.id === 'murderwing') { const error = murderwingRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -610,6 +670,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'hearthkyn') { const error = hearthkynRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'navyBreachers') { const error = navyRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'phobos') { const error = phobosRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'warpcoven') { const error = warpcovenRosterError(t, cur, ui.setup.loadouts?.[side]); return wcBoonPick(t, side, cur) + (error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''); }
   if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -629,15 +690,6 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'deathwatch') { const error = deathwatchRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.insidiants) {
     const ids = Object.keys(t.replacements).map((slot) => cur[slot] || slot).map((id) => (id === 'ciCremator2' ? 'ciCremator' : id));
-/** Warpcoven: each Sorcerer's Boon of Tzeentch (each boon once). */
-function wcBoonPick(t, side, cur) {
-  const sorc = [...new Set(warpcovenIds(t, cur))].filter((id) => t.ops.find((o) => o.id === id).sorcerer);
-  return sorc.map((id) => {
-    const now = cur[`boon_${id}`] || WC_BOON_DEFAULT[id];
-    return `<label>${esc(bi(t.ops.find((o) => o.id === id).name))} · ${L('奸奇的恩賜', 'Boon of Tzeentch')}<select data-act="roster" data-side="${side}" data-id="boon_${id}">${Object.entries(WC_BOONS).map(([b, x]) => `<option value="${b}" ${now === b ? 'selected' : ''}>${esc(tx(x.name))}</option>`).join('')}</select></label>
-      <p class="hint small">${esc(tx(WC_BOONS[now].desc))}</p>`;
-  }).join('');
-}
     const dup = ids.filter((id, i) => !['ciWarrior', 'ciCremator'].includes(id) && ids.indexOf(id) !== i);
     const crem = ids.filter((id) => id === 'ciCremator').length;
     const bad = [...(dup.length ? [L(`重複選了：${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join('、')}（只有修女戰士、焚化修女能重複）`, `Picked more than once: ${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join(', ')}`)] : []),
@@ -649,7 +701,6 @@ function wcBoonPick(t, side, cur) {
     const rep = t.goreTanks ? 'gmAspirant' : 'hyWarrior';
     const ids = Object.keys(t.replacements).flatMap((slot) => (Array.isArray(cur[slot]) ? cur[slot] : Array(t.ops.find((o) => o.id === slot).count).fill(cur[slot] || slot)));
     const dup = [...new Set(ids.filter((id, i) => id !== rep && ids.indexOf(id) !== i))];
-  if (t.id === 'warpcoven') { const error = warpcovenRosterError(t, cur, ui.setup.loadouts?.[side]); return wcBoonPick(t, side, cur) + (error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''); }
     return dup.length ? `<p class="bad small">⚠ ${esc(L(`重複選了：${dup.map((id) => tx(t.ops.find((o) => o.id === id).name)).join('、')}（只有${tx(t.ops.find((o) => o.id === rep).name)}能重複）`, `Picked more than once: ${dup.map((id) => tx(t.ops.find((o) => o.id === id).name)).join(', ')} (only ${tx(t.ops.find((o) => o.id === rep).name)} can repeat)`))}</p>` : '';
   }
   if (t.obeliskNodes) {
@@ -722,9 +773,15 @@ function equipPick(side) {
   const cur = cleanEquipment(ui.setup.teams[side], ui.setup.equip?.[side]);
   ((ui.setup.equip ||= [[], []])[side]) = cur;
   const limit = equipmentLimitFor(ui.setup.teams[side]);
+  const options = equipmentOptionsFor(ui.setup.teams[side]);
+  const faction = options.filter((id) => !EQUIP_IDS.includes(id));
+  const universal = options.filter((id) => EQUIP_IDS.includes(id));
+  const group = (title, ids, empty) => `<section class="equipment-group"><h5>${esc(title)} <span class="hint">${L(`已選 ${ids.filter((id) => cur.includes(id)).length}／${ids.length} 項`, `${ids.filter((id) => cur.includes(id)).length} of ${ids.length} selected`)}</span></h5>
+    ${ids.length ? ids.map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('') : `<p class="hint small">${empty}</p>`}</section>`;
   return `<div class="tactics"><h4>${L(`裝備（陣營＋通用合計最多 ${limit} 項，已選 ${cur.length}）`, `Equipment (faction + universal: ${limit} total, ${cur.length} chosen)`)}</h4>
-    ${equipmentOptionsFor(ui.setup.teams[side]).map((id) => `<label class="small equip-option"><input type="checkbox" data-act="equip" data-side="${side}" data-id="${id}" ${cur.includes(id) ? 'checked' : ''} ${!cur.includes(id) && cur.length >= limit ? 'disabled' : ''}> <span class="equip-name">${esc(tx(EQUIPMENT[id].name))}</span><span class="hint"> — ${esc(tx(EQUIPMENT[id].desc))}</span></label>`).join('')}
-    <p class="hint small">${L('裝備會在開戰前自動擺在己方領土。', 'Equipment is set up automatically in your territory before the battle.')}</p></div>`;
+    ${group(L(`${tx(TEAM_MAP[ui.setup.teams[side]].name)}・陣營裝備`, `${tx(TEAM_MAP[ui.setup.teams[side]].name)} · Faction equipment`), faction, L('此隊伍目前沒有可選的陣營裝備。', 'This team currently has no faction equipment options.'))}
+    ${group(L('通用裝備（所有隊伍共用）', 'Universal equipment (shared by all teams)'), universal, '')}
+    <p class="hint small">${L('陣營與通用裝備共用上述選擇上限。需要放置的通用裝備會在部署階段輪流放置，並由右側確認。', 'Faction and universal equipment share the selection limit above. Universal equipment that needs placement is set up in alternating deployment turns and confirmed on the right.')}</p></div>`;
 }
 
 /** Tac Op for Approved Ops missions (secret from the opponent; the computer picks its own at random). */
@@ -820,7 +877,7 @@ function roster(t, side) {
 function gameView() {
   return `${topBar(scoreBar(), turnStatus())}
   <main class="game">
-    <div class="boardwrap">${opRoster(0)}<div class="boardcol"><div class="boardbox">${renderBoard(g, boardUi())}${inspectView()}${measureBar()}${turnBanner()}${endBanner()}</div>${tokenLegend()}</div>${opRoster(1)}</div>
+    <div class="boardwrap">${opRoster(0)}<div class="boardcol"><div class="boardviewbar" role="group" aria-label="${L('棋盤模式','Board view')}"><button class="${ui.boardView==='2d'?'on':''}" data-act="boardview" data-view="2d">2D ${L('棋盤','Board')}</button><button class="${ui.boardView==='3d'?'on':''}" data-act="boardview" data-view="3d">3D ${L('對戰','Battle')}</button><span class="hint">${L('共用同一場對戰','Same battle in both views')}</span></div><div class="boardbox">${ui.boardView==='3d'?battle3dMarkup(renderBoard(g,boardUi())):renderBoard(g, boardUi())}${inspectView()}${measureBar()}${turnBanner()}${endBanner()}</div>${tokenLegend()}</div>${opRoster(1)}</div>
     <aside class="panel">${panelView()}${logView()}</aside>
   </main>`;
 }
@@ -1106,8 +1163,17 @@ function statusBox({ color, icon, phase, tp, who, doing, last, key }) {
   </div>`;
 }
 
+function syncEquipmentPreview() {
+  const source = g?.phase === 'deploy' && g.eqDeploy && !g.eqDeploy.done ? g.eqDeploy.queues[g.eqDeploy.turn][0] : null;
+  if (ui.eqSource !== source) { ui.eqSource = source; ui.eqPoint = null; ui.eqAngle = 0; }
+}
 function boardUi() {
+  syncEquipmentPreview();
   const b = { sel: ui.sel, peek: ui.peek, path: ui.path, highlight: null, ring: null, los: null, canDrag: g.phase === 'deploy', terrainRanges: ui.setup.terrainRanges };
+  if (g.phase === 'deploy' && g.eqDeploy && !g.eqDeploy.done && !isAI(g.eqDeploy.turn) && ui.eqPoint) {
+    const e = g.eqDeploy.queues[g.eqDeploy.turn][0];
+    b.equipmentPreview = { entry: equipmentPlacement(g, ui.eqPoint, ui.eqAngle || 0), source: e, p: ui.eqPoint, angle: ui.eqAngle || 0 };
+  }
   const op = activeOp(g);
   if (op && ui.mode?.kind === 'move' && !['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(ui.mode.action)) b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   // Exodite riders: where a Sprint can go (or the turn arc).
@@ -1166,7 +1232,8 @@ function initCardsLine() {
 /** Faction equipment that's used automatically when the rules say "you can" (players switch each on): equipment id = switch id. */
 const OPTIONAL_EQUIP = ['wcRobes', 'phSeals', 'phAmmo', 'nbSlugs', 'adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
   'kfMeat', 'kfTrophy', 'kfPiercing', 'kfToxin', 'mdGlyph', 'mwFuel', 'mwBladefins', 'pfTao', 'pfHiml', 'rtRations', 'rtLucky', 'sfSymbols', 'sfSeals', 'scOculars', 'spTvid',
-  'vsConvergence', 'vdToxin', 'vdTalisman', 'vdUnderstudy', 'wkDrill', 'wkOil'];
+  'vsConvergence', 'vdToxin', 'vdTalisman', 'vdUnderstudy', 'wkDrill', 'wkOil',
+  'feFellSigil','feGoreMarks','feManacles','fePhase','feTesla','feCube','feField','feRedundancy','feCadia','feTalismans','feCells','feClan','feMesh','feGoreSigil','feCultTalisman','feBlessing','feMortis','feRelics','feFlagellator','feBroodTalisman','feShielding','feWraithbone','feSkull'];
 /** The switchable automatic rules a side has: the team's own list, its optional equipment, and the Bioscryer Cuffs' automatic cleanse. */
 function autoAbilitiesFor(g, side) {
   const eq = g.equip?.[side] || [];
@@ -1185,6 +1252,7 @@ function initCardsPanel() {
     const tm = team(g, s), other = tx(team(g, 1 - s).name);
     const btns = g.initCards[s].filter((id, i, a) => a.indexOf(id) === i).map((id) => {
       if (id === 'reroll') return `<button data-act="initcard" data-side="${s}" data-id="reroll">🎲 ${L('重擲自己的骰子', 'Re-roll your die')}</button>`;
+      if (id === 'feProphecy') return [1,-1].map(sign=>`<button data-act="initcard" data-side="${s}" data-id="feProphecy" data-die="${s}" data-sign="${sign}">${L('預言符文','Rune of Prophecy')} ${sign>0?'+':'−'}D3</button>`).join('');
       const n = INIT_CARDS[id].n;
       return [[s, 1, L(`自己 +${n}`, `Yours +${n}`)], [s, -1, L(`自己 −${n}`, `Yours −${n}`)], [1 - s, 1, L(`${other} +${n}`, `${other} +${n}`)], [1 - s, -1, L(`${other} −${n}`, `${other} −${n}`)]]
         .map(([die, sign, lab]) => `<button data-act="initcard" data-side="${s}" data-id="${id}" data-die="${die}" data-sign="${sign}">±${n}：${esc(lab)}</button>`).join('');
@@ -1233,6 +1301,7 @@ function omenPick() {
   return [0, 1].filter((s) => g.omen?.[s] && !isAI(s)).map((s) => `<label>${esc(tx(team(g, s).name))} ${L('預兆', 'Omen')}<select data-act="omen" data-side="${s}">${g.ops.filter((o) => !(o.side === s && tpl(o).omen)).map((o) => `<option value="${o.uid}" ${g.omen[s] === o.uid ? 'selected' : ''}>${nm(o)} (${o.side === s ? L('友方重擲 1', 'Friendly re-roll 1s') : L('敵方重擲 6', 'Enemy re-roll 6s')})</option>`).join('')}</select></label>`).join('');
 }
 function deployPanel() {
+  syncEquipmentPreview();
   if (zonePending(g)) {
     const s = g.zonePick.side, edge = (e, ax) => (ax === 'y' ? (e === 'low' ? L('上方', 'top') : L('下方', 'bottom')) : (e === 'low' ? L('左側', 'left') : L('右側', 'right'))), ax = g.axis === 'y' ? 'y' : 'x';
     return `<section class="card"><h2>${L('選擇降落區', 'Choose a drop zone')}</h2><p class="hint">${L(`${tx(team(g, s).name)} 擲贏部署骰，可以選擇在棋盤的哪一側降落。`, `${tx(team(g, s).name)} won the roll-off and picks which edge to set up on.`)}</p>
@@ -1240,12 +1309,15 @@ function deployPanel() {
   }
   if (g.eqDeploy && !g.eqDeploy.done) {
     const d = g.eqDeploy, e = d.queues[d.turn][0], kind = e.item.kind;
-    const name = {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache'),tripwire:L('絆線','Tripwire')}[kind] || kind;
+    const name = e.item.portable ? L('可攜式路障','Portable barricade') : {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache'),goryTotem:L('血腥圖騰','Gory Totem'),bloodyCadaver:L('血屍','Bloody Cadaver'),tripwire:L('絆線','Tripwire')}[kind] || kind;
+    const valid = ui.eqPoint && equipmentPlacement(g, ui.eqPoint, ui.eqAngle || 0);
     return `<section class="card"><h2>${L('通用裝備部署', 'Equipment deployment')}</h2><h3>${esc(bi(team(g,d.turn).name))} · ${name}</h3>
-      <p class="hint">${L('雙方輪流放置一件裝備，全部完成後才部署特工。點棋盤放置目前裝備；裝備地形需符合半區、降落區與間距限制。', 'Alternate placing one equipment item; deploy operatives afterwards. Tap the board to place the current item within its legal area and spacing.')}</p>
+      <p><b>${L('正在部署：','Deploying: ')}${name}</b></p>
+      <p class="hint">${L('點棋盤預覽位置，再點可移動。拖曳掩體四角的圓點可繞中心旋轉，按住 Shift 以 15° 對齊；也可在下方輸入角度。按右側「確認部署」才正式放置並交給下一位玩家。', 'Tap to preview or move. Drag a barricade corner handle to rotate around its centre; hold Shift to snap to 15°, or enter an angle below. Press Confirm deployment on the right to place it and pass the turn.')}</p>
+      ${ui.eqPoint ? `<p class="${valid ? 'good' : 'bad'}">${valid ? L('位置合法，等待確認。','Legal position; awaiting confirmation.') : L('此位置或角度不合法，請調整。','Illegal position or angle; adjust the preview.')}</p>` : ''}
       <p>${L('剩餘', 'Remaining')}：P1 ${d.queues[0].length} / P2 ${d.queues[1].length}</p>
       ${ui.notice ? `<p class="bad">${esc(ui.notice)}</p>` : ''}
-      ${isAI(d.turn) ? `<p>${L('電腦部署中…','Computer setting up…')}</p>` : `${e.type === 'terrain' ? `<button data-act="eqrotate">${L('旋轉 90°','Rotate 90°')} ${ui.eqRotated ? '↔' : '↕'}</button>` : ''}<button data-act="eqauto">${L('自動放置這件裝備','Auto-place this item')}</button>`}</section>`;
+      ${isAI(d.turn) ? `<p>${L('電腦部署中…','Computer setting up…')}</p>` : `<label>${L('角度（度）','Angle (degrees)')} <input type="number" min="0" max="359" step="1" data-act="eqangle" value="${ui.eqAngle || 0}"></label><div class="row"><button data-act="eqrotate" data-delta="-15">−15°</button><button data-act="eqrotate" data-delta="15">+15°</button><button data-act="eqrotate" data-delta="90">+90°</button></div><button data-act="eqauto">${L('自動選擇預覽位置','Find preview position')}</button><button class="primary wide" data-act="eqconfirm" ${valid ? '' : 'disabled'}>${L('確認部署','Confirm deployment')} · ${name}</button><button data-act="eqcancel" ${ui.eqPoint ? '' : 'disabled'}>${L('取消預覽','Cancel preview')}</button>`}</section>`;
   }
   const d = g.dep;
   const count = (s) => {
@@ -1855,6 +1927,7 @@ function firefightPanel() {
   if (ui.pending) html += pendingView();
   else if (ui.mode) html += modeView(op);
   else {
+    if (pendingChoice(g, op.side) && !isAI(op.side)) html += choiceView(op.side); // a firefight ploy or action's pick (Mutant Herd, Psychic Cabal, Sorcerous Scrolls, Lock It Down)
     if (goreOf(op) != null) html += gorePanel(op);
     if (TEAM_MAP[op.team]?.yaegirs && op.side < 2) html += resourcePanel(op);
     if (isArchon(op)) {
@@ -1904,7 +1977,6 @@ function gorePanel(op) {
   return `<div class="gorepanel"><h4>🩸 ${L('血槽', 'Gore Tank')}：<span class="gore g${gore}">${'●'.repeat(gore)}${'○'.repeat(2 - gore)} ${esc(tx(GORE_LABEL[gore]))}</span>${armed.length ? ` <small>${L('已準備', 'Ready')}：${armed.map((k) => esc(tx(SANGUAVITAE[k].name))).join('、')}</small>` : ''}</h4>
     <p class="hint small">${L('血之精華（消耗一格血槽；同一種每次一次、每次最多兩種）：', 'Sanguavitae (decrease the tank; each once per activation, two at most):')}</p>
     <div class="actions">${btns}${canFavour(g, op) ? `<button data-act="favour">${L('恐虐的恩寵（血槽 +1）', 'Khorne\'s Favour (tank up)')}</button>` : ''}${bleed.length ? `<button data-act="bleed">${L(`取 ${nm(bleed[0])} 的流血標記（血槽 +1）`, `Take ${nm(bleed[0])}'s Bleeding token (tank up)`)}</button>` : ''}</div></div>`;
-    if (pendingChoice(g, op.side) && !isAI(op.side)) html += choiceView(op.side); // a firefight ploy or action's pick (Mutant Herd, Psychic Cabal, Sorcerous Scrolls, Lock It Down)
 }
 
 function modeView(op) {
@@ -2091,6 +2163,8 @@ function datacard(op, extra = '') {
   if (op.archonPoison) flags.push(`<span class="flag inj">${L('折磨毒素 D3', 'Torment poison D3')}</span>`);
   if (op.wardShield) flags.push(`<span class="flag">${L('守護護盾', 'Warding Shield')}</span>`);
   if (op.blinkOn) flags.push(`<span class="flag">${L('瞬移背包啟用', 'Blink Pack enabled')}</span>`);
+  if (op.boon && WC_BOONS[op.boon]) flags.push(`<span class="flag" title="${esc(tx(WC_BOONS[op.boon].desc))}">${L('恩賜', 'Boon')}：${esc(tx(WC_BOONS[op.boon].name))}</span>`); // (Warpcoven)
+  if (op.acted?.wcFly) flags.push(`<span class="flag">${L('非物質飛行', 'Immaterial Flight')}</span>`);
   if (op.shriek) flags.push(`<span class="flag">${L('勝利尖嘯：平衡', 'Victory Shriek: Balanced')}</span>`);
   if (op.frenzy) flags.push(`<span class="flag inj">🔥 ${L(`狂暴（被近戰普通命中 ${op.frenzyHits || 0}/2）`, `Frenzy (normal strikes taken ${op.frenzyHits || 0}/2)`)}</span>`);
   if (op.gongOn) flags.push(`<span class="flag">${L('鳴鑼：豁免 +1', 'Gong Knell: +1 Save')}</span>`);
@@ -2140,8 +2214,6 @@ const ABILITIES = {
   multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
   droneController: () => ['無人機操控員・遙控操作', 'Drone Controller · Remote Pilot', '在場時友方無人機 Move +2"。遙控操作 1AP（不在交戰中）：一架友方無人機立刻免費做一個動作（移動不超過 2"，可做無人機規則限制的動作）；可重複使用，但同一架無人機每次啟動不能做兩次相同的動作。', 'While it is in the killzone, friendly drones get +2" Move. Remote Pilot 1AP (not engaged): a friendly drone performs one free action (moving no more than 2", even one its Drone rule restricts); repeatable, but the same drone can\'t take the same free action twice in an activation.'],
   adaptiveOrders: () => ['適應性命令', 'Adaptive Orders', '看守長這回合沒有以策略謀略下達命令時，「鼓舞領導」在他啟動中 0CP。', 'If the Watchmaster doesn\'t issue an order as a strategic gambit, Inspirational Leadership costs 0CP during his activation.'],
-  if (op.boon && WC_BOONS[op.boon]) flags.push(`<span class="flag" title="${esc(tx(WC_BOONS[op.boon].desc))}">${L('恩賜', 'Boon')}：${esc(tx(WC_BOONS[op.boon].name))}</span>`); // (Warpcoven)
-  if (op.acted?.wcFly) flags.push(`<span class="flag">${L('非物質飛行', 'Immaterial Flight')}</span>`);
   dkSapper: () => ['工兵・地雷手', 'Sapper · Mine Layer', '攜帶地雷標記：可撿起它；「放下地雷標記」（1AP）放下後免費衝刺。遙控引爆器（限用 1 次，只能衝刺後使用）：引爆行動，對地雷標記 2" 內每名特工各射擊一次（無掩護、不被遮蔽），然後移除標記。', 'Carries the Mine marker: it can pick it up; Place Marker (1AP) then a free Dash. Remote detonator (Limited 1, Dash only before it): the Detonate action shoots every operative within 2" of the Mine marker (no cover, not obscured), then removes it.'],
   dkVeteran: () => ['老兵衛兵・仿生', 'Veteran Guardsman · Bionics', '啟動時可收到一道衛兵命令（自動）。3 以上的普通傷害少 1。', 'Receives a Guardsman Order when activated (automatic). Normal Dmg of 3 or more inflicts 1 less.'],
   quickDraw: () => ['快拔', 'Quick Draw', '每回合一次：敵人射擊它（或是爆裂的次要目標）、且它準備中時，它可以搶先免費用雙持手槍（集中）射擊那名敵人（可改交戰指令）。自動使用。', 'Once per TP: when an enemy shoots it (or it is a Blast secondary target) and it is ready, it shoots that enemy first for free with its focused dual pistols (it can change to Engage). Automatic.'],
@@ -2800,6 +2872,7 @@ function afterChange() {
 
 // ---------- board interaction ----------
 function svgPoint(evt) {
+  if(evt.boardPoint)return evt.boardPoint;
   const svg = document.getElementById('board');
   const pt = svg.createSVGPoint();
   pt.x = evt.clientX; pt.y = evt.clientY;
@@ -2807,6 +2880,7 @@ function svgPoint(evt) {
 }
 
 function onBoardClick(evt) {
+  if (evt.target.closest('[data-eq-handle]')) return;
   if(g.phase==='strategy' && ['reposition','fallBack'].includes(ui.seeker?.action)){
     const o=getOp(g,ui.seeker.uid),ctx=moveCtx(g,o,ui.seeker.action),p=svgPoint(evt),full=findPath(ctx,p);
     const path=full&&wholeInchPath(ctx,full,moveAllowance(g,o,ui.seeker.action),q=>!ctx.inEnemyER(q));
@@ -2885,8 +2959,8 @@ function onBoardClick(evt) {
   if (g.phase === 'deploy' && zonePending(g)) return;
   if (g.phase === 'deploy' && g.eqDeploy && !g.eqDeploy.done) {
     if (isAI(g.eqDeploy.turn)) return;
-    if (placeEquipment(g, svgPoint(evt), !!ui.eqRotated)) { ui.eqRotated = false; return afterChange(); }
-    ui.notice = L('這個位置不符合裝備部署限制，請換位置或使用自動放置。','Illegal equipment position. Choose another position or auto-place.');
+    ui.eqPoint = svgPoint(evt);
+    ui.notice = null;
     return render();
   }
   ui.peek = null; // (a datacard opened from the lists beside the board closes when the board is used)
@@ -3158,6 +3232,7 @@ modalRoot.addEventListener('click', (e) => {
   if (b) handle(b.dataset.act, b.dataset, e);
 });
 app.addEventListener('change', (e) => {
+  if (e.target.dataset.act === 'eqangle') { const n = Number(e.target.value); ui.eqAngle = Number.isFinite(n) ? ((n % 360) + 360) % 360 : 0; return render(); }
   if(e.target.dataset.act==='seekerorder'){ui.seeker={...(ui.seeker||{}),order:e.target.value};return;}
   if (e.target.dataset.act === 'map') { ui.setup.map = e.target.value; return render(); }
   if (e.target.dataset.act === 'terrainRanges') { ui.setup.terrainRanges = e.target.value; try { localStorage.setItem('kt.terrainRanges', e.target.value); } catch { /* optional preference */ } return render(); }
@@ -3290,6 +3365,8 @@ function handle(act, d) {
   if (['home', 'help', 'lang', 'replay', 'models'].includes(act)) closeSettings();
   const op = g && activeOp(g);
   switch (act) {
+    case 'boardview': ui.boardView=d.view==='3d'?'3d':'2d';try{localStorage.setItem('kt.boardView',ui.boardView);}catch{}return render();
+    case '3dreset': case '3dtop': case '3dcover': return battle3dControl(act);
     case 'home': history.replaceState(null, '', location.pathname + location.search); ui.screen = 'home'; return render();
     case 'tombworld': location.hash = 'tombworld'; ui.screen = 'tombworld'; return render();
     case 'models': if (ui.screen !== 'models') ui.modelsFrom = ui.screen; location.hash = 'models'; ui.screen = 'models'; return render();
@@ -3341,6 +3418,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'hearthkyn' && hearthkynRosterError(TEAM_MAP.hearthkyn, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'navyBreachers' && navyRosterError(TEAM_MAP.navyBreachers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'phobos' && phobosRosterError(TEAM_MAP.phobos, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'warpcoven' && warpcovenRosterError(TEAM_MAP.warpcoven, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
       clearSave();
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
@@ -3392,7 +3470,6 @@ function handle(act, d) {
     }
     case 'scoutopt': {
       const s = +d.side, cur = cleanScouting(ui.setup.scouting?.[s] ?? DEFAULT_SCOUTING);
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'warpcoven' && warpcovenRosterError(TEAM_MAP.warpcoven, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
       if (+d.d > 0) cur.push(d.id); else { const i = cur.lastIndexOf(d.id); if (i >= 0) cur.splice(i, 1); }
       (ui.setup.scouting ||= [undefined, undefined])[s] = cleanScouting(cur);
       return render();
@@ -3436,9 +3513,22 @@ function handle(act, d) {
     case 'seekerconfirm': if(ui.seeker && ui.path?.ok){useSeeker(g,getOp(g,ui.seeker.uid),ui.seeker.order,ui.seeker.action,null,ui.path);ui.seeker=null;ui.path=null;} return afterChange();
     case 'seekercancel': ui.seeker=null;ui.path=null;return render();
     case 'ployspass': ui.seeker=null;ui.path=null; if (g.phase === 'strategy' && g.ai !== ployChooser(g)) finishPloys(g); return afterChange();
-    case 'eqrotate': ui.eqRotated = !ui.eqRotated; return render();
+    case 'eqrotate': ui.eqAngle = ((ui.eqAngle || 0) + Number(d.delta) + 360) % 360; return render();
     case 'zone': if (zonePending(g)) chooseDropZone(g, g.zonePick.side, d.swap === '1'); return afterChange();
-    case 'eqauto': if (g.eqDeploy && !g.eqDeploy.done && !isAI(g.eqDeploy.turn)) autoPlaceEquipment(g); return afterChange();
+    case 'eqauto': {
+      if (!g.eqDeploy || g.eqDeploy.done || isAI(g.eqDeploy.turn)) return;
+      const pick = findEquipmentPlacement(g);
+      if (pick) { ui.eqPoint = pick.p; ui.eqAngle = pick.angle; ui.notice = null; }
+      else ui.notice = L('找不到合法位置。','No legal position found.');
+      return render();
+    }
+    case 'eqcancel': ui.eqPoint = null; ui.notice = null; return render();
+    case 'eqconfirm': {
+      if (!g.eqDeploy || g.eqDeploy.done || isAI(g.eqDeploy.turn) || !ui.eqPoint) return;
+      if (!placeEquipment(g, ui.eqPoint, ui.eqAngle || 0)) return render();
+      ui.eqPoint = null; ui.eqAngle = 0; ui.notice = null;
+      return afterChange();
+    }
     case 'pickop': { const o = getOp(g, d.uid); if (!trySelectOwn(o)) { ui.sel = d.uid; render(); } return undefined; }
     case 'activate': return doActivate(getOp(g, d.uid));
     case 'closeinspect': if (ui.peek) ui.peek = null; else ui.sel = null; return render();

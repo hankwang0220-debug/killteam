@@ -1,6 +1,28 @@
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
+/** Rotate a handle around a fixed centre, preserving its original angular offset. */
+export function handleRotation(center, start, current, angle, snap = false) {
+  if (dist(center, current) < .1) return angle;
+  const delta = Math.atan2(current.y-center.y, current.x-center.x) - Math.atan2(start.y-center.y, start.x-center.x);
+  const degrees = angle + delta * 180 / Math.PI;
+  return ((Math.round(degrees / (snap ? 15 : 1)) * (snap ? 15 : 1)) % 360 + 360) % 360;
+}
+
+const localPoint = (p, r) => {
+  const a = -(r.angle || 0) * Math.PI / 180, x = p.x - r.x - r.w / 2, y = p.y - r.y - r.h / 2;
+  return { x: r.x + r.w / 2 + x * Math.cos(a) - y * Math.sin(a), y: r.y + r.h / 2 + x * Math.sin(a) + y * Math.cos(a) };
+};
+export function rectCorners(r) {
+  const a = (r.angle || 0) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return [[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y]) => ({ x: r.x + r.w / 2 + x*r.w/2*c - y*r.h/2*s, y: r.y + r.h / 2 + x*r.w/2*s + y*r.h/2*c }));
+}
+export function rectGap(a, b) {
+  const ac = rectCorners(a), bc = rectCorners(b);
+  return Math.min(...ac.map((p,i) => distSegmentRect(p, ac[(i+1)%4], b)), ...bc.map((p,i) => distSegmentRect(p, bc[(i+1)%4], a)));
+}
+
 export function distPointRect(p, r) {
+  if (r.angle) p = localPoint(p, r);
   const dx = Math.max(r.x - p.x, 0, p.x - (r.x + r.w));
   const dy = Math.max(r.y - p.y, 0, p.y - (r.y + r.h));
   return Math.hypot(dx, dy);
@@ -17,12 +39,12 @@ export function distPointSegment(p, a, b) {
 export function distSegmentRect(a, b, r) {
   if (segRect(a, b, r)) return 0;
   return Math.min(distPointRect(a, r), distPointRect(b, r),
-    ...[{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y },
-      { x: r.x, y: r.y + r.h }, { x: r.x + r.w, y: r.y + r.h }].map((p) => distPointSegment(p, a, b)));
+    ...rectCorners(r).map((p) => distPointSegment(p, a, b)));
 }
 
 /** Liang–Barsky: does segment a→b touch rect r? */
 export function segRect(a, b, r) {
+  if (r.angle) { a = localPoint(a, r); b = localPoint(b, r); }
   let t0 = 0, t1 = 1;
   const dx = b.x - a.x, dy = b.y - a.y;
   const p = [-dx, dx, -dy, dy];

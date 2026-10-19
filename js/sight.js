@@ -4,6 +4,14 @@ const EPS = 1e-7;
 const point = (c, r, a) => ({ x: c.x + r * Math.cos(a), y: c.y + r * Math.sin(a) });
 
 function clipRect(poly, r) {
+  if (r.angle) {
+    const cx = r.x + r.w/2, cy = r.y + r.h/2;
+    const rotate = (p, angle) => {
+      const a = angle*Math.PI/180, x = p.x-cx, y = p.y-cy;
+      return { x:cx+x*Math.cos(a)-y*Math.sin(a), y:cy+x*Math.sin(a)+y*Math.cos(a) };
+    };
+    return clipRect(poly.map(p => rotate(p, -r.angle)), { ...r, angle:0 }).map(p => rotate(p, r.angle));
+  }
   for (const [axis, limit, sign] of [['x', r.x, 1], ['x', r.x + r.w, -1], ['y', r.y, 1], ['y', r.y + r.h, -1]]) {
     const out = [];
     for (let i = 0; i < poly.length; i++) {

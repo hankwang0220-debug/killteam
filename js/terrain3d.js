@@ -44,7 +44,7 @@ export function createTerrainKit(THREE) {
   const frame = (t, fn) => {
     const g = new THREE.Group(), long = t.w >= t.h;
     g.position.set(t.x + t.w / 2, 0, t.y + t.h / 2);
-    if (!long) g.rotation.y = Math.PI / 2;
+    g.rotation.y = (!long ? Math.PI / 2 : 0) - (t.angle || 0) * Math.PI / 180;
     fn(g, long ? t.w : t.h, long ? t.h : t.w);
     return g;
   };

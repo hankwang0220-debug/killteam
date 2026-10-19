@@ -201,10 +201,25 @@ button.wide { width: 100%; margin-top: 10px; }
 .equip-option input[type="checkbox"] { grid-column: 1; grid-row: 1; width: 16px; height: 16px; margin: 2px 0 0; }
 .equip-option .equip-name { grid-column: 2; grid-row: 1; }
 .equip-option .hint { grid-column: 2; grid-row: 2; }
+.equipment-group { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line, #343b46); }
+.equipment-group h5 { margin: 0 0 10px; font-size: 1rem; }
+.equipment-group h5 .hint { display: block; margin-top: 4px; font-size: .8rem; font-weight: normal; }
 .tactics select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
 .setupbar { display: flex; justify-content: space-between; margin-top: 16px; }
 
 /* ---------- game ---------- */
+.boardviewbar { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; flex-wrap: wrap; }
+.boardviewbar .on { border-color: var(--accent, #d6ad65); color: #ffe09b; background: #353124; }
+.battle3d-stage { position: relative; width: 100%; height: min(70vh, 780px); min-height: 380px; background: #10151d; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.battle3d-source { display: none; }
+.battle3d-host, .battle3d-canvas { width: 100%; height: 100%; display: block; }
+.battle3d-canvas { touch-action: none; outline-offset: -3px; }
+.battle3d-tools { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.battle3d-tools button { padding: 5px 9px; background: #151d2ce8; }
+.battle3d-tools .on { color: #ffe09b; border-color: #ffe09b; }
+.battle3d-hint { pointer-events: none; position: absolute; left: 10px; right: 10px; bottom: 0; padding: 7px 10px; background: #10151dd9; color: #b8c7dc; font-size: 11px; border-radius: 6px; }
+.battle3d-status { position: absolute; z-index: 5; left: 10px; top: 45px; max-width: calc(100% - 20px); padding: 9px 12px; color: #fff; background: #172337ed; border-radius: 6px; }
+@media(max-width: 650px) { .battle3d-stage { height: 60vh; min-height: 330px; } .battle3d-tools { right: 5px; top: 5px; gap: 3px; } }
 .game { flex: 1; display: grid; grid-template-columns: 1fr 360px; gap: 12px; padding: 12px; min-height: 0; }
 .boardwrap { min-width: 0; display: flex; align-items: flex-start; justify-content: center; }
 #board { width: 100%; height: auto; max-height: calc(100vh - 90px); background: #0c0e11; border-radius: 10px; user-select: none; touch-action: manipulation; }
@@ -219,6 +234,9 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .objbadge { font-size: .34px; font-weight: 700; text-anchor: middle; fill: var(--obj); paint-order: stroke; stroke: rgba(0,0,0,.65); stroke-width: .08px; }
 #board .op { cursor: pointer; }
 #board.deploy .op.mine { cursor: grab; touch-action: none; }
+#board .equipment-rotate-handle { cursor: grab; touch-action: none; pointer-events: all; }
+#board .equipment-rotate-handle:hover { fill: #fff; stroke: #37d995; }
+#board .equipment-rotate-handle:active { cursor: grabbing; }
 #board .op.dragging { cursor: grabbing; opacity: .85; }
 #board .op .base { stroke: #0b0b0b; stroke-width: .07; }
 #board .op .base.conceal { stroke: #fff; stroke-dasharray: .15 .1; stroke-width: .06; }

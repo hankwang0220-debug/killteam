@@ -3,9 +3,10 @@ import { accessPointsOf } from './tombworld-access.js';
 import { boardOf, DEPLOY, OBJ_R, CONTROL, controller, isInjured, opName, radius, team, tpl } from './game.js';
 import { getLang, tx } from './i18n.js';
 import { objBadges } from './missions.js';
-import { distPointRect } from './geometry.js';
+import { distPointRect, rectCorners } from './geometry.js';
 
 const f = (n) => +n.toFixed(3);
+const terrainTransform = (t) => `rotate(${t.angle || 0} ${t.x + t.w / 2} ${t.y + t.h / 2})`;
 
 /** Two-sided tabletop-style order marker; counteraction gets a separate marker. */
 function operativeTokens(o) {
@@ -87,14 +88,16 @@ export function renderBoard(g, ui) {
   for (const t of g.terrain) {
     const mode = ui.terrainRanges || 'nearby';
     if (mode === 'off' || (mode === 'nearby' && !g.ops.some(o => !o.dead && o.x > -50 && distPointRect(o, t) - radius(o) <= 1 + 0.001))) continue;
-    s.push(`<rect class="cover-range" x="${f(t.x - 1)}" y="${f(t.y - 1)}" width="${f(t.w + 2)}" height="${f(t.h + 2)}" rx="1" ry="1"/>`);
+    s.push(`<rect transform="${terrainTransform(t)}" class="cover-range" x="${f(t.x - 1)}" y="${f(t.y - 1)}" width="${f(t.w + 2)}" height="${f(t.h + 2)}" rx="1" ry="1"/>`);
   }
   s.push('</g>');
 
   for (const t of g.terrain) {
+    s.push(`<g transform="${terrainTransform(t)}">`);
     if (t.kind === 'heavy') s.push(`<rect class="heavy" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="0.08"/>`);
     else if (t.kind === 'wire') s.push(`<rect class="wire" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}"/>`); // razor wire
     else s.push(`<rect class="light" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" fill="url(#hatch)" rx="0.05"/>`);
+    s.push('</g>');
   }
   // Each piece of cover is labelled: 重 (Heavy) / 輕 (Light) / 網 (razor wire), in its middle.
   const zh = getLang() === 'zh';
@@ -143,9 +146,9 @@ export function renderBoard(g, ui) {
     if (m.carriedBy) continue;
     const c = controller(g, m);
     const col = c == null ? 'var(--obj)' : team(g, c).color;
-    s.push(`<rect x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
+    s.push(`<rect transform="rotate(${m.angle || 0} ${m.x} ${m.y})" x="${f(m.x - 0.35)}" y="${f(m.y - 0.35)}" width="0.7" height="0.7" rx="0.12" class="mmarker ${m.kind}" stroke="${col}" pointer-events="none"/>`);
     // (Hernkyn Yaegir Minefield markers: face down "?", flipped a HY-Pex mine "✸" or a blank "○"; the Fallen Kin marker "⚑".)
-    const sym = m.kind === 'hyMine' ? (!m.flipped ? '?' : m.live ? '✸' : '○')
+    const sym = m.kind === 'goryTotem' ? '⚑' : m.kind === 'bloodyCadaver' ? '☠' : m.kind === 'hyMine' ? (!m.flipped ? '?' : m.live ? '✸' : '○')
       : { mdPortal: '◉', infocore: '◆', retrieval: 'R', mine: '✸', ammo: '▣', comms: '⌁', meltaMine: '☢', grisly: '☠', explosives: '💣', obeliskNode: '◭', vortex: '🌀', fallenKin: '⚑', banner: '🚩', intel: 'i', pulsa: '◎', breach: '⛏', demolition: '✹', tripAlarm: '❗', boobyTrap: '💣', tripwire: '〰', flies: '🪰', dkMine: '✸', wsMine: '⚡', gas: '☁' }[m.kind] || '✦';
     s.push(`<text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">${sym}</text>`);
     // Equipment markers belong to a side: its colour as an outer ring.
@@ -193,12 +196,12 @@ export function renderBoard(g, ui) {
   [...(g.navyOrder || [])].forEach((m, side) => { // Navy Breachers' Attack / Defence Order marker
     if (m && m.tp === g.tp) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="3" class="pechra" stroke="${team(g, side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y - 3.2)}" class="pechratxt" pointer-events="none">${m.kind === 'attack' ? '⚔' : '🛡'}</text>`);
   });
-  // Reanimation markers (Hierotek Circle) whose operative can still come back.
-  for (const m of g.reanim || []) {
-    if (!g.ops.find((o) => o.uid === m.uid)?.dead) continue;
   (g.wcFlux || []).forEach((m, side) => { // Temporal Flux marker (Warpcoven): the operative comes back here if wholly within 6"
     if (m && !g.ops.find((o) => o.uid === m.uid)?.dead) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="6" class="pechra" stroke="${team(g, side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">⌛</text>`);
   });
+  // Reanimation markers (Hierotek Circle) whose operative can still come back.
+  for (const m of g.reanim || []) {
+    if (!g.ops.find((o) => o.uid === m.uid)?.dead) continue;
     s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.7" class="reanim" stroke="${team(g, m.side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y + 0.35)}" class="reanimtxt" pointer-events="none">☥</text>`);
   }
   (g.tactician || []).forEach((m, side) => {
@@ -338,6 +341,21 @@ export function renderBoard(g, ui) {
       <text x="${f(x)}" y="${f(y + 0.14)}">${text}</text></g>`);
   }
   s.push('<g id="measure" pointer-events="none"></g>'); // filled by the measuring tool
+  if (ui.equipmentPreview) {
+    const { entry, source, p, angle } = ui.equipmentPreview;
+    const t = entry?.item || { ...source.item, x:p.x-source.item.w/2, y:p.y-source.item.h/2, angle };
+    const col = entry ? '#37d995' : '#ff6262';
+    s.push(`<g class="equipment-preview" pointer-events="none" fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width=".09" stroke-dasharray=".2 .12">`);
+    if (source.type === 'terrain') s.push(`<rect transform="${terrainTransform(t)}" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}"/>`);
+    else s.push(`<rect transform="rotate(${angle} ${p.x} ${p.y})" x="${p.x-.35}" y="${p.y-.35}" width=".7" height=".7"/>`);
+    s.push(`<path transform="rotate(${angle} ${p.x} ${p.y})" d="M ${p.x} ${p.y} h .9 l -.2 -.15 m .2 .15 l -.2 .15" fill="none"/></g>`);
+    if (source.type === 'terrain') {
+      const handles = rectCorners(t);
+      s.push(`<g class="equipment-rotation-handles" fill="${col}" stroke="#0c0e11" stroke-width=".06">`);
+      handles.forEach((q, i) => s.push(`<circle class="equipment-rotate-handle" data-eq-handle="${i}" cx="${q.x}" cy="${q.y}" r=".23"><title>${zh ? '拖曳旋轉；按住 Shift 每次旋轉 15°' : 'Drag to rotate; hold Shift to snap to 15°'}</title></circle>`));
+      s.push(`<circle cx="${p.x}" cy="${p.y}" r=".08" pointer-events="none"/><text class="pathlen" x="${p.x}" y="${p.y-.65}" fill="${col}" stroke="none" pointer-events="none">${angle}°</text></g>`);
+    }
+  }
   s.push('</svg>');
   return s.join('');
 }

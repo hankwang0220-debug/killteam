@@ -134,7 +134,7 @@ export function ncDeath(g, op, target, pool, useFF, retally) {
   const keys = team(g, target.side).keywords || [];
   if (!IMPERIUM.includes(target.team) && !keys.includes('IMPERIUM')) return;
   const relentless = ADEPTUS_ASTARTES.includes(target.team) || keys.includes('ADEPTUS ASTARTES');
-  const want = (d) => !d.auto && !d.rr && (relentless ? d.res === 'miss' : d.v === 1);
+  const want = (d) => !d.auto && !d.rr && !(pool.noReroll1 && d.v === 1) && (relentless ? d.res === 'miss' : d.v === 1);
   if (!pool.dice.some(want) || !useFF(g, op.side, 'ncDeathFalse')) return;
   for (const d of pool.dice) if (want(d)) { d.v = d6(); d.rr = true; }
   retally(pool);

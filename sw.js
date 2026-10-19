@@ -1,6 +1,9 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v79';
+const CACHE = 'killteam-v82';
 const ASSETS = [
+  'js/battle3d.js',
+  'js/data/faction-equipment.js',
+  'js/data/wyrmblade.js',
   'js/tombworld-access.js', 'js/tombworld-maps.js', 'js/tombworld.js', 'js/data/tombworld.js',
   'js/wrecka.js', 'js/data/wrecka.js',
   'js/nightlords.js', 'js/data/nightlords.js', 'js/ratlings.js', 'js/data/ratlings.js', 'js/sanctifiers.js', 'js/data/sanctifiers.js', 'js/pathfinders.js', 'js/data/pathfinders.js', 'js/angels.js', 'js/data/angels.js', 'js/data/gellerpox.js', 'js/data/hearthkyn.js', 'js/data/navy.js', 'js/data/phobos.js', 'js/data/warpcoven.js', 'js/plague.js', 'js/data/plague.js', 'js/kommandos.js', 'js/data/kommandos.js', 'js/kinband.js', 'js/data/kinband.js', 'js/deathkorps.js', 'js/data/deathkorps.js', 'js/data/canoptek.js', 'js/raveners.js', 'js/data/raveners.js', 'js/spectres.js', 'js/data/spectres.js', 'js/aquilons.js', 'js/data/aquilons.js', 'js/voiddancers.js', 'js/data/voiddancers.js', 'js/vespids.js', 'js/data/vespids.js', 'js/stealthsuits.js', 'js/data/stealthsuits.js', 'js/wolfscouts.js', 'js/data/wolfscouts.js',
