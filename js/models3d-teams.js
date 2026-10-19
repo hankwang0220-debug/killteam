@@ -71,6 +71,8 @@ export function teamDetails(h) {
       puritySeal(upper, -B.tw * 0.28, torsoY - B.th * 0.05, front + 0.012);
       belt(c, mat('#2a2c30', { metal: 0.5 }), GOLD());
       for (const s of [-1, 1]) add(upper, sph(0.03 * k, DARK(), s * B.tw * 0.36, c.hipY + 0.05 * k, front * 0.6, 6, 5)); // grenades
+      add(upper, cyl(B.head * 0.62, B.head * 0.7, B.head * 0.22, c.M.main, 0, c.shY + B.head * 0.12, 0.01, 16), cyl(B.head * 0.71, B.head * 0.71, 0.012 * k, mat(L.trim, { metal: 0.7, rough: 0.35 }), 0, c.shY + B.head * 0.02, 0.01, 16)); // gorget with a trimmed rim
+      if (!/eliminator/i.test(L.name)) add(upper, ...[0, 1, 2].map((i) => box(B.tw * 0.5, 0.012 * k, 0.012, DARK(), 0, torsoY + B.th * (0.32 - i * 0.07), c.back - 0.1 * k - 0.004))); // vent slats on the backpack
       if (/captain/i.test(L.name)) { // iron halo
         const halo = new THREE.Mesh(new THREE.TorusGeometry(B.head * 1.9, B.head * 0.18, 6, 20), GOLD());
         halo.position.set(0, c.headY + B.head * 0.4, c.back - 0.12 * k); halo.castShadow = true;
@@ -90,6 +92,8 @@ export function teamDetails(h) {
       if (/burna/i.test(L.name)) add(upper, ...[-1, 1].map((s) => cyl(0.06 * k, 0.06 * k, B.th * 0.8, mat('#a8302a', { metal: 0.4 }), s * 0.07 * k, torsoY, back - 0.07 * k, 10)));
       if (/rokkit/i.test(L.name)) for (let i = 0; i < 3; i++) add(upper, cyl(0.025 * k, 0.025 * k, B.th * 0.9, mat('#5a5a3a'), (i - 1) * 0.06 * k, torsoY + 0.05, back - 0.06 * k, 8), cone(0.025 * k, 0.06 * k, RED(), (i - 1) * 0.06 * k, torsoY + B.th * 0.5 + 0.08, back - 0.06 * k, 6));
       if (/slasha/i.test(L.name)) for (let i = 0; i < 5; i++) add(upper, box(0.012, 0.08 * k, 0.03 * k, METAL(), (i - 2) * 0.04 * k, c.hipY + 0.11 * k, front + 0.02));
+      if (!L.grot) { const px = B.sx * 1.05, py = c.shY + B.armR * 0.9, iron = mat('#6a6e72', { metal: 0.6, rough: 0.55 });
+        add(upper, box(B.armR * 2.6, B.armR * 0.5, B.armR * 2.6, iron, px, py, 0).rotateZ(0.35), ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => sph(0.009 * k, BRASS(), px + a * B.armR * 0.95, py + B.armR * 0.25 + a * 0.012, b * B.armR * 1.05, 6, 4))); } // riveted shoulder plate
       if (/nob/i.test(L.name)) add(upper, cyl(0.008, 0.008, 0.9 * k, LEATHER(), B.tw * 0.35, torsoY + 0.3 * k, back - 0.08), ...[0, 1].map((i) => sph(0.045 * k, BONE(), B.tw * 0.35, torsoY + (0.62 + i * 0.12) * k, back - 0.08, 6, 5))); // trophy pole with skulls
     },
 
@@ -99,6 +103,9 @@ export function teamDetails(h) {
       belt(c, mat('#3a3a36'), mat(L.main), 3);
       add(upper, box(B.tw * 0.4, c.hipY * 0.45, 0.012, mat('#3a3a36', { rough: 1 }), 0, c.hipY * 0.75, front + 0.01), box(B.tw * 0.5, c.hipY * 0.45, 0.012, mat('#3a3a36', { rough: 1 }), 0, c.hipY * 0.75, c.back - 0.01)); // loincloth
       if (L.leader) add(head, cyl(0.004, 0.004, B.head * 2.5, METAL(), -B.head * 0.8, B.head * 1.3, -B.head * 0.3, 4)); // Shas'ui aerial
+      const tseam = mat('#6e6a62', { rough: 0.6 });
+      add(upper, box(0.008 * k, B.th * 0.48, 0.01, tseam, 0, torsoY + B.th * 0.3, B.td * 0.56), box(B.tw * 1.06, 0.008 * k, 0.01, tseam, 0, torsoY + B.th * 0.42, B.td * 0.555)); // panel lines on the chest plate
+      add(head, box(B.head * 0.35, B.head * 0.3, B.head * 0.5, mat('#3a3a36'), B.head * 0.95, B.head * 0.15, 0), sph(B.head * 0.1, glow('#3ae0ff'), B.head * 0.95, B.head * 0.15, B.head * 0.27, 6, 4)); // recon sensor on the helmet
       if (/drone controller/i.test(L.name)) add(upper, box(0.08 * k, 0.05 * k, 0.06 * k, DARK(), B.sx * 1.1, c.shY + 0.06 * k, 0), sph(0.018 * k, glow('#3ae0ff'), B.sx * 1.1, c.shY + 0.1 * k, 0));
       if (/blooded/i.test(L.name)) add(head, ...[0, 1, 2].map((i) => limb(V(0, B.head * 0.6, -B.head * 0.4), V((i - 1) * B.head * 0.5, B.head * 0.8, -B.head * 1.6), 0.006, mat('#b9772f')))); // Kroot quills as trophies
     },
@@ -115,6 +122,7 @@ export function teamDetails(h) {
       // Rust patches and bells.
       for (let i = 0; i < 4; i++) add(upper, box(0.06 * k, 0.04 * k, 0.01, mat('#7a4a2e', { rough: 1 }), ((i * 37) % 7 / 7 - 0.5) * B.tw * 0.8, torsoY + ((i * 53) % 5 / 5 - 0.3) * B.th, front + 0.012));
       belt(c, mat('#4a3a24'), BRASS(), 2);
+      for (let i = 0; i < 5; i++) add(upper, sph(0.01 * k, BRASS(), (i / 4 - 0.5) * B.tw * 0.8, torsoY + B.th * 0.46, front + 0.004, 6, 4)); // rivets along the top of the chest plate
       for (const s of [-1, 1]) add(upper, cone(0.03 * k, 0.05 * k, BRASS(), s * B.tw * 0.3, c.hipY - 0.01, front * 0.7, 8));
       // A few flies.
       for (let i = 0; i < 6; i++) { const a = i * 1.7; add(fig, sph(0.008, mat('#111'), Math.cos(a) * 0.25 * k, c.headY + 0.1 + (i % 3) * 0.06, Math.sin(a) * 0.25 * k, 4, 3)); }
@@ -125,6 +133,8 @@ export function teamDetails(h) {
       const { upper, head, B, k, torsoY, front, L } = c;
       strap(c, LEATHER(), 1, 0.035); strap(c, LEATHER(), -1, 0.035);
       belt(c, LEATHER(), BONE(), 4);
+      add(upper, aimY(box(0.03 * k, 0.16 * k, 0.012 * k, LEATHER(), B.tw * 0.4, c.hipY - 0.05 * k, front * 0.5), V(0.3, -1, 0)), aimY(cyl(0.008 * k, 0.008 * k, 0.05 * k, BONE(), B.tw * 0.36, c.hipY + 0.05 * k, front * 0.5), V(0.3, -1, 0)), // knife sheath with a bone hilt
+        box(0.05 * k, 0.05 * k, 0.03 * k, LEATHER(), -B.tw * 0.38, c.hipY + 0.01, front * 0.6)); // pouch
       // Necklace of bones and feathers.
       for (let i = 0; i < 7; i++) { const a = (i / 6 - 0.5) * 1.6; add(upper, box(0.012, 0.04 * k, 0.012, i % 2 ? BONE() : mat('#b9772f'), Math.sin(a) * B.tw * 0.32, torsoY + B.th * 0.42 - Math.cos(a) * 0.04, front + 0.01 + Math.cos(a) * 0.01)); }
       if (/kill-broker/i.test(L.name)) add(head, ...[0, 1, 2, 3, 4].map((i) => limb(V(0, B.head * 0.8, -B.head * 0.2), V((i - 2) * B.head * 0.45, B.head * 2.4, -B.head * 0.6), 0.008, mat(i % 2 ? '#a82a24' : '#e8c040'), 0.003)));
@@ -139,6 +149,8 @@ export function teamDetails(h) {
       // Webbing: a strap over each shoulder and a belt with pouches.
       for (const s of [-1, 1]) add(upper, box(0.03 * k, B.th * 0.9, 0.01, mat('#4a4636'), s * B.tw * 0.24, torsoY + 0.02, front + 0.01), box(0.03 * k, B.th * 0.9, 0.01, mat('#4a4636'), s * B.tw * 0.24, torsoY + 0.02, back - 0.01));
       belt(c, mat('#4a4636'), METAL(), 4);
+      for (const s of [-1, 1]) add(upper, box(B.armR * 1.6, 0.014 * k, B.armR * 1.3, mat('#2f353a', { rough: 0.8 }), s * B.sx * 0.95, c.shY + B.armR * 0.95, 0), sph(0.008 * k, BRASS(), s * B.sx * 0.75, c.shY + B.armR * 1.0, 0, 6, 4)); // epaulettes with a button
+      add(upper, cyl(B.head * 0.75, B.head * 0.85, B.head * 0.35, mat(L.main, { rough: 0.9 }), 0, c.shY + B.head * 0.1, 0.0, 16)); // high greatcoat collar
       add(upper, box(0.05 * k, 0.08 * k, 0.03 * k, mat('#4a4636'), -B.tw * 0.4, c.hipY - 0.02, front * 0.4), box(0.05 * k, 0.05 * k, 0.03, METAL(), -B.tw * 0.4, c.hipY - 0.1, front * 0.4)); // entrenching tool
     },
 
@@ -155,6 +167,9 @@ export function teamDetails(h) {
       }
       if (L.bloated) add(upper, box(B.tw * 0.3, 0.04 * k, 0.02, mat('#3a0a0a'), 0, torsoY - B.th * 0.15, front + B.td * 0.55), ...[-1, 0, 1].map((i) => cone(0.012 * k, 0.04 * k, BONE(), i * 0.04 * k, torsoY - B.th * 0.12, front + B.td * 0.56).rotateX(Math.PI)));
       add(upper, box(B.tw * 0.95, B.th * 0.12, B.td * 1.02, mat('#4a3a30', { rough: 1 }), 0, torsoY + B.th * 0.05, 0)); // tattered strip of void-crew uniform
+      const rust = mat('#6a4a34', { metal: 0.5, rough: 0.7 });
+      add(upper, box(B.tw * 0.4, B.th * 0.22, 0.02, rust, -B.tw * 0.2, torsoY + B.th * 0.32, front + 0.01), ...[-1, 1].map((s) => sph(0.01 * k, METAL(), -B.tw * 0.2 + s * B.tw * 0.16, torsoY + B.th * 0.32, front + 0.022, 6, 4)), // rusted plate bolted into the flesh
+        limb(V(B.tw * 0.3, torsoY + B.th * 0.4, back), V(B.tw * 0.1, torsoY - B.th * 0.2, back - 0.06 * k), 0.012 * k, mat('#2a2a2a', { rough: 0.6 }))); // a loose cable
       if (/glitchling/i.test(L.name)) add(head, sph(B.head * 0.45, glow('#ff3af0'), 0, B.head * 0.1, B.head * 0.75, 8, 6), ...[-1, 1].map((s) => cone(B.head * 0.2, B.head * 1.2, mat('#5a2a5a'), s * B.head * 0.7, B.head * 0.8, 0, 5)));
       if (/fleshscreamer/i.test(L.name)) add(head, sph(B.head * 0.55, mat('#3a0a0a'), 0, -B.head * 0.25, B.head * 0.7, 8, 6), ...[0, 1, 2].map((i) => limb(V((i - 1) * B.head * 0.4, -B.head * 0.5, B.head * 0.9), V((i - 1) * B.head * 0.8, -B.head * 1.6, B.head * 1.6), 0.012 * k, tent)));
       if (/vulgrar/i.test(L.name)) add(head, ...[-1, 1].map((s) => aimY(cone(B.head * 0.25, B.head * 1.6, BONE(), s * B.head * 0.8, B.head * 0.6, 0, 6), V(s * 0.8, 1, 0.2))));
@@ -164,7 +179,8 @@ export function teamDetails(h) {
     hearthkyn(c) {
       const { upper, head, B, k, torsoY, front, back, L } = c;
       const plate = mat(L.main, { metal: 0.4, rough: 0.5 }), dark = mat('#3a3a3e', { metal: 0.6, rough: 0.4 });
-      add(upper, cyl(0.05 * k, 0.05 * k, 0.02, glow('#4af0ff'), 0, torsoY + B.th * 0.12, front + 0.06, 6).rotateX(Math.PI / 2)); // ancestor-core rune
+      add(upper, cyl(0.045 * k, 0.045 * k, 0.02, dark, 0, torsoY + B.th * 0.12, front + 0.065, 6).rotateX(Math.PI / 2), cyl(0.026 * k, 0.026 * k, 0.012, glow('#4af0ff'), 0, torsoY + B.th * 0.12, front + 0.078, 6).rotateX(Math.PI / 2)); // power core in a hexagonal frame
+      add(upper, box(B.tw * 1.045, 0.01 * k, B.td * 1.105, dark, 0, torsoY + B.th * 0.42, 0), box(B.tw * 1.045, 0.01 * k, B.td * 1.105, dark, 0, torsoY - B.th * 0.06, 0)); // dark edges on the chest armour
       add(upper, box(B.tw * 0.75, B.th * 0.55, 0.12 * k, dark, 0, torsoY + 0.04, back - 0.06 * k), ...[-1, 1].map((s) => cyl(0.03 * k, 0.03 * k, B.th * 0.5, glow('#4af0ff'), s * B.tw * 0.25, torsoY + 0.04, back - 0.13 * k, 8))); // power-cell pack
       belt(c, dark, plate, 4);
       for (const s of [-1, 1]) add(c.fig, box(B.legR * 2.4, c.hipY * 0.3, B.legR * 2.2, plate, s * B.tw * 0.3, c.hipY * 0.62, 0.03 * k)); // thigh plates
@@ -188,6 +204,8 @@ export function teamDetails(h) {
       if (/surveyor/i.test(L.name)) add(upper, box(0.1 * k, 0.07 * k, 0.03, DARK(), -B.tw * 0.45, torsoY - B.th * 0.1, front + 0.03), box(0.08 * k, 0.05 * k, 0.005, glow('#3aff8a'), -B.tw * 0.45, torsoY - B.th * 0.1, front + 0.047)); // auspex
       if (/grenadier/i.test(L.name)) for (let i = 0; i < 4; i++) add(upper, sph(0.025 * k, DARK(), (i - 1.5) * 0.05 * k, torsoY - B.th * 0.05 + (i - 1.5) * 0.035 * k, front + 0.03, 6, 5));
       if (L.leader) add(upper, box(0.06 * k, 0.1 * k, 0.012, RED(), B.tw * 0.25, torsoY + B.th * 0.05, front + 0.03)); // rank tabard
+      add(c.fig, limb(V(-0.06 * k, torsoY + B.th * 0.4, c.hunch + back - 0.05 * k), V(-B.head * 0.7, c.headY - B.head * 0.5, B.head * 0.2), 0.012 * k, mat('#2a2a26', { rough: 0.6 }))); // air hose to the helmet
+      add(upper, box(B.tw * 1.155, 0.01 * k, B.td * 1.205, mat('#1e2a34', { rough: 0.6 }), 0, torsoY + B.th * 0.44, 0)); // edge of the void armour
     },
 
     phobos(c) {
@@ -195,6 +213,8 @@ export function teamDetails(h) {
       chestPlate(upper, 0, torsoY + B.th * 0.24, front + 0.035, 0.2 * k, mat('#c9c9c0', { metal: 0.6 }));
       belt(c, mat('#2a2c30', { metal: 0.5 }), mat('#c9c9c0', { metal: 0.6 }), 4);
       padBadge(c, 1, mat('#e8e0d0'));
+      for (const s of [-1, 1]) add(upper, sph(0.028 * k, DARK(), s * B.tw * 0.38, c.hipY + 0.04 * k, front * 0.6, 6, 5)); // grenades
+      add(upper, aimY(box(0.025 * k, 0.12 * k, 0.012 * k, DARK(), -B.tw * 0.46, c.hipY - 0.03 * k, 0), V(-0.2, -1, 0.2))); // combat knife sheath
       if (/reiver/i.test(L.name)) { // skull-faced helmet and grapnel
         add(head, sph(B.head * 0.75, BONE(), 0, -B.head * 0.1, B.head * 0.55, 8, 6), ...[-1, 1].map((s) => sph(B.head * 0.2, mat('#111'), s * B.head * 0.3, 0, B.head * 1.15, 6, 4)), box(B.head * 0.6, B.head * 0.12, B.head * 0.1, mat('#111'), 0, -B.head * 0.45, B.head * 1.1));
         add(upper, tz(cyl(0.035 * k, 0.035 * k, 0.12 * k, DARK(), B.tw * 0.35, torsoY + B.th * 0.3, back - 0.08 * k)));
@@ -211,6 +231,8 @@ export function teamDetails(h) {
         add(upper, sph(0.05 * k, glow('#4af0ff'), 0, torsoY + B.th * 0.2, front + 0.04, 10, 8), ...[-1, 1].map((s) => box(0.1 * k, 0.03 * k, 0.015, gold, s * 0.08 * k, torsoY + B.th * 0.2, front + 0.035)));
         padBadge(c, 1, mat('#e8e0d0'), 0.05); padBadge(c, 1, glow('#4af0ff'), 0.02);
         belt(c, gold, mat('#2763a8'), 3);
+        if (!/sorcerer/i.test(L.name)) add(head, box(B.head * 0.22, B.head * 0.9, B.head * 1.6, gold, 0, B.head * 1.05, -B.head * 0.15), sph(B.head * 0.16, glow('#4af0ff'), 0, B.head * 0.55, B.head * 0.85, 6, 4)); // tall gilded crest and a brow gem
+        add(upper, box(B.tw * 0.66, 0.016 * k, 0.012, gold, 0, torsoY + B.th * 0.36, front + 0.03), box(B.tw * 0.66, 0.016 * k, 0.012, gold, 0, torsoY + B.th * 0.02, front + 0.03)); // gilded edges on the chest plate
         if (/sorcerer/i.test(L.name)) add(head, ...[-1, 1].map((s) => aimY(cone(B.head * 0.22, B.head * 1.8, gold, s * B.head * 0.75, B.head * 1.0, -B.head * 0.1, 6), V(s * 0.5, 1, -0.2))), cone(B.head * 0.3, B.head * 1.4, gold, 0, B.head * 1.4, -B.head * 0.2, 6), sph(B.head * 0.18, glow('#4af0ff'), 0, B.head * 0.5, B.head * 0.95, 6, 4));
       } else {
         // Tzaangors: gilded torc, armbands and a loincloth.
@@ -225,7 +247,9 @@ export function teamDetails(h) {
       add(head, tz(cyl(B.head * 0.25, B.head * 0.3, B.head * 0.3, mat('#5a4a3a', { metal: 0.5 }), 0, B.head * 0.75, B.head * 0.9)), sph(B.head * 0.2, glow('#fff6c0'), 0, B.head * 0.75, B.head * 1.08, 6, 4)); // mining headlamp
       add(upper, box(B.tw * 0.55, B.th * 0.5, 0.08 * k, mat('#5a4a3a'), 0, torsoY + 0.02, back - 0.04 * k), cyl(0.035 * k, 0.035 * k, B.th * 0.4, mat('#a8a050', { metal: 0.5 }), B.tw * 0.15, torsoY + 0.02, back - 0.09 * k, 8)); // mining rig
       belt(c, mat('#3a2e22'), METAL(), 4);
-      add(upper, box(B.tw * 0.3, B.th * 0.3, 0.01, mat('#7a5aa6'), 0, torsoY + B.th * 0.1, front + 0.012)); // cult tabard
+      add(upper, box(B.tw * 0.3, B.th * 0.3, 0.01, mat('#7a5aa6'), 0, torsoY + B.th * 0.1, front + 0.012), box(B.tw * 0.32, 0.01 * k, 0.012, mat('#c9a227', { metal: 0.6 }), 0, torsoY + B.th * 0.25, front + 0.014)); // cult tabard with a gilt edge
+      for (const s of [-1, 1]) add(upper, box(0.028 * k, B.th * 0.85, 0.01, mat('#3a2e22'), s * B.tw * 0.26, torsoY + 0.02, front + 0.008), box(0.028 * k, B.th * 0.85, 0.01, mat('#3a2e22'), s * B.tw * 0.26, torsoY + 0.02, back - 0.008)); // rig straps
+      if (!/kelermorph|locus/i.test(L.name)) add(head, ...[-1, 1].map((s) => tz(cyl(B.head * 0.2, B.head * 0.2, B.head * 0.2, mat('#2a2a2a', { metal: 0.4 }), s * B.head * 0.36, B.head * 0.5, B.head * 0.8)))); // goggles pushed up
       if (L.icon) add(upper, mesh(new THREE.TorusGeometry(0.06 * k, 0.012, 5, 12), GOLD(), B.tw * 0.3 + 0.11 * k, torsoY + 0.58 * k, back - 0.11)); // plain banner ring
       if (/kelermorph/i.test(L.name)) add(head, cyl(B.head * 1.0, B.head * 1.05, B.head * 0.6, mat('#2a2030'), 0, B.head * 0.9, 0, 10), cyl(B.head * 1.8, B.head * 1.8, B.head * 0.08, mat('#2a2030'), 0, B.head * 0.62, 0, 14)); // wide-brimmed hat
       if (/locus/i.test(L.name)) add(head, ...[0, 1, 2, 3].map((i) => box(B.head * 0.2, B.head * 0.2, B.head * 1.6, mat('#5a3a6a'), 0, B.head * (0.9 - i * 0.3), -B.head * (0.4 + i * 0.12))));

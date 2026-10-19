@@ -257,6 +257,10 @@ export function createModelKit(THREE) {
     });
   }
   const box = (w, h, d, m, x, y, z) => mesh(roundedBoxGeo(w, h, d, Math.min(w, h, d) * 0.28), m, x, y, z);
+  /** A darker shade of a colour, for the seams between armour plates. */
+  const seamMat = (c) => mat('#' + new THREE.Color(c).multiplyScalar(0.5).getHexString(), { metal: 0.3, rough: 0.6 });
+  /** A thin ring around the limb from a to b, at fraction t along it. */
+  const band = (a, b, t, r, m, k = 1) => { const p = V().lerpVectors(a, b, t); return aimY(cyl(r, r, 0.02 * k, m, p.x, p.y, p.z, 14), V().subVectors(b, a)); };
   /** A rounded box narrower at the bottom (chests, waists). */
   const tbox = (w, h, d, m, x, y, z, taper = 0.78) => mesh(roundedBoxGeo(w, h, d, Math.min(w, h, d) * 0.35, taper), m, x, y, z);
   const cyl = (rt, rb, h, m, x, y, z, seg = 10) => mesh(cached(`cy${q(rt)},${q(rb)},${q(h)},${Math.max(16, seg)}`, () => new THREE.CylinderGeometry(rt, rb, h, Math.max(16, seg))), m, x, y, z);
@@ -346,6 +350,10 @@ export function createModelKit(THREE) {
     const necron = L.body === 'necron';
     const limbMat = necron ? METAL() : ['ork', 'gor', 'kroot', 'vespid'].includes(L.body) || L.mandrake ? skin : L.body === 'guard' && !L.carapace && !L.coat ? cloth : main;
     const hunch = ['ork', 'gor', 'ogryn'].includes(L.body) ? 0.06 * k : L.body === 'vespid' ? 0.07 * k : L.servitor ? 0.05 : 0;
+    // Plate seams: armoured figures get thin darker rings where plates meet (thigh, knee, ankle), so the outline of
+    // each piece of armour reads at a distance, as on the power fist.
+    const plated = ['marine', 'sister', 'battlesuit', 'votann', 'tau'].includes(L.body) || L.carapace || L.armoured;
+    const seam = seamMat(L.main);
 
     // Legs.
     const hipY = L.float ? B.leg + 0.15 : B.leg, hx = B.tw * 0.26;
@@ -364,8 +372,9 @@ export function createModelKit(THREE) {
         const knee = V(s * hx * 1.2, hipY * 0.5, fwd + 0.04 * k);
         const legM = necron ? METAL() : L.carapace || ['marine', 'sister', 'battlesuit', 'votann', 'tau', 'eldar'].includes(L.body) || L.armoured ? main : cloth;
         legs.push(limb(hip, knee, B.legR * 1.1, legM, B.legR * 0.92), limb(knee, foot, B.legR * 0.95, legM, B.legR * 0.7));
+        if (plated && legM === main) legs.push(band(hip, knee, 0.8, B.legR * 1.03, seam, k), band(hip, knee, 0.22, B.legR * 1.15, seam, k), band(knee, foot, 0.8, B.legR * 0.84, seam, k)); // thigh plate, hip joint and greave seams
         { const bootM = L.body === 'marine' || L.body === 'battlesuit' ? main : DARK(); legs.push(box(B.legR * 2, B.legR * 1.3, B.legR * 2.6, bootM, foot.x, B.legR * 0.65, foot.z + B.legR * 0.4), sph(B.legR * 0.95, bootM, foot.x, B.legR * 0.55, foot.z + B.legR * 1.5, 12, 8)); } // boot with a rounded toe
-        if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, L.body === 'marine' || L.body === 'votann' ? main : trim, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
+        if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, L.body === 'sister' ? trim : main, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
         if (necron) legs.push(sph(B.legR * 1.3, METAL(), knee.x, knee.y, knee.z));
       }
     }
@@ -386,6 +395,9 @@ export function createModelKit(THREE) {
       add(upper, tbox(B.tw, B.th * 0.62, B.td, torsoM, 0, torsoY + B.th * 0.19, 0, 0.82),
         tbox(B.tw * 0.8, B.th * 0.46, B.td * 0.88, torsoM, 0, torsoY - B.th * 0.24, 0.005, 0.9));
       if (L.body === 'marine' && !L.scout) for (let i = 0; i < 3; i++) add(upper, box(B.tw * 0.62, B.th * 0.1, B.td * 0.92, torsoM, 0, torsoY - B.th * (0.1 + i * 0.12), 0.01)); // ribbed abdominal plates
+      if (plated && torsoM === main) add(upper, tbox(B.tw * 0.86, 0.012 * k, B.td * 0.94, seam, 0, torsoY - B.th * 0.12, 0.004, 0.86)); // seam under the chest plate
+      if (L.coat) add(upper, box(0.018 * k, B.th * 0.62, 0.01, seam, 0, torsoY + B.th * 0.06, B.td * 0.54), ...[0, 1, 2, 3].map((i) => sph(0.009 * k, BRASS(), 0.03 * k, torsoY + B.th * (0.3 - i * 0.14), B.td * 0.555, 6, 4)),
+        ...[0, 1, 2, 3].map((i) => sph(0.009 * k, BRASS(), -0.03 * k, torsoY + B.th * (0.3 - i * 0.14), B.td * 0.555, 6, 4))); // coat closure with two rows of buttons
       // Neck.
       add(upper, cyl(B.head * 0.42, B.head * 0.5, B.head * 0.6, L.body === 'marine' || L.body === 'battlesuit' ? DARK() : skin, 0, hipY + B.th + B.head * 0.15, 0));
       if (L.body === 'marine' || L.body === 'sister') add(upper, box(B.tw * 0.7, B.th * 0.35, 0.03, trim, 0, torsoY + B.th * 0.18, B.td / 2 + 0.01));
@@ -416,7 +428,8 @@ export function createModelKit(THREE) {
     // Skirts: robes reach the ground, coats reach the knees, marines and sisters have tassets.
     const robe = L.robe || L.body === 'skitarii' && !L.sicarian && !L.servitor || (L.body === 'sister' && L.robe) || L.hood && L.body === 'guard' && L.robe;
     if (robe) add(upper, cyl(B.tw * 0.5, B.tw * 0.75, hipY * 0.9, cloth, 0, hipY * 0.55, 0, 10));
-    else if (L.coat || L.cloak && L.body === 'guard') add(upper, cyl(B.tw * 0.52, B.tw * 0.68, hipY * 0.55, L.coat ? mat(L.main, { rough: 0.9 }) : cloth, 0, hipY * 0.72, -0.01, 10));
+    else if (L.coat || L.cloak && L.body === 'guard') add(upper, cyl(B.tw * 0.52, B.tw * 0.68, hipY * 0.55, L.coat ? mat(L.main, { rough: 0.9 }) : cloth, 0, hipY * 0.72, -0.01, 10),
+      ...(L.coat ? [cyl(B.tw * 0.685, B.tw * 0.685, 0.02 * k, seam, 0, hipY * 0.46, -0.01, 10), box(0.014 * k, hipY * 0.5, 0.01, seam, 0, hipY * 0.72, B.tw * 0.6)] : [])); // hem band and the front opening of the coat
     else if (L.rags || L.body === 'gor' || L.body === 'kroot') add(upper, box(B.tw * 0.5, hipY * 0.4, 0.02, cloth, 0, hipY * 0.8, B.td * 0.42));
     else if (L.body === 'marine' || L.body === 'sister' || L.body === 'eldar') add(upper, ...[-1, 1].map((s) => box(B.tw * 0.36, hipY * 0.28, B.td * 0.9, main, s * B.tw * 0.25, hipY * 0.86, 0)));
     if (L.body === 'sister' && !L.robe) add(upper, box(B.tw * 0.45, hipY * 0.6, 0.02, cloth, 0, hipY * 0.68, B.td * 0.48));
@@ -757,6 +770,10 @@ export function createModelKit(THREE) {
       const elbow = mid.addScaledVector(perp, bend);
       add(fig, limb(s, elbow, B.armR * 1.08, c.limbMat, B.armR * 0.88), limb(elbow, h, B.armR * 0.9, c.limbMat, B.armR * 0.7), sph(B.armR * 1.05, c.limbMat, elbow.x, elbow.y, elbow.z, 6, 5));
       if (L.body === 'marine' || L.body === 'battlesuit' || L.body === 'sister' || L.carapace) add(fig, limb(elbow.clone().lerp(h, 0.25), h, B.armR * 1.2, c.main));
+      if (c.limbMat === c.main && (['marine', 'sister', 'battlesuit', 'votann', 'tau'].includes(L.body) || L.carapace || L.armoured)) {
+        const sm = seamMat(L.main);
+        add(fig, band(s, elbow, 0.3, B.armR * 1.1, sm, c.k), band(elbow, h, 0.27, B.armR * 1.29, sm, c.k), band(elbow, h, 0.9, B.armR * 1.27, sm, c.k)); // upper-arm, vambrace and cuff seams
+      }
       add(fig, sph(B.armR * 0.95, L.body === 'marine' || L.body === 'necron' ? c.limbMat : L.body === 'battlesuit' ? c.main : mat(L.body === 'guard' || L.body === 'sister' ? '#2a2a2a' : L.skin || '#d8a888'), h.x, h.y, h.z, 6, 5));
     }
   }
