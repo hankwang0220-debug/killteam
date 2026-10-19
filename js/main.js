@@ -44,7 +44,7 @@ import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
   ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
-  engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName,
+  engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName, makeTerrain, OBJECTIVES, DEPLOY,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
   radius, resolveShoot, setOrder, shootCheck, visibility, hasPloy, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
@@ -426,21 +426,12 @@ function homeView() {
       <p>${L('在 30"×22" 的戰場上指揮你的小隊。交替啟動、擲骰結算、搶奪目標點——完全依照桌遊流程進行。',
     'Command your team on a 30"×22" killzone. Alternate activations, roll dice, seize objectives — just like the tabletop.')}</p>
       <div class="herobtns">
-        <button class="primary big" data-act="setup">${L('新遊戲', 'New Game')}</button>
+        <button class="primary big" data-act="setup">${L('新戰役', 'New Campaign')}</button>
         ${saved && saved.phase !== 'gameover' ? `<button class="big" data-act="resume">${L('繼續上一場', 'Resume')}</button>` : ''}
         <button class="big ghost" data-act="help">${L('規則速查', 'Quick Rules')}</button>
-        <button class="big ghost" data-act="tombworld">${L('Tombworld（墓穴世界）地圖', 'Tomb World Maps')}</button>
       </div>
     </section>
     ${historyView()}
-    <section class="teamgrid">
-      ${TEAMS.map((t) => `<article class="teamcard" style="--tc:${t.color}">
-        <h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
-        <p>${esc(tx(t.blurb))}</p>
-        <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
-        ${teamInfo(t)}
-      </article>`).join('')}
-    </section>
   </main>`;
 }
 
@@ -460,25 +451,54 @@ function setupView() {
     ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side) + vsCommunePick(side)}
   </div>`;
   const ms = MISSIONS[s.mission] || MISSIONS.standard;
+  if (s.step !== 'teams') return missionStepView(ms);
+  const mapName = ms.terrain ? L('任務專屬地圖', "The mission's own map") : s.map === 'default' ? L('原有地圖', 'Default map') : bi((TOMB_WORLD_MAPS.find((m) => m.id === s.map) || TOMB_WORLD_MAPS[0]).name);
   return `${topBar()}
   <main class="setup">
+    <section class="card missionpick setup-summary"><div><b>${L('任務', 'Mission')}：</b>${esc(bi(ms.name))}　<b>${L('地圖', 'Map')}：</b>${esc(mapName)}</div>
+      <button class="ghost" data-act="setupStep" data-step="mission">${L('更改任務與地圖', 'Change mission and map')}</button></section>
     <section class="card missionpick"><h3>${L('顯示設定', 'Display settings')}</h3>
       <label>${L('地形 1 吋範圍', 'Terrain 1-inch boundaries')}
       <select data-act="terrainRanges">${[['nearby', L('單位進入範圍時顯示（預設）', 'Show when an operative is within range (default)')], ['always', L('全部顯示', 'Always show')], ['off', L('不顯示', 'Hide')]].map(([id, text]) => `<option value="${id}" ${ui.setup.terrainRanges === id ? 'selected' : ''}>${text}</option>`).join('')}</select></label>
       <p class="hint small">${L('以底座邊緣判定距離；範圍線是距離參考，實際效果依攻擊方向與規則判定。', 'Distances use base edges; boundaries are guides, effects depend on attack direction and rules.')}</p>
       <label><input type="checkbox" data-act="autoff" ${ui.setup.autoFF ? 'checked' : ''}> ${L('交戰計謀預設自動使用（熟悉規則的玩家用；預設關閉）', 'Firefight ploys used automatically from the start (for players who know the rules; off by default)')}</label>
       <p class="hint small">${L('關閉時，被射擊、受傷等時機才觸發的交戰計謀一開始都不會自動用，要在策略階段的「自動使用的交戰計謀」自己勾選。', 'When off, firefight ploys that trigger on being shot, damaged and so on start unticked; tick the ones you want in "Firefight ploys used automatically" in the Strategy phase.')}</p></section>
-    <section class="card missionpick"><h3>${L('任務', 'Mission')}</h3>
-      <select data-act="mission">${MISSION_LIST.map((m) => `<option value="${m.id}" ${m.id === ms.id ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
-      <p class="hint small">${esc(tx(ms.desc))}${ms.source ? ` <i>（${esc(ms.source)}）</i>` : ''}</p></section>
-    <section class="card missionpick"><h3>${L('地圖', 'Map')}</h3>
-      <select data-act="map" ${ms.terrain ? 'disabled' : ''}><option value="default" ${s.map === 'default' ? 'selected' : ''}>${L('原有地圖', 'Default map')}</option>${TOMB_WORLD_MAPS.map(m => `<option value="${m.id}" ${s.map === m.id && !ms.terrain ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
-      ${ms.terrain ? `<p class="hint">${L('此任務使用專屬地圖。', 'This mission uses its own map.')}</p>` : s.map !== 'default' ? `<p class="hint">28″ × 24″ · ${L('圖卡排列的平面近似；艙門預設關閉，開門／關門各 1AP，A1 保持完整。', 'Flat approximation of the map card; hatchways start closed; opening/closing costs 1AP, A1 remains intact.')}</p>${tombWorldMapSvg(TOMB_WORLD_MAPS.find(m => m.id === s.map) || TOMB_WORLD_MAPS[0],getLang() === 'zh')}` : ''}
-    </section>
     ${aiReveal()}
     <div class="picks">${pick(0)}${pick(1)}</div>
-    <div class="setupbar"><button class="ghost" data-act="home">${L('返回', 'Back')}</button>
+    <div class="setupbar"><button class="ghost" data-act="setupStep" data-step="mission">${L('上一步', 'Back')}</button>
     <button class="primary big" data-act="start">${L('開始部署', 'Start Deployment')}</button></div>
+  </main>`;
+}
+
+/** A small top-down picture of a 30"×22" killzone: drop zones, terrain and objective markers. */
+function killzoneSvg(terrain, objectives, deploy, label) {
+  const zones = deploy.map((z, i) => `<rect x="${z.x0}" y="${z.y0}" width="${z.x1 - z.x0}" height="${z.y1 - z.y0}" fill="${i ? '#e59b69' : '#75a8b7'}" opacity=".25"/><text x="${(z.x0 + z.x1) / 2}" y="${(z.y0 + z.y1) / 2}" class="tw-map-zone">${i ? 'B' : 'A'}</text>`).join('');
+  const solids = terrain.map((t) => `<rect x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" class="${t.kind === 'light' ? 'tw-light' : 'tw-solid'}"/>`).join('');
+  const objs = objectives.map((p, i) => `<g class="tw-map-objective"><circle cx="${p.x}" cy="${p.y}" r="1.4"/><circle cx="${p.x}" cy="${p.y}" r=".4"/><text x="${p.x}" y="${p.y + 0.23}">${i + 1}</text></g>`).join('');
+  const grid = Array.from({ length: 5 }, (_, i) => `<path d="M${(i + 1) * 5} 0V22"/>`).join('') + Array.from({ length: 3 }, (_, i) => `<path d="M0 ${(i + 1) * 5.5}H30"/>`).join('');
+  return `<svg class="tw-map" viewBox="-.7 -.7 31.4 23.4" role="img" aria-label="${esc(label)}"><rect width="30" height="22" class="tw-map-mat"/>${zones}<g class="tw-map-grid">${grid}</g>${solids}${objs}</svg>`;
+}
+
+/** Step 1 of a new campaign: the mission, then the map, picked from pictures of every killzone shown below. */
+function missionStepView(ms) {
+  const s = ui.setup;
+  const objectives = ms.objectives?.length ? ms.objectives : OBJECTIVES;
+  const card = (id, name, pic, note) => `<button class="mapcard ${ms.terrain || id === s.map ? 'on' : ''}" data-act="pickMap" data-id="${id}" ${ms.terrain ? 'disabled' : ''}>
+      <b>${esc(name)}</b>${pic}<span class="hint small">${note}</span></button>`;
+  const maps = ms.terrain
+    ? card(s.map, L('任務專屬地圖', "The mission's own map"), killzoneSvg(ms.terrain, ms.objectives || [], ms.deploy || DEPLOY, bi(ms.name)), L('此任務使用專屬地圖。', 'This mission uses its own map.'))
+    : card('default', L('原有地圖', 'Default map'), killzoneSvg(makeTerrain(), objectives, ms.deploy || DEPLOY, L('原有地圖', 'Default map')), '30″ × 22″')
+      + TOMB_WORLD_MAPS.map((m) => card(m.id, bi(m.name), tombWorldMapSvg(m, getLang() === 'zh'), `28″ × 24″ · ${m.axis === 'x' ? L('左右部署', 'Side deployment') : L('上下部署', 'End deployment')}`)).join('');
+  return `${topBar()}
+  <main class="setup">
+    <section class="card missionpick"><h3>${L('① 選擇任務', '① Choose the mission')}</h3>
+      <select data-act="mission">${MISSION_LIST.map((m) => `<option value="${m.id}" ${m.id === ms.id ? 'selected' : ''}>${esc(bi(m.name))}</option>`).join('')}</select>
+      <p class="hint small">${esc(tx(ms.desc))}${ms.source ? ` <i>（${esc(ms.source)}）</i>` : ''}</p></section>
+    <section class="card missionpick"><h3>${L('② 選擇地圖', '② Choose the map')}</h3>
+      ${!ms.terrain && s.map !== 'default' ? `<p class="hint small">${L('墓穴世界：圖卡排列的平面近似；艙門預設關閉，開門／關門各 1AP，A1 保持完整。', 'Tomb World: flat approximation of the map card; hatchways start closed; opening/closing costs 1AP, A1 remains intact.')}</p>` : ''}
+      <div class="mapgrid">${maps}</div></section>
+    <div class="setupbar"><button class="ghost" data-act="home">${L('返回', 'Back')}</button>
+    <button class="primary big" data-act="setupStep" data-step="teams">${L('下一步：選擇隊伍', 'Next: choose teams')}</button></div>
   </main>`;
 }
 
@@ -3205,7 +3225,7 @@ function handle(act, d) {
     case 'tombworld': location.hash = 'tombworld'; ui.screen = 'tombworld'; return render();
     case 'models': if (ui.screen !== 'models') ui.modelsFrom = ui.screen; location.hash = 'models'; ui.screen = 'models'; return render();
     case 'modelsBack': history.replaceState(null, '', location.pathname + location.search); ui.screen = ui.modelsFrom || 'home'; return render();
-    case 'twplay': ui.setup.map = d.id; ui.setup.mission = 'secure'; ui.screen = 'setup'; return render();
+    case 'twplay': ui.setup.map = d.id; ui.setup.mission = 'secure'; ui.setup.step = 'mission'; ui.screen = 'setup'; return render();
     case 'twstate': {
       const states = (ui.tombWorldStates ||= {});
       states[d.id] = d.id === 'A1' ? states[d.id] === 'breached' ? 'intact' : 'breached' : states[d.id] === 'open' ? 'closed' : 'open';
@@ -3214,7 +3234,9 @@ function handle(act, d) {
     case 'help': ui.help = true; return render();
     case 'closehelp': ui.help = false; return render();
     case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); return render();
-    case 'setup': ui.screen = 'setup'; return render();
+    case 'setup': ui.screen = 'setup'; ui.setup.step = 'mission'; return render();
+    case 'setupStep': ui.setup.step = d.step; window.scrollTo(0, 0); return render();
+    case 'pickMap': ui.setup.map = d.id; return render();
     case 'pick': (ui.setup.roster ||= [{}, {}])[+d.side] = {}; (ui.setup.loadouts ||= [{}, {}])[+d.side] = {}; ui.setup.teams[+d.side] = d.team; (ui.setup.equip ||= [[], []])[+d.side] = cleanEquipment(d.team, ui.setup.equip[+d.side]); ui.setup.tactics[+d.side] = null; return render();
     case 'resume': g = loadSave(); resetRecorder(); ui.screen = 'game'; ui.sel = null; ui.mode = null; ui.path = null; ui.pending = null; ui.flow = null; ui.undo = []; ui.turnKey = null; ui.turnBanner = null; return render();
     case 'replay': return openReplay(g.replay, 'game', teamsTitle(g.teams));

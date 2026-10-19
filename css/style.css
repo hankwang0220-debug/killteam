@@ -634,3 +634,12 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 .m3d-tabs button.on { background: color-mix(in srgb, var(--brass) 28%, var(--panel2)); border-color: var(--brass); }
 .m3d-controls { display: grid; gap: 8px; }
 .m3d-controls:empty { display: none; }
+
+/* New campaign, step 1: every killzone shown as a picture to pick from. */
+.mapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; margin-top: 10px; }
+.mapcard { display: flex; flex-direction: column; gap: 6px; padding: 10px; text-align: left; background: var(--panel2); color: var(--text); border: 2px solid var(--line); border-radius: 8px; cursor: pointer; font: inherit; }
+.mapcard:hover:not(:disabled) { border-color: var(--accent, #c9a227); }
+.mapcard.on { border-color: var(--accent, #c9a227); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #c9a227) 35%, transparent); }
+.mapcard:disabled { cursor: default; }
+.mapcard .tw-map { max-height: 260px; }
+.setup-summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
