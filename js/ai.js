@@ -338,6 +338,8 @@ function aiButtonPloys(g, op) {
       if (g.doctrina?.[op.side]?.tp === g.tp && g.doctrina[op.side].mode !== want) return use('commandOverride');
     }
     if (ok.capricious && !shootOptions(g, op).length) return use('capricious');
+    if (ok.mutantHerd && foes(g, op).some((e) => edgeDist(op, e) <= 10)) return use('mutantHerd'); // (Warpcoven: the Tzaangor go in together)
+    if (ok.psychicCabal && shootOptions(g, op).length) return use('psychicCabal');
     if (ok.wrathVengeance && (engagedEnemies(g, op).length || shootOptions(g, op).length)) return use('wrathVengeance');
     if (ok.bondsThatBind) return use('bondsThatBind'); // (Hernkyn Yaegirs)
   }
@@ -627,6 +629,12 @@ export function aiStep(g) {
   if (can.alight && op.ap >= 2 && shootOptions(g, op).length) {
     const t = shootOptions(g, op)[0].t;
     if (TARGET_ACTIONS.alight.targets(g, op).includes(t)) { doTargetAction(g, op, 'alight', t); return null; }
+  }
+  if (can.wcEchoes) { doSelfAction(g, op, 'wcEchoes'); return null; } // Echoes from the Warp: one more action in this counteraction
+  if (can.wcBrayhorn && !g.wcHorn?.[op.side]) { doSelfAction(g, op, 'wcBrayhorn'); return null; }
+  if (can.wcRecon) {
+    const t = TARGET_ACTIONS.wcRecon.targets(g, op).filter((o) => o.maxW - o.wounds >= 3).sort((a, b) => a.wounds / a.maxW - b.wounds / b.maxW)[0];
+    if (t) { doTargetAction(g, op, 'wcRecon', t); return null; }
   }
   if (can.ravage && op.ap >= 2) {
     const t = TARGET_ACTIONS.ravage.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];

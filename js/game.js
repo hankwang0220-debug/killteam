@@ -14,6 +14,7 @@ import { GELLERPOX_EQUIPMENT } from './data/gellerpox.js';
 import { HEARTHKYN_EQUIPMENT, hearthkynRosterError } from './data/hearthkyn.js';
 import { NAVY_EQUIPMENT, navyRosterError } from './data/navy.js';
 import { PHOBOS_EQUIPMENT, phobosRosterError } from './data/phobos.js';
+import { WARPCOVEN_EQUIPMENT, warpcovenRosterError, WC_BOONS, WC_BOON_DEFAULT, WC_BOMBARD } from './data/warpcoven.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
@@ -93,7 +94,7 @@ export const engagedEnemies = (g, op) => foes(g, op).filter((e) => inEngagement(
 /** The current mission's rules (standard if none). */
 export const mission = (g) => MISSIONS[g.mission] || MISSIONS.standard;
 export const isEngaged = (g, op) => engagedEnemies(g, op).length > 0;
-export const missionEngaged = (g, op) => isEngaged(g, op) && !op.acted?.lightFingers && !op.acted?.dwThrall && !op.rtLarcenous; // (Larcenous: Ratlings)
+export const missionEngaged = (g, op) => isEngaged(g, op) && !op.acted?.lightFingers && !op.acted?.dwThrall && !op.rtLarcenous && !wcBoon(op, 'appendage'); // (Larcenous: Ratlings; Mutant Appendage: Warpcoven)
 // Every dice roll goes through these, so the UI can tell whether an action rolled anything (undo is
 // only offered for actions that didn't — otherwise it would allow re-rolling).
 let rolls = 0;
@@ -142,6 +143,8 @@ export function moveStat(g, op) {
   if (isDrone(op) && living(g, op.side).some((o) => tpl(o).droneController)) m += 2;
   m += wkMove(g, op); // Shokkwave (Pulsa marker), Extra Armour (Wrecka Krew)
   if (op.scRaw) m += 1; // Raw Physiology (Scout Squad): +1" Move
+  if (wcBoon(op, 'timeWalk')) m += 1; // Time-Walk (Warpcoven boon)
+  m += wcHorn(g, op); // Brayhorn (Tzaangor Horn Bearer)
   return m;
 }
 
@@ -175,7 +178,7 @@ export function moveAllowance(g, op, kind) {
   if (kind === 'reposition' && skillOn(g, op, 'strikeFast')) d += 1; // Strike Fast (Kasrkin)
   if (kind === 'reposition' && isES(op) && hasPloy(g, op.side, 'quickMarch') && !op.counter) d += 1; // Quick March (Elucidian Starstriders)
   // Stealth Attack's free Charge can't exceed the Move stat.
-  if (kind === 'charge') d = moveStat(g, op) + (op.acted?.free?.charge === 'stealth' || tpl(op).sfCherub ? 0 : op.acted?.boost ? 4 : 2); // Boost: +4" (the Cherub's Fly gains nothing extra)
+  if (kind === 'charge') d = moveStat(g, op) + (op.acted?.free?.charge === 'stealth' || tpl(op).sfCherub || op.acted?.wcFly ? 0 : op.acted?.boost ? 4 : 2); // Boost: +4" (the Cherub's Fly and Immaterial Flight gain nothing extra)
   if (kind === 'charge' && op.acted?.free?.charge === 'rampage') d = 3; // Ruthless Rampage: a free Charge of up to 3"
   if (kind === 'charge' && op.acted?.free?.charge === 'woe') d = op.acted.woeLeft || 0; // The Woe: what's left of the first Charge
   if (kind === 'charge' && op.acted?.free?.charge === 'bloodlust') d = 2; // Obsessive Bloodlust (Goremonger Aspirant): up to 2"
@@ -268,6 +271,8 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   for (const s of [0, 1]) if (teams[s] === 'hearthkyn') { const e = hearthkynRosterError(TEAM_MAP.hearthkyn, roster[s]); if (e) throw new Error(e.en); } // Hearthkyn roster limits
   for (const s of [0, 1]) if (teams[s] === 'navyBreachers') { const e = navyRosterError(TEAM_MAP.navyBreachers, roster[s]); if (e) throw new Error(e.en); } // Navy Breachers roster limits
   for (const s of [0, 1]) if (teams[s] === 'phobos') { const e = phobosRosterError(TEAM_MAP.phobos, roster[s]); if (e) throw new Error(e.en); } // Phobos roster limits
+  for (const s of [0, 1]) if (teams[s] === 'warpcoven') { const e = warpcovenRosterError(TEAM_MAP.warpcoven, roster[s], loadouts[s]); if (e) throw new Error(e.en); } // Warpcoven roster limits
+  wcSetup(g, roster); // Warpcoven: each Sorcerer's Boon of Tzeentch
   dwSetup(g, roster);
   mdSetup(g, roster);
   mwSetup(g, roster, loadouts);
@@ -700,6 +705,7 @@ function startTP(g) {
   vsReady(g); // Vespid Stingwings: Communion points
   xvReady(g); // XV26 Stealth Battlesuits: the Ambush marker, the Homing Beacon
   hkReady(g); // Hearthkyn: the Utility Grenade's countdown
+  g.wcHorn = null; // Brayhorn (Warpcoven) lasts until this Ready step
   mission(g).onReady?.(g); // the Ready step
 }
 
@@ -914,6 +920,7 @@ export function buyPloy(g, side, ploy) {
   if (ploy.id === 'suspectEliminate') needChoice(g, side, 'suspectEliminate');
   if (ploy.id === 'prioritisedAcq') needChoice(g, side, 'prioritisedAcq');
   if (ploy.id === 'drawnHum') needChoice(g, side, 'drawnHum'); // Drawn to the Hum (Gellerpox): the objective marker
+  if (ploy.id === 'fateWeapon') wcFateBuy(g, side); // Fate Itself Is My Weapon (Warpcoven): two reserved dice
   if (ploy.id === 'needKeeps' || ploy.id === 'toilEarns') needChoice(g, side, ploy.id); // Need Keeps / Toil Earns (Hearthkyn): the objective marker
   if (ploy.id === 'huntForBlood') needChoice(g, side, 'huntForBlood');
   if (ploy.id === 'ncReturn') ncReturnBought(g, side); // (Return to Darkness: a player moves at once)
@@ -993,6 +1000,7 @@ export function activate(g, op) {
   }
   g.chain = null;
   op.acted = {}; // (before Cult Ambush below records whether it started unseen)
+  wcFluxActivate(g, op); // Temporal Flux (Warpcoven): its operative's next activation has begun
   mdActivate(g, op);
   mwActivation(g);
   wkActivate(g, op); // Wrecka Krew: Tanked Up ends, Stoopid, Engine Oil
@@ -1163,6 +1171,7 @@ export function endActivation(g) {
     if (op.frenzy && !op.dead) frenzyDie(g, op);
     // Mindburn lasts until the end of the target's next activation.
     if (!wasCounter && g.mindburn) for (const s of [0, 1]) if (g.mindburn[s] === op.uid) g.mindburn[s] = null;
+    if (!wasCounter) wcFluxEnd(g, op); // Temporal Flux (Warpcoven): set back up at the marker
     // An NPO controlled by a player for one activation (Negotiation) goes back to being an NPO.
     if (op.homeSide != null) { op.side = op.homeSide; op.homeSide = null; }
   }
@@ -1196,6 +1205,11 @@ export function endActivation(g) {
     g.netcounter = { side: op.side, by: op.uid };
     if (netCands(g, op.side).length) { g.turn = op.side; g.counter = true; return; }
     g.netcounter = null;
+  }
+  // Mutant Herd (Warpcoven firefight ploy): the other Tzaangor activates straight after (an order the ploy allows).
+  if (op && !wasCounter && !wasNpo && op.wcHerd) {
+    const mate = getOp(g, op.wcHerd); op.wcHerd = null;
+    if (mate && canActivateOp(g, mate)) { g.chain = { side: op.side, uids: [mate.uid], must: true, by: op.uid }; g.turn = op.side; return; }
   }
   // Group Activation (Trooper, mandatory) / Directive (Confidant, optional): one more friendly activation first.
   if (op && !wasCounter && !wasNpo && !op.dead && !op.chained) {
@@ -1471,6 +1485,12 @@ export const ACTIONS = {
   fate: { ap: 1, name: { zh: '命運庇護', en: 'Protected by Fate' } },
   ravage: { ap: 1, name: { zh: '摧毀命運', en: 'Ravage Destiny' } },
   alight: { ap: 1, name: { zh: '點燃', en: 'Alight' } },
+  wcRecon: { ap: 1, name: { zh: '重組儀式', en: 'Reconstitution Ritual' } },
+  wcFlux: { ap: 1, name: { zh: '時間通量', en: 'Temporal Flux' } },
+  wcBrayhorn: { ap: 0, name: { zh: '號角', en: 'Brayhorn' } },
+  wcFlight: { ap: 0, name: { zh: '非物質飛行（下次轉移／衝鋒飛行）', en: 'Immaterial Flight (FLY for the next Reposition / Charge)' } },
+  wcEchoes: { ap: 0, name: { zh: '亞空間回聲（改指令＋多一個動作）', en: 'Echoes from the Warp (change order + one more action)' } },
+  wcScrolls: { ap: 0, name: { zh: '巫術卷軸（換恩賜）', en: 'Sorcerous Scrolls (change boon)' } },
   wayfind: { ap: 1, name: { zh: '尋路', en: 'Wayfind' } },
   pulse: { ap: 1, name: { zh: '干擾脈衝', en: 'Interference Pulse' } },
   signalAny: { ap: 1, name: { zh: '信號', en: 'Signal' } },
@@ -1611,7 +1631,7 @@ export function actionCost(g, op, id) {
     // Nuncio-aquila (Proctor-exactant): +1AP within 3" of it.
     // Energy Cells (crit op): picking up an objective marker costs extra in TP2-3, and that can't be reduced.
     const extra = id === 'pickUp' && pickUpTargets(g, op).some((m) => g.objectives.includes(m)) ? mission(g).pickUpExtra?.(g) || 0 : 0;
-    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) + (nuncioNear(g, op) ? 1 : 0) + (grislyNear(g, op) ? 1 : 0) + rvCrestExtra(g, op) + (intimidated(g, op) ? 1 : 0) - gotIt - acute) + extra; // (+ Grisly Mark)
+    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) + (nuncioNear(g, op) ? 1 : 0) + (grislyNear(g, op) ? 1 : 0) + rvCrestExtra(g, op) + (intimidated(g, op) ? 1 : 0) - gotIt - acute - wcMarkerDiscount(g, op, id)) + extra; // (+ Grisly Mark) (Mutant Appendage, Relic Hunters: Warpcoven)
   }
   if (op.brutalDisplayTP === g.tp && (id === 'pickUp' || MISSION_ACTIONS[id])) return Infinity;
   return ACTIONS[id].ap;
@@ -1798,7 +1818,7 @@ export const TARGET_ACTIONS = {
   },
   // Ravage Destiny (Sorcerer of Destiny): a visible enemy within 9" must re-roll attack dice results of 6; counts 1 lower for control.
   ravage: {
-    targets: (g, op) => foes(g, op).filter((t) => t.side !== NPO && edgeDist(op, t) <= 9 && visibility(g, op, t).visible),
+    targets: (g, op) => foes(g, op).filter((t) => t.side !== NPO && edgeDist(op, t) <= wcReach(op, 9) && visibility(g, op, t).visible), // (Master of the Immaterium: +3")
     apply(g, op, t) {
       (g.ravage ||= [null, null])[op.side] = { by: op.uid, uid: t.uid };
       return { zh: `摧毀命運：${opName(t, 'zh')} 攻擊時必須重擲擲出 6 的骰，控制目標時 APL -1`, en: `Ravage Destiny: ${opName(t, 'en')} must re-roll attack dice results of 6 and counts 1 lower for control` };
@@ -1810,6 +1830,25 @@ export const TARGET_ACTIONS = {
     apply(g, op, t) {
       (g.alight ||= [null, null])[op.side] = { by: op.uid, uid: t.uid };
       return { zh: `點燃：攻擊 ${opName(t, 'zh')} 的友方武器「無休」`, en: `Alight: friendly weapons have Ceaseless against ${opName(t, 'en')}` };
+    },
+  },
+  // Reconstitution Ritual (Sorcerer of Tempyrion): a friendly visible within 6" regains up to 2D3 wounds (once per TP for the kill team).
+  wcRecon: {
+    targets: (g, op) => (g.wcReconTP?.[op.side] === g.tp ? [] : living(g, op.side).filter((t) => sameTeam(t, op) && t.wounds < t.maxW && edgeDist(op, t) <= wcReach(op, 6) && (t === op || visibility(g, op, t).visible))),
+    apply(g, op, t) {
+      (g.wcReconTP ||= [0, 0])[op.side] = g.tp;
+      const before = t.wounds;
+      t.wounds = Math.min(t.maxW, t.wounds + d3() + d3());
+      return { zh: `重組儀式：${opName(t, 'zh')} 回復 ${t.wounds - before} 生命（${t.wounds}/${t.maxW}）`, en: `Reconstitution Ritual: ${opName(t, 'en')} regains ${t.wounds - before} wounds (${t.wounds}/${t.maxW})` };
+    },
+  },
+  // Temporal Flux (Sorcerer of Tempyrion): a marker by a friendly visible within 6"; at the end of that friendly's next
+  // activation, if it's wholly within 6" of the marker, it's set back up there.
+  wcFlux: {
+    targets: (g, op) => (g.wcFlux?.[op.side] && !getOp(g, g.wcFlux[op.side].uid)?.dead ? [] : living(g, op.side).filter((t) => sameTeam(t, op) && edgeDist(op, t) <= wcReach(op, 6) && (t === op || visibility(g, op, t).visible))),
+    apply(g, op, t) {
+      (g.wcFlux ||= [null, null])[op.side] = { x: t.x, y: t.y, uid: t.uid, live: false };
+      return { zh: `時間通量：${opName(t, 'zh')} 下次啟動結束時若完全在標記 6" 內，就回到標記處`, en: `Temporal Flux: at the end of ${opName(t, 'en')}'s next activation, if wholly within 6" of the marker, it's set back up there` };
     },
   },
   // ---- Phobos Strike Team ----
@@ -2449,6 +2488,13 @@ export function availableActions(g, op) {
   // Shielding (Trench Sweeper): when activated, -2" Move and re-roll any defence dice until its next activation.
   if (tpl(op).shielding && !op.counter) add('shieldingUp', !op.shieldingOn && Object.keys(op.acted).length === 0, op.shieldingOn ? DONE : { zh: '只能在啟動時使用', en: 'Only when activated' });
   if (tpl(op).alight) unique('alight');
+  // ---- Warpcoven ----
+  if (tpl(op).tempyrion) { unique('wcRecon'); unique('wcFlux'); }
+  if (op.acted.cabal?.kind === 'a' && !count(op, op.acted.cabal.id)) unique(op.acted.cabal.id); // Psychic Cabal: a borrowed PSYCHIC action
+  if (tpl(op).brayhorn) add('wcBrayhorn', !engaged && !count(op, 'wcBrayhorn'), engaged ? ENG : DONE);
+  if (wcBoon(op, 'flight') && !op.counter) add('wcFlight', !op.acted.wcFly && g.wcFlyTP?.[op.uid] !== g.tp && !did('reposition', 'charge'), DONE);
+  if (wcBoon(op, 'echoes') && op.counter) add('wcEchoes', !g.wcEchoUsed?.[op.side] && !op.acted.wcEchoes, DONE);
+  if (tpl(op).sorcerer && wcEquip(g, op, 'wcScrolls')) add('wcScrolls', !g.wcScrolls?.[op.side] && wcFresh({ ...op, counter: false }) && wcScrollBoons(g, op).length > 0, DONE);
   if (tpl(op).auspex) add('auspexScan', !engaged && !count(op, 'auspexScan'), engaged ? ENG : DONE);
   // Guerrilla Warfare (Phobos ploy): change this operative's order.
   if (hasPloy(g, op.side, 'guerrilla') && TEAM_MAP[op.team].omniScrambler) add('guerrilla', !engaged && !count(op, 'guerrilla') && !op.counter, engaged ? ENG : DONE);
@@ -2570,7 +2616,7 @@ export function availableActions(g, op) {
     }
     if (carriables(g).some((m) => canPickUpMarker(g, op, m))) {
       const n = pickUpTargets(g, op).length;
-      add('pickUp', (!engaged || op.acted.lightFingers || op.rtLarcenous) && n > 0 && !count(op, 'pickUp'), engaged ? ENG : count(op, 'pickUp') ? DONE : { zh: '控制範圍內沒有可撿的標記（或已帶滿）', en: 'No marker to pick up in control range (or already carrying)' });
+      add('pickUp', (!engaged || op.acted.lightFingers || op.rtLarcenous || wcBoon(op, 'appendage')) && n > 0 && !count(op, 'pickUp'), engaged ? ENG : count(op, 'pickUp') ? DONE : { zh: '控制範圍內沒有可撿的標記（或已帶滿）', en: 'No marker to pick up in control range (or already carrying)' });
     }
   }
   // Drones can only perform the actions listed on their datacard.
@@ -2610,6 +2656,7 @@ export function availableActions(g, op) {
   { const f = wsFilter(g, op, list); if (f !== list) { list.length = 0; list.push(...f); } } // Pounce (Wolf Scouts) // XV26: Covert Protocols, Target Locks // Communion: Pick Up and mission actions need a point (Vespid Stingwings)
   if (op.vsNoAtkTP === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Darting Flight (Vespid Stingwings)
   if (op.aqNoAtk === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['dash', 'shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Adjust Coordinates (Aquilons)
+  if (op.counter && op.acted.wcEchoes) for (const a of list) if (a.ok && count(op, a.id)) { a.ok = false; a.why = { zh: '亞空間回聲：兩個動作要不同', en: 'Echoes from the Warp: the two actions must be different' }; }
   const nulled = nullRodded(g, op) || witchHunted(g, op) ? list.filter((a) => !PSYCHIC_ACTIONS.includes(a.id)) : list; // Null Rod (Condemnor) / Weapons of the Witch Hunters
   return allowed ? nulled.filter((a) => allowed.includes(a.id)) : nulled;
 }
@@ -2629,6 +2676,7 @@ export function fightTargets(g, op) {
 /** Simple instant actions without a target (Energise, Long-sight, Stealth Attack). */
 export function doSelfAction(g, op, id) {
   if (nbSelf(g, op, id)) return; // Navy Breachers: Breach Point, Weld Shut, Command Breach swap
+  if (wcSelf(g, op, id)) return; // Warpcoven: Brayhorn, Immaterial Flight, Echoes from the Warp, Sorcerous Scrolls
   if (mdSelfAction(g, op, id)) return;
   if (mwSelf(g, op, id)) return;
   if (wkSelf(g, op, id)) return;
@@ -2748,6 +2796,7 @@ export function spend(g, op, id, ap = actionCost(g, op, id)) {
   if ((id === 'pickUp' || MISSION_ACTIONS[id]) && ap > 0 && intimidated(g, op)) spendFF(g, 1 - op.side, 'intimidatingPresence'); // (Inquisition)
   if ((tpl(op).acuteFocus || tpl(op).lightFingered || tpl(op).gotAPlan) && (ACUTE.includes(id) || MISSION_ACTIONS[id])) op.acted.acuteUsed = true; // Acute Focus / Light-fingered used
   if (tpl(op).apprentek && CRYPTEK_ACTIONS.includes(id)) op.crypTP = g.tp; // Apprentek Assistance: one per turning point
+  if (op.team === 'warpcoven' && ap < ACTIONS[id]?.ap) wcMarkerSpent(g, op, id); // Mutant Appendage / Relic Hunters used (Warpcoven)
   if (tpl(op).vanguard && (id === 'pickUp' || MISSION_ACTIONS[id])) (g.vanguardTP ||= [0, 0])[op.side] = g.tp; // Vanguard used
   op.acted[id] = count(op, id) + 1;
   op.orderSet = true;
@@ -2938,7 +2987,7 @@ const spTvidLive = (g, op, target) => g.spTvidOn === op.uid || spTvid(g, op, tar
 const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, target, {
   noObscure: (op.archonMark?.tp === g.tp && op.archonMark.uid === target.uid) || !!op.optics || !!tpl(op).multiVision || mlLevel(g, op, weapon, target) >= 3 || adAuspexOn(op, target)
     || (!!op.longSightOn && weapon.group === 'huntingRifle') || spotOn(g, op, target)
-    || spTvidLive(g, op, target) || !!tpl(op).incursor || auspexOn(g, op, target) || !!tpl(op).incorporealSight || !!weapon.rules.hypersense || dwAuspexOn(g, op, target) || wsNoObscure(g, op, weapon) || (!!tpl(op).panVisor && edgeDist(op, target) <= 6), ...extra, // Multi-spectrum Array, Auspex Scan, Incorporeal Sight
+    || spTvidLive(g, op, target) || !!tpl(op).incursor || auspexOn(g, op, target) || wcBoon(op, 'sight') || !!weapon.rules.hypersense || dwAuspexOn(g, op, target) || wsNoObscure(g, op, weapon) || (!!tpl(op).panVisor && edgeDist(op, target) <= 6), ...extra, // Multi-spectrum Array, Auspex Scan, Incorporeal Sight
 });
 
 /** Is target a valid target for op with this weapon (visible, and not a Concealed operative in cover)? */
@@ -3091,7 +3140,7 @@ export function effectiveRules(g, op, weapon, target) {
   if (tpl(op).bipod && weapon.type === 'ranged' && (op.counter || !op.acted?.movedDist)) { if (r.ceaseless) r.relentless = true; else r.ceaseless = true; } // Heavy Weapon Bipod
   if (tpl(op).neophyte && living(g, op.side).some((k) => tpl(k).heroic && k.killTP === g.tp && edgeDist(k, op) <= 3 && visibility(g, k, op).visible)) r.severe = true; // Heroic Inspiration
   // ---- Warpcoven ----
-  if (weapon.type === 'ranged' && tpl(op).incorporealSight) r.saturate = true; // Incorporeal Sight
+  if (weapon.type === 'ranged' && wcBoon(op, 'sight')) r.saturate = true; // Incorporeal Sight (boon)
   if (weapon.type === 'ranged' && tpl(op).slowPurposeful && (op.counter || !['charge', 'reposition'].some((k) => count(op, k)))) r.ceaseless = true; // Slow and Purposeful
   if (target && psyOn(g, 'alight', op.side, target) && TEAM_MAP[op.team].anyAstartesShot) r.ceaseless = true; // Alight
   if (target && psyOn(g, 'ravage', 1 - op.side, op)) r.reroll6 = true; // Ravage Destiny: must re-roll attack dice results of 6
@@ -3102,6 +3151,15 @@ export function effectiveRules(g, op, weapon, target) {
     if (assisted || living(g, op.side).some((s) => tpl(s).sorcerer && edgeDist(s, op) <= 6 && visibility(g, s, op).visible)) r.severe = true;
   }
   if (weapon.rules.psychic && tpl(op).sorcerer && hasPloy(g, op.side, 'brotherhood')) { if (sorcererNear(g, op, 9)) r.ceaseless = true; else r.balanced = true; }
+  if (weapon.type === 'ranged' && weapon.rules.psychic && wcBoon(op, 'twist')) r.piercingCrits = Math.max(r.piercingCrits || 0, 1); // Twist of Fate (boon)
+  // Astral Bombardment (boon): its chosen PSYCHIC ranged weapon has Devastating 1 — the doombolt 2" Devastating 2 instead; the
+  // firestorm Seek Light or Devastating 1 for each Shoot (here: Seek Light against a target in cover, otherwise Devastating 1).
+  if (wcBoon(op, 'bombard') && WC_BOMBARD[op.tplId] === weapon.id) {
+    if (weapon.id === 'doombolt') r.devSplash = 2;
+    else if (!(weapon.id === 'firestorm' && target && visibility(g, op, target).cover)) { r.devastating = Math.max(r.devastating || 0, 1); if (weapon.id === 'firestorm') delete r.seekLight; }
+  }
+  if (wcEquip(g, op, 'wcRounds') && ['infernoBoltgun', 'infernoPistol', 'tzAutopistol'].includes(weapon.id)) r.devastating = Math.max(r.devastating || 0, 1); // Ensorcelled Rounds
+  if (weapon.type === 'melee' && tpl(op).automata && wcEquip(g, op, 'wcMaws')) { r.atkPlus = (r.atkPlus || 0) + 1; if (g.active !== op.uid) r.accurate = Math.max(r.accurate || 0, 1); } // Daemonmaw Weapons (Accurate 1 retaliating)
   // ---- Phobos Strike Team ----
   if (weapon.type === 'melee' && hasPloy(g, op.side, 'lethalAssaults')) { r.balanced = true; if (count(op, 'charge')) r.lethal = Math.min(r.lethal || 6, 5); }
   if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'deadlyShots')
@@ -3411,6 +3469,27 @@ function nbBreachwalled(g, shooter, target) {
 const nbTerrainNear = (g, op) => g.terrain.filter((t) => (t.kind === 'heavy' || t.kind === 'light') && distPointRect(op, t) - radius(op) <= CONTROL + 0.01);
 const nbHatchToWeld = (g, op) => accessPointsOf(g).find((d) => d.kind === 'hatchway' && d.state !== 'open' && !g.nbWeld?.[d.id] && nearHatch(g, op, d, radius(op)));
 /** Breach Point (a Breach marker on terrain in control range: parts no more than 1" thick within 1" of it are Accessible), Weld Shut, Command Breach swap. */
+/** Warpcoven self actions: Brayhorn, Immaterial Flight, Echoes from the Warp, Sorcerous Scrolls. */
+function wcSelf(g, op, id) {
+  if (id === 'wcBrayhorn') {
+    spend(g, op, id); (g.wcHorn ||= [false, false])[op.side] = true;
+    log(g, { zh: `${opName(op, 'zh')} 吹響號角：友方奸奇獸人移動 +1"，直到下個策略階段的準備步驟`, en: `${opName(op, 'en')} Brayhorn: friendly Tzaangor have +1" Move until the next Strategy phase's Ready step` }, `side${op.side}`);
+    return true;
+  }
+  if (id === 'wcFlight') {
+    spend(g, op, id); op.acted.wcFly = true; (g.wcFlyTP ||= {})[op.uid] = g.tp;
+    log(g, { zh: `${opName(op, 'zh')} 非物質飛行：這次啟動下一個轉移或衝鋒用飛行`, en: `${opName(op, 'en')} Immaterial Flight: its next Reposition or Charge this activation is a FLY move` }, `side${op.side}`);
+    return true;
+  }
+  if (id === 'wcEchoes') {
+    spend(g, op, id); op.acted.wcEchoes = true; (g.wcEchoUsed ||= [false, false])[op.side] = true;
+    op.ap += 1; op.orderSet = false;
+    log(g, { zh: `${opName(op, 'zh')} 亞空間回聲：可改變指令，並多做一個免費的 1AP 動作`, en: `${opName(op, 'en')} Echoes from the Warp: it can change its order and perform an additional free 1AP action` }, `side${op.side}`);
+    return true;
+  }
+  if (id === 'wcScrolls') { needChoice(g, op.side, 'wcScrolls', { uid: op.uid }); return true; }
+  return false;
+}
 function nbSelf(g, op, id) {
   if (id === 'nbBreach') {
     const t = nbTerrainNear(g, op).sort((a, b) => distPointRect(op, a) - distPointRect(op, b))[0];
@@ -3671,6 +3750,150 @@ function giveStimm(g, op, kind) {
 /** A psychic effect (Protected by Fate, Ravage Destiny, Alight) one side has on an operative: {by, uid}. */
 const psy = (g, key, side) => g[key]?.[side] || null;
 const psyOn = (g, key, side, op) => { const p = psy(g, key, side); return !!(p && op && p.uid === op.uid && !getOp(g, p.by)?.dead); };
+/** Boons of Tzeentch: each Sorcerer's boon for the battle (Sorcerous Scrolls can change it later). */
+function wcSetup(g, roster) {
+  for (const o of g.ops) if (o.team === 'warpcoven' && tpl(o).sorcerer) o.boon = roster[o.side]?.[`boon_${o.tplId}`] || WC_BOON_DEFAULT[o.tplId];
+}
+export const wcBoon = (op, id) => !!op && op.team === 'warpcoven' && op.boon === id;
+export const wcEquip = (g, op, id) => !!op && op.side < 2 && op.team === 'warpcoven' && !!g.equip?.[op.side]?.includes(id);
+/** Master of the Immaterium: +3" to the distances of its PSYCHIC actions. */
+const wcReach = (op, d) => d + (wcBoon(op, 'master') ? 3 : 0);
+/** Nothing done yet this activation (for ploys used "when activated"). */
+const wcFresh = (op) => !op.counter && !Object.keys(op.acted || {}).some((k) => !['unseen', 'accelerant', 'free'].includes(k));
+/** Herd Banner (Tzaangor Icon Bearer): Normal Dmg of 3+ on a friendly Tzaangor visible within 3" of it deals 1 less. */
+export const wcBanner = (g, op, amount) => (amount >= 3 && op.side < 2 && tpl(op).tzaangor && op.team === 'warpcoven'
+  && living(g, op.side).some((b) => tpl(b).herdBanner && edgeDist(b, op) <= 3 && (b === op || visibility(g, b, op).visible)) ? amount - 1 : amount);
+/** Arcane Robes: once per turning point for each Sorcerer, one attack dice's Critical Dmg becomes Normal Dmg. */
+function wcRobes(g, op) {
+  if (!tpl(op).sorcerer || !wcEquip(g, op, 'wcRobes') || !abilityArmed(g, op.side, 'wcRobes') || (g.wcRobes ||= {})[op.uid] === g.tp) return false;
+  g.wcRobes[op.uid] = g.tp;
+  log(g, { zh: `秘法長袍：${opName(op, 'zh')} 一個暴擊傷害改為普通傷害`, en: `Arcane Robes: one Critical Dmg on ${opName(op, 'en')} becomes Normal Dmg` }, `side${op.side}`);
+  return true;
+}
+// Pick Up Marker, Place Marker and mission actions for 1 less AP: Mutant Appendage (once per activation), Relic Hunters
+// (Tzaangor Warriors, once per battle, in the opponent's territory).
+const wcMarkerAct = (id) => id === 'pickUp' || id === 'placeMarker' || !!MISSION_ACTIONS[id];
+const wcAppendage = (op, id) => wcMarkerAct(id) && wcBoon(op, 'appendage') && !op.acted?.wcAppendUsed;
+const wcRelic = (g, op, id) => wcMarkerAct(id) && !!tpl(op).relicHunters && op.side < 2 && !g.wcRelic?.[op.side] && territoryOf(g, op) !== op.side;
+const wcMarkerDiscount = (g, op, id) => (wcAppendage(op, id) ? 1 : 0) + (wcRelic(g, op, id) ? 1 : 0);
+function wcMarkerSpent(g, op, id) {
+  if (wcAppendage(op, id)) op.acted.wcAppendUsed = true;
+  if (wcRelic(g, op, id)) { (g.wcRelic ||= [false, false])[op.side] = true; log(g, { zh: `遺物獵人：${opName(op, 'zh')} 少花 1AP（整場一次）`, en: `Relic Hunters: ${opName(op, 'en')} pays 1 less AP (once per battle)` }, `side${op.side}`); }
+}
+/** Brayhorn (Tzaangor Horn Bearer): +1" Move for friendly Tzaangor until the next Ready step. */
+const wcHorn = (g, op) => (tpl(op).tzaangor && op.team === 'warpcoven' && g.wcHorn?.[op.side] ? 1 : 0);
+/** Immaterial Flight: this activation's next Reposition or Charge is a FLY move (Move only for a Charge). */
+export const wcFlying = (op, kind) => !!op.acted?.wcFly && (kind === 'reposition' || kind === 'charge');
+/** Temporal Flux: {x, y, uid, live} — armed when its operative's next activation begins. */
+const wcFluxOf = (g, side) => g.wcFlux?.[side] || null;
+function wcFluxActivate(g, op) { const f = wcFluxOf(g, op.side); if (f && f.uid === op.uid && !g.counter) f.live = true; }
+function wcFluxEnd(g, op) {
+  const f = wcFluxOf(g, op.side);
+  if (!f || f.uid !== op.uid || !f.live) return;
+  g.wcFlux[op.side] = null;
+  if (op.dead || dist(op, f) + radius(op) > 6 + 0.01 || nullRodded(g, op)) { log(g, { zh: '時間通量：不在標記 6" 內，標記移除', en: 'Temporal Flux: not wholly within 6" of the marker — the marker is removed' }, `side${op.side}`); return; }
+  const ctx = moveCtx(g, op, 'reposition');
+  for (let ring = 0; ring <= 4; ring += 0.25) {
+    for (let a = 0; a < (ring ? 24 : 1); a++) {
+      const p = { x: f.x + Math.cos(a * Math.PI / 12) * ring, y: f.y + Math.sin(a * Math.PI / 12) * ring };
+      if (!ctx.placement(p).ok || ctx.inEnemyER(p)) continue;
+      op.x = p.x; op.y = p.y;
+      log(g, { zh: `時間通量：${opName(op, 'zh')} 回到標記的位置`, en: `Temporal Flux: ${opName(op, 'en')} is set back up at the marker` }, `side${op.side}`);
+      return;
+    }
+  }
+}
+/** Fate Itself Is My Weapon: two reserved D6 (both usable when they totalled 9 or more). */
+function wcFateBuy(g, side) {
+  const dice = [d6(), d6()], pair = dice[0] + dice[1] >= 9;
+  (g.wcFate ||= [null, null])[side] = { tp: g.tp, dice, pair };
+  log(g, { zh: `命運即我之刃：保留 ${dice.join('、')}${pair ? '（兩顆都能用）' : '（只能用一顆）'}`, en: `Fate Itself Is My Weapon: reserved ${dice.join(', ')}${pair ? ' (both usable)' : ' (only one usable)'}` }, `side${side}`);
+}
+/** After attack dice are rolled: a reserved dice replaces one of them where that helps its owner most (one per sequence). */
+function wcFateRoll(g, rolls) {
+  for (const s of [0, 1]) {
+    const f = g.wcFate?.[s];
+    if (!f || f.tp !== g.tp || !f.dice.length || !abilityArmed(g, s, 'wcFate')) continue;
+    let best = null;
+    for (const [o, pool] of rolls) {
+      if (!o || !pool || pool.rules?.soulstrikeDef) continue;
+      const res = (v) => (v >= pool.success ? (v >= pool.critOn ? 2 : 1) : 0);
+      for (let i = 0; i < f.dice.length; i++) for (const d of pool.dice) {
+        if (d.auto || d.locked) continue;
+        const cur = d.res === 'crit' ? 2 : d.res === 'norm' ? 1 : 0, gain = o.side === s ? res(f.dice[i]) - cur : cur - res(f.dice[i]);
+        if (gain > 0 && (!best || gain > best.gain)) best = { gain, d, i, pool, o };
+      }
+    }
+    if (!best) continue;
+    const old = best.d.v, v = f.dice[best.i];
+    best.d.v = v; best.d.rr = true; best.d.locked = true;
+    f.dice.splice(best.i, 1);
+    if (!f.pair) f.dice = [];
+    tally(best.pool);
+    log(g, { zh: `命運即我之刃：${opName(best.o, 'zh')} 的一顆 ${old} 換成保留的 ${v}`, en: `Fate Itself Is My Weapon: one of ${opName(best.o, 'en')}'s ${old}s becomes the reserved ${v}` }, `side${s}`);
+  }
+}
+/** Psychic Cabal: what another friendly Sorcerer visible within 9" can lend (PSYCHIC unique actions; PSYCHIC ranged weapons it hasn't used this TP). */
+const WC_PSY_ACTIONS = { destiny: ['fate', 'ravage'], warpfire: ['alight'], tempyrion: ['wcRecon', 'wcFlux'] };
+function wcCabalOptions(g, op) {
+  const out = [], mine = weaponsFor(g, op).map((w) => w.id);
+  for (const s of living(g, op.side)) {
+    if (s === op || !tpl(s).sorcerer || s.team !== 'warpcoven' || edgeDist(s, op) > 9 || !visibility(g, op, s).visible) continue;
+    for (const id of WC_PSY_ACTIONS[s.tplId] || []) if (!(WC_PSY_ACTIONS[op.tplId] || []).includes(id)) out.push({ value: `${s.uid}|a|${id}`, label: { zh: `${opName(s, 'zh')}：${ACTIONS[id].name.zh}`, en: `${opName(s, 'en')}: ${ACTIONS[id].name.en}` } });
+    for (const w of weaponsFor(g, s)) if (w.type === 'ranged' && w.rules.psychic && s.wcPsyUsed?.[w.id] !== g.tp && !mine.includes(w.id)) out.push({ value: `${s.uid}|w|${w.id}`, label: { zh: `${opName(s, 'zh')}：${w.name.zh}`, en: `${opName(s, 'en')}: ${w.name.en}` } });
+  }
+  return out;
+}
+function wcCabalApply(g, op, value) {
+  const [from, kind, id] = value.split('|'), s = getOp(g, from);
+  let nm = ACTIONS[id]?.name;
+  if (kind === 'w') {
+    const w = weaponsFor(g, s).find((x) => x.id === id);
+    if (!w) return;
+    nm = w.name;
+    op.acted.cabal = { from, kind, id, weapon: w };
+    (g.wcCabalBan ||= {})[from] = { tp: g.tp, id };
+  } else op.acted.cabal = { from, kind, id };
+  log(g, { zh: `靈能秘會：${opName(op, 'zh')} 借用 ${opName(s, 'zh')} 的「${nm.zh}」`, en: `Psychic Cabal: ${opName(op, 'en')} borrows ${opName(s, 'en')}'s ${nm.en}` }, `side${op.side}`);
+}
+/** Warpcoven weapons: Warp Swell (+1 melee Normal Dmg), a weapon borrowed through Psychic Cabal, or one lent out this TP. */
+function wcWeapons(g, op, ws) {
+  if (op.team !== 'warpcoven') return ws;
+  const ban = g.wcCabalBan?.[op.uid];
+  if (ban && ban.tp === g.tp) ws = ws.filter((w) => w.id !== ban.id);
+  if (op.acted?.cabal?.kind === 'w' && !ws.some((w) => w.id === op.acted.cabal.id)) ws = [...ws, op.acted.cabal.weapon];
+  if (wcBoon(op, 'warpSwell')) ws = ws.map((w) => (w.type === 'melee' ? { ...w, dmg: [w.dmg[0] + 1, w.dmg[1]] } : w));
+  return ws;
+}
+/** Mutant Herd: other ready friendly Tzaangor visible within 2". */
+const wcHerdMates = (g, op) => living(g, op.side).filter((o) => o !== op && tpl(o).tzaangor && o.team === 'warpcoven' && canActivateOp(g, o) && edgeDist(o, op) <= 2 && visibility(g, op, o).visible);
+/** Sorcerous Scrolls: the boons a Sorcerer could change to (not its own, not another friendly's). */
+const wcScrollBoons = (g, op) => Object.keys(WC_BOONS).filter((b) => b !== op.boon && !living(g, op.side).some((o) => o !== op && o.boon === b));
+function registerWarpcovenChoices() {
+  const B = (zh, en) => ({ zh, en });
+  CHOICES.wcHerd = {
+    kind: 'op', title: B('變種獸群：選一名一起啟動的奸奇獸人', 'Mutant Herd: pick the Tzaangor that activates with it'),
+    options: (g, side, ctx) => wcHerdMates(g, getOp(g, ctx.uid)).map((o) => ({ value: o.uid })),
+    auto: (g, side, ctx) => { const o = getOp(g, ctx.uid); return wcHerdMates(g, o).sort((a, b) => edgeDist(a, o) - edgeDist(b, o))[0]?.uid ?? null; },
+    apply(g, side, uid, ctx) { getOp(g, ctx.uid).wcHerd = uid; log(g, { zh: `變種獸群：${opName(getOp(g, uid), 'zh')} 接著啟動`, en: `Mutant Herd: ${opName(getOp(g, uid), 'en')} activates next` }, `side${side}`); },
+  };
+  CHOICES.wcCabal = {
+    kind: 'option', title: B('靈能秘會：借用哪個靈能動作或武器？', 'Psychic Cabal: borrow which PSYCHIC action or weapon?'),
+    options: (g, side, ctx) => wcCabalOptions(g, getOp(g, ctx.uid)),
+    auto: (g, side, ctx) => { const o = wcCabalOptions(g, getOp(g, ctx.uid)); return (o.find((x) => x.value.includes('|w|')) || o[0])?.value ?? null; },
+    apply: (g, side, v, ctx) => wcCabalApply(g, getOp(g, ctx.uid), v),
+  };
+  CHOICES.wcScrolls = {
+    kind: 'option', title: B('巫術卷軸：換成哪個奸奇恩賜（整場一次）？', 'Sorcerous Scrolls: change to which Boon of Tzeentch (once per battle)?'),
+    options: (g, side, ctx) => wcScrollBoons(g, getOp(g, ctx.uid)).map((b) => ({ value: b, label: WC_BOONS[b].name })),
+    auto: () => null, none: () => {}, skippable: true,
+    apply(g, side, b, ctx) {
+      const o = getOp(g, ctx.uid);
+      o.boon = b; (g.wcScrolls ||= [false, false])[side] = true;
+      log(g, { zh: `巫術卷軸：${opName(o, 'zh')} 的恩賜改為「${WC_BOONS[b].name.zh}」`, en: `Sorcerous Scrolls: ${opName(o, 'en')}'s boon is now ${WC_BOONS[b].name.en}` }, `side${side}`);
+    },
+  };
+}
 /** Mindburn: the target's weapons' Hit is worsened by 1 (not cumulative with injured). */
 const mindburned = (g, op) => [0, 1].some((s) => s !== op.side && g.mindburn?.[s] === op.uid);
 // Apprehend (Cyber-mastiff) worsens it the same way. Engendered Focus (Castigator) ignores it all;
@@ -5146,7 +5369,7 @@ const isPsyker = (op) => !!tpl(op).psyker || !!tpl(op).sorcerer || tpl(op).weapo
 /** Null Rod (Condemnor): an enemy within 6" of a Condemnor can't use PSYCHIC ranged weapons or actions. */
 const nullRodded = (g, op) => op.side < 2 && (living(g, 1 - op.side).some((c) => tpl(c).nullRodAura && edgeDist(c, op) <= 6)
   || living(g).some((c) => c !== op && tpl(c).psychicNull && edgeDist(c, op) <= 6)); // (Psychic Null, Sisters of Silence: friend or foe)
-const PSYCHIC_ACTIONS = ['vdMirror', 'vdFog', 'fate', 'ravage', 'alight', 'miasma', 'soulChannel', 'soulHeal', 'wardingShield', 'warpFold', 'telepathicOverload', 'mentalOnslaught', 'ruinousInvig', 'ruinousDeter', 'heinousDeluge', 'maleficVortex', 'songOne', 'songAll', 'cleansing', 'wails', 'windsGrace', 'scryGuide', 'scryProtect'];
+const PSYCHIC_ACTIONS = ['vdMirror', 'vdFog', 'fate', 'ravage', 'alight', 'wcRecon', 'wcFlux', 'miasma', 'soulChannel', 'soulHeal', 'wardingShield', 'warpFold', 'telepathicOverload', 'mentalOnslaught', 'ruinousInvig', 'ruinousDeter', 'heinousDeluge', 'maleficVortex', 'songOne', 'songAll', 'cleansing', 'wails', 'windsGrace', 'scryGuide', 'scryProtect'];
 // Weapons of the Witch Hunters: Psychic actions can't select enemy Insidiants (nor count them within their distances).
 for (const id of PSYCHIC_ACTIONS) {
   const ta = TARGET_ACTIONS[id];
@@ -5171,7 +5394,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT, NAVY_EQUIPMENT, PHOBOS_EQUIPMENT);
+Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT, NAVY_EQUIPMENT, PHOBOS_EQUIPMENT, WARPCOVEN_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' || teamId === 'hearthkyn' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Hearthkyn: the Lugger's Well Supplied) // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
@@ -5179,7 +5402,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT, hearthkyn: HEARTHKYN_EQUIPMENT, navyBreachers: NAVY_EQUIPMENT, phobos: PHOBOS_EQUIPMENT,
+  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT, hearthkyn: HEARTHKYN_EQUIPMENT, navyBreachers: NAVY_EQUIPMENT, phobos: PHOBOS_EQUIPMENT, warpcoven: WARPCOVEN_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -5235,6 +5458,7 @@ export function weaponsFor(g, op) {
   ws = aqWeapons(g, op, ws); // Tempestus Daggers (Tempestus Aquilons equipment)
   ws = vsWeapons(g, op, ws); // Sting (Vespid Stingwings ploy)
   ws = wsWeapons(g, op, ws); // Wolf Scouts: Tempest's Fury, Fierce Temperament, Frost Weapons, Hunter's Senses
+  ws = wcWeapons(g, op, ws); // Warpcoven: Warp Swell, Psychic Cabal
   if (!hasEquip(g, op.side, 'explosive') || tpl(op).actionsOnly) return ws;
   return [...ws, ...(eqLeft(g, op.side, 'frag') ? [FRAG] : []), ...(eqLeft(g, op.side, 'krak') ? [KRAK] : [])];
 }
@@ -5763,7 +5987,11 @@ const FF = {
     } },
   // ---- Warpcoven ----
   allIsDust: { kind: 'auto' },
-  capricious: { kind: 'button', cond: (g, op) => (tpl(op).sorcerer && !isEngaged(g, op) ? null : { zh: '只有巫師、且不在交戰中', en: 'Sorcerers only, not engaged' }), apply(g, op) { op.acted.free = { ...(op.acted.free || {}), dash: 'capricious' }; } },
+  capricious: { kind: 'button', cond: (g, op) => (tpl(op).sorcerer && !isEngaged(g, op) ? null : { zh: '只有巫師、且不在交戰中', en: 'Sorcerers only, not engaged' }), apply(g, op) { op.acted.free = { ...(op.acted.free || {}), dash: 'capricious' }; op.orderSet = false; } }, // (and/or change its order)
+  mutantHerd: { kind: 'button', cond: (g, op) => (!tpl(op).tzaangor || op.team !== 'warpcoven' ? { zh: '只有奸奇獸人', en: 'Tzaangor only' } : !wcFresh(op) ? { zh: '要在剛啟動時使用', en: 'Only when it is activated' }
+    : wcHerdMates(g, op).length ? null : { zh: '2" 內沒有看得到、準備好的友方奸奇獸人', en: 'No ready friendly Tzaangor visible within 2"' }), apply(g, op) { needChoice(g, op.side, 'wcHerd', { uid: op.uid }); } },
+  psychicCabal: { kind: 'button', cond: (g, op) => (!tpl(op).sorcerer || op.team !== 'warpcoven' ? { zh: '只有巫師', en: 'Sorcerers only' } : !wcFresh(op) ? { zh: '要在剛啟動時使用', en: 'Only when it is activated' }
+    : wcCabalOptions(g, op).length ? null : { zh: '9" 內沒有看得到、能借東西的巫師', en: 'No Sorcerer visible within 9" with anything to lend' }), apply(g, op) { needChoice(g, op.side, 'wcCabal', { uid: op.uid }); } },
   // ---- Wyrmblade ----
   slink: { kind: 'button', cond: (g, op) => (op.order === 'engage' && !op.slinkUsed ? null : { zh: '要是交戰指令（每名整場一次）', en: 'Engage order only (once per operative per battle)' }), apply(g, op) { op.acted.slink = true; op.slinkUsed = true; } },
   coiledSerpent: { kind: 'attack', cond: (g, op) => (sprungNow(op) && !count(op, 'shoot') && !count(op, 'fight') ? null : { zh: '要在隱蔽轉交戰後的第一次攻擊', en: 'First attack after switching from Conceal' }) },
@@ -6549,7 +6777,9 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
   const inCover = vis.cover && !rules.ignoreCover;
+  wcFateRoll(g, [[op, a]]); // Fate Itself Is My Weapon (Warpcoven)
   // Toxic: +1 to both Dmg against an enemy that was poisoned at the start of the action.
+  if (weapon.rules.psychic && op.team === 'warpcoven') (op.wcPsyUsed ||= {})[weapon.id] = g.tp; // (Psychic Cabal can't borrow a weapon used this TP)
   // Close Assault (Navy Breachers): Navis shotguns +1 to both Dmg (counted with Toxic's bonus).
   // (Anti-PSYKER, Novitiate Condemnor: +1 to both Dmg against a psyker.)
   const tox = (rules.toxic && poisonedAtStart?.has(target.uid) ? 1 : 0) + (rules.closeAssault && weapon.rules.shotgun ? 1 : 0) + (rules.antiPsykerOn ? 1 : 0) + (rules.slugs ? 1 : 0); // (Slugs: +1 to both Dmg)
@@ -6748,6 +6978,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   const crest = block.remN > 0 && dn > 0 && (useCrest(g, target) || pfShield(g, target) || adIronHalo(g, target)); // (Shield Generator: MV4 Shield Drone; Iron Halo: Space Marine Captain)
   const normals = Array(Math.max(0, block.remN - (crest ? 1 : 0))).fill(dn);
   if (normals.length && corsairShield(g, target)) normals.shift();
+  if (!gong && block.remC > 0 && dc > dn && wcRobes(g, target)) block = { ...block, remC: block.remC - 1, remN: block.remN + 1 }; // Arcane Robes (Warpcoven): one Critical Dmg becomes Normal Dmg
   else if (normals.length && vsAgility(g, op, target)) normals.shift(); // Aerial Agility (Vespid Stingwings)
   else if (normals.length && target.side < 2 && isCC(target) && matrixCovers(g, target.side, op, target) && autoFF(g, target.side, 'shieldFlare')) normals.shift(); // Shield Flare
   // Just a Scratch (Kommandos) ignores one normal hit; All Is Dust (Rubric Marines) makes one deal 1.
@@ -6765,6 +6996,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // Blazing Inferno (Novitiate firefight ploy): critical damage from the Ministorum flamer leaves a Blaze token.
   if (ffOn(g, op, 'blazingInferno') && weapon.id === 'ministorumFlamer' && block.remC > 0 && target.side < 2) target.blaze = op.side;
   // Unleash Daemon (4+ deals 1 less), else Disgusting Vigour (Nurgle) — never more than 1 off a die.
+  for (let i = 0; i < normals.length; i++) normals[i] = wcBanner(g, target, normals[i]); // Herd Banner (Tzaangor Icon Bearer)
   for (let i = 0; i < normals.length; i++) { const a2 = daemonShell(target, normals[i]); normals[i] = a2 < normals[i] ? a2 : nurgleVigour(g, target, normals[i]); }
   if (weapon.rules.drag) dragTarget(g, op, target, block.remC + block.remN); // Drag (Impaler): pulled in before the damage
   const res = resolveDice(target, [...Array(block.remC).fill(daemonShell(target, dc)), ...normals, critShot].filter((x) => x > 0), g);
@@ -7173,6 +7405,7 @@ export function startFight(g, op, weapon, target) {
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons
   if (free) { op.acted.free.fight = null; if (op.acted.ancestors && op.acted.free.shoot === 'any') op.acted.free.shoot = null; }
   // dueller: (Chapter Tactic) a normal success can block a critical success.
+  wcFateRoll(g, [[op, aRoll], [target, dRoll]]); // Fate Itself Is My Weapon (Warpcoven)
   // tox: Toxic bonus (foe poisoned at the start of the action); shock: Shock not used yet this sequence;
   // hardy: Cold-blood takes Normal Dmg from critical strikes; extraStrike: Stealth Attack.
   // a: the dice pool (re-rolled with Command Re-roll before any dice are resolved).
@@ -7442,7 +7675,8 @@ export function fightApply(g, optId) {
     const wasFrenzy = !!foeOp.frenzy;
     const normalHit = normalDmg(fightWeapon(g, k), foeOp, g, meOp) + (me.tox || 0);
     const gong = opt.die === 'c' && warGong(g, foeOp) && (normalHit < opt.dmg || wasFrenzy);
-    const dmg0 = (gong ? normalHit : opt.dmg) + mwBoon(g, meOp), asNormal = opt.die === 'n' || gong;
+    const robe = !gong && opt.die === 'c' && normalHit < opt.dmg && wcRobes(g, foeOp); // Arcane Robes (Warpcoven)
+    const dmg0 = (gong || robe ? normalHit : opt.dmg) + mwBoon(g, meOp), asNormal = opt.die === 'n' || gong || robe;
     let amount = asNormal && ((tpl(foeOp).brawler && dmg0 >= 4) || ((tpl(foeOp).tough || bulwark(g, foeOp)) && dmg0 >= 3)) ? dmg0 - 1 : dmg0;
     amount = dwReduceDamage(g, foeOp, amount, asNormal, true);
     amount = wkReckless(foeOp, amount, asNormal); // Reckless Temperament (Demolisha)
@@ -7459,6 +7693,7 @@ export function fightApply(g, optId) {
     if (!shrug && opt.die === 'n' && amount >= 2 && tpl(foeOp).automata && autoFF(g, foeOp.side, 'allIsDust')) amount = 1; // All Is Dust (Rubric Marines)
     // Ice In Your Veins (Kasrkin): the first Normal Dmg of 3+ in the sequence deals 1 less.
     if (!shrug && asNormal && amount >= 3 && skillOn(g, foeOp, 'iceInVeins') && !foe.iceUsed) { foe.iceUsed = true; amount--; }
+    if (asNormal) amount = wcBanner(g, foeOp, amount); // Herd Banner (Tzaangor Icon Bearer)
     // Unleash Daemon (4+ deals 1 less), else Disgusting Vigour (Nurgle, Normal Dmg 3+: 5+ = 1 less) — never more than 1 off.
     if (!shrug) { const a2 = daemonShell(foeOp, amount); amount = a2 < amount ? a2 : asNormal ? nurgleVigour(g, foeOp, amount) : amount; }
     const res = shrug ? { dmg: 0, rolls: [] } : resolveDice(foeOp, [amount], g); // Disgustingly Resilient
@@ -7736,4 +7971,4 @@ function resolveFightNow(g, op, weapon, target) {
   return f;
 }
 
-registerCoreChoices(); aqChoices(); pmChoices(); adChoices(); rvChoices(); xvChoices(); dkChoices(); kmChoices(); pfChoices(); dkMoveChoices(); sfChoices(); scChoices(); spChoices(); ncChoices(); // (after CHOICES is defined)
+registerCoreChoices(); registerWarpcovenChoices(); aqChoices(); pmChoices(); adChoices(); rvChoices(); xvChoices(); dkChoices(); kmChoices(); pfChoices(); dkMoveChoices(); sfChoices(); scChoices(); spChoices(); ncChoices(); // (after CHOICES is defined)

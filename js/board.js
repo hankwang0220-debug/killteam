@@ -196,6 +196,9 @@ export function renderBoard(g, ui) {
   // Reanimation markers (Hierotek Circle) whose operative can still come back.
   for (const m of g.reanim || []) {
     if (!g.ops.find((o) => o.uid === m.uid)?.dead) continue;
+  (g.wcFlux || []).forEach((m, side) => { // Temporal Flux marker (Warpcoven): the operative comes back here if wholly within 6"
+    if (m && !g.ops.find((o) => o.uid === m.uid)?.dead) s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="6" class="pechra" stroke="${team(g, side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y + 0.17)}" class="mmarktxt" pointer-events="none">⌛</text>`);
+  });
     s.push(`<circle cx="${f(m.x)}" cy="${f(m.y)}" r="0.7" class="reanim" stroke="${team(g, m.side).color}" pointer-events="none"/><text x="${f(m.x)}" y="${f(m.y + 0.35)}" class="reanimtxt" pointer-events="none">☥</text>`);
   }
   (g.tactician || []).forEach((m, side) => {

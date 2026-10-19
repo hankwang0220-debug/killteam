@@ -367,20 +367,30 @@ const PH_REIVER_LOADOUTS = { pistol: [siBoltPistol, combatKnife], carbine: [bolt
 const PH_PICKS = ['commsman', 'helix', 'phSaboteur', 'phVeteran', 'voxbreaker', 'phInfWarrior', 'marksman', 'phMinelayer', 'phIncWarrior', 'reiver'];
 
 // ---- Warpcoven ----
-// Twist of Fate (Boon of Tzeentch, Sorcerer of Destiny): its PSYCHIC ranged weapons have Piercing Crits 1.
-const doombolt = W('doombolt', '末日彈', 'Doombolt', 'ranged', 4, 3, 4, 2, { psychic: true, devastating: 2, lethal: 5, piercingCrits: 1 });
+// (Boons of Tzeentch — Twist of Fate, Incorporeal Sight, Astral Bombardment and the rest — are picked per Sorcerer: js/data/warpcoven.js.)
+const doombolt = W('doombolt', '末日彈', 'Doombolt', 'ranged', 4, 3, 4, 2, { psychic: true, devastating: 2, lethal: 5 });
+const fluxblast = W('fluxblast', '通量爆破', 'Fluxblast', 'ranged', 4, 3, 3, 4, { psychic: true, blast: 2, rending: true });
 const infernoPistol = W('infernoPistol', '煉獄爆彈手槍', 'Inferno bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8, piercing: 1 });
+const warpflamePistol = W('warpflamePistol', '亞空間火焰手槍', 'Warpflame pistol', 'ranged', 4, 2, 3, 3, { range: 6, piercing: 1, torrent: 1 });
 const forceStave = W('forceStave', '力場法杖', 'Force stave', 'melee', 4, 3, 4, 6, { psychic: true, shock: true });
-// Incorporeal Sight (Boon, Sorcerer of Warpfire): its ranged weapons have Saturate and enemies can't be obscured.
 const firestorm = W('firestorm', '火焰風暴', 'Firestorm', 'ranged', 5, 4, 2, 3, { psychic: true, saturate: true, seekLight: true, torrent: 2 });
 const mindburn = W('mindburn', '心靈灼燒', 'Mindburn', 'ranged', 5, 4, 1, 1, { psychic: true, lethal: 5, saturate: true, seekLight: true, mindburn: true });
 const khopesh = W('khopesh', '普羅斯佩羅鐮劍', 'Prosperine khopesh', 'melee', 5, 3, 4, 6, { lethal: 5 });
 const soulreaperFocused = W('soulreaperFocused', '奪魂砲（集中）', 'Soulreaper cannon (focused)', 'ranged', 5, 3, 4, 5, { piercing: 1 }, 'soulreaper');
 const soulreaperSweeping = W('soulreaperSweeping', '奪魂砲（掃射）', 'Soulreaper cannon (sweeping)', 'ranged', 4, 3, 4, 5, { piercing: 1, torrent: 1 }, 'soulreaper');
+const warpflamer = W('warpflamer', '亞空間火焰噴射器', 'Warpflamer', 'ranged', 4, 2, 4, 4, { range: 8, saturate: true, piercing: 1, torrent: 2 });
 const infernoBoltgun = W('infernoBoltgun', '煉獄爆彈槍', 'Inferno boltgun', 'ranged', 4, 3, 3, 4, { piercing: 1 });
 const fistsWC = W('fistsWC', '徒手格鬥', 'Fists', 'melee', 3, 3, 3, 4);
 const greatblade = W('greatblade', '巨刃', 'Greatblade', 'melee', 4, 3, 4, 5, { lethal: 5, rending: true });
+const greataxe = W('greataxe', '巨斧', 'Greataxe', 'melee', 4, 3, 4, 5, { brutal: true, lethal: 5 });
 const tzaangorBlades = W('tzaangorBlades', '奸奇獸人雙刃', 'Tzaangor blades', 'melee', 4, 4, 4, 5, { balanced: true });
+// Shield: a 4+ Save (on the operative), and each block can block two unresolved successes when fighting or retaliating with it.
+const tzBladeShield = W('tzBladeShield', '奸奇獸人刃與盾', 'Tzaangor blade & shield', 'melee', 4, 4, 3, 4, { shield: true });
+const tzAutopistol = W('tzAutopistol', '自動手槍', 'Autopistol', 'ranged', 4, 4, 2, 3, { range: 8 });
+const tzChainsword = W('tzChainsword', '鏈鋸劍', 'Chainsword', 'melee', 4, 4, 4, 5);
+const tzDagger = W('tzDagger', '匕首', 'Dagger', 'melee', 4, 4, 3, 5);
+// Sorcerers: their PSYCHIC weapons, a force stave and an inferno bolt pistol, Prosperine khopesh or warpflame pistol.
+const WC_SORC = (psy) => ({ pistol: [...psy, infernoPistol, forceStave], khopesh: [...psy, forceStave, khopesh], warpflame: [...psy, warpflamePistol, forceStave] });
 
 // ---- Wyrmblade ----
 const mcAutopistol = W('mcAutopistol', '大師級自動手槍', 'Master-crafted autopistol', 'ranged', 4, 3, 2, 4, { range: 8, lethal: 5 });
@@ -1355,10 +1365,12 @@ export const TEAMS = [
     rule: {
       name: { zh: '阿斯塔特・奸奇的恩賜', en: 'Astartes · Boons of Tzeentch' },
       desc: {
-        zh: '阿斯塔特（巫師與符文戰士）：每次啟動可兩次射擊或兩次近戰（兩次都用奪魂砲時第二次多 1AP；同一把靈能遠程武器不能用兩次）；不論指令都能反擊。奸奇的恩賜：每名巫師一個恩賜——命運巫師「命運扭轉」（靈能遠程武器暴擊穿甲 1），戰火巫師「虛體視覺」（遠程武器飽和、目標不會被遮擋）。符文戰士：附近 9" 沒有巫師時，啟動時 APL -1。',
-        en: 'Astartes (Sorcerers and Rubric Marines): two Shoots (+1AP for the second if both use the soulreaper cannon; not the same Psychic ranged weapon twice) or two Fights per activation; can counteract regardless of order. Boons of Tzeentch: each Sorcerer has one — Destiny: Twist of Fate (Psychic ranged weapons Piercing Crits 1); Warpfire: Incorporeal Sight (ranged Saturate, enemies can\'t be obscured). Rubric Marines: -1 APL when activated unless a Sorcerer is within 9".',
+        zh: '阿斯塔特（巫師與符文戰士）：每次啟動可兩次射擊或兩次近戰（兩次都用奪魂砲或亞空間火焰噴射器時第二次多 1AP；同一把靈能遠程武器不能用兩次）；不論指令都能反擊。奸奇的恩賜：每名巫師選一個恩賜（每個恩賜只能選一次），在選隊時挑。符文戰士：附近 9" 沒有巫師時，啟動時 APL -1。',
+        en: 'Astartes (Sorcerers and Rubric Marines): two Shoots (+1AP for the second if both use the soulreaper cannon or warpflamer; not the same Psychic ranged weapon twice) or two Fights per activation; can counteract regardless of order. Boons of Tzeentch: each Sorcerer has one (each boon once), picked in team selection. Rubric Marines: -1 APL when activated unless a Sorcerer is within 9".',
       },
     },
+    // Fate Itself Is My Weapon: the reserved dice are used automatically (switchable in the Strategy phase).
+    autoAbilities: [{ id: 'wcFate', ploy: true, name: { zh: '命運即我之刃（自動使用保留骰）', en: 'Fate Itself Is My Weapon (reserved dice used automatically)' }, desc: { zh: '自己攻擊時把保留的成功骰換掉一顆失敗骰；對手攻擊時把保留的失敗骰換掉對手一顆暴擊（或成功）。', en: 'When attacking, a reserved success replaces a failed die; when the opponent attacks, a reserved fail replaces one of their crits (or successes).' } }],
     ploys: [
       { id: 'aetherialWarding', cp: 1, name: { zh: '以太守護', en: 'Aetherial Warding' },
         desc: { zh: '本回合友方被射擊時，有「穿甲 1」的武器改為「暴擊穿甲 1」。', en: 'This TP, when a friendly operative is shot, weapons with Piercing 1 have Piercing Crits 1 instead.' } },
@@ -1366,14 +1378,23 @@ export const TEAMS = [
         desc: { zh: '本回合友方奸奇獸人近戰武器「精準 1」；有友軍協助、或在巫師 6" 內可見時再加「嚴厲」。', en: 'This TP, friendly Tzaangor melee weapons have Accurate 1; also Severe when assisted, or when fighting visible within 6" of a Sorcerer.' } },
       { id: 'brotherhood', cp: 1, name: { zh: '巫師兄弟會', en: 'Brotherhood of Sorcerers' },
         desc: { zh: '本回合友方巫師的靈能武器「平衡」；9" 內還有另一名巫師時改為「無休」。', en: 'This TP, friendly Sorcerers\' Psychic weapons have Balanced, or Ceaseless instead if another Sorcerer is within 9".' } },
+      { id: 'fateWeapon', cp: 1, name: { zh: '命運即我之刃', en: 'Fate Itself Is My Weapon' },
+        desc: { zh: '擲兩顆 D6 保留。本回合交戰階段任何人射擊、近戰或反擊擲出攻擊骰後（重擲之前），可用一顆保留骰換掉其中一顆（自己或對手的；換上的骰不能重擲）；兩顆合計小於 9 時，用了一顆另一顆就丟掉。每次序列最多一顆。', en: 'Roll two D6 and reserve them. This TP, after anyone rolls attack dice to shoot, fight or retaliate (before re-rolls), you can replace one of those D6 (yours or your opponent\'s) with a reserved dice (it can\'t be re-rolled); if the two reserved dice totalled less than 9, using one discards the other. One per sequence.' } },
     ],
+    // Five selections (packages below): every operative starts at 0 and comes from a selection.
     ops: [
-      op('destiny', '命運巫師', 'Sorcerer of Destiny', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, sorcerer: true, destiny: true }, [doombolt, infernoPistol, forceStave]),
-      op('warpfire', '戰火巫師', 'Sorcerer of Warpfire', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, sorcerer: true, alight: true, incorporealSight: true }, [firestorm, mindburn, forceStave, khopesh]),
-      op('rubricGunner', '符文戰士槍手', 'Rubric Marine Gunner', { apl: 3, move: 5, save: 2, wounds: 14, base: 32, automata: true }, [soulreaperFocused, soulreaperSweeping, fistsWC]),
-      op('rubric', '符文戰士', 'Rubric Marine Warrior', { apl: 3, move: 5, save: 2, wounds: 14, base: 32, automata: true, slowPurposeful: true }, [infernoBoltgun, fistsWC]),
-      op('champion', '奸奇獸人冠軍', 'Tzaangor Champion', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, notAstartes: true, tzaangor: true, savageBrutality: true }, [greatblade]),
-      op('tzaangor', '奸奇獸人戰士', 'Tzaangor Warrior', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, notAstartes: true, tzaangor: true }, [tzaangorBlades]),
+      op('destiny', '命運巫師', 'Sorcerer of Destiny', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, sorcerer: true, destiny: true, loadouts: WC_SORC([doombolt]) }, [doombolt, infernoPistol, forceStave], 0),
+      op('warpfire', '戰火巫師', 'Sorcerer of Warpfire', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, sorcerer: true, alight: true, loadouts: (({ pistol, khopesh: k, warpflame }) => ({ khopesh: k, pistol, warpflame }))(WC_SORC([firestorm, mindburn])) }, [firestorm, mindburn, forceStave, khopesh], 0),
+      op('tempyrion', '時間巫師', 'Sorcerer of Tempyrion', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, sorcerer: true, tempyrion: true, loadouts: WC_SORC([fluxblast]) }, [fluxblast, infernoPistol, forceStave], 0),
+      op('rubricGunner', '符文戰士槍手', 'Rubric Marine Gunner', { apl: 3, move: 5, save: 2, wounds: 14, base: 32, automata: true, loadouts: { soulreaper: [soulreaperFocused, soulreaperSweeping, fistsWC], warpflamer: [warpflamer, fistsWC] } }, [soulreaperFocused, soulreaperSweeping, fistsWC], 0),
+      op('rubricIcon', '符文戰士旗手', 'Rubric Marine Icon Bearer', { apl: 3, move: 5, save: 2, wounds: 14, base: 32, automata: true, iconBearer: true }, [infernoBoltgun, fistsWC], 0),
+      op('rubric', '符文戰士', 'Rubric Marine Warrior', { apl: 3, move: 5, save: 2, wounds: 14, base: 32, automata: true, slowPurposeful: true, wcWarrior: true }, [infernoBoltgun, fistsWC], 0),
+      op('champion', '奸奇獸人冠軍', 'Tzaangor Champion', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, notAstartes: true, tzaangor: true, savageBrutality: true, loadouts: { greatblade: [greatblade], greataxe: [greataxe] } }, [greatblade], 0),
+      op('tzHorn', '奸奇獸人號手', 'Tzaangor Horn Bearer', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, notAstartes: true, tzaangor: true, brayhorn: true }, [tzDagger], 0),
+      op('tzIcon', '奸奇獸人旗手', 'Tzaangor Icon Bearer', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, notAstartes: true, tzaangor: true, iconBearer: true, herdBanner: true }, [tzDagger], 0),
+      op('tzaangor', '奸奇獸人戰士（雙刃）', 'Tzaangor Warrior (blades)', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, notAstartes: true, tzaangor: true, relicHunters: true, wcWarrior: true }, [tzaangorBlades], 0),
+      op('tzShield', '奸奇獸人戰士（刃與盾）', 'Tzaangor Warrior (blade & shield)', { apl: 2, move: 6, save: 4, wounds: 9, base: 32, notAstartes: true, tzaangor: true, relicHunters: true, wcWarrior: true }, [tzBladeShield], 0),
+      op('tzPistol', '奸奇獸人戰士（手槍與鏈鋸劍）', 'Tzaangor Warrior (autopistol & chainsword)', { apl: 2, move: 6, save: 5, wounds: 9, base: 32, notAstartes: true, tzaangor: true, relicHunters: true, wcWarrior: true }, [tzAutopistol, tzChainsword], 0),
     ],
   },
   {
@@ -2675,9 +2696,25 @@ const FIREFIGHT = {
   warpcoven: [
     ff('allIsDust', '萬物皆塵', 'All Is Dust', '自動：一顆對紅字星際戰士造成普通傷害的攻擊骰只造成 1 傷害。', 'Auto: one attack die inflicting Normal Dmg on a Rubric Marine inflicts 1 instead.'),
     ff('capricious', '多變的計畫', 'Capricious Plan', '巫師啟動中：免費衝刺一次（之前做過什麼都可以）。', 'During a Sorcerer\'s activation: a free Dash, whatever it did before.'),
+    ff('mutantHerd', '變種獸群', 'Mutant Herd', '奸奇獸人啟動時：另選一名 2" 內看得到、準備好的友方奸奇獸人一起啟動（這裡在它之後馬上啟動）。', 'When a friendly Tzaangor is activated: another ready friendly Tzaangor visible within 2" activates with it (here, straight after it).'),
+    ff('psychicCabal', '靈能秘會', 'Psychic Cabal', '巫師啟動時：從 9" 內看得到的另一名巫師借一個靈能專屬動作或靈能遠程武器到啟動結束（借走的武器對方本回合不能用；對方本回合已用過的武器不能借）。', 'When a friendly Sorcerer is activated: borrow a PSYCHIC unique action or PSYCHIC ranged weapon from another Sorcerer visible within 9" until the end of its activation (that one can\'t use a borrowed weapon this TP; you can\'t borrow one it used this TP).'),
   ],
 };
 for (const t of TEAMS) t.firefight = FIREFIGHT[t.id] || t.firefight || [];
+
+// Warpcoven: five selections, each a full operative or two Tzaangor (who count as half a selection each).
+{
+  const wc = TEAMS.find((t) => t.id === 'warpcoven'), T = (id) => wc.ops.find((o) => o.id === id);
+  const full = ['destiny', 'warpfire', 'tempyrion', 'rubricGunner', 'rubricIcon', 'rubric'];
+  const tz = ['champion', 'tzHorn', 'tzIcon', 'tzaangor', 'tzShield', 'tzPistol'];
+  const opts = [...full.map((id) => [id]), ...tz.flatMap((a, i) => tz.slice(i).filter((b) => b !== a || T(a).wcWarrior).map((b) => [a, b]))];
+  const entry = (ids) => [ids.join('+'), { name: { zh: ids.map((id) => T(id).name.zh).join(' + '), en: ids.map((id) => T(id).name.en).join(' + ') }, ops: ids }];
+  const defaults = [['destiny'], ['warpfire'], ['rubricGunner'], ['rubric'], ['champion', 'tzaangor']];
+  wc.packages = Object.fromEntries(defaults.map((d, i) => [`wcSel${i + 1}`, {
+    name: { zh: `第 ${i + 1} 個名額`, en: `Selection ${i + 1}` },
+    options: Object.fromEntries([entry(d), ...opts.filter((o) => o.join('+') !== d.join('+')).map(entry)]),
+  }]));
+}
 
 // Blades of Khaine Aspect Techniques: 0CP, used like firefight ploys but only by an operative of the matching Aspect.
 const tech = (aspect, id, zh, en, dzh, den) => ({ ...ff(id, zh, en, dzh, den), cp: 0, aspect, technique: true });

@@ -21,6 +21,7 @@ import { wolfRosterError } from './data/wolfscouts.js';
 import { hearthkynRosterError } from './data/hearthkyn.js';
 import { navyRosterError } from './data/navy.js';
 import { phobosRosterError } from './data/phobos.js';
+import { warpcovenRosterError, warpcovenIds, WC_BOONS, WC_BOON_DEFAULT } from './data/warpcoven.js';
 import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
@@ -452,7 +453,7 @@ function setupView() {
     <input class="teamsearch" type="search" data-act="teamSearch" data-side="${side}" value="${esc(s.search?.[side] || '')}" placeholder="${L('搜尋隊伍名稱或風格…', 'Search team name or style…')}">
     <div class="picklist">${TEAMS.map((tm) => { const key = `${tm.name.zh} ${tm.name.en} ${tx(tm.style)}`.toLowerCase(); const q = (s.search?.[side] || '').trim().toLowerCase();
       return `<button class="teampick ${s.teams[side] === tm.id ? 'on' : ''}" style="--tc:${tm.color}${q && !key.includes(q) ? ';display:none' : ''}" data-act="pick" data-side="${side}" data-team="${tm.id}" data-search="${esc(key)}">
-      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
+      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.id === 'warpcoven' ? warpcovenIds(tm).length : tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
     <article class="teamcard chosen" style="--tc:${t.color}"><h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
       <p>${esc(tx(t.blurb))}</p><p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>${teamInfo(t)}</article>
   </div>`; };
@@ -628,6 +629,15 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'deathwatch') { const error = deathwatchRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.insidiants) {
     const ids = Object.keys(t.replacements).map((slot) => cur[slot] || slot).map((id) => (id === 'ciCremator2' ? 'ciCremator' : id));
+/** Warpcoven: each Sorcerer's Boon of Tzeentch (each boon once). */
+function wcBoonPick(t, side, cur) {
+  const sorc = [...new Set(warpcovenIds(t, cur))].filter((id) => t.ops.find((o) => o.id === id).sorcerer);
+  return sorc.map((id) => {
+    const now = cur[`boon_${id}`] || WC_BOON_DEFAULT[id];
+    return `<label>${esc(bi(t.ops.find((o) => o.id === id).name))} · ${L('奸奇的恩賜', 'Boon of Tzeentch')}<select data-act="roster" data-side="${side}" data-id="boon_${id}">${Object.entries(WC_BOONS).map(([b, x]) => `<option value="${b}" ${now === b ? 'selected' : ''}>${esc(tx(x.name))}</option>`).join('')}</select></label>
+      <p class="hint small">${esc(tx(WC_BOONS[now].desc))}</p>`;
+  }).join('');
+}
     const dup = ids.filter((id, i) => !['ciWarrior', 'ciCremator'].includes(id) && ids.indexOf(id) !== i);
     const crem = ids.filter((id) => id === 'ciCremator').length;
     const bad = [...(dup.length ? [L(`重複選了：${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join('、')}（只有修女戰士、焚化修女能重複）`, `Picked more than once: ${[...new Set(dup)].map((id) => tx(t.ops.find((o) => o.id === id).name)).join(', ')}`)] : []),
@@ -639,6 +649,7 @@ function rosterWarning(t, cur, side) {
     const rep = t.goreTanks ? 'gmAspirant' : 'hyWarrior';
     const ids = Object.keys(t.replacements).flatMap((slot) => (Array.isArray(cur[slot]) ? cur[slot] : Array(t.ops.find((o) => o.id === slot).count).fill(cur[slot] || slot)));
     const dup = [...new Set(ids.filter((id, i) => id !== rep && ids.indexOf(id) !== i))];
+  if (t.id === 'warpcoven') { const error = warpcovenRosterError(t, cur, ui.setup.loadouts?.[side]); return wcBoonPick(t, side, cur) + (error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''); }
     return dup.length ? `<p class="bad small">⚠ ${esc(L(`重複選了：${dup.map((id) => tx(t.ops.find((o) => o.id === id).name)).join('、')}（只有${tx(t.ops.find((o) => o.id === rep).name)}能重複）`, `Picked more than once: ${dup.map((id) => tx(t.ops.find((o) => o.id === id).name)).join(', ')} (only ${tx(t.ops.find((o) => o.id === rep).name)} can repeat)`))}</p>` : '';
   }
   if (t.obeliskNodes) {
@@ -657,7 +668,7 @@ function loadoutPick(side) {
   const t = TEAM_MAP[ui.setup.teams[side]];
   const cur = ui.setup.loadouts?.[side] || {};
   const rs = ui.setup.roster?.[side] || {};
-  const picked = new Set(t.ops.filter((o) => o.count).flatMap((o) => (rs[o.id] ? [rs[o.id]].flat() : [o.id]))); // templates in the roster
+  const picked = new Set([...t.ops.filter((o) => o.count).flatMap((o) => (rs[o.id] ? [rs[o.id]].flat() : [o.id])), ...(t.id === 'warpcoven' ? warpcovenIds(t, rs) : [])]); // templates in the roster (Warpcoven: from its selections)
   return t.ops.filter((o) => o.loadouts && picked.has(o.id)).map((o) => `<label>${esc(bi(o.name))}<select data-act="loadout" data-side="${side}" data-id="${o.id}">${Object.entries(o.loadouts).map(([id, ws]) => `<option value="${id}" ${(cur[o.id] || Object.keys(o.loadouts)[0]) === id ? 'selected' : ''}>${ws.map((w) => esc(tx(w.name))).join(' + ')}${o.loadoutExtra?.[id] ? ` + ${esc(tx(o.loadoutExtra[id]))}` : ''}</option>`).join('')}</select></label>`).join('');
 }
 
@@ -760,7 +771,7 @@ function teamInfo(t) {
   return `<dl class="teaminfo">
     <dt>${L('戰術行動', 'Archetypes')}</dt><dd>${i.archetypes.map((a) => esc(bi(a))).join(' + ')}</dd>
     <dt>${L('戰鬥類型', 'Play style')}</dt><dd>${esc(tx(i.kind))}</dd>
-    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.ops.reduce((n, o) => n + o.count, 0)}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
+    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.id === 'warpcoven' ? warpcovenIds(t).length : t.ops.reduce((n, o) => n + o.count, 0)}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
     <dt>${L('一盒成軍', 'One box')}</dt><dd>${esc(tx(i.oneBox))}</dd>
     <dt>${L('目前可購買', 'Available')}</dt><dd>${esc(tx(i.buyable))}</dd>
     ${t.rulesUrl ? `<dt>${L('官方規則', 'Official rules')}</dt><dd><a href="${esc(t.rulesUrl)}" target="_blank" rel="noopener">PDF</a></dd>` : ''}
@@ -779,7 +790,7 @@ function roster(t, side) {
     selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
   }
   // Teams with a choice of operatives: show who is actually taking the field (each pick once per copy), and their weapons.
-  if (t.replacements && t.id !== 'deathwatch' && (!t.packages || t.id === 'navyBreachers') && t.id !== 'mandrakes' && t.id !== 'murderwing') {
+  if ((t.replacements || t.id === 'warpcoven') && t.id !== 'deathwatch' && (!t.packages || t.id === 'navyBreachers' || t.id === 'warpcoven') && t.id !== 'mandrakes' && t.id !== 'murderwing') {
     const cur = ui.setup.roster?.[side] || {}, counts = new Map();
     for (const slot of t.ops.filter((o) => o.count)) {
       const pick = cur[slot.id];
@@ -1153,7 +1164,7 @@ function initCardsLine() {
 }
 /** Before the result stands: human players may use initiative cards (Re-roll, ±1, ±2, ±3). */
 /** Faction equipment that's used automatically when the rules say "you can" (players switch each on): equipment id = switch id. */
-const OPTIONAL_EQUIP = ['phSeals', 'phAmmo', 'nbSlugs', 'adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
+const OPTIONAL_EQUIP = ['wcRobes', 'phSeals', 'phAmmo', 'nbSlugs', 'adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
   'kfMeat', 'kfTrophy', 'kfPiercing', 'kfToxin', 'mdGlyph', 'mwFuel', 'mwBladefins', 'pfTao', 'pfHiml', 'rtRations', 'rtLucky', 'sfSymbols', 'sfSeals', 'scOculars', 'spTvid',
   'vsConvergence', 'vdToxin', 'vdTalisman', 'vdUnderstudy', 'wkDrill', 'wkOil'];
 /** The switchable automatic rules a side has: the team's own list, its optional equipment, and the Bioscryer Cuffs' automatic cleanse. */
@@ -1893,6 +1904,7 @@ function gorePanel(op) {
   return `<div class="gorepanel"><h4>🩸 ${L('血槽', 'Gore Tank')}：<span class="gore g${gore}">${'●'.repeat(gore)}${'○'.repeat(2 - gore)} ${esc(tx(GORE_LABEL[gore]))}</span>${armed.length ? ` <small>${L('已準備', 'Ready')}：${armed.map((k) => esc(tx(SANGUAVITAE[k].name))).join('、')}</small>` : ''}</h4>
     <p class="hint small">${L('血之精華（消耗一格血槽；同一種每次一次、每次最多兩種）：', 'Sanguavitae (decrease the tank; each once per activation, two at most):')}</p>
     <div class="actions">${btns}${canFavour(g, op) ? `<button data-act="favour">${L('恐虐的恩寵（血槽 +1）', 'Khorne\'s Favour (tank up)')}</button>` : ''}${bleed.length ? `<button data-act="bleed">${L(`取 ${nm(bleed[0])} 的流血標記（血槽 +1）`, `Take ${nm(bleed[0])}'s Bleeding token (tank up)`)}</button>` : ''}</div></div>`;
+    if (pendingChoice(g, op.side) && !isAI(op.side)) html += choiceView(op.side); // a firefight ploy or action's pick (Mutant Herd, Psychic Cabal, Sorcerous Scrolls, Lock It Down)
 }
 
 function modeView(op) {
@@ -2128,6 +2140,8 @@ const ABILITIES = {
   multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
   droneController: () => ['無人機操控員・遙控操作', 'Drone Controller · Remote Pilot', '在場時友方無人機 Move +2"。遙控操作 1AP（不在交戰中）：一架友方無人機立刻免費做一個動作（移動不超過 2"，可做無人機規則限制的動作）；可重複使用，但同一架無人機每次啟動不能做兩次相同的動作。', 'While it is in the killzone, friendly drones get +2" Move. Remote Pilot 1AP (not engaged): a friendly drone performs one free action (moving no more than 2", even one its Drone rule restricts); repeatable, but the same drone can\'t take the same free action twice in an activation.'],
   adaptiveOrders: () => ['適應性命令', 'Adaptive Orders', '看守長這回合沒有以策略謀略下達命令時，「鼓舞領導」在他啟動中 0CP。', 'If the Watchmaster doesn\'t issue an order as a strategic gambit, Inspirational Leadership costs 0CP during his activation.'],
+  if (op.boon && WC_BOONS[op.boon]) flags.push(`<span class="flag" title="${esc(tx(WC_BOONS[op.boon].desc))}">${L('恩賜', 'Boon')}：${esc(tx(WC_BOONS[op.boon].name))}</span>`); // (Warpcoven)
+  if (op.acted?.wcFly) flags.push(`<span class="flag">${L('非物質飛行', 'Immaterial Flight')}</span>`);
   dkSapper: () => ['工兵・地雷手', 'Sapper · Mine Layer', '攜帶地雷標記：可撿起它；「放下地雷標記」（1AP）放下後免費衝刺。遙控引爆器（限用 1 次，只能衝刺後使用）：引爆行動，對地雷標記 2" 內每名特工各射擊一次（無掩護、不被遮蔽），然後移除標記。', 'Carries the Mine marker: it can pick it up; Place Marker (1AP) then a free Dash. Remote detonator (Limited 1, Dash only before it): the Detonate action shoots every operative within 2" of the Mine marker (no cover, not obscured), then removes it.'],
   dkVeteran: () => ['老兵衛兵・仿生', 'Veteran Guardsman · Bionics', '啟動時可收到一道衛兵命令（自動）。3 以上的普通傷害少 1。', 'Receives a Guardsman Order when activated (automatic). Normal Dmg of 3 or more inflicts 1 less.'],
   quickDraw: () => ['快拔', 'Quick Draw', '每回合一次：敵人射擊它（或是爆裂的次要目標）、且它準備中時，它可以搶先免費用雙持手槍（集中）射擊那名敵人（可改交戰指令）。自動使用。', 'Once per TP: when an enemy shoots it (or it is a Blast secondary target) and it is ready, it shoots that enemy first for free with its focused dual pistols (it can change to Engage). Automatic.'],
@@ -2343,7 +2357,12 @@ const ABILITIES = {
   stealthAttack: () => ['潛行突襲', 'Stealth Attack', '2AP（隱蔽、地形 1" 內）：免費衝鋒（不超過 Move）後免費近戰，第一次打擊後立刻再打擊一次。', '2AP (Concealed, within 1" of terrain): a free Charge (up to its Move) then a free Fight; its first strike is followed by another.'],
   pechra: () => ['標記獵物', 'Marked for the Hunt', '1AP：把鳥標放在可見敵人旁；友方射擊其 1" 內的敵人時獲得「搜尋（輕型）」，直到追蹤者下次啟動。', '1AP: place the Pech\'ra marker by a visible enemy; friendly shooting at enemies within 1" of it has Seek Light until the Tracker\'s next activation.'],
   sorcerer: () => ['巫師', 'Sorcerer', '靈能使用者；9" 內的符文戰士不受巫術自動機影響。', 'A psyker; Rubric Marines within 9" of it aren\'t slowed by Sorcerous Automata.'],
-  destiny: () => ['命運之術', 'Destiny', '恩賜：命運扭轉（靈能遠程武器暴擊穿甲 1）。命運庇護（1AP）：可見友方被射擊時可重擲任意防禦骰。摧毀命運（1AP）：9" 內可見的敵人攻擊時必須重擲 6，控制目標時 APL -1。效果到它下次啟動。', 'Boon: Twist of Fate (Psychic ranged Piercing Crits 1). Protected by Fate (1AP): a visible friendly re-rolls any defence dice when shot. Ravage Destiny (1AP): a visible enemy within 9" must re-roll attack 6s and counts 1 lower for control. Until its next activation.'],
+  destiny: () => ['命運之術', 'Destiny', '命運庇護（1AP，靈能）：可見友方被射擊時可重擲任意防禦骰。摧毀命運（1AP，靈能）：9" 內可見的敵人攻擊時必須重擲 6，控制目標時 APL -1。效果到它下次啟動。', 'Protected by Fate (1AP, Psychic): a visible friendly re-rolls any defence dice when shot. Ravage Destiny (1AP, Psychic): a visible enemy within 9" must re-roll attack 6s and counts 1 lower for control. Until its next activation.'],
+  tempyrion: () => ['時間之術', 'Tempyrion', '重組儀式（1AP，靈能，每回合全隊一次）：6" 內可見的友方回復最多 2D3 生命。時間通量（1AP，靈能）：在 6" 內可見友方旁放標記，它下次啟動結束時若完全在標記 6" 內，就回到標記處。', 'Reconstitution Ritual (1AP, Psychic, once per TP for the team): a friendly visible within 6" regains up to 2D3 wounds. Temporal Flux (1AP, Psychic): a marker by a friendly visible within 6"; at the end of its next activation, if wholly within 6" of the marker, it is set back up there.'],
+  herdBanner: () => ['獸群旗幟', 'Herd Banner', '3" 內看得到的友方奸奇獸人受到 3 點以上的普通傷害時 -1。', 'Normal Dmg of 3+ on a friendly Tzaangor visible within 3" of it deals 1 less.'],
+  brayhorn: () => ['號角', 'Brayhorn', '0AP：友方奸奇獸人移動 +1"，直到下個策略階段的準備步驟（不能在交戰中）。', '0AP: friendly Tzaangor have +1" Move until the next Strategy phase\'s Ready step (not while engaged).'],
+  relicHunters: () => ['遺物獵人', 'Relic Hunters', '整場一次：在對手領域內撿起標記或做任務動作少 1AP（全隊的奸奇獸人戰士共用）。', 'Once per battle: Pick Up Marker or a mission action for 1 less AP in the opponent\'s territory (shared by the team\'s Tzaangor Warriors).'],
+  wcWarrior: () => ['戰士', 'Warrior', '可以重複選。', 'Can be picked more than once.'],
   alight: () => ['點燃', 'Alight', '1AP（靈能）：可見的敵人被點燃，友方攻擊它時武器「無休」，直到它下次啟動。', '1AP (Psychic): a visible enemy is set alight — friendly weapons have Ceaseless against it until its next activation.'],
   incorporealSight: () => ['虛體視覺（恩賜）', 'Incorporeal Sight (Boon)', '遠程武器「飽和」；射擊時敵人不會被遮擋。', 'Ranged weapons have Saturate; enemies can\'t be obscured when it shoots.'],
   automata: () => ['巫術自動機', 'Sorcerous Automata', '啟動時若 9" 內沒有友方巫師，本次啟動 APL -1。', 'When activated, -1 APL that activation unless a friendly Sorcerer is within 9".'],
@@ -3373,6 +3392,7 @@ function handle(act, d) {
     }
     case 'scoutopt': {
       const s = +d.side, cur = cleanScouting(ui.setup.scouting?.[s] ?? DEFAULT_SCOUTING);
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'warpcoven' && warpcovenRosterError(TEAM_MAP.warpcoven, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
       if (+d.d > 0) cur.push(d.id); else { const i = cur.lastIndexOf(d.id); if (i >= 0) cur.splice(i, 1); }
       (ui.setup.scouting ||= [undefined, undefined])[s] = cleanScouting(cur);
       return render();
@@ -3495,9 +3515,9 @@ function handle(act, d) {
     case 'adheroicdoc': undoable(() => adHeroicDoc(g, op.side, d.id)); return afterChange();
     case 'ffuse': undoable(() => useFFButton(g, op, d.id)); return afterChange();
     case 'fftoggle': { const o = getOp(g, d.uid); if (o && !isAI(o.side)) ffToggle(g, o, d.id, getOp(g, d.target)); return render(); }
-    case 'choicepick': { const s = ployChooser(g), p = pendingChoice(g, s); if (p && !isAI(s)) { const o = CHOICES[p.id].options(g, s, p.ctx)[+d.i]; if (o) resolveChoice(g, s, o.value); } return afterChange(); }
-    case 'pickauto': { const s = ployChooser(g); if (!isAI(s)) resolveChoice(g, s, 'auto'); return afterChange(); }
-    case 'pickskip': { const s = ployChooser(g); if (!isAI(s)) resolveChoice(g, s, null); ui.moveUid = null; ui.path = null; return afterChange(); }
+    case 'choicepick': { const s = g.phase === 'firefight' && activeOp(g) ? activeOp(g).side : ployChooser(g), p = pendingChoice(g, s); if (p && !isAI(s)) { const o = CHOICES[p.id].options(g, s, p.ctx)[+d.i]; if (o) resolveChoice(g, s, o.value); } return afterChange(); }
+    case 'pickauto': { const s = g.phase === 'firefight' && activeOp(g) ? activeOp(g).side : ployChooser(g); if (!isAI(s)) resolveChoice(g, s, 'auto'); return afterChange(); }
+    case 'pickskip': { const s = g.phase === 'firefight' && activeOp(g) ? activeOp(g).side : ployChooser(g); if (!isAI(s)) resolveChoice(g, s, null); ui.moveUid = null; ui.path = null; return afterChange(); }
     case 'pickmover': ui.moveUid = d.uid; ui.path = null; return render();
     case 'pickmove': { const s = ployChooser(g); if (!isAI(s) && ui.path?.ok && resolveChoice(g, s, { uid: ui.moveUid, pts: ui.path.pts })) { ui.moveUid = null; ui.path = null; } return afterChange(); }
     case 'abarm': if (!isAI(+d.side)) abilityToggle(g, +d.side, d.id); return render();
@@ -3516,7 +3536,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate' || d.id.startsWith('wc')) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
