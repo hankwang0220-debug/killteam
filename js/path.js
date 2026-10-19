@@ -38,7 +38,11 @@ export const climbHeight = (t) => t.height ?? (t.kind === 'light' ? 2 : t.equip 
  */
 export function moveCtx(g, op, kind = 'reposition') {
   const r = radius(op);
-  const others = g.ops.filter((o) => !o.dead && o.uid !== op.uid).map((o) => ({ uid: o.uid, x: o.x, y: o.y, r: radius(o), enemy: o.side !== op.side }));
+  const others = g.ops.filter((o) => !o.dead && o.uid !== op.uid).map((o) => ({ uid: o.uid, x: o.x, y: o.y, r: radius(o), enemy: o.side !== op.side, vermin: !!tpl(o).vermin }));
+  // Barge (Gellerpox Nightmare Hulk): moves through enemy operatives and within their control range. Mutoid Vermin (Gellerpox): anyone
+  // can move through them, and enemies can move within their control range (a Charge still has to end in control range of its target).
+  const barge = !!op.acted?.gpBarge && (kind === 'reposition' || kind === 'charge');
+  const blocker = (o) => o.enemy && !o.vermin && !barge;
   // A base can't end on Heavy or Light terrain, but a move can climb over it (see climbWalk).
   const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
   const hardWalls = cover.filter(t => t.twWall);
@@ -61,7 +65,8 @@ export function moveCtx(g, op, kind = 'reposition') {
     return true;
   }
   function inEnemyER(p) {
-    return others.some((o) => o.enemy && dist(p, o) - r - o.r <= ER + 0.01 && wallAllowsControl(g,p,o));
+    if (barge && kind !== 'charge') return false;
+    return others.some((o) => o.enemy && (kind === 'charge' || !o.vermin) && dist(p, o) - r - o.r <= ER + 0.01 && wallAllowsControl(g,p,o));
   }
   // Explain endpoint clearance separately from whether a route can reach it.
   function placement(p) {
@@ -117,7 +122,7 @@ export function moveCtx(g, op, kind = 'reposition') {
     if (fly) return true;
     if ([a, b].some((p) => p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r)) return false;
     // (A move can pass through friendly operatives — never enemy ones — but can't end on any base: see free.)
-    if (others.some((o) => o.enemy && distPointSegment(o, a, b) < r + o.r - EPS)) return false;
+    if (others.some((o) => blocker(o) && distPointSegment(o, a, b) < r + o.r - EPS)) return false;
     if (!noClimb && cover.some((t) => distSegmentRect(a, b, t) < r - EPS) && !climbWalk([a, b]).ok) return false;
     return true;
   }
@@ -162,7 +167,7 @@ export function moveCtx(g, op, kind = 'reposition') {
     return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts) + crossingCost(pts) + gravCost(pts);
   }
   // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).
-  const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !hardWalls.some(t => distPointRect(p,t) < r-EPS && !accessOverlap(t,p)) && !others.some((o) => o.enemy && dist(p, o) < r + o.r - EPS);
+  const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !hardWalls.some(t => distPointRect(p,t) < r-EPS && !accessOverlap(t,p)) && !others.some((o) => blocker(o) && dist(p, o) < r + o.r - EPS);
   return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, crossingCost, crossingEdgeCost, climbs, climbRaw, coverAt, climbCost, noClimb };
 }
 

@@ -280,6 +280,12 @@ const cleaverSlash = W('cleaverSlash', '變異拳與砍刀（劈砍）', 'Mutant
 const fragGP = W('fragGP', '破片手雷', 'Frag grenade', 'ranged', 4, 4, 2, 4, { range: 6, blast: 2, limited: 1, saturate: true });
 const heavyAxe = W('heavyAxe', '重斧', 'Heavy axe', 'melee', 3, 4, 4, 5, { brutal: true });
 const improvised = W('improvised', '簡易武器', 'Improvised weapon', 'melee', 4, 4, 3, 4, { ceaseless: true });
+// Mutoid Vermin (faction equipment). Feast: +1 Atk and Lethal 5+ against a wounded operative.
+const verminSwarm = W('verminSwarm', '蜂群', 'Swarm', 'ranged', 5, 6, 0, 0, { range: 6, stun: true });
+const verminSting = W('verminSting', '螫刺', 'Sting', 'melee', 5, 5, 1, 2, { shock: true });
+const proboscis = W('proboscis', '吸血口器', 'Bloodsucking proboscis', 'melee', 2, 4, 2, 3, { rending: true, feast: true });
+const acidSpit = W('acidSpit', '酸液噴吐', 'Acid spit', 'ranged', 4, 4, 2, 2, { range: 6, devastating: 1, devSplash: 1, piercing: 1 });
+const fangedMaw = W('fangedMaw', '利牙巨口', 'Fanged maw', 'melee', 2, 4, 1, 3);
 
 // ---- Hearthkyn Salvagers ----
 const autochPistol = W('autochPistol', '奧托赫式爆彈手槍', 'Autoch-pattern bolt pistol', 'ranged', 4, 4, 3, 4, { range: 8, accurate: 1 });
@@ -709,6 +715,8 @@ export const BK_SHRIEK = { ...W('bkShriek', '殺戮尖嘯', 'Shriek-that-kills',
 const shockMaulShield = W('shockMaulShield', '電擊錘與突擊盾', 'Shock maul & assault shield', 'melee', 4, 4, 4, 4, { shock: true, shield: true, repress: true });
 
 const op = (id, zh, en, stats, weapons, count = 1) => ({ id, name: { zh, en }, ...stats, weapons, count });
+// Mutoid Vermin (Gellerpox) may only perform these actions.
+const VERMIN_ACTIONS = ['reposition', 'dash', 'charge', 'fallBack', 'fight', 'shoot'];
 
 export const TEAMS = [
   {
@@ -1093,6 +1101,8 @@ export const TEAMS = [
     ],
     defaultTactics: ['barrelwarp'],
     ploys: [
+      { id: 'drawnHum', cp: 1, name: { zh: '受嗡鳴吸引', en: 'Drawn to the Hum' },
+        desc: { zh: '選一個目標點。本回合友方在自己的啟動中重新部署或衝鋒時，Move +1"，但這次移動要停在那個目標點 2" 內（沒停在那裡就只能走原本的距離）。', en: 'Select one objective marker. This TP, when a friendly operative Repositions or Charges during its activation, +1" Move, but that move must end within 2" of that marker (otherwise only the normal distance).' } },
       { id: 'rustEmanations', cp: 1, name: { zh: '鏽蝕散發', en: 'Rust Emanations' },
         desc: { zh: '本回合友方夢魘巨怪近戰時，對手擲出 3 的骰不能算成功。', en: 'This TP, when a friendly Nightmare Hulk is fighting, your opponent can\'t retain results of 3 as successes.' } },
       { id: 'plagueridden', cp: 1, name: { zh: '瘟疫附身的決心', en: 'Plagueridden Determination' },
@@ -1108,6 +1118,10 @@ export const TEAMS = [
       op('glitchling', '小惡魔', 'Glitchling', { apl: 2, move: 6, save: 6, wounds: 3, base: 25, glitchling: true, small: true, daemonic: true, groupAct: 'glitchling' }, [effluence, nippers], 4),
       op('mutantAxe', '變種人（重斧）', 'Mutant (heavy axe)', { apl: 2, move: 5, save: 5, wounds: 7, base: 25, resilient: true, hardyCrit: true, groupAct: 'mutant' }, [fragGP, heavyAxe]),
       op('mutant', '變種人', 'Mutant', { apl: 2, move: 5, save: 5, wounds: 7, base: 25, resilient: true, hardyCrit: true, groupAct: 'mutant' }, [fragGP, improvised], 2),
+      // Mutoid Vermin: only with the Mutoid Vermin equipment (added by newGame). Limited actions, no marker control, ignored for kill ops.
+      op('gpCursemite', '寄生蟎', 'Cursemite', { apl: 2, move: 6, save: 6, wounds: 2, base: 25, vermin: true, expendable: true, groupAct: 'vermin', actionsOnly: VERMIN_ACTIONS }, [proboscis], 0),
+      op('gpEyestinger', '眼刺蜂群', 'Eyestinger Swarm', { apl: 2, move: 6, save: 6, wounds: 2, base: 25, vermin: true, expendable: true, groupAct: 'vermin', actionsOnly: VERMIN_ACTIONS }, [verminSwarm, verminSting], 0),
+      op('gpSludgegrub', '汙泥蛆', 'Sludge-grub', { apl: 2, move: 4, save: 6, wounds: 2, base: 25, vermin: true, expendable: true, causticDemise: true, groupAct: 'vermin', actionsOnly: VERMIN_ACTIONS }, [acidSpit, fangedMaw], 0),
     ],
   },
   {
@@ -2479,6 +2493,7 @@ const FIREFIGHT = {
     ff('putrescentDemise', '腐爛之死', 'Putrescent Demise', '自動：友方殘廢時，2" 內看得到的每名敵人受 1 傷害（噩夢巨獸 D3）。', 'Auto: when a friendly falls, each enemy visible within 2" takes 1 damage (D3 for a Nightmare Hulk).'),
     ff('frighteningOnslaught', '駭人猛攻', 'Frightening Onslaught', '噩夢巨獸近戰後：再免費近戰一次。', 'After a Nightmare Hulk fights: a free Fight.'),
     ff('revoltingTech', '腐壞科技', 'Revolting Technology', '自動：敵人射擊友方時，它的武器獲得「過熱」。', 'Auto: an enemy shooting a friendly has Hot on its weapon.'),
+    ff('barge', '衝撞', 'Barge', '夢魘巨怪啟動或反擊中：直到結束，它可以穿過敵人、進入敵人控制範圍移動，也可以在敵人控制範圍內重新部署或衝鋒。', 'During a Nightmare Hulk\'s activation or counteraction: until it ends, it can move through enemies and within their control range, and can Reposition or Charge while within an enemy\'s control range.'),
   ],
   hunterClade: [
     ff('commandOverride', '指令覆寫', 'Command Override', '啟動時：這名特工改用最適合它的指令（近戰型→征服者，射擊型→守護者）。', 'When activated: this operative switches to the Imperative that suits it (melee → Conqueror, shooting → Protector).'),

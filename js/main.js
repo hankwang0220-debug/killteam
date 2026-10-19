@@ -438,36 +438,58 @@ function homeView() {
 // ---------- setup ----------
 function setupView() {
   const s = ui.setup;
-  const pick = (side) => `<div class="pick">
+  const ms = MISSIONS[s.mission] || MISSIONS.standard;
+  if (!['teams', 'units', 'kit'].includes(s.step)) return missionStepView(ms);
+  const aiHidden = (side) => side === 1 && s.ai === 1 && !s.aiCustom; // the computer picks its own operatives, tactics and scouting
+  const sideName = (side) => `${side === 0 ? L('玩家 1（A）', 'Player 1 (A)') : s.ai === 1 ? L('電腦（B）', 'Computer (B)') : L('玩家 2（B）', 'Player 2 (B)')} · ${esc(bi(TEAM_MAP[s.teams[side]].name))}`;
+  // Step 2: the team for each side, from a searchable list, with the chosen team's profile underneath.
+  const teamPick = (side) => { const t = TEAM_MAP[s.teams[side]]; return `<div class="pick">
     <h3>${side === 0 ? L('玩家 1（A）', 'Player 1 (A)') : L('玩家 2（B）', 'Player 2 (B)')}</h3>
-    <div class="picklist">${TEAMS.map((t) => `<button class="teampick ${s.teams[side] === t.id ? 'on' : ''}" style="--tc:${t.color}" data-act="pick" data-side="${side}" data-team="${t.id}">
-      <b>${esc(bi(t.name))}</b><span>${esc(tx(t.style))} · ${t.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`).join('')}</div>
     ${side === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="ai" ${s.ai === 1 ? 'checked' : ''}> ${L('由電腦控制', 'Computer controlled')}</label>${s.ai === 1 ? `<label class="aitoggle"><input type="checkbox" data-act="aicustom" ${s.aiCustom ? 'checked' : ''}> ${L('自訂電腦隊伍（自己選它的特工與武器）', 'Customise the computer team (pick its operatives and weapons)')}</label>` : ''}` : ''}
-    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : unitPick(side)}
-    ${roster(TEAM_MAP[s.teams[side]], side)}
-    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : tacticsPick(side)}
+    <input class="teamsearch" type="search" data-act="teamSearch" data-side="${side}" value="${esc(s.search?.[side] || '')}" placeholder="${L('搜尋隊伍名稱或風格…', 'Search team name or style…')}">
+    <div class="picklist">${TEAMS.map((tm) => { const key = `${tm.name.zh} ${tm.name.en} ${tx(tm.style)}`.toLowerCase(); const q = (s.search?.[side] || '').trim().toLowerCase();
+      return `<button class="teampick ${s.teams[side] === tm.id ? 'on' : ''}" style="--tc:${tm.color}${q && !key.includes(q) ? ';display:none' : ''}" data-act="pick" data-side="${side}" data-team="${tm.id}" data-search="${esc(key)}">
+      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
+    <article class="teamcard chosen" style="--tc:${t.color}"><h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
+      <p>${esc(tx(t.blurb))}</p><p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>${teamInfo(t)}</article>
+  </div>`; };
+  // Step 3: who takes the field and with which weapons.
+  const unitsPick = (side) => `<div class="pick"><h3>${sideName(side)}</h3>
+    ${aiHidden(side) ? `<p class="hint small">${L('電腦自己決定上場特工與武器（見上方公布的名單）。', 'The computer picks its own operatives and weapons (see the list it announced above).')}</p>` : unitPick(side)}
+    ${roster(TEAM_MAP[s.teams[side]], side)}</div>`;
+  // Step 4: tactics, Tac Ops, equipment and the team's pre-battle choices.
+  const kitPick = (side) => `<div class="pick"><h3>${sideName(side)}</h3>
+    ${aiHidden(side) ? '' : tacticsPick(side)}
     ${tacOpPick(side)}
     ${equipPick(side)}
-    ${side === 1 && s.ai === 1 && !s.aiCustom ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side) + vsCommunePick(side)}
+    ${aiHidden(side) ? '' : scoutingPick(side) + ratFreePick(side) + dkFreePick(side) + vsCommunePick(side)}
   </div>`;
-  const ms = MISSIONS[s.mission] || MISSIONS.standard;
-  if (s.step !== 'teams') return missionStepView(ms);
+  const steps = [['mission', L('任務與地圖', 'Mission & map')], ['teams', L('選擇隊伍', 'Teams')], ['units', L('特工與武器', 'Operatives & weapons')], ['kit', L('戰術與裝備', 'Tactics & equipment')]];
+  const at = steps.findIndex(([id]) => id === s.step);
   const mapName = ms.terrain ? L('任務專屬地圖', "The mission's own map") : s.map === 'default' ? L('原有地圖', 'Default map') : bi((TOMB_WORLD_MAPS.find((m) => m.id === s.map) || TOMB_WORLD_MAPS[0]).name);
+  const next = s.step === 'kit' ? `<button class="primary big" data-act="start">${L('開始部署', 'Start Deployment')}</button>`
+    : `<button class="primary big" data-act="setupStep" data-step="${steps[at + 1][0]}">${L('下一步：', 'Next: ')}${steps[at + 1][1]}</button>`;
   return `${topBar()}
   <main class="setup">
+    <ol class="setupsteps">${steps.map(([id, name], i) => `<li class="${i === at ? 'on' : i < at ? 'done' : ''}">${i < at ? `<button class="linklike" data-act="setupStep" data-step="${id}">${i + 1}. ${name}</button>` : `${i + 1}. ${name}`}</li>`).join('')}</ol>
     <section class="card missionpick setup-summary"><div><b>${L('任務', 'Mission')}：</b>${esc(bi(ms.name))}　<b>${L('地圖', 'Map')}：</b>${esc(mapName)}</div>
       <button class="ghost" data-act="setupStep" data-step="mission">${L('更改任務與地圖', 'Change mission and map')}</button></section>
-    <section class="card missionpick"><h3>${L('顯示設定', 'Display settings')}</h3>
+    ${s.step === 'teams' ? `<div class="picks">${teamPick(0)}${teamPick(1)}</div>` : ''}
+    ${s.step === 'units' ? `${aiReveal()}<div class="picks">${unitsPick(0)}${unitsPick(1)}</div>` : ''}
+    ${s.step === 'kit' ? `${displaySettings()}${aiReveal()}<div class="picks">${kitPick(0)}${kitPick(1)}</div>` : ''}
+    <div class="setupbar"><button class="ghost" data-act="setupStep" data-step="${steps[at - 1][0]}">${L('上一步', 'Back')}</button>
+    ${next}</div>
+  </main>`;
+}
+
+/** Display options for the battle (shown on the last setup step). */
+function displaySettings() {
+  return `<section class="card missionpick"><h3>${L('顯示設定', 'Display settings')}</h3>
       <label>${L('地形 1 吋範圍', 'Terrain 1-inch boundaries')}
       <select data-act="terrainRanges">${[['nearby', L('單位進入範圍時顯示（預設）', 'Show when an operative is within range (default)')], ['always', L('全部顯示', 'Always show')], ['off', L('不顯示', 'Hide')]].map(([id, text]) => `<option value="${id}" ${ui.setup.terrainRanges === id ? 'selected' : ''}>${text}</option>`).join('')}</select></label>
       <p class="hint small">${L('以底座邊緣判定距離；範圍線是距離參考，實際效果依攻擊方向與規則判定。', 'Distances use base edges; boundaries are guides, effects depend on attack direction and rules.')}</p>
       <label><input type="checkbox" data-act="autoff" ${ui.setup.autoFF ? 'checked' : ''}> ${L('交戰計謀預設自動使用（熟悉規則的玩家用；預設關閉）', 'Firefight ploys used automatically from the start (for players who know the rules; off by default)')}</label>
-      <p class="hint small">${L('關閉時，被射擊、受傷等時機才觸發的交戰計謀一開始都不會自動用，要在策略階段的「自動使用的交戰計謀」自己勾選。', 'When off, firefight ploys that trigger on being shot, damaged and so on start unticked; tick the ones you want in "Firefight ploys used automatically" in the Strategy phase.')}</p></section>
-    ${aiReveal()}
-    <div class="picks">${pick(0)}${pick(1)}</div>
-    <div class="setupbar"><button class="ghost" data-act="setupStep" data-step="mission">${L('上一步', 'Back')}</button>
-    <button class="primary big" data-act="start">${L('開始部署', 'Start Deployment')}</button></div>
-  </main>`;
+      <p class="hint small">${L('關閉時，被射擊、受傷等時機才觸發的交戰計謀一開始都不會自動用，要在策略階段的「自動使用的交戰計謀」自己勾選。', 'When off, firefight ploys that trigger on being shot, damaged and so on start unticked; tick the ones you want in "Firefight ploys used automatically" in the Strategy phase.')}</p></section>`;
 }
 
 /** A small top-down picture of a 30"×22" killzone: drop zones, terrain and objective markers. */
@@ -3209,6 +3231,12 @@ app.addEventListener('change', (e) => {
   }
 });
 app.addEventListener('input', (e) => {
+  if (e.target.dataset.act === 'teamSearch') { // filter the team list in place (re-rendering would drop the cursor)
+    const side = +e.target.dataset.side, q = e.target.value.trim().toLowerCase();
+    (ui.setup.search ||= ['', ''])[side] = e.target.value;
+    for (const b of e.target.closest('.pick').querySelectorAll('.teampick')) b.style.display = !q || b.dataset.search.includes(q) ? '' : 'none';
+    return;
+  }
   if (e.target.dataset.act === 'rseek') { stopReplayPlay(); ui.replay.i = +e.target.value; render(); document.querySelector('.rseek')?.focus(); }
 });
 document.addEventListener('keydown', (e) => {
@@ -3249,26 +3277,26 @@ function handle(act, d) {
     case 'rplay': return toggleReplayPlay();
     case 'rexit': stopReplayPlay(); ui.screen = ui.replay.from; ui.replay = null; ui.sel = null; return render();
     case 'start':
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'murderwing' && murderwingRosterError(TEAM_MAP.murderwing, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'wreckaKrew' && wreckaRosterError(TEAM_MAP.wreckaKrew, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'nemesisClaw' && nightlordsRosterError(TEAM_MAP.nemesisClaw, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'wolfScouts' && wolfRosterError(TEAM_MAP.wolfScouts, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'stealthSuits' && stealthRosterError(TEAM_MAP.stealthSuits, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'vespids' && vespidsRosterError(TEAM_MAP.vespids, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'voidDancers' && voidDancersRosterError(TEAM_MAP.voidDancers, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'aquilons' && aquilonsRosterError(TEAM_MAP.aquilons, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'spectres' && spectresRosterError(TEAM_MAP.spectres, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'raveners' && ravenersRosterError(TEAM_MAP.raveners, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'tauPathfinders' && pathfindersRosterError(TEAM_MAP.tauPathfinders, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'angels' && angelsRosterError(TEAM_MAP.angels, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'plagueMarines' && plagueRosterError(TEAM_MAP.plagueMarines, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'kommandos' && kommandosRosterError(TEAM_MAP.kommandos, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'farstalkers' && kinbandRosterError(TEAM_MAP.farstalkers, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathKorps' && deathKorpsRosterError(TEAM_MAP.deathKorps, ui.setup.roster?.[side])) return render();
-      for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) return render();
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'murderwing' && murderwingRosterError(TEAM_MAP.murderwing, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'wreckaKrew' && wreckaRosterError(TEAM_MAP.wreckaKrew, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'nemesisClaw' && nightlordsRosterError(TEAM_MAP.nemesisClaw, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'scoutSquad' && scoutsRosterError(TEAM_MAP.scoutSquad, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'ratlings' && ratlingsRosterError(TEAM_MAP.ratlings, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'sanctifiers' && sanctifiersRosterError(TEAM_MAP.sanctifiers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'wolfScouts' && wolfRosterError(TEAM_MAP.wolfScouts, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'stealthSuits' && stealthRosterError(TEAM_MAP.stealthSuits, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'vespids' && vespidsRosterError(TEAM_MAP.vespids, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'voidDancers' && voidDancersRosterError(TEAM_MAP.voidDancers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'aquilons' && aquilonsRosterError(TEAM_MAP.aquilons, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'spectres' && spectresRosterError(TEAM_MAP.spectres, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'raveners' && ravenersRosterError(TEAM_MAP.raveners, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'tauPathfinders' && pathfindersRosterError(TEAM_MAP.tauPathfinders, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'angels' && angelsRosterError(TEAM_MAP.angels, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'plagueMarines' && plagueRosterError(TEAM_MAP.plagueMarines, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'kommandos' && kommandosRosterError(TEAM_MAP.kommandos, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'farstalkers' && kinbandRosterError(TEAM_MAP.farstalkers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathKorps' && deathKorpsRosterError(TEAM_MAP.deathKorps, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       clearSave();
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)

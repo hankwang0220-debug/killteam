@@ -10,6 +10,7 @@ import { RATLINGS_EQUIPMENT } from './data/ratlings.js';
 import { SANCTIFIERS_EQUIPMENT } from './data/sanctifiers.js';
 import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
 import { ANGELS_EQUIPMENT } from './data/angels.js';
+import { GELLERPOX_EQUIPMENT } from './data/gellerpox.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
@@ -177,6 +178,7 @@ export function moveAllowance(g, op, kind) {
   if (kind === 'charge' && op.acted?.free?.charge === 'bloodlust') d = 2; // Obsessive Bloodlust (Goremonger Aspirant): up to 2"
   if (kind === 'charge' && op.acted?.free?.charge === 'murder') d = 3; // Proclivity for Murder (Nemesis Claw): up to 3"
   if ((kind === 'charge' || kind === 'reposition') && op.acted?.sangArm?.surge && !['bloodlust', 'rampage', 'woe'].includes(op.acted?.free?.charge)) d += 1; // Surge (Sanguavitae)
+  if ((kind === 'reposition' || kind === 'charge') && gpHumOn(g, op)) d += 1; // Drawn to the Hum (Gellerpox): +1", ending within 2" of the objective
   // Mission NEMESIS NPOs can't move more than a set distance per turning point.
   const cap = mission(g).npoMoveCap;
   if (cap && tpl(op).nemesis) d = Math.max(0, Math.min(d, cap - (op.movedTP || 0)));
@@ -259,6 +261,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
       }
     }
   }
+  gpVerminSetup(g, equip, roster); // Gellerpox: the Mutoid Vermin equipment adds four operatives
   dwSetup(g, roster);
   mdSetup(g, roster);
   mwSetup(g, roster, loadouts);
@@ -322,7 +325,9 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   for (const s of [0, 1]) if (TEAM_MAP[teams[s]].starstriders) { g.cp[s] += 1; useWarrant(g, s, 'coordinate'); }
   // Universal equipment, set up before the battle (the computer takes its usual kit).
   const equipmentStart = { terrain: g.terrain.length, markers: g.markers.length };
-  for (const s of [0, 1]) setupEquipment(g, s, equip[s] || (ai === s ? AI_EQUIP : []));
+  const eqLists = [0, 1].map((s) => cleanEquipment(teams[s], equip[s] || (ai === s ? AI_EQUIP : [])));
+  gpStockpile(g, eqLists); // Polluted Stockpile (Gellerpox): the opponent loses an equipment option before anything is set up
+  for (const s of [0, 1]) setupEquipment(g, s, eqLists[s]);
   const terrainItems = g.terrain.splice(equipmentStart.terrain);
   const markerItems = g.markers.splice(equipmentStart.markers);
   g.eqDeploy = { turn: first, queues: [0, 1].map(side => [
@@ -897,6 +902,7 @@ export function buyPloy(g, side, ploy) {
   if (ploy.id === 'gloryKill') needChoice(g, side, 'gloryKill');
   if (ploy.id === 'suspectEliminate') needChoice(g, side, 'suspectEliminate');
   if (ploy.id === 'prioritisedAcq') needChoice(g, side, 'prioritisedAcq');
+  if (ploy.id === 'drawnHum') needChoice(g, side, 'drawnHum'); // Drawn to the Hum (Gellerpox): the objective marker
   if (ploy.id === 'huntForBlood') needChoice(g, side, 'huntForBlood');
   if (ploy.id === 'ncReturn') ncReturnBought(g, side); // (Return to Darkness: a player moves at once)
   // Attack / Defence Order: the marker starts by the friendly operative nearest the centre of the killzone.
@@ -1060,6 +1066,7 @@ export function activate(g, op) {
   corsairActivate(g, op);
   dwActivate(g, op);
   sfActivate(g, op); // Sanctifiers: the Sermon for this activation, Blaze token damage
+  if (!g.counter) gpActivate(g, op); // Gellerpox: Mutated Symptoms
   pfActivate(g, op); // Pathfinders: Point-Blank Fusillade snapshot, Pulse Accelerator and Photon Grenade tokens
   kfActivate(g, op); // Farstalker Kinband: Meat, Trophy
   ccManipActivate(g, op); // Canoptek Circle: Matrix Manipulator
@@ -1281,7 +1288,7 @@ export function controller(g, obj) {
   if (irr) return irr.side;
   const sum = [0, 0, 0], shriek = [false, false, false], nuncio = [false, false, false], present = [false, false, false], simu = [false, false, false];
   for (const o of living(g)) {
-    if (o.brutalDisplayTP === g.tp || o.ncFlayTP === g.tp || tpl(o).spBeacon) continue; // (the Vox-relay Beacon can't contest) // (Flay Them Alive: Nemesis Claw)
+    if (o.brutalDisplayTP === g.tp || o.ncFlayTP === g.tp || tpl(o).spBeacon || tpl(o).vermin) continue; // (Mutoid Vermin can't contest markers) // (the Vox-relay Beacon can't contest) // (Flay Them Alive: Nemesis Claw)
     // Drones count as 1 APL lower for objective control, the Icon Bearer as 1 higher; NEMESIS NPOs use their Control stat.
     // Ravage Destiny (Warpcoven): the target counts 1 lower. Frenzy (Fellgor): APL 1, whatever else applies.
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
@@ -1553,6 +1560,7 @@ export function actionCost(g, op, id) {
   if (xvActionCost(op, id) != null) return xvActionCost(op, id); // System Jam (XV26 Neutraliser): 2AP while Concealed
   if (id === 'rvBurrow' && rvFreeBurrow(g, op)) return 0; // a counteracting RAVENER's free Burrow
   if (id === 'fallBack' && (op.acted?.rvSlither || op.acted?.spDodge || xvFallBackCheap(op))) return Math.max(1, ACTIONS.fallBack.ap - 1); // Slithering Evasion
+  if (id === 'fallBack' && tpl(op).vermin) return Math.max(1, ACTIONS.fallBack.ap - 1); // Mutoid Vermin (Gellerpox): Fall Back for 1 less AP
   if (id === 'fallBack' && tpl(op).fearless) return Math.max(1, ACTIONS.fallBack.ap - 1) + (whipped(g, op) ? 1 : 0); // Fearless on the Frontline (Shas'la): 1 less AP
   if (id === 'fallBack' && op.acted?.slip) return Math.max(1, actionCost(g, { ...op, acted: { ...op.acted, slip: false } }, id) - 1); // Slip Away
   if (id === 'fallBack' && (hasTactic(g, op, 'mobile') || tpl(op).disengage)) return 1 + (whipped(g, op) ? 1 : 0); // Mobile / Disengage (Endurant)
@@ -2277,6 +2285,8 @@ export function shootWeapon(g, op, w) {
 /** Returns [{id, ap, ok, why}] for the active operative. */
 export function availableActions(g, op) {
   const engaged = isEngaged(g, op);
+  // For Reposition, Dash and Charge: Mutoid Vermin (Gellerpox) in control range don't count, and Barge ignores enemies altogether.
+  const moveEng = engaged && !op.acted?.gpBarge && engagedEnemies(g, op).some((e) => !tpl(e).vermin);
   const did = (...ks) => ks.some((k) => count(op, k));
   const hasRanged = weaponsFor(g, op).some((w) => w.type === 'ranged');
   const conceal = op.order === 'conceal';
@@ -2300,11 +2310,11 @@ export function availableActions(g, op) {
   const heavyBlocks = (k) => (op.warpMoveLockTP === g.tp && k !== 'dash') || rapidLock || (!!count(op, 'heavy') && op.acted.heavy !== k);
   const free = op.acted.free || {};
   // Mobile: may Charge while within control range of an enemy.
-  const chargeEngaged = engaged && !hasTactic(g, op, 'mobile') && !op.acted.rvSlither; // (Slithering Evasion: Charge from engagement)
-  add('reposition', !engaged && !heavyBlocks('reposition') && (!did('reposition', 'fallBack', 'charge') || !!op.acted.vdRestOn), engaged ? ENG : heavyBlocks('reposition') ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
+  const chargeEngaged = moveEng && !hasTactic(g, op, 'mobile') && !op.acted.rvSlither; // (Slithering Evasion: Charge from engagement)
+  add('reposition', !moveEng && !heavyBlocks('reposition') && (!did('reposition', 'fallBack', 'charge') || !!op.acted.vdRestOn), moveEng ? ENG : heavyBlocks('reposition') ? HEAVY : count(op, 'reposition') ? DONE : COMBO);
   const bladeDash = tpl(op).blademaster && count(op, 'charge') && (op.acted.chargeRemaining || 0) > 0;
   const caprice = free.dash === 'capricious' || free.dash === 'fade' || free.dash === 'murder'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
-  add('dash', !engaged && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash || (isVD(op) && hasPloy(g, op.side, 'vdCrescendo'))))) && op.plunderTP !== g.tp, engaged ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
+  add('dash', !moveEng && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash || (isVD(op) && hasPloy(g, op.side, 'vdCrescendo'))))) && op.plunderTP !== g.tp, moveEng ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
   // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
   const noCharge = conceal && !(tpl(op).rvTremor && op.acted.rvBurrow) && !op.acted.spSilent && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !wsConcealCharge(g, op) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
@@ -2675,6 +2685,11 @@ export function doMove(g, op, kind, path) {
   const ctx = moveCtx(g, op, kind);
   path = wholeInchPath(op.breachMove && !g.map?.startsWith('tombworld-') ? { ...ctx, segFree: () => true, extra: () => 0 } : ctx, path, moveAllowance(g, op, kind), kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));
   if (!path) return false;
+  // Drawn to the Hum (Gellerpox): the extra inch only if the move ends within 2" of the chosen objective; otherwise the normal distance.
+  if ((kind === 'reposition' || kind === 'charge') && gpHumOn(g, op) && path.len > moveAllowance(g, op, kind) - 1 + 0.01 && !gpHumNear(g, op, path.pts.at(-1))) {
+    path = wholeInchPath(ctx, path, moveAllowance(g, op, kind) - 1, kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));
+    if (!path) { if (!playerPicks(g, op.side)) op.acted.gpHumOff = true; return false; } // (the computer then plans again without the extra inch)
+  }
   if (kind === 'charge' && sfDeclaim(g, op, 'charge')) { spend(g, op, 'charge'); return true; } // Commanding Declamation (Sanctifier Confessor)
   if (kind === 'fallBack' && !mwFallBack(g, op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
@@ -3197,6 +3212,7 @@ export function effectiveRules(g, op, weapon, target) {
   if ((mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o))) || voxbroken(g, op) || neurostatic(g, op) || ncScreeched(g, op)) { // (Neurostatic Interference: Hunter Clade; Screecher: Nemesis Claw)
     delete r.balanced; delete r.ceaseless; delete r.relentless;
   }
+  if (r.feast && target && target.wounds < target.maxW) { r.atkPlus = (r.atkPlus || 0) + 1; r.lethal = Math.min(r.lethal || 6, 5); } // Feast (Cursemite): against a wounded operative, +1 Atk and Lethal 5+
   if (target && tpl(target).wkArmouredUp) { delete r.lethal; delete r.rending; delete r.severe; delete r.promote; delete r.grudge; } // Armoured Up (Krusha): only 6s are crits against it
   return r;
 }
@@ -3208,8 +3224,59 @@ export function effectiveRules(g, op, weapon, target) {
  */
 export function cursed(g, op, curse) {
   const [r, rg] = { barrelwarp: [2, 3], voxStatic: [3, 4], rustspikes: [CONTROL, CONTROL] }[curse];
-  return [0, 1].some((s) => s !== op.side && TEAM_MAP[g.teams[s]].tacticSlots === 1 && g.tactics?.[s]?.[0] === curse
-    && living(g, s).some((o) => edgeDist(o, op) <= (tpl(o).glitchling ? rg : r) + 0.01));
+  // (Mutated Symptoms: one operative also has a second Techno-curse this turning point. Mutoid Vermin don't spread curses.)
+  const has = (s, o) => g.tactics?.[s]?.[0] === curse || (g.gpSymptoms?.[s]?.tp === g.tp && g.gpSymptoms[s].uid === o.uid && g.gpSymptoms[s].curse === curse);
+  return [0, 1].some((s) => s !== op.side && g.teams[s] === 'gellerpox' && TEAM_MAP[g.teams[s]].tacticSlots === 1
+    && living(g, s).some((o) => !tpl(o).vermin && has(s, o) && edgeDist(o, op) <= (tpl(o).glitchling ? rg : r) + 0.01));
+}
+
+/** Drawn to the Hum: a friendly Gellerpox operative's own Reposition or Charge this turning point (not a counteraction). */
+export function gpHumOn(g, op) {
+  return op.team === 'gellerpox' && op.side < 2 && !op.counter && !op.acted?.gpHumOff && g.gpHum?.[op.side]?.tp === g.tp && hasPloy(g, op.side, 'drawnHum');
+}
+/** ...and the move has to end within 2" of the chosen objective marker to use the extra inch. */
+function gpHumNear(g, op, p) {
+  const obj = (g.objectives || []).find((o) => o.id === g.gpHum[op.side].id);
+  return !!obj && !!p && dist(p, obj) - radius(op) - OBJ_R <= 2 + 0.01;
+}
+const gpEquip = (g, side, id) => side < 2 && g.teams[side] === 'gellerpox' && !!g.equip?.[side]?.includes(id);
+/** Mutated Symptoms (equipment, once per battle): offered when a friendly is activated with enemies close enough for a curse to matter. */
+function gpActivate(g, op) {
+  if (!gpEquip(g, op.side, 'gpSymptoms') || g.gpSymptomsUsed?.[op.side] || tpl(op).vermin) return;
+  if (!foes(g, op).some((e) => edgeDist(op, e) <= 6)) return;
+  needChoice(g, op.side, 'gpSymptoms', { uid: op.uid });
+}
+/** Plague Bellows: shot from more than 6", a Nightmare Hulk retains one defence result of 3 as a normal save. */
+function gpBellows(g, shooter, target) {
+  if (!gpEquip(g, target.side, 'gpBellows') || !tpl(target).hulk || edgeDist(shooter, target) <= 6) return null;
+  return (pool) => { const x = pool.dice.find((d) => d.res === 'miss' && d.v === 3); if (x) { x.res = 'norm'; x.indo = true; pool.norms++; } };
+}
+/**
+ * Polluted Stockpile (revealed at the end of team selection): 2D6 — on a 7+ one of the opponent's equipment options is removed;
+ * otherwise the opponent removes one of their own (automatic: the last one listed).
+ */
+function gpStockpile(g, lists) {
+  for (const s of [0, 1]) {
+    if (g.teams[s] !== 'gellerpox' || !lists[s].includes('gpStockpile') || !lists[1 - s].length) continue;
+    const r = [d6(), d6()], gone = lists[1 - s].pop();
+    const nm = EQUIPMENT[gone]?.name || { zh: gone, en: gone };
+    log(g, { zh: `汙染的庫存：擲 ${r[0]}+${r[1]}=${r[0] + r[1]} → 對手失去「${nm.zh}」（${r[0] + r[1] >= 7 ? '由你選' : '由對手自己選'}，這裡自動選最後一項）`, en: `Polluted Stockpile: rolled ${r[0]}+${r[1]}=${r[0] + r[1]} → the opponent loses ${nm.en} (${r[0] + r[1] >= 7 ? 'your pick' : 'their own pick'}; the last one listed is taken automatically)` }, `side${s}`);
+  }
+}
+/** Mutoid Vermin (equipment): four more operatives, picked from Cursemites, Eyestinger Swarms and Sludge-grubs. */
+export const GP_VERMIN_DEFAULT = ['gpCursemite', 'gpCursemite', 'gpEyestinger', 'gpSludgegrub'];
+function gpVerminSetup(g, equip, roster) {
+  for (const side of [0, 1]) {
+    if (g.teams[side] !== 'gellerpox' || !(equip[side] || []).includes('gpVermin')) continue;
+    const picks = Array.isArray(roster[side]?.vermin) && roster[side].vermin.length === 4 ? roster[side].vermin : GP_VERMIN_DEFAULT;
+    let n = g.ops.filter((o) => o.side === side).length;
+    for (const id of picks) {
+      const t = TEAM_MAP.gellerpox.ops.find((o) => o.id === id && o.vermin) || TEAM_MAP.gellerpox.ops.find((o) => o.id === GP_VERMIN_DEFAULT[0]);
+      n++;
+      g.ops.push({ uid: `${side}-${n}`, side, team: 'gellerpox', tplId: t.id, num: n, x: 0, y: 0, wounds: t.wounds, maxW: t.wounds, order: 'conceal', ready: true, ap: 0, acted: {},
+        ml: 0, aplNext: 0, used: {}, poison: false, damagedTP: false, dead: false, counteracted: false });
+    }
+  }
 }
 
 /** Horrifying Shrieking (Fleshscreamer) / Terror (Phobos Reivers): an enemy within 3" of one. */
@@ -3275,6 +3342,14 @@ function bloodedOnDeath(g, dead) {
     dead.bloodToken = false;
     // The first friendly incapacitated within 6" of an enemy each TP.
     if (!t[dead.side].friend && foes(g, dead).some((e) => edgeDist(e, dead) <= 6)) { t[dead.side].friend = true; gainBlood(g, dead.side, { zh: '本回合第一次友方在敵人附近殘廢', en: 'first friendly down near the enemy this TP' }); }
+  }
+  // Caustic Demise (Sludge-grub): a D6 for each visible enemy within 2" — 4+: 1 damage.
+  if (tpl(dead).causticDemise) {
+    for (const e of foes(g, dead).filter((o) => edgeDist(o, dead) <= 2 && visibility(g, dead, o).visible)) {
+      const r = d6();
+      log(g, { zh: `${opName(dead, 'zh')} 腐蝕之死：對 ${opName(e, 'zh')} 擲 ${r}${r >= 4 ? '，受 1 傷害' : ''}`, en: `${opName(dead, 'en')} Caustic Demise: rolled ${r} for ${opName(e, 'en')}${r >= 4 ? ', 1 damage' : ''}` }, `side${dead.side}`);
+      if (r >= 4) applyDamage(g, dead, e, 1);
+    }
   }
   // Explosive Demise (Brimstone Grenadier): 2D6 (1 if engaged), any 4+ → D3+2 (D6+2 with the bomb unused) to each visible operative within 2".
   if (tpl(dead).explosiveDemise) {
@@ -3664,6 +3739,28 @@ function registerCoreChoices() {
       const obj = g.objectives.find((o) => o.id === id);
       (g.acquisition ||= [null, null])[side] = { tp: g.tp, id: obj.id, x: obj.x, y: obj.y };
       log(g, { zh: `${teamZh(g, side)} 優先取得：目標點 ${obj.id + 1}`, en: `${team(g, side).name.en} Prioritised Acquisition: objective ${obj.id + 1}` }, `side${side}`);
+    },
+  };
+  CHOICES.drawnHum = {
+    kind: 'objective', title: B('受嗡鳴吸引：選一個目標點（移動 +1"，但要停在它 2" 內）', 'Drawn to the Hum: pick an objective marker (+1" Move, but the move must end within 2" of it)'),
+    options: (g) => (g.objectives || []).map((o) => ({ value: o.id })),
+    auto: (g, side) => { const mine = living(g, side), d = (o) => Math.min(...mine.map((m) => dist(m, o))); return [...(g.objectives || [])].sort((a, b) => d(a) - d(b))[0]?.id ?? null; },
+    apply(g, side, id) {
+      (g.gpHum ||= [null, null])[side] = { tp: g.tp, id };
+      log(g, { zh: `${teamZh(g, side)} 受嗡鳴吸引：目標點 ${id + 1}`, en: `${team(g, side).name.en} Drawn to the Hum: objective ${id + 1}` }, `side${side}`);
+    },
+  };
+  CHOICES.gpSymptoms = {
+    kind: 'option', title: B('突變症狀（整場一次）：這名特工本回合多獲得一個技術詛咒？', 'Mutated Symptoms (once per battle): give this operative another Techno-curse this turning point?'),
+    options: (g, side) => team(g, side).tactics.filter((t) => t.id !== g.tactics?.[side]?.[0]).map((t) => ({ value: t.id, label: t.name })),
+    // The computer uses it on a Nightmare Hulk with enemies close by, picking the curse that suits a fight.
+    auto: (g, side, ctx) => { const o = getOp(g, ctx.uid); return o && tpl(o).hulk && foes(g, o).some((e) => edgeDist(o, e) <= 3) ? team(g, side).tactics.map((t) => t.id).find((t) => t !== g.tactics?.[side]?.[0] && t !== 'barrelwarp') ?? null : null; },
+    none: () => {},
+    apply(g, side, id, ctx) {
+      (g.gpSymptoms ||= [null, null])[side] = { tp: g.tp, uid: ctx.uid, curse: id };
+      (g.gpSymptomsUsed ||= [false, false])[side] = true; // (once per battle)
+      const o = getOp(g, ctx.uid), t = team(g, side).tactics.find((x) => x.id === id);
+      log(g, { zh: `突變症狀：${opName(o, 'zh')} 本回合多了「${t.name.zh}」`, en: `Mutated Symptoms: ${opName(o, 'en')} gains ${t.name.en} this turning point` }, `side${side}`);
     },
   };
   CHOICES.huntForBlood = {
@@ -4755,7 +4852,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT);
+Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
@@ -4763,7 +4860,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT,
+  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -5257,6 +5354,9 @@ const FF = {
     cond: (g, op) => (tpl(op).hulk && count(op, 'fight') && fightTargets(g, op).length ? null : { zh: '噩夢巨獸近戰後才能用', en: 'A Nightmare Hulk, after a Fight' }),
     apply(g, op) { op.acted.free = { ...(op.acted.free || {}), fight: 'any' }; } },
   revoltingTech: { kind: 'auto' },
+  barge: { kind: 'button',
+    cond: (g, op) => (tpl(op).hulk ? (op.acted.gpBarge ? { zh: '本次已經在衝撞', en: 'Already barging' } : null) : { zh: '只有夢魘巨怪', en: 'Nightmare Hulks only' }),
+    apply(g, op) { op.acted.gpBarge = true; } },
   // ---- Hunter Clade ----
   commandOverride: { kind: 'button', start: true,
     apply(g, op) {
@@ -6268,7 +6368,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     const miss = pool.dice.find((x) => x.res === 'miss');
     if (miss && pool.crits + pool.norms <= 1) { miss.res = 'norm'; miss.indo = true; pool.norms++; }
   } : null;
-  const post = indomitus || wrought ? (pool) => { indomitus?.(pool); wrought?.(pool); } : null;
+  const bellows = gpBellows(g, op, target); // Plague Bellows (Gellerpox)
+  const post = indomitus || wrought || bellows ? (pool) => { bellows?.(pool); indomitus?.(pool); wrought?.(pool); } : null;
   if (rules.soulstrike) defRules.soulstrikeDef = true;
   if (defRules.balanced && playerPicks(g, target.side)) defRules.balancedManual = true; // (a player uses Balanced itself)
   if (playerPicks(g, target.side)) { defRules.digInManual = true; defRules.rerollManual = true; defRules.relentlessManual = true; } // (and Dig In!-type, Void Armour and re-roll-any defence re-rolls)
