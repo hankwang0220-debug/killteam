@@ -217,7 +217,7 @@ export function createModelKit(THREE) {
     if (!mats.has(key)) {
       mats.set(key, new THREE.MeshStandardMaterial({
         side: o.side === 'double' ? THREE.DoubleSide : THREE.FrontSide,
-        color, metalness: o.metal ?? 0.1, roughness: o.rough ?? 0.7, flatShading: true,
+        color, metalness: o.metal ?? 0.1, roughness: o.rough ?? 0.7,
         emissive: o.glow ? new THREE.Color(o.glow) : new THREE.Color(0), emissiveIntensity: o.glow ? 1.4 : 0,
         transparent: (o.opacity ?? 1) < 1, opacity: o.opacity ?? 1,
       }));
@@ -230,21 +230,48 @@ export function createModelKit(THREE) {
   const BRASS = () => mat('#b8913f', { metal: 0.85, rough: 0.35 });
 
   const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; return o; };
-  const box = (w, h, d, m, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z);
-  /** A box narrower at the bottom (chests, waists). */
-  const tbox = (w, h, d, m, x, y, z, taper = 0.78) => { const o = mesh(new THREE.CylinderGeometry(Math.SQRT1_2, Math.SQRT1_2 * taper, 1, 4, 1), m, x, y, z); o.geometry.rotateY(Math.PI / 4); o.scale.set(w, h, d); return o; };
-  const cyl = (rt, rb, h, m, x, y, z, seg = 10) => mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m, x, y, z);
-  const sph = (r, m, x, y, z, ws = 10, hs = 8) => mesh(new THREE.SphereGeometry(r, ws, hs), m, x, y, z);
-  const cone = (r, h, m, x, y, z, seg = 8) => mesh(new THREE.ConeGeometry(r, h, seg), m, x, y, z);
+  // Geometry is shared between parts of the same shape and size (cached), and every part is rounded and smooth-shaded
+  // so models read as sculpted miniatures rather than blocks.
+  const geos = new Map();
+  const cached = (key, make) => { if (!geos.has(key)) geos.set(key, make()); return geos.get(key); };
+  const q = (n) => Math.round(n * 2000) / 2000;
+  /** A box with rounded edges (radius r) and a taper: the bottom is `taper` times as wide as the top. */
+  function roundedBoxGeo(w, h, d, r, taper = 1) {
+    return cached(`rb${q(w)},${q(h)},${q(d)},${q(r)},${q(taper)}`, () => {
+      const g = new THREE.BoxGeometry(1, 1, 1, 4, 4, 4), p = g.attributes.position, n = g.attributes.normal;
+      const half = [w / 2, h / 2, d / 2], inner = half.map((s) => Math.max(0, s - r));
+      const v = V(), c = V();
+      for (let i = 0; i < p.count; i++) {
+        // Grid steps of the unit box: ±0.5 → the surface, ±0.25 → where the rounding starts, 0 → the middle.
+        const map = (u, k) => Math.sign(u) * (Math.abs(u) > 0.375 ? half[k] : Math.abs(u) > 0.125 ? inner[k] : 0);
+        v.set(map(p.getX(i), 0), map(p.getY(i), 1), map(p.getZ(i), 2));
+        c.set(Math.max(-inner[0], Math.min(inner[0], v.x)), Math.max(-inner[1], Math.min(inner[1], v.y)), Math.max(-inner[2], Math.min(inner[2], v.z)));
+        const dir = V().subVectors(v, c);
+        if (dir.lengthSq() > 1e-12) { dir.normalize(); v.copy(c).addScaledVector(dir, r); n.setXYZ(i, dir.x, dir.y, dir.z); }
+        const t = taper + (1 - taper) * (v.y / h + 0.5); // narrower towards the bottom
+        p.setXYZ(i, v.x * t, v.y, v.z * (1 - (1 - t) * 0.5));
+      }
+      p.needsUpdate = true; n.needsUpdate = true;
+      return g;
+    });
+  }
+  const box = (w, h, d, m, x, y, z) => mesh(roundedBoxGeo(w, h, d, Math.min(w, h, d) * 0.28), m, x, y, z);
+  /** A rounded box narrower at the bottom (chests, waists). */
+  const tbox = (w, h, d, m, x, y, z, taper = 0.78) => mesh(roundedBoxGeo(w, h, d, Math.min(w, h, d) * 0.35, taper), m, x, y, z);
+  const cyl = (rt, rb, h, m, x, y, z, seg = 10) => mesh(cached(`cy${q(rt)},${q(rb)},${q(h)},${Math.max(16, seg)}`, () => new THREE.CylinderGeometry(rt, rb, h, Math.max(16, seg))), m, x, y, z);
+  const sph = (r, m, x, y, z, ws = 10, hs = 8) => mesh(cached(`sp${q(r)},${Math.max(18, ws)},${Math.max(12, hs)}`, () => new THREE.SphereGeometry(r, Math.max(18, ws), Math.max(12, hs))), m, x, y, z);
+  const cone = (r, h, m, x, y, z, seg = 8) => mesh(cached(`co${q(r)},${q(h)},${seg <= 4 ? seg : Math.max(14, seg)}`, () => new THREE.ConeGeometry(r, h, seg <= 4 ? seg : Math.max(14, seg))), m, x, y, z);
   const tz = (o) => { o.rotation.x = Math.PI / 2; return o; }; // cylinder along Z
   const add = (p, ...cs) => { cs.forEach((c) => c && p.add(c)); return p; };
   const group = (...cs) => add(new THREE.Group(), ...cs);
-  /** A cylinder from point a to point b. */
+  /** A smooth tapered limb from point a (radius r) to point b (radius r2), with rounded ends so joints blend. */
   const limb = (a, b, r, m, r2 = r) => {
     const d = V().subVectors(b, a), len = d.length() || 1e-4;
-    const o = mesh(new THREE.CylinderGeometry(r2, r, len, 8), m);
+    const o = mesh(cached(`li${q(r)},${q(r2)},${q(len)}`, () => new THREE.CylinderGeometry(r2, r, len, 14, 1, true)), m);
     o.position.copy(a).addScaledVector(d, 0.5);
     o.quaternion.setFromUnitVectors(UP, d.normalize());
+    if (r >= 0.008) o.add(sph(r, m, 0, -len / 2, 0, 14, 10));
+    if (r2 >= 0.008) o.add(sph(r2, m, 0, len / 2, 0, 14, 10));
     return o;
   };
   /** Turns o so its local +Z points along z, with local +Y as close to up as possible. */
@@ -456,7 +483,7 @@ export function createModelKit(THREE) {
     const skin = mat(L.skin || '#d8a888', { rough: 0.8 });
     const eye = glow(L.eye || '#e03a2a');
     const necron = L.body === 'necron';
-    const limbMat = necron ? METAL() : ['ork', 'gor', 'kroot', 'vespid'].includes(L.body) || L.mandrake ? skin : L.body === 'guard' && !L.carapace ? cloth : main;
+    const limbMat = necron ? METAL() : ['ork', 'gor', 'kroot', 'vespid'].includes(L.body) || L.mandrake ? skin : L.body === 'guard' && !L.carapace && !L.coat ? cloth : main;
     const hunch = ['ork', 'gor', 'ogryn'].includes(L.body) ? 0.06 * k : L.body === 'vespid' ? 0.07 * k : L.servitor ? 0.05 : 0;
 
     // Legs.
@@ -475,8 +502,8 @@ export function createModelKit(THREE) {
       } else {
         const knee = V(s * hx * 1.2, hipY * 0.5, fwd + 0.04 * k);
         const legM = necron ? METAL() : L.carapace || ['marine', 'sister', 'battlesuit', 'votann', 'tau', 'eldar'].includes(L.body) || L.armoured ? main : cloth;
-        legs.push(limb(hip, knee, B.legR, legM, B.legR * 1.05), limb(knee, foot, B.legR * 0.9, legM));
-        legs.push(box(B.legR * 2, B.legR * 1.2, B.legR * 3, L.body === 'marine' || L.body === 'battlesuit' ? main : DARK(), foot.x, B.legR * 0.6, foot.z + B.legR * 0.6));
+        legs.push(limb(hip, knee, B.legR * 1.1, legM, B.legR * 0.92), limb(knee, foot, B.legR * 0.95, legM, B.legR * 0.7));
+        { const bootM = L.body === 'marine' || L.body === 'battlesuit' ? main : DARK(); legs.push(box(B.legR * 2, B.legR * 1.3, B.legR * 2.6, bootM, foot.x, B.legR * 0.65, foot.z + B.legR * 0.4), sph(B.legR * 0.95, bootM, foot.x, B.legR * 0.55, foot.z + B.legR * 1.5, 12, 8)); } // boot with a rounded toe
         if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, L.body === 'marine' || L.body === 'votann' ? main : trim, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
         if (necron) legs.push(sph(B.legR * 1.3, METAL(), knee.x, knee.y, knee.z));
       }
@@ -493,8 +520,13 @@ export function createModelKit(THREE) {
       for (let i = 0; i < 3; i++) add(upper, box(B.tw * 0.7, 0.012, B.td * 0.9, METAL(), 0, torsoY - 0.05 - i * 0.04, 0.005));
       add(upper, sph(0.025, eye, 0, torsoY + B.th * 0.18, B.td * 0.52));
     } else {
-      const chest = tbox(B.tw, B.th, B.td, L.body === 'guard' && !L.carapace ? cloth : main, 0, torsoY, 0);
-      add(upper, chest);
+      // A sculpted torso: a broad chest over a narrower abdomen, so the waist reads.
+      const torsoM = L.body === 'guard' && !L.carapace && !L.coat ? cloth : main;
+      add(upper, tbox(B.tw, B.th * 0.62, B.td, torsoM, 0, torsoY + B.th * 0.19, 0, 0.82),
+        tbox(B.tw * 0.8, B.th * 0.46, B.td * 0.88, torsoM, 0, torsoY - B.th * 0.24, 0.005, 0.9));
+      if (L.body === 'marine' && !L.scout) for (let i = 0; i < 3; i++) add(upper, box(B.tw * 0.62, B.th * 0.1, B.td * 0.92, torsoM, 0, torsoY - B.th * (0.1 + i * 0.12), 0.01)); // ribbed abdominal plates
+      // Neck.
+      add(upper, cyl(B.head * 0.42, B.head * 0.5, B.head * 0.6, L.body === 'marine' || L.body === 'battlesuit' ? DARK() : skin, 0, hipY + B.th + B.head * 0.15, 0));
       if (L.body === 'marine' || L.body === 'sister') add(upper, box(B.tw * 0.7, B.th * 0.35, 0.03, trim, 0, torsoY + B.th * 0.18, B.td / 2 + 0.01));
       if (L.body === 'marine' && !L.scout) add(upper, ...[-1, 1].map((s) => box(B.tw * 0.28, 0.025, 0.02, trim, s * B.tw * 0.18, torsoY + B.th * 0.28, B.td / 2 + 0.03)));
       if (L.carapace || L.body === 'tau' || L.body === 'votann') add(upper, box(B.tw * 1.04, B.th * 0.5, B.td * 1.1, main, 0, torsoY + B.th * 0.18, 0));
@@ -582,7 +614,9 @@ export function createModelKit(THREE) {
     }
     switch (body) {
       case 'guard': case 'sister': case 'skitarii': case 'ratling': case 'ogryn': case 'marine': {
-        add(h, sph(r, c.skin, 0, 0, 0, 10, 8), box(r * 0.25, r * 0.3, r * 0.3, c.skin, 0, -r * 0.1, r * 0.9));
+        const skull = sph(r, c.skin, 0, 0, 0, 10, 8); skull.scale.set(0.92, 1.05, 1);
+        add(h, skull, sph(r * 0.32, c.skin, 0, -r * 0.62, r * 0.55, 10, 8), box(r * 0.22, r * 0.34, r * 0.3, c.skin, 0, -r * 0.08, r * 0.92)); // skull, jaw, nose
+        if (!L.gasmask && !L.visor && !L.mask && !L.hood && !L.servitor && body !== 'skitarii') add(h, ...[-1, 1].map((s) => sph(r * 0.11, mat('#1e1612', { rough: 0.3 }), s * r * 0.36, r * 0.1, r * 0.86, 8, 6)), ...[-1, 1].map((s) => box(r * 0.34, r * 0.08, r * 0.1, mat('#3a2a20'), s * r * 0.36, r * 0.3, r * 0.88)), ...[-1, 1].map((s) => sph(r * 0.18, c.skin, s * r * 0.92, 0, 0, 8, 6))); // eyes, brows, ears
         if (L.servitor) { add(h, sph(r * 1.02, METAL(), 0, r * 0.15, -r * 0.1, 8, 6), lens(r * 0.4, 0, r * 0.85, r * 0.25), cyl(r * 0.15, r * 0.15, r * 0.8, DARK(), 0, -r * 0.9, -r * 0.4)); return; }
         if (body === 'skitarii') { add(h, sph(r * 1.25, c.cloth, 0, r * 0.15, -r * 0.2, 10, 8), box(r * 1.3, r * 1.2, r * 0.3, DARK(), 0, -r * 0.05, r * 0.85), lens(r * 0.35, r * 0.1, r * 1.0), lens(-r * 0.35, r * 0.1, r * 1.0)); return; }
         if (L.wolf) add(h, sph(r * 1.05, mat('#c8642a'), 0, r * 0.2, -r * 0.15, 8, 6), cone(r * 0.7, r * 1.0, mat('#c8642a'), 0, -r * 0.75, r * 0.5, 6));
@@ -860,7 +894,7 @@ export function createModelKit(THREE) {
       const pole = V(side * 0.7, -1, -0.5).normalize();
       const perp = pole.sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
       const elbow = mid.addScaledVector(perp, bend);
-      add(fig, limb(s, elbow, B.armR, c.limbMat), limb(elbow, h, B.armR * 0.85, c.limbMat), sph(B.armR * 1.05, c.limbMat, elbow.x, elbow.y, elbow.z, 6, 5));
+      add(fig, limb(s, elbow, B.armR * 1.08, c.limbMat, B.armR * 0.88), limb(elbow, h, B.armR * 0.9, c.limbMat, B.armR * 0.7), sph(B.armR * 1.05, c.limbMat, elbow.x, elbow.y, elbow.z, 6, 5));
       if (L.body === 'marine' || L.body === 'battlesuit' || L.body === 'sister' || L.carapace) add(fig, limb(elbow.clone().lerp(h, 0.25), h, B.armR * 1.2, c.main));
       add(fig, sph(B.armR * 0.95, L.body === 'marine' || L.body === 'necron' ? c.limbMat : L.body === 'battlesuit' ? c.main : mat(L.body === 'guard' || L.body === 'sister' ? '#2a2a2a' : L.skin || '#d8a888'), h.x, h.y, h.z, 6, 5));
     }

@@ -76,6 +76,8 @@ export async function mountModels(root) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; // softer, more natural light on the smooth-shaded models
+  renderer.toneMappingExposure = 1.15;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#15181d');
   scene.fog = new THREE.Fog('#15181d', 45, 90);
