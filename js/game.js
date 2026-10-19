@@ -13,6 +13,7 @@ import { ANGELS_EQUIPMENT } from './data/angels.js';
 import { GELLERPOX_EQUIPMENT } from './data/gellerpox.js';
 import { HEARTHKYN_EQUIPMENT, hearthkynRosterError } from './data/hearthkyn.js';
 import { NAVY_EQUIPMENT, navyRosterError } from './data/navy.js';
+import { PHOBOS_EQUIPMENT, phobosRosterError } from './data/phobos.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
@@ -266,6 +267,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   gpVerminSetup(g, equip, roster); // Gellerpox: the Mutoid Vermin equipment adds four operatives
   for (const s of [0, 1]) if (teams[s] === 'hearthkyn') { const e = hearthkynRosterError(TEAM_MAP.hearthkyn, roster[s]); if (e) throw new Error(e.en); } // Hearthkyn roster limits
   for (const s of [0, 1]) if (teams[s] === 'navyBreachers') { const e = navyRosterError(TEAM_MAP.navyBreachers, roster[s]); if (e) throw new Error(e.en); } // Navy Breachers roster limits
+  for (const s of [0, 1]) if (teams[s] === 'phobos') { const e = phobosRosterError(TEAM_MAP.phobos, roster[s]); if (e) throw new Error(e.en); } // Phobos roster limits
   dwSetup(g, roster);
   mdSetup(g, roster);
   mwSetup(g, roster, loadouts);
@@ -685,7 +687,7 @@ function startTP(g) {
   log(g, { zh: `── 第 ${g.tp} 回合 ── 主動權擲骰 ${a} : ${b}`, en: `── Turning Point ${g.tp} ── Initiative roll ${a} : ${b}` }, 'tp');
   // The computer plays its initiative cards at once; with no card a human player can use, the result stands.
   aiInitCards(g);
-  if (![0, 1].some((s) => s !== g.ai && (g.initCards[s].length || hkWritOk(g, s)))) lockInitRoll(g); // (Writ of Claim: a player may re-roll even without a card)
+  if (![0, 1].some((s) => s !== g.ai && (g.initCards[s].length || hkWritOk(g, s) || phTacInitOk(g, s)))) lockInitRoll(g); // (Writ of Claim: a player may re-roll even without a card)
   wkReady(g); // Wrecka Krew: Pulsa markers lose a point, Demolition markers go
   ncReady(g); // Nemesis Claw: D3 Prescience points
   scReady(g); // Scout Squad: Trip Alarm markers go in the third turning point
@@ -760,6 +762,7 @@ export function aiInitCards(g) {
   if (initWinner(g) !== s && rvSensesOk(g, s)) rvUseSenses(g, s); // Heightened Senses (Raveners)
   if (initWinner(g) !== s && wsGuileOk(g, s)) wsUseGuile(g, s); // Lupine Guile (Wolf Scout Pack Leader)
   if (initWinner(g) !== s && hkWritOk(g, s) && g.initRoll[s] <= 3) hkUseWrit(g, s); // Writ of Claim (Hearthkyn)
+  if (initWinner(g) !== s && phTacInitOk(g, s) && g.initRoll[s] <= 2) phTacInit(g, s); // Tactical Advantage (Phobos Sergeant)
   const cards = g.initCards[s];
   if (!cards.length || initWinner(g) === s) return;
   for (const id of ['pm1', 'pm2', 'pm3'].filter((c) => cards.includes(c))) {
@@ -1127,7 +1130,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side // Ba
 
 export function endActivation(g) {
   const op = activeOp(g);
-  g.ccManip = null; g.nodalOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); xvEnd(g, op); wsEnd(g, op); }
+  g.ccManip = null; g.nodalOpen = null; g.phCommsOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); xvEnd(g, op); wsEnd(g, op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
   const wasCounter = g.counter, wasNpo = !!g.npoSlot;
@@ -1474,6 +1477,8 @@ export const ACTIONS = {
   jamToken: { ap: 1, name: { zh: '系統干擾', en: 'System Jam' } },
   panScan: { ap: 1, name: { zh: '全光譜掃描', en: 'Pan Spectral Scan' } },
   hkUtility: { ap: 1, name: { zh: '瓦爾-3 多功能手雷', en: 'Vâyr-3 Utility Grenade' } },
+  phComms: { ap: 0, name: { zh: '通訊陣列：更換策略計謀', en: 'Comms Array: change a strategy ploy' } },
+  phGuard: { ap: 1, name: { zh: '追蹤目標：警戒', en: 'Track Target: Guard' } },
   nbBreach: { ap: 1, name: { zh: '破口', en: 'Breach Point' } },
   nbWeld: { ap: 1, name: { zh: '焊死', en: 'Weld Shut' } },
   nbRemote: { ap: 1, name: { zh: '遠端操控', en: 'Remote Control' } },
@@ -2424,6 +2429,9 @@ export function availableActions(g, op) {
   if (tpl(op).breachPoint) add('nbBreach', !engaged && nbTerrainNear(g, op).length > 0 && !count(op, 'nbBreach'), engaged ? ENG : count(op, 'nbBreach') ? DONE : { zh: '控制範圍內沒有地形', en: 'No terrain in control range' });
   if (tpl(op).weldShut && accessPointsOf(g).some((d) => d.kind === 'hatchway')) add('nbWeld', !engaged && !!nbHatchToWeld(g, op) && !count(op, 'nbWeld'), engaged ? ENG : count(op, 'nbWeld') ? DONE : { zh: '1" 內沒有關著的艙門', en: 'No closed hatchway within 1"' });
   if (tpl(op).remoteControl) unique('nbRemote');
+  // Phobos: Comms Array (any friendly's activation, with the Commsman in the killzone), Track Target (Incursor Marksman: Guard anywhere, even Concealed).
+  if (op.team === 'phobos' && op.side < 2 && phCommsOk(g, op.side)) add('phComms', g.phCommsOpen !== op.side, DONE);
+  if (tpl(op).phTrack) add('phGuard', !op.counter && !engaged && !op.dwGuard && !count(op, 'phGuard'), engaged ? ENG : DONE);
   if (tpl(op).commandBreach && g.navyOrder?.[op.side]?.tp === g.tp) {
     add('nbOrderMove', !op.acted.nbCmd, DONE);
     add('nbOrderSwap', !op.acted.nbCmd, DONE);
@@ -3283,6 +3291,7 @@ export function effectiveRules(g, op, weapon, target) {
   if ((mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o))) || voxbroken(g, op) || neurostatic(g, op) || ncScreeched(g, op)) { // (Neurostatic Interference: Hunter Clade; Screecher: Nemesis Claw)
     delete r.balanced; delete r.ceaseless; delete r.relentless;
   }
+  if (weapon.type === 'ranged' && op.team === 'phobos') phAmmo(g, op, weapon, r); // Special Issue Ammunition (Phobos)
   if (weapon.type === 'ranged' && nbSlugsOk(g, op, weapon)) { r.slugs = true; r.accurate = Math.max(r.accurate || 0, 1); } // Slugs (Navy Breachers)
   if (r.feast && target && target.wounds < target.maxW) { r.atkPlus = (r.atkPlus || 0) + 1; r.lethal = Math.min(r.lethal || 6, 5); } // Feast (Cursemite): against a wounded operative, +1 Atk and Lethal 5+
   if (target && tpl(target).wkArmouredUp) { delete r.lethal; delete r.rending; delete r.severe; delete r.promote; delete r.grudge; } // Armoured Up (Krusha): only 6s are crits against it
@@ -3300,6 +3309,66 @@ export function cursed(g, op, curse) {
   const has = (s, o) => g.tactics?.[s]?.[0] === curse || (g.gpSymptoms?.[s]?.tp === g.tp && g.gpSymptoms[s].uid === o.uid && g.gpSymptoms[s].curse === curse);
   return [0, 1].some((s) => s !== op.side && g.teams[s] === 'gellerpox' && TEAM_MAP[g.teams[s]].tacticSlots === 1
     && living(g, s).some((o) => !tpl(o).vermin && has(s, o) && edgeDist(o, op) <= (tpl(o).glitchling ? rg : r) + 0.01));
+}
+
+// ---------- Phobos Strike Team (equipment, Tactical Advantage, Comms Array) ----------
+const phEquip = (g, op, id) => !!op && op.side < 2 && op.team === 'phobos' && !!g.equip?.[op.side]?.includes(id);
+/** Purity Seals: once per turning point, two or more fails when shooting, fighting or retaliating — discard one, retain another as a normal success. */
+function phRoll(g, op, pool, retally) {
+  if (!phEquip(g, op, 'phSeals') || !pool || !abilityArmed(g, op.side, 'phSeals') || g.phSeals?.[op.side] === g.tp) return;
+  if (pool.dice.filter((d) => !d.auto && d.res === 'miss').length < 2) return;
+  (g.phSeals ||= [0, 0])[op.side] = g.tp;
+  const seals = (p) => { const m = p.dice.filter((d) => !d.auto && d.res === 'miss'); if (m.length >= 2) { m[0].res = 'norm'; m[0].indo = true; p.norms++; } };
+  const prev = pool.post;
+  pool.post = prev ? (p) => { prev(p); seals(p); } : seals;
+  retally(pool);
+  log(g, { zh: `純潔印記：${opName(op, 'zh')} 一個失敗保留為普通成功`, en: `Purity Seals: ${opName(op, 'en')} retains a fail as a normal success` }, `side${op.side}`);
+}
+/** Special Issue Ammunition: once per turning point, a bolt carbine / marksman / occulus bolt carbine gains Piercing 1 until the end of the turning point. */
+const PH_AMMO_WEAPONS = ['marksmanCarbine', 'stalkerCarbine', 'occulusCarbine', 'boltCarbinePh', 'customCarbine'];
+function phAmmo(g, op, weapon, r) {
+  const a = g.phAmmo?.[op.side];
+  if (a?.tp === g.tp && a.uid === op.uid && a.w === weapon.group) { r.piercing = Math.max(r.piercing || 0, 1); return; }
+  if (!phEquip(g, op, 'phAmmo') || !PH_AMMO_WEAPONS.includes(weapon.group) || a?.tp === g.tp || !abilityArmed(g, op.side, 'phAmmo') || g.active !== op.uid) return;
+  r.piercing = Math.max(r.piercing || 0, 1); r.phAmmoNew = true;
+}
+function phAmmoUsed(g, op, weapon) {
+  (g.phAmmo ||= [null, null])[op.side] = { tp: g.tp, uid: op.uid, w: weapon.group };
+  log(g, { zh: `${opName(op, 'zh')} 裝填特製彈藥：本回合「穿甲 1」`, en: `${opName(op, 'en')} loads Special Issue Ammunition: Piercing 1 this turning point` }, `side${op.side}`);
+}
+/** Combat Blades: every Phobos operative has a combat blade. */
+export const PH_COMBAT_BLADE = { id: 'phBlade', group: 'phBlade', name: { zh: '戰鬥刀刃', en: 'Combat blade' }, type: 'melee', atk: 5, hit: 3, dmg: [3, 4], rules: {} };
+/** Tactical Advantage (a Phobos Sergeant), once per battle each: an initiative re-roll; a firefight ploy for 0CP (the Sergeant specified, or Patient Ambush while it's ready and free). */
+const phSgt = (g, side) => living(g, side).find((o) => tpl(o).tacticalAdv && o.x > -50);
+function phTacFree(g, side, id) {
+  const s = g.teams[side] === 'phobos' && phSgt(g, side);
+  if (!s || g.phTac?.[side]?.ff) return false;
+  if (id === 'patientAmbush') return s.ready && !isEngaged(g, s);
+  const who = g.ffSpec || activeOp(g);
+  return !!who && who.uid === s.uid;
+}
+export function phTacInitOk(g, side) { return g.teams[side] === 'phobos' && !!phSgt(g, side) && !g.phTac?.[side]?.init && g.phase === 'initiative' && !g.initLocked; }
+export function phTacInit(g, side) {
+  if (!phTacInitOk(g, side)) return false;
+  ((g.phTac ||= [{}, {}])[side] ||= {}).init = true;
+  const before = g.initRoll[side];
+  g.initRoll[side] = d6();
+  log(g, { zh: `${teamZh(g, side)} 戰術優勢：重擲先攻骰 ${before} → ${g.initRoll[side]}（${g.initRoll[0]} : ${g.initRoll[1]}）`, en: `${team(g, side).name.en} Tactical Advantage: re-rolls the initiative die ${before} → ${g.initRoll[side]} (${g.initRoll[0]} : ${g.initRoll[1]})` }, `side${side}`);
+  return true;
+}
+/** Comms Array (Commsman): once per turning point, during a friendly's activation, change a strategy ploy used this turning point for free. */
+export function phCommsOk(g, side) {
+  return g.teams[side] === 'phobos' && living(g, side).some((o) => tpl(o).commsArray && o.x > -50) && g.phComms?.[side] !== g.tp
+    && (g.ploys[side] || []).some((id) => team(g, side).ploys.some((p) => p.id === id));
+}
+export function phCommsChoose(g, side, newId, oldId) {
+  if (!phCommsOk(g, side) || !oldId || !g.ploys[side].includes(oldId)) return false;
+  const ploy = team(g, side).ploys.find((p) => p.id === newId), old = team(g, side).ploys.find((p) => p.id === oldId);
+  if (!ploy || !old || g.ploys[side].includes(newId)) return false;
+  g.ploys[side][g.ploys[side].indexOf(oldId)] = newId;
+  (g.phComms ||= [0, 0])[side] = g.tp;
+  log(g, { zh: `${teamZh(g, side)} 通訊陣列：「${old.name.zh}」改為「${ploy.name.zh}」（免費）`, en: `${team(g, side).name.en} Comms Array: ${old.name.en} becomes ${ploy.name.en} (free)` }, `side${side}`);
+  return true;
 }
 
 // ---------- Imperial Navy Breachers (equipment, Lock It Down, Deck Hand) ----------
@@ -3358,6 +3427,12 @@ function nbSelf(g, op, id) {
     spend(g, op, id);
     (g.nbWeld ||= {})[d.id] = { by: op.uid };
     log(g, { zh: `${opName(op, 'zh')} 焊死艙門 ${d.component}：其他人開門要多花 1AP`, en: `${opName(op, 'en')} welds hatchway ${d.component} shut: others pay 1 more AP to open it` }, `side${op.side}`);
+    return true;
+  }
+  if (id === 'phComms') { g.phCommsOpen = op.side; return true; } // (the player picks the ploys to swap: phCommsChoose)
+  if (id === 'phGuard') {
+    spend(g, op, id); op.dwGuard = true;
+    log(g, { zh: `${opName(op, 'zh')} 追蹤目標：警戒`, en: `${opName(op, 'en')} Track Target: on Guard` }, `side${op.side}`);
     return true;
   }
   if (id === 'nbOrderSwap') {
@@ -5096,7 +5171,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT, NAVY_EQUIPMENT);
+Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT, NAVY_EQUIPMENT, PHOBOS_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' || teamId === 'hearthkyn' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Hearthkyn: the Lugger's Well Supplied) // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
@@ -5104,7 +5179,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT, hearthkyn: HEARTHKYN_EQUIPMENT, navyBreachers: NAVY_EQUIPMENT,
+  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT, hearthkyn: HEARTHKYN_EQUIPMENT, navyBreachers: NAVY_EQUIPMENT, phobos: PHOBOS_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -5149,6 +5224,7 @@ export function weaponsFor(g, op) {
   // Grenadier (Brood Brother Sapper): its own frag and krak grenades, Hit improved by 1, not from the team's uses.
   if (tpl(op).grenadier) ws = [...ws, GRENADIER_FRAG, GRENADIER_KRAK];
   if (hkEquip(g, op, 'hkKnives') && !ws.some((w) => /plasma knife/i.test(w.name.en))) ws = [...ws, HK_PLASMA_KNIFE]; // Plasma Knives (Hearthkyn)
+  if (phEquip(g, op, 'phBlades')) ws = [...ws, PH_COMBAT_BLADE]; // Combat Blades (Phobos)
   ws = [...ws, ...assetsFor(g, op)]; // Privateer Support Assets (Elucidian Starstriders)
   ws = ncWeapons(g, op, ws); // Preysight (Nemesis Claw): Range 6" and Seek Light versions
   ws = scWeapons(g, op, ws); // Combat Blades equipment (Scout Squad)
@@ -5264,6 +5340,7 @@ function setupEquipment(g, side, ids) {
     if (id === 'ammo') g.markers.push({ id: g.markers.length, kind: 'ammo', owner: side, ...clearSpot(g, ownPoint(g, side, 7.5, 0.5)), carriedBy: null });
     if (id === 'ammo' && living(g, side).some((o) => tpl(o).wellStocked)) g.markers.push({ id: g.markers.length, kind: 'ammo', owner: side, ...clearSpot(g, ownPoint(g, side, 7.5, 0.5)), carriedBy: null }); // Well Stocked (Ratling Stashmaster): one more Ammo Cache
     if (id === 'utility') Object.assign(g.eqUses[side], { stun: 1, smoke: 1 });
+    if (id === 'phGrenades') Object.assign(g.eqUses[side], { stun: 2, smoke: 2 }); // Additional Utility Grenades (Phobos): four (two of each here), not on top of the universal ones
     if (id === 'pmBlight') g.eqUses[side].blight = 2; // Blight Grenades (Plague Marines): twice in the battle
     if (id === 'kmDynamite') g.eqUses[side].dynamite = 1; // Dynamite (Kommandos): once in the battle
     if (id === 'kmHarpoon') g.eqUses[side].harpoon = 1; // Harpoon (Kommandos): once per turning point
@@ -5321,7 +5398,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => aqVetFree(g, side, id) || vdLuckFree(g, side, id) ? 0 : (g.ccFree || ccAwakenedFree(g, side, id)) && id === 'animateNodes' ? 0 : scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => aqVetFree(g, side, id) || vdLuckFree(g, side, id) || phTacFree(g, side, id) ? 0 : (g.ccFree || ccAwakenedFree(g, side, id)) && id === 'animateNodes' ? 0 : scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id, target = g.dwAuspexTarget) => ffBaseCost(g, side, id, target) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id, target = g.dwAuspexTarget) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id, target) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -5335,15 +5412,16 @@ function spendFF(g, side, id) {
   if (aqVetFree(g, side, id)) aqVetUsed(g, side); // Tempestus Veteran: the once-per-battle free ploy
   if (scVoxFree(g, side, id)) (g.scVoxTP ||= [0, 0])[side] = g.tp; // Tactical Vox-link (Scout Squad): free once per TP (after the cost above was worked out)
   if (dwCommandFree(g, side, 'firefight') && !(id === 'dwAuspex' && dwTriangulation(g, side, g.dwAuspexTarget))) dwConsumeCommand(g, side, 'firefight');
+  if (phTacFree(g, side, id)) ((g.phTac ||= [{}, {}])[side] ||= {}).ff = true; // Tactical Advantage (Phobos Sergeant): the once-per-battle free firefight ploy
   g.cp[side] -= paid;
   if (g.deviousTax?.[side] === id) g.deviousTax[side] = null;
   if (id !== 'deviousScheme' && paid > 0 && !g.deviousTax?.[side] && autoFF(g, 1 - side, 'deviousScheme')) (g.deviousTax ||= [null, null])[side] = id;
   if (p.technique) { (g.techKey ||= [null, null])[side] = actKey(g); log(g, { zh: `${teamZh(g, side)} 使用技法「${p.name.zh}」`, en: `${team(g, side).name.en} uses the Aspect Technique ${p.name.en}` }, `side${side}`); return; }
   log(g, { zh: `${teamZh(g, side)} 使用交戰計謀「${p.name.zh}」（${p.cp}CP）`, en: `${team(g, side).name.en} uses the firefight ploy ${p.name.en} (${p.cp}CP)` }, `side${side}`);
 }
-export function skipArchonActivation(g, side) {
-  if (g.phase !== 'firefight' || g.turn !== side || g.active || g.counter || !ffReady(g, side, 'heinousArrogance') || !hasReady(g, 1 - side)) return false;
-  spendFF(g, side, 'heinousArrogance'); handOff(g, side); return true;
+export function skipArchonActivation(g, side, id = 'heinousArrogance') { // (also Patient Ambush: Phobos)
+  if (g.phase !== 'firefight' || g.turn !== side || g.active || g.counter || g.chain || !ffReady(g, side, id) || !hasReady(g, 1 - side)) return false;
+  spendFF(g, side, id); handOff(g, side); return true;
 }
 
 /** Automatic abilities and equipment that the rules leave to the player ("you can"): on unless switched off (players start with them off). */
@@ -6465,6 +6543,8 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   vdRoll(g, op, a, tally); // Wraithbone Talisman (Void-dancer Troupe)
   vsReroll(g, op, a, tally); // Communion: a point to re-roll one attack die
   adRoll(g, op, a, tally); // Purity Seals (Angels of Death)
+  phRoll(g, op, a, tally); // Purity Seals (Phobos)
+  if (rules.phAmmoNew) phAmmoUsed(g, op, weapon); // Special Issue Ammunition (Phobos): loaded for this turning point
   wsTeeth(g, op, a, tally); // Wolfteeth Necklaces (Wolf Scouts)
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target) } };
   yield { stage: 'attack', seq };
@@ -7087,6 +7167,7 @@ export function startFight(g, op, weapon, target) {
   vdRoll(g, op, aRoll, tally); vdRoll(g, target, dRoll, tally); // Wraithbone Talisman (Void-dancer Troupe)
   pmCurse(g, op, target, dRoll, tally); pmCurse(g, target, op, aRoll, tally); // Curse of Rot (Plague Marines)
   adRoll(g, op, aRoll, tally); adRoll(g, target, dRoll, tally); // Purity Seals (Angels of Death)
+  phRoll(g, op, aRoll, tally); phRoll(g, target, dRoll, tally); // Purity Seals (Phobos)
   wsLokyar(g, op, aRoll, tally); wsTeeth(g, op, aRoll, tally); wsTeeth(g, target, dRoll, tally); // Touched by Lokyar, Wolfteeth Necklaces (Wolf Scouts)
   spend(g, op, 'fight');
   for (const [o, w] of [[op, weapon], [target, dWeapon]]) if (w.rules.limited) (o.used ||= {})[w.id] = (o.used[w.id] || 0) + 1; // Limited melee weapons

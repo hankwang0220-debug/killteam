@@ -20,6 +20,7 @@ import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
 import { hearthkynRosterError } from './data/hearthkyn.js';
 import { navyRosterError } from './data/navy.js';
+import { phobosRosterError } from './data/phobos.js';
 import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
@@ -54,7 +55,7 @@ import {
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
   ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, ffDef, ffArmed, ffToggleArm, ffKind, tacOpsFor, PRIMARY_OPS, primaryBonus, primaryBase, primaryPending, choosePrimary,
   EQUIPMENT, EQUIPMENT_LIMIT, equipmentLimitFor, equipmentOptionsFor, cleanEquipment, weaponsFor, SKILLS, setSkills, skillSlots, canCommandReroll, commandReroll, aiRerollChoice, fightCommandReroll, fightRerollDone,
-  rvSensesOk, rvUseSenses, hkWritOk, hkUseWrit, startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
+  rvSensesOk, rvUseSenses, hkWritOk, hkUseWrit, phTacInitOk, phTacInit, phCommsChoose, startStrategy, setInitiative, INIT_CARDS, initWinner, useInitCard, lockInitRoll, aiInitCards, setMark, strategySwap, counterSwap, orderSwapCands, fightTargets, doSelfAction,
   NPO, mission, placeBid, doPickUp, doMissionAction, missionActionsFor, foes,
   sprintCheck, doSprint, turnFacing, doTurn, enterFromReserve, isMounted,
   goreOf, SANGUAVITAE, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
@@ -607,6 +608,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'wolfScouts') { const error = wolfRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'hearthkyn') { const error = hearthkynRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'navyBreachers') { const error = navyRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'phobos') { const error = phobosRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -1151,7 +1153,7 @@ function initCardsLine() {
 }
 /** Before the result stands: human players may use initiative cards (Re-roll, ±1, ±2, ±3). */
 /** Faction equipment that's used automatically when the rules say "you can" (players switch each on): equipment id = switch id. */
-const OPTIONAL_EQUIP = ['nbSlugs', 'adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
+const OPTIONAL_EQUIP = ['phSeals', 'phAmmo', 'nbSlugs', 'adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
   'kfMeat', 'kfTrophy', 'kfPiercing', 'kfToxin', 'mdGlyph', 'mwFuel', 'mwBladefins', 'pfTao', 'pfHiml', 'rtRations', 'rtLucky', 'sfSymbols', 'sfSeals', 'scOculars', 'spTvid',
   'vsConvergence', 'vdToxin', 'vdTalisman', 'vdUnderstudy', 'wkDrill', 'wkOil'];
 /** The switchable automatic rules a side has: the team's own list, its optional equipment, and the Bioscryer Cuffs' automatic cleanse. */
@@ -1176,8 +1178,8 @@ function initCardsPanel() {
       return [[s, 1, L(`自己 +${n}`, `Yours +${n}`)], [s, -1, L(`自己 −${n}`, `Yours −${n}`)], [1 - s, 1, L(`${other} +${n}`, `${other} +${n}`)], [1 - s, -1, L(`${other} −${n}`, `${other} −${n}`)]]
         .map(([die, sign, lab]) => `<button data-act="initcard" data-side="${s}" data-id="${id}" data-die="${die}" data-sign="${sign}">±${n}：${esc(lab)}</button>`).join('');
     }).join('');
-    return `<div class="gambit"><h4 style="color:${tm.color}">${esc(bi(tm.name))}</h4><div class="row">${btns}${wsGuileOk(g, s) ? `<button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button>` : ''}${rvSensesOk(g, s) ? `<button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button>` : ''}${hkWritOk(g, s) ? `<button data-act="initwrit" data-side="${s}">📜 ${L('主權令狀：重擲自己的骰子', 'Writ of Claim: re-roll your die')}</button>` : ''}</div></div>`;
-  }).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && wsGuileOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && rvSensesOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && hkWritOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initwrit" data-side="${s}">📜 ${L('主權令狀：重擲自己的骰子', 'Writ of Claim: re-roll your die')}</button></div></div>`).join('');
+    return `<div class="gambit"><h4 style="color:${tm.color}">${esc(bi(tm.name))}</h4><div class="row">${btns}${wsGuileOk(g, s) ? `<button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button>` : ''}${rvSensesOk(g, s) ? `<button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button>` : ''}${hkWritOk(g, s) ? `<button data-act="initwrit" data-side="${s}">📜 ${L('主權令狀：重擲自己的骰子', 'Writ of Claim: re-roll your die')}</button>` : ''}${phTacInitOk(g, s) ? `<button data-act="inittac" data-side="${s}">🎯 ${L('戰術優勢：重擲自己的骰子（整場一次）', 'Tactical Advantage: re-roll your die (once per battle)')}</button>` : ''}</div></div>`;
+  }).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && wsGuileOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initguile" data-side="${s}">🐺 ${L('狼之狡詐：重擲自己的骰子', 'Lupine Guile: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && rvSensesOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initsenses" data-side="${s}">🐛 ${L('敏銳感官：重擲自己的骰子', 'Heightened Senses: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && hkWritOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="initwrit" data-side="${s}">📜 ${L('主權令狀：重擲自己的骰子', 'Writ of Claim: re-roll your die')}</button></div></div>`).join('') + [0, 1].filter((s) => !isAI(s) && !g.initCards[s].length && !hkWritOk(g, s) && phTacInitOk(g, s)).map((s) => `<div class="gambit"><h4 style="color:${team(g, s).color}">${esc(bi(team(g, s).name))}</h4><div class="row"><button data-act="inittac" data-side="${s}">🎯 ${L('戰術優勢：重擲自己的骰子（整場一次）', 'Tactical Advantage: re-roll your die (once per battle)')}</button></div></div>`).join('');
   return `<section class="card">
     <h2>${L(`第 ${g.tp} 回合・先攻階段`, `TP ${g.tp} · Initiative Phase`)}</h2>
     <p>${L('主動權擲骰', 'Initiative roll')}：<b style="color:${team(g, 0).color}">${g.initRoll[0]}</b> : <b style="color:${team(g, 1).color}">${g.initRoll[1]}</b>${moved ? L(`（原本 ${g.initRolled[0]} : ${g.initRolled[1]}）`, ` (rolled ${g.initRolled[0]} : ${g.initRolled[1]})`) : ''}</p>
@@ -1801,6 +1803,7 @@ function firefightPanel() {
         : L(`${nm(by)} 行動完畢，可以接著啟動它選定的一名友方（也可以略過）。`, `${nm(by)} is expended: you may activate one of the friendlies it selected next (or skip).`)}</p>`
       : `<p class="hint">${L('選擇一名「準備中」的操作員啟動（點擊棋子或下方名單）。', 'Choose a ready operative to activate (tap it on the board or below).')}</p>`;
     if (!isAI(g.turn) && spPatienceOk(g, g.turn)) html += `<button data-act="sppatience">${L('耐心：跳過這次啟動（每回合一次）', 'Patience: skip this activation (once per TP)')}</button>`;
+    if (g.teams[g.turn] === 'phobos' && ffReady(g, g.turn, 'patientAmbush')) html += `<button data-act="patientskip">${L('耐心伏擊：跳過這次啟動機會', 'Patient Ambush: skip this activation opportunity')}</button>`;
     if (g.teams[g.turn] === 'handOfArchon') html += `<button data-act="painskip">${L('惡劣傲慢：跳過啟動機會（1CP）', 'Heinous Arrogance: skip activation opportunity (1CP)')}</button>`;
     if (canForeboding(g, g.turn)) html += `<button data-act="foreboding">${L('預感：花 1 點預知點數跳過這次啟動（每回合一次）', 'Foreboding: spend 1 Prescience point to skip this activation (once per TP)')}</button>`;
     if (!g.animating && !isAI(g.turn) && TEAM_MAP[g.teams[g.turn]]?.obeliskNodes && ffReady(g, g.turn, 'animateNodes')) html += `<button data-act="animate">${L('驅動方尖碑節點（跳過這次啟動）', 'Animate Obelisk Nodes (instead of activating)')}</button>`;
@@ -1858,6 +1861,10 @@ function firefightPanel() {
         const p = ffDef(g, op.side, b.id);
         return `<button data-act="ffuse" data-id="${b.id}" ${b.ok ? '' : 'disabled'} title="${esc(tx(p.desc))}${b.why ? ` — ${esc(tx(b.why))}` : ''}">${esc(tx(p.name))} <span class="cp">${b.cp}CP</span></button>`;
       }).join('')}</div></div>`;
+    }
+    if (g.phCommsOpen === op.side) { // Comms Array (Phobos): swap a strategy ploy used this turning point for another, free
+      const used = g.ploys[op.side].filter((id) => team(g, op.side).ploys.some((p) => p.id === id));
+      html += `<div class="ffploys"><h4>${L('通訊陣列', 'Comms Array')}</h4><div class="row"><select id="phCommsOld">${used.map((id) => `<option value="${id}">${L('改掉：', 'Change: ')}${esc(tx(team(g, op.side).ploys.find((p) => p.id === id).name))}</option>`).join('')}</select><select id="phCommsNew">${team(g, op.side).ploys.filter((p) => !used.includes(p.id)).map((p) => `<option value="${p.id}">${esc(tx(p.name))}</option>`).join('')}</select><button data-act="phcomms">${L('確定', 'Confirm')}</button></div></div>`;
     }
     if (g.nodalOpen === op.side) {
       const used = g.ploys[op.side].filter((id) => team(g, op.side).ploys.some((p) => p.id === id));
@@ -2415,6 +2422,9 @@ const ABILITIES = {
   panScan: () => ['全光譜掃描', 'Pan Spectral Scan', '1AP：在可見敵人處放標記，射擊它 3" 內的敵人時「精準 1」＋「飽和」，直到它下次啟動。', '1AP: a marker by a visible enemy — shooting enemies within 3" of it: Accurate 1 + Saturate, until its next activation.'],
   wellSupplied: () => ['補給充足', 'Well Supplied', '可多選一項裝備，第 1 回合多得 1CP。', 'One more equipment option, and +1CP in the first turning point.'],
   utilityGrenade: () => ['瓦爾-3 多功能手雷', 'Vâyr-3 Utility Grenade', '1AP：在 6" 內一名可見特工處放標記，3" 內撿起標記與任務動作 +1AP；本回合有效，下回合再撐 D3 次啟動。', '1AP: a marker by a visible operative within 6"; Pick Up Marker and mission actions within 3" cost +1AP — this turning point, then D3 more activations.'],
+  tacticalAdv: () => ['戰術優勢', 'Tactical Advantage', '整場各一次：先攻擲骰後重擲自己的骰子；以它為指定特工的交戰計謀 0CP（或它待命且沒被纏住時，耐心伏擊 0CP）。', 'Once per battle each: re-roll your initiative die; a firefight ploy for 0CP when it is the specified operative (or Patient Ambush for 0CP while it is ready and free).'],
+  commsArray: () => ['通訊陣列', 'Comms Array', '每回合一次：友方啟動中，可免費把本回合用過的一張策略計謀換成另一張。', 'Once per turning point, during a friendly activation: swap a strategy ploy used this turning point for another, free.'],
+  phTrack: () => ['追蹤目標', 'Track Target', '任何地圖都能執行「警戒」，隱蔽指令也可以（攻擊時改為交戰指令）。', 'Can Guard in any killzone, even with a Conceal order (it goes Engage when it attacks).'],
   breachwall: () => ['破牆', 'Breachwall', '交戰指令且擋在中間時，底座碰到它的那名友方不能被選為目標（碰到它的友方超過一名時無效）。', 'With an Engage order and intervening, the friendly whose base touches it can\'t be selected as a valid target (no effect if more than one other friendly touches it).'],
   breachPoint: () => ['破口', 'Breach Point', '1AP：在控制範圍內的地形上放破口標記；1" 內厚度 1" 以下的部分可以穿過。', '1AP: a Breach marker on terrain in control range; parts no more than 1" thick within 1" of it can be passed through.'],
   weldShut: () => ['焊死', 'Weld Shut', '1AP：焊死 1" 內一扇關著的艙門，其他人開門要多花 1AP（墓穴世界地圖）。', '1AP: weld a closed hatchway within 1" shut; others pay 1 more AP to open it (Tomb World maps).'],
@@ -3311,6 +3321,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'hearthkyn' && hearthkynRosterError(TEAM_MAP.hearthkyn, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'navyBreachers' && navyRosterError(TEAM_MAP.navyBreachers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'phobos' && phobosRosterError(TEAM_MAP.phobos, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       clearSave();
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)
@@ -3389,6 +3400,9 @@ function handle(act, d) {
     }
     case 'initsenses': if (!isAI(+d.side) && rvSensesOk(g, +d.side)) { rvUseSenses(g, +d.side); aiInitCards(g); } return afterChange();
     case 'initwrit': if (!isAI(+d.side) && hkWritOk(g, +d.side)) { hkUseWrit(g, +d.side); aiInitCards(g); } return afterChange(); // Writ of Claim (Hearthkyn)
+    case 'inittac': if (!isAI(+d.side) && phTacInitOk(g, +d.side)) { phTacInit(g, +d.side); aiInitCards(g); } return afterChange(); // Tactical Advantage (Phobos)
+    case 'phcomms': undoable(() => phCommsChoose(g, op.side, document.getElementById('phCommsNew').value, document.getElementById('phCommsOld').value)); return afterChange(); // Comms Array (Phobos)
+    case 'patientskip': skipArchonActivation(g, g.turn, 'patientAmbush'); return afterChange(); // Patient Ambush (Phobos)
     case 'initlock': if (g.phase === 'initiative') lockInitRoll(g); return afterChange();
     case 'initpick': if (g.phase === 'initiative' && g.initiative == null && !isAI(g.initDecider)) setInitiative(g, +d.side); return afterChange();
     case 'seeker': {

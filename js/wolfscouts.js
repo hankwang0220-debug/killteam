@@ -16,12 +16,12 @@ const onBoard = (o) => !!o && !o.dead && o.x > -50;
 
 export function wsSetup(g, roster) {
   g.ws = { storm: [null, null], used: [{}, {}], runes: [null, null], veil: [null, null], fang: [false, false] };
+  // The Haywire Mine: carried by its Trapmaster (also the Phobos Incursor Minelayer, whose mine works the same way).
+  for (const side of [0, 1]) { const trap = g.ops.find((o) => o.side === side && tpl(o).wsTrap); if (trap) (g.markers ||= []).push({ id: g.markers.length, kind: 'wsMine', owner: side, x: -99, y: -99, carriedBy: trap.uid }); }
   for (const side of [0, 1]) if (g.teams[side] === 'wolfScouts') {
     const error = wolfRosterError(WOLF_TEAM, roster[side]);
     if (error) throw new Error(error.en);
     g.ws.fang[side] = g.ops.some((o) => o.side === side && tpl(o).wsFang); // Spiritual Chirurgy: selected for the battle
-    const trap = g.ops.find((o) => o.side === side && tpl(o).wsTrap);
-    if (trap) (g.markers ||= []).push({ id: g.markers.length, kind: 'wsMine', owner: side, x: -99, y: -99, carriedBy: trap.uid });
     // Cast the Runes: three D6 before the battle — a 1-4 is a free Command Re-roll in that turning point, any 5-6 is 1CP.
     if (g.ops.some((o) => o.side === side && tpl(o).wsSkjald)) {
       const r = [d6(), d6(), d6()];
@@ -215,6 +215,8 @@ function guardOk(g, op) {
 
 // ---------- actions ----------
 export function wsActions(g, op, add) {
+  const carried = op.side < 2 && (g.markers || []).find((m) => m.kind === 'wsMine' && m.carriedBy === op.uid);
+  if (carried && !isWS(op)) { add('wsPlaceMine', !op.acted.wsPlaceMine && !mineBlocked(g, op, op), { zh: '不能放在其他特工的控制範圍內', en: 'Not within another operative\'s control range' }); return; } // (Phobos Minelayer)
   if (!isWS(op) || op.side > 1) return;
   const eng = isEngaged(g, op), ENG = { zh: '處於交戰中', en: 'Engaged' }, NONE = { zh: '沒有可選的目標', en: 'No valid target' }, DONE = { zh: '已做過', en: 'Already done' };
   if (tpl(op).wsFang) add('wsBalm', !eng && g.ws.used[op.side].balm !== g.tp && TARGET_ACTIONS.wsBalm.targets(g, op).length > 0, eng ? ENG : g.ws.used[op.side].balm === g.tp ? { zh: '本回合已用過', en: 'Already used this TP' } : NONE);
@@ -231,7 +233,7 @@ export function wsActions(g, op, add) {
 /** The Haywire Mine can't be placed within another operative's control range. */
 function mineBlocked(g, op, p) { return g.ops.some((o) => o !== op && !o.dead && o.x > -50 && dist(o, p) - radius(o) <= CONTROL); }
 export function wsSelf(g, op, id) {
-  if (!isWS(op)) return false;
+  if (!isWS(op) && id !== 'wsPlaceMine') return false;
   if (id === 'wsSensesSev' || id === 'wsSensesSat') {
     spend(g, op, id); op.acted.wsSenses = 1;
     op.wsSenses = id === 'wsSensesSev' ? 'severe' : 'saturate';

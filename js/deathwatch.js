@@ -157,11 +157,12 @@ export function dwAfterAction(g, actor) {
   if (g.dwInterrupt || actor.counter || g.phase !== 'firefight' || actor.acted.dwGuardInterrupted) return;
   g.dwInterrupt = true;
   try {
-    const guard = living(g).find((o) => o.side !== actor.side && o.dwGuard && !dwBlocked(g, o) && (isEngaged(g, o) && edgeDist(o, actor) <= 1 || weaponsFor(g, o).some((w) => w.type === 'ranged' && shootCheck(g, { ...o, ap: 1, acted: {} }, actor, w).ok)));
+    const guard = living(g).find((o) => o.side !== actor.side && o.dwGuard && !dwBlocked(g, o) && (isEngaged(g, o) && edgeDist(o, actor) <= 1 || weaponsFor(g, o).some((w) => w.type === 'ranged' && shootCheck(g, { ...o, ap: 1, acted: {}, order: tpl(o).phTrack ? 'engage' : o.order }, actor, w).ok)));
     if (!guard || actor.dead) return;
     actor.acted.dwGuardInterrupted = true;
     guard.dwGuard = false;
     const keep = { acted: guard.acted, ap: guard.ap, active: g.active, fight: g.fight, ffAtk: g.ffAtk, ffPending: g.ffPending };
+    if (tpl(guard).phTrack) guard.order = 'engage'; // (Track Target, Phobos Incursor Marksman: a Concealed guard goes Engage to attack)
     guard.acted = { free: { shoot: 'any', fight: 'any' } }; guard.ap = 1; g.active = guard.uid; g.ffPending = null;
     log(g, B(`${opName(guard, 'zh')} 警戒攻擊`, `${opName(guard, 'en')} guard attack`), `side${guard.side}`);
     try {

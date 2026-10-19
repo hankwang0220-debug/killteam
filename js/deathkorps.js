@@ -211,7 +211,7 @@ export function dkMine(g, side) {
   return m || null;
 }
 export function dkActions(g, op, add) {
-  if (!isDK(op) || !tpl(op).dkSapper) return;
+  if (!tpl(op).dkSapper) return; // (also the Phobos Infiltrator Saboteur: Plant Explosives and the remote detonator work the same way)
   const mine = dkMine(g, op.side);
   const eng = isEngaged(g, op), ENG = { zh: '處於交戰中', en: 'Engaged' };
   add('dkPlaceMine', !eng && !!mine && mine.carriedBy === op.uid, eng ? ENG : { zh: '沒有攜帶地雷標記', en: 'It isn\'t carrying the Mine marker' });

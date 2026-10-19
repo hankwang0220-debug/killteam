@@ -357,6 +357,14 @@ const fistsPh = W('fistsPh', '徒手格鬥', 'Fists', 'melee', 4, 3, 3, 4);
 const stalkerCarbine = W('stalkerCarbine', '潛獵神射手爆彈卡賓槍', 'Stalker marksman bolt carbine', 'ranged', 4, 2, 3, 4, { lethal: 5, piercing: 1 });
 const siBoltPistol = W('siBoltPistol', '特製爆彈手槍', 'Special issue bolt pistol', 'ranged', 4, 3, 3, 4, { range: 8, piercing: 1 });
 const combatKnife = W('combatKnife', '戰鬥匕首', 'Combat knife', 'melee', 5, 3, 4, 5);
+const occulusCarbine = W('occulusCarbine', '眼目爆彈卡賓槍', 'Occulus bolt carbine', 'ranged', 4, 3, 3, 4, { saturate: true });
+const boltCarbinePh = W('boltCarbinePh', '爆彈卡賓槍', 'Bolt carbine', 'ranged', 4, 3, 3, 4, { accurate: 1 });
+// Custom (Infiltrator Veteran): two weapon rules picked at set-up — each pair is a loadout.
+const PH_CUSTOM_RULES = { balanced: [{ balanced: true }, '平衡', 'Balanced'], lethal: [{ lethal: 5 }, '致命 5+', 'Lethal 5+'], pcrits: [{ piercingCrits: 1 }, '暴擊穿甲 1', 'Piercing Crits 1'], rending: [{ rending: true }, '撕裂', 'Rending'], saturate: [{ saturate: true }, '飽和', 'Saturate'] };
+const PH_CUSTOM_LOADOUTS = Object.fromEntries(Object.keys(PH_CUSTOM_RULES).flatMap((a, i, all) => all.slice(i + 1).map((b) => [`${a}+${b}`, [
+  W('customCarbine', `自訂爆彈卡賓槍（${PH_CUSTOM_RULES[a][1]}、${PH_CUSTOM_RULES[b][1]}）`, `Custom bolt carbine (${PH_CUSTOM_RULES[a][2]}, ${PH_CUSTOM_RULES[b][2]})`, 'ranged', 4, 3, 3, 4, { ...PH_CUSTOM_RULES[a][0], ...PH_CUSTOM_RULES[b][0] }), fistsPh]])));
+const PH_REIVER_LOADOUTS = { pistol: [siBoltPistol, combatKnife], carbine: [boltCarbinePh, fistsPh] };
+const PH_PICKS = ['commsman', 'helix', 'phSaboteur', 'phVeteran', 'voxbreaker', 'phInfWarrior', 'marksman', 'phMinelayer', 'phIncWarrior', 'reiver'];
 
 // ---- Warpcoven ----
 // Twist of Fate (Boon of Tzeentch, Sorcerer of Destiny): its PSYCHIC ranged weapons have Piercing Crits 1.
@@ -1306,13 +1314,22 @@ export const TEAMS = [
       { id: 'deadlyShots', cp: 1, name: { zh: '致命射擊', en: 'Deadly Shots' },
         desc: { zh: '本回合友方射擊時，若本次啟動沒有衝鋒／撤退／轉移，或目標不在掩體中且在 6" 外，遠程武器「平衡」。', en: 'This TP, friendly ranged weapons have Balanced when the shooter hasn\'t Charged, Fallen Back or Repositioned this activation, or the target isn\'t in cover and is more than 6" away.' } },
     ],
+    // A Sergeant (Infiltrator, Incursor or Reiver) plus five picks: each once, except Warriors.
+    replacements: { sgt: ['sgt', 'phIncSgt', 'phReiverSgt'], ...Object.fromEntries(['commsman', 'helix', 'voxbreaker', 'marksman', 'reiver'].map((id) => [id, PH_PICKS])) },
     ops: [
-      op('sgt', '滲透者士官', 'Infiltrator Sergeant', { apl: 3, move: 7, save: 3, wounds: 13, base: 32, infiltrator: true }, [marksmanCarbine, fistsPh]),
-      op('commsman', '滲透者通訊兵', 'Infiltrator Commsman', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, oversight: true }, [marksmanCarbine, fistsPh]),
+      op('sgt', '滲透者士官', 'Infiltrator Sergeant', { apl: 3, move: 7, save: 3, wounds: 13, base: 32, infiltrator: true, tacticalAdv: true }, [marksmanCarbine, fistsPh]),
+      op('phIncSgt', '突襲者士官', 'Incursor Sergeant', { apl: 3, move: 7, save: 3, wounds: 13, base: 32, incursor: true, tacticalAdv: true }, [occulusCarbine, fistsPh], 0),
+      op('phReiverSgt', '掠奪者士官', 'Reiver Sergeant', { apl: 3, move: 7, save: 3, wounds: 13, base: 32, grapple: true, tacticalAdv: true, loadouts: PH_REIVER_LOADOUTS }, [siBoltPistol, combatKnife], 0),
+      op('commsman', '滲透者通訊兵', 'Infiltrator Commsman', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, oversight: true, commsArray: true }, [marksmanCarbine, fistsPh]),
+      op('phSaboteur', '滲透者破壞兵', 'Infiltrator Saboteur', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, dkSapper: true }, [marksmanCarbine, remoteDetonator, fistsPh], 0),
+      op('phVeteran', '滲透者老兵', 'Infiltrator Veteran', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, loadouts: PH_CUSTOM_LOADOUTS }, PH_CUSTOM_LOADOUTS['balanced+lethal'], 0),
+      op('phInfWarrior', '滲透者戰士', 'Infiltrator Warrior', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, vanguard: true, phWarrior: true }, [marksmanCarbine, fistsPh], 0),
+      op('phMinelayer', '突襲者佈雷兵', 'Incursor Minelayer', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, incursor: true, wsTrap: true }, [occulusCarbine, fistsPh], 0),
+      op('phIncWarrior', '突襲者戰士', 'Incursor Warrior', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, incursor: true, vanguard: true, phWarrior: true }, [occulusCarbine, fistsPh], 0),
       op('helix', '滲透者螺旋修士', 'Infiltrator Helix Adept', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, medic: true, medicD3: true, helix: true }, [marksmanCarbine, fistsPh]),
       op('voxbreaker', '滲透者干擾兵', 'Infiltrator Voxbreaker', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, infiltrator: true, voxbreak: true, auspex: true }, [marksmanCarbine, fistsPh]),
-      op('marksman', '突襲者神射手', 'Incursor Marksman', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, incursor: true }, [stalkerCarbine, fistsPh]),
-      op('reiver', '掠奪者戰士', 'Reiver Warrior', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, terror: true, vanguard: true }, [siBoltPistol, combatKnife]),
+      op('marksman', '突襲者神射手', 'Incursor Marksman', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, incursor: true, phTrack: true }, [stalkerCarbine, fistsPh]),
+      op('reiver', '掠奪者戰士', 'Reiver Warrior', { apl: 3, move: 7, save: 3, wounds: 12, base: 32, terror: true, vanguard: true, grapple: true, phWarrior: true, loadouts: PH_REIVER_LOADOUTS }, [siBoltPistol, combatKnife]),
     ],
   },
   {
@@ -2580,6 +2597,9 @@ const FIREFIGHT = {
   phobos: [
     ff('criticalShot', '致命一擊', 'Critical Shot', '用爆彈武器射擊：有暴擊命中時，多造成 D3 傷害（每次行動一次）。', 'Shooting a bolt weapon: a critical hit inflicts D3 more damage (once per action).'),
     ff('transhuman', '超人生理', 'Transhuman Physiology', '自動：被射擊時，一顆普通豁免當成暴擊豁免（能多擋暴擊時才用）。', 'Auto: when shot, one normal save is retained as a critical one (used when it blocks a crit).'),
+    ff('patientAmbush', '耐心伏擊', 'Patient Ambush', '輪到己方啟動特工時：跳過這次啟動機會（啟動選單上的按鈕）。', 'When it\'s your turn to activate an operative: skip that activation (a button when you pick an operative).'),
+    // Stealth Assault needs a Concealed operative to Charge, which the house rules here don't allow (concealed operatives can't Charge).
+    ff('stealthAssault', '潛行突擊', 'Stealth Assault', '依本模擬器的房規，隱蔽指令的特工不能衝鋒，所以這張計謀目前無法使用。', 'With this simulator\'s house rule that Concealed operatives can\'t Charge, this ploy can\'t be used at the moment.'),
   ],
   plagueMarines: [
     ff('sickeningResilience', '令人作嘔的堅韌', 'Sickening Resilience', '自動：受到重傷時，本次行動中「令人作嘔的韌性」不用擲骰，3 以上的傷害一律 -1（最低 2）。', 'Auto: when badly hit, for the rest of the activation Disgustingly Resilient takes 1 off every 3+ damage (min 2) without rolling.'),
