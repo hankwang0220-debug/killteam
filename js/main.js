@@ -19,6 +19,7 @@ import { vespidsRosterError, VS_COMMUNE_PLOYS } from './data/vespids.js';
 import { stealthRosterError } from './data/stealthsuits.js';
 import { wolfRosterError } from './data/wolfscouts.js';
 import { hearthkynRosterError } from './data/hearthkyn.js';
+import { navyRosterError } from './data/navy.js';
 import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
@@ -605,6 +606,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'sanctifiers') { const error = sanctifiersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wolfScouts') { const error = wolfRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'hearthkyn') { const error = hearthkynRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'navyBreachers') { const error = navyRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'voidDancers') { const error = voidDancersRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -775,7 +777,7 @@ function roster(t, side) {
     selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
   }
   // Teams with a choice of operatives: show who is actually taking the field (each pick once per copy), and their weapons.
-  if (t.replacements && t.id !== 'deathwatch' && !t.packages && t.id !== 'mandrakes' && t.id !== 'murderwing') {
+  if (t.replacements && t.id !== 'deathwatch' && (!t.packages || t.id === 'navyBreachers') && t.id !== 'mandrakes' && t.id !== 'murderwing') {
     const cur = ui.setup.roster?.[side] || {}, counts = new Map();
     for (const slot of t.ops.filter((o) => o.count)) {
       const pick = cur[slot.id];
@@ -784,6 +786,8 @@ function roster(t, side) {
         counts.set(id, (counts.get(id) || 0) + 1);
       }
     }
+    // Package picks (Navy Breachers' machines) add their operatives too.
+    for (const [pid, pk] of Object.entries(t.packages || {})) for (const id of (pk.options[cur[pid]] || Object.values(pk.options)[0]).ops) counts.set(id, (counts.get(id) || 0) + 1);
     selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
   }
   const loadouts = ui.setup.loadouts?.[side] || {};
@@ -1147,7 +1151,7 @@ function initCardsLine() {
 }
 /** Before the result stands: human players may use initiative cards (Re-roll, ±1, ±2, ±3). */
 /** Faction equipment that's used automatically when the rules say "you can" (players switch each on): equipment id = switch id. */
-const OPTIONAL_EQUIP = ['adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
+const OPTIONAL_EQUIP = ['nbSlugs', 'adSeals', 'adAuspex', 'adTilting', 'aqAugury', 'ccPhase', 'ccManip', 'dkBeads', 'dwDigital', 'toxinCoating', 'refinedPoison', 'mistfield', 'starCharts',
   'kfMeat', 'kfTrophy', 'kfPiercing', 'kfToxin', 'mdGlyph', 'mwFuel', 'mwBladefins', 'pfTao', 'pfHiml', 'rtRations', 'rtLucky', 'sfSymbols', 'sfSeals', 'scOculars', 'spTvid',
   'vsConvergence', 'vdToxin', 'vdTalisman', 'vdUnderstudy', 'wkDrill', 'wkOil'];
 /** The switchable automatic rules a side has: the team's own list, its optional equipment, and the Bioscryer Cuffs' automatic cleanse. */
@@ -2411,6 +2415,10 @@ const ABILITIES = {
   panScan: () => ['全光譜掃描', 'Pan Spectral Scan', '1AP：在可見敵人處放標記，射擊它 3" 內的敵人時「精準 1」＋「飽和」，直到它下次啟動。', '1AP: a marker by a visible enemy — shooting enemies within 3" of it: Accurate 1 + Saturate, until its next activation.'],
   wellSupplied: () => ['補給充足', 'Well Supplied', '可多選一項裝備，第 1 回合多得 1CP。', 'One more equipment option, and +1CP in the first turning point.'],
   utilityGrenade: () => ['瓦爾-3 多功能手雷', 'Vâyr-3 Utility Grenade', '1AP：在 6" 內一名可見特工處放標記，3" 內撿起標記與任務動作 +1AP；本回合有效，下回合再撐 D3 次啟動。', '1AP: a marker by a visible operative within 6"; Pick Up Marker and mission actions within 3" cost +1AP — this turning point, then D3 more activations.'],
+  breachwall: () => ['破牆', 'Breachwall', '交戰指令且擋在中間時，底座碰到它的那名友方不能被選為目標（碰到它的友方超過一名時無效）。', 'With an Engage order and intervening, the friendly whose base touches it can\'t be selected as a valid target (no effect if more than one other friendly touches it).'],
+  breachPoint: () => ['破口', 'Breach Point', '1AP：在控制範圍內的地形上放破口標記；1" 內厚度 1" 以下的部分可以穿過。', '1AP: a Breach marker on terrain in control range; parts no more than 1" thick within 1" of it can be passed through.'],
+  weldShut: () => ['焊死', 'Weld Shut', '1AP：焊死 1" 內一扇關著的艙門，其他人開門要多花 1AP（墓穴世界地圖）。', '1AP: weld a closed hatchway within 1" shut; others pay 1 more AP to open it (Tomb World maps).'],
+  remoteControl: () => ['遠端操控', 'Remote Control', '1AP：C.A.T. 偵察車立刻免費執行一個動作（移動不超過 3"）。', '1AP: the C.A.T. Unit performs one free action now (moving no more than 3").'],
   secureSalvage: () => ['確保物資', 'Secure Salvage', '爭奪目標點或己方任務標記時，每次被攻擊有一顆成功的傷害 -1。', 'While it contests an objective or one of your mission markers, one success in each attack against it deals 1 less damage.'],
   gotIt: () => ['交給我', 'I\'ve Got It', '每次啟動一次，任務動作少 1AP。', 'Once per activation, a mission action costs 1 less AP.'],
   watchmaster: () => ['看守長', 'Watchmaster', '策略階段下達衛兵命令（6" 內友方），並可「集火摧毀！」：選一名敵人，本回合攻擊它時武器獲得「懲罰」。', 'Issues Guardsman Orders (friendlies within 6") in the Strategy phase, and Bring it Down!: pick an enemy — Punishing against it this TP.'],
@@ -3302,6 +3310,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathKorps' && deathKorpsRosterError(TEAM_MAP.deathKorps, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'deathwatch' && deathwatchRosterError(TEAM_MAP.deathwatch, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'hearthkyn' && hearthkynRosterError(TEAM_MAP.hearthkyn, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'navyBreachers' && navyRosterError(TEAM_MAP.navyBreachers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       clearSave();
       resetRecorder();
       g = newGame({ vsCommune: ui.setup.vsCommune || [], roster: ui.setup.roster || [], loadouts: ui.setup.loadouts || [], teams: [...ui.setup.teams], ai: ui.setup.ai, mission: ui.setup.mission, map: ui.setup.map, equip: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.equip?.[s] || [])), tacOps: [0, 1].map((s) => (tacOpsFor(ui.setup.teams[s]).includes(ui.setup.tacOps?.[s]) ? ui.setup.tacOps[s] : s === 1 && ui.setup.ai === 1 ? null : tacOpsFor(ui.setup.teams[s])[0])), tactics: [0, 1].map((s) => (TEAM_MAP[ui.setup.teams[s]].tactics ? setupTactics(s) : null)), scouting: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.scouting?.[s])), ratFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.ratFree?.[s])), dkFree: [0, 1].map((s) => (s === 1 && ui.setup.ai === 1 ? undefined : ui.setup.dkFree?.[s])) }); // (Scout Squad: Forward Scouting; the computer takes its usual six)

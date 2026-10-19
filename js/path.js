@@ -47,7 +47,8 @@ export function moveCtx(g, op, kind = 'reposition') {
   const cover = g.terrain.filter((t) => t.kind === 'heavy' || t.kind === 'light');
   const hardWalls = cover.filter(t => t.twWall);
   const access = accessPointsOf(g).filter(d=>d.state === 'open');
-  const crossingCost = (pts) => accessCrossingCost(pts, access);
+  // (Deck Hand, Navy Breachers: one Accessible terrain feature doesn't count as the extra 1".)
+  const crossingCost = (pts) => Math.max(0, accessCrossingCost(pts, access) - (op.acted?.nbDeck ? 1 : 0));
   const crossingEdgeCost = (a,b) => accessEdgeCost([a,b], access);
   // Accessible openings allow the base's centre to pass; a wider base may clip
   // adjacent wall wings in transit, but must still finish clear of all terrain.

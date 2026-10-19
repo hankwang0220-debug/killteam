@@ -342,6 +342,12 @@ const fragNB = W('fragNB', '破片手雷', 'Frag grenade', 'ranged', 4, 3, 2, 4,
 const krakNB = W('krakNB', '穿甲手雷', 'Krak grenade', 'ranged', 4, 3, 4, 5, { range: 6, piercing: 1, saturate: true });
 // Detonate: the friendly Gheistskull is always the primary target (no cover, not obscured).
 const detonator = W('detonator', '鬼骷髏引爆器', 'Gheistskull detonator', 'ranged', 4, 3, 3, 4, { blast: 1, lethal: 4, limited: 1, silent: true, stun: true, detonate: true });
+// Sergeant-at-Arms and Gunner options.
+const boltPistolNB = W('boltPistolNB', '爆彈手槍', 'Bolt pistol', 'ranged', 4, 4, 3, 4, { range: 8 });
+const chainswordNB = W('chainswordNB', '鏈鋸劍', 'Chainsword', 'melee', 4, 3, 4, 5);
+const plasmaStdNB = W('plasmaStdNB', '電漿槍（標準）', 'Plasma gun (standard)', 'ranged', 4, 4, 4, 6, { piercing: 1 }, 'plasmaNB');
+const plasmaSuperNB = W('plasmaSuperNB', '電漿槍（超載）', 'Plasma gun (supercharge)', 'ranged', 4, 4, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'plasmaNB');
+const NB_PICKS = ['armsman', 'axejack', 'endurant', 'grenadier', 'gunnerVolley', 'gunnerMelta', 'gunnerPlasma', 'hatchcutter', 'surveyor', 'voidJammer'];
 // Machines carry no weapons; this stands in so they can be fought (they never retaliate).
 const noWeapon = W('noWeapon', '（無武器）', '(no weapon)', 'melee', 0, 6, 0, 0);
 
@@ -1233,18 +1239,34 @@ export const TEAMS = [
       { id: 'braceCounter', cp: 1, name: { zh: '準備反擊', en: 'Brace for Counterattack' },
         desc: { zh: '本回合友方在我方領域內、或本回合沒有衝鋒／撤退／轉移時，受到 3 以上的傷害 -1。', en: 'This TP, a friendly in your territory, or that hasn\'t Charged, Fallen Back or Repositioned this TP, takes 1 less from Dmg of 3 or more.' } },
     ],
+    // The Sergeant plus ten selections: each once except Armsmen, up to two Gunners. The C.A.T. Unit (needs the Surveyor) and the
+    // Gheistskull (needs the Void-jammer) are half a selection each — together one selection, the machines package below.
+    replacements: Object.fromEntries(['axejack', 'endurant', 'grenadier', 'gunnerVolley', 'gunnerMelta', 'hatchcutter', 'surveyor', 'voidJammer', 'armsman'].map((id) => [id, NB_PICKS])),
+    packages: {
+      machines: {
+        name: { zh: '機械名額（C.A.T. 與鬼骷髏各算半個名額）', en: 'Machines (the C.A.T. Unit and Gheistskull are half a selection each)' },
+        options: {
+          both: { name: { zh: 'C.A.T. 偵察車＋鬼骷髏', en: 'C.A.T. Unit + Gheistskull' }, ops: ['cat', 'gheistskull'] },
+          cat: { name: { zh: '只帶 C.A.T. 偵察車', en: 'C.A.T. Unit only' }, ops: ['cat'] },
+          gheist: { name: { zh: '只帶鬼骷髏', en: 'Gheistskull only' }, ops: ['gheistskull'] },
+          armsman: { name: { zh: '改帶一名水兵', en: 'An Armsman instead' }, ops: ['armsman'] },
+        },
+      },
+    },
     ops: [
-      op('sgt', '士官長', 'Sergeant-at-Arms', { apl: 2, move: 6, save: 4, wounds: 9, base: 25, commandBreach: true }, [heirloomPistol, powerWeaponNB]),
+      op('sgt', '士官長', 'Sergeant-at-Arms', { apl: 2, move: 6, save: 4, wounds: 9, base: 25, commandBreach: true,
+        loadouts: { 'heirloom+power': [heirloomPistol, powerWeaponNB], 'heirloom+chain': [heirloomPistol, chainswordNB], 'pistol+power': [boltPistolNB, powerWeaponNB], 'pistol+chain': [boltPistolNB, chainswordNB], shotgun: [shotgunClose, shotgunLong, hatchet] } }, [heirloomPistol, powerWeaponNB]),
       op('axejack', '斧手', 'Axejack', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, emboldened: true }, [autopistolNB, powerWeaponNB]),
-      op('endurant', '重盾兵', 'Endurant', { apl: 2, move: 4, save: 2, wounds: 11, base: 28, disengage: true }, [heavyShotgunClose, heavyShotgunLong, shieldBash]),
+      op('endurant', '重盾兵', 'Endurant', { apl: 2, move: 4, save: 2, wounds: 11, base: 28, disengage: true, breachwall: true }, [heavyShotgunClose, heavyShotgunLong, shieldBash]),
       op('grenadier', '擲彈兵', 'Grenadier', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, voidGrenadier: true }, [demoCharge, fragNB, krakNB, shotgunClose, shotgunLong, hatchet]),
       op('gunnerVolley', '槍手（雷射齊射）', 'Gunner (las-volley)', { apl: 2, move: 6, save: 4, wounds: 9, base: 28 }, [lasVolleyFocused, lasVolleySweeping, gunButtNB]),
       op('gunnerMelta', '槍手（熱熔）', 'Gunner (meltagun)', { apl: 2, move: 6, save: 4, wounds: 9, base: 28 }, [meltagunNB, gunButtNB]),
-      op('hatchcutter', '切割手', 'Hatchcutter', { apl: 2, move: 6, save: 4, wounds: 8, base: 25 }, [autopistolNB, chainfist]),
-      op('surveyor', '勘測員', 'Surveyor', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, surveyor: true, support: 'wayfind' }, [shotgunClose, shotgunLong, hatchet]),
-      op('cat', 'C.A.T. 偵察車', 'C.A.T. Unit', { apl: 2, move: 8, save: 5, wounds: 5, base: 25, catUnit: true, machine: true, expendable: true, small: true, noRetaliate: true, support: 'spot', actionsOnly: ['charge', 'dash', 'fallBack', 'reposition', 'spot'] }, [noWeapon]),
+      op('gunnerPlasma', '槍手（電漿）', 'Gunner (plasma gun)', { apl: 2, move: 6, save: 4, wounds: 9, base: 28 }, [plasmaStdNB, plasmaSuperNB, gunButtNB], 0),
+      op('hatchcutter', '切割手', 'Hatchcutter', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, breachPoint: true, weldShut: true }, [autopistolNB, chainfist]),
+      op('surveyor', '勘測員', 'Surveyor', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, surveyor: true, remoteControl: true, support: 'wayfind' }, [shotgunClose, shotgunLong, hatchet]),
+      op('cat', 'C.A.T. 偵察車', 'C.A.T. Unit', { apl: 2, move: 8, save: 5, wounds: 5, base: 25, catUnit: true, machine: true, expendable: true, small: true, noRetaliate: true, support: 'spot', actionsOnly: ['charge', 'dash', 'fallBack', 'reposition', 'spot'] }, [noWeapon], 0), // (with the Gheistskull: the machines package)
       op('voidJammer', '虛空干擾員', 'Void-jammer', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, pulse: true }, [detonator, shotgunClose, shotgunLong, hatchet]),
-      op('gheistskull', '鬼骷髏', 'Gheistskull', { apl: 2, move: 8, save: 5, wounds: 5, base: 25, gheistskull: true, machine: true, expendable: true, small: true, noRetaliate: true, boost: true, actionsOnly: ['boost', 'charge', 'dash', 'fallBack', 'reposition'] }, [noWeapon]),
+      op('gheistskull', '鬼骷髏', 'Gheistskull', { apl: 2, move: 8, save: 5, wounds: 5, base: 25, gheistskull: true, machine: true, expendable: true, small: true, noRetaliate: true, boost: true, actionsOnly: ['boost', 'charge', 'dash', 'fallBack', 'reposition'] }, [noWeapon], 0),
       op('armsman', '水兵', 'Armsman', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, groupAct: 'armsman' }, [shotgunClose, shotgunLong, hatchet]),
     ],
   },
@@ -2540,6 +2562,8 @@ const FIREFIGHT = {
   navyBreachers: [
     ff('blitz', '閃擊', 'Blitz', '全隊本回合第一次攻擊、目標在 6" 內：「精準 1」；若也是第一個啟動的再加「重創」。', 'The team\'s first attack this TP, target within 6": Accurate 1; also Severe if it\'s the first operative activated.'),
     ff('overwhelmTarget', '壓制目標', 'Overwhelm Target', '以突破清場啟動時：本次 APL +1。', 'When activated with Breach and Clear: +1 APL.'),
+    ff('lockItDown', '鎖定陣地', 'Lock It Down', '友方啟動時：選一個目標點，直到戰鬥結束（或再用這張），這名特工爭奪它時 APL 算多 1。', 'When a friendly is activated: pick an objective marker; until the end of the battle (or the next use) it counts 1 higher APL for that marker\'s control.'),
+    ff('deckHand', '甲板老手', 'Deck Hand', '啟動中：這次啟動穿過一個可通行地形不另加 1"，並可免費「操作艙門」一次（衝鋒、撤退時也可以）。', 'During an activation: one Accessible terrain crossing doesn\'t add 1", and one free Operate Hatch (also during Charge or Fall Back).'),
   ],
   kommandos: [
     ff('justScratch', '只是擦傷', 'Just a Scratch', '自動：一顆攻擊骰對友方（炸彈史奎格與格洛特除外）造成普通傷害時，忽略那次傷害。', 'Auto: when an attack die inflicts Normal Dmg on a friendly (not a Bomb Squig or Grot), ignore that damage.'),

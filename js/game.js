@@ -12,6 +12,7 @@ import { PATHFINDERS_EQUIPMENT } from './data/pathfinders.js';
 import { ANGELS_EQUIPMENT } from './data/angels.js';
 import { GELLERPOX_EQUIPMENT } from './data/gellerpox.js';
 import { HEARTHKYN_EQUIPMENT, hearthkynRosterError } from './data/hearthkyn.js';
+import { NAVY_EQUIPMENT, navyRosterError } from './data/navy.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
@@ -125,7 +126,7 @@ export function moveStat(g, op) {
   // Injured: -2" Move, but never below 4" (unless the Move stat itself is lower).
   const base = tpl(op).move;
   if (op.acted?.pursuit) return base + (op.inspiring ? 1 : 0); // Unshakeable Pursuit (Celestian Insidiants): no Move changes, +1" if inspiring
-  let m = statPenalty(g, op) && !tpl(op).engenderedFocus && !aqStimms(g, op) && !(isArchon(op) && op.drug === 'hypex' && !contagion(g, op)) ? Math.max(Math.min(base, 4), base - 2) : base;
+  let m = statPenalty(g, op) && !tpl(op).engenderedFocus && !aqStimms(g, op) && !nbStimms(g, op) && !(isArchon(op) && op.drug === 'hypex' && !contagion(g, op)) ? Math.max(Math.min(base, 4), base - 2) : base;
   if (artOfWar(g, op, 'montka')) m += 1;
   if (op.shieldingOn) m -= 2; // Shielding (Trench Sweeper)
   if (op.rvSlow) m -= 2;
@@ -148,7 +149,7 @@ export function moveStat(g, op) {
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
 export const aplNow = (g, op) => Math.max(0, sfNullApl(g, op, matrixApl(g, op, tpl(op).nemesis && op.cardApl ? op.cardApl
-  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
+  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp || nbRebreathe(g, op) ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
     : Math.max(-1, Math.min((op.aplNext || 0) > 0 && (cursed(g, op, 'voxStatic') || ncJammed(g, op)) ? 0 : 1, op.aplNext || 0)))))) - dkGasApl(g, op));
 /** Obelisk Node Matrix (Canoptek Circle): +1 APL within it, to a maximum of 3. */
 // (Ardour, a Celestian Insidiant Benediction: +1 APL for the rest of the battle.)
@@ -264,6 +265,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   }
   gpVerminSetup(g, equip, roster); // Gellerpox: the Mutoid Vermin equipment adds four operatives
   for (const s of [0, 1]) if (teams[s] === 'hearthkyn') { const e = hearthkynRosterError(TEAM_MAP.hearthkyn, roster[s]); if (e) throw new Error(e.en); } // Hearthkyn roster limits
+  for (const s of [0, 1]) if (teams[s] === 'navyBreachers') { const e = navyRosterError(TEAM_MAP.navyBreachers, roster[s]); if (e) throw new Error(e.en); } // Navy Breachers roster limits
   dwSetup(g, roster);
   mdSetup(g, roster);
   mwSetup(g, roster, loadouts);
@@ -486,6 +488,8 @@ export function doMissionAction(g, op, id) {
   if (/^tw(Open|Close)_/.test(id) && (g.phase !== 'firefight' || g.active !== op.uid || op.dead || !availableActions(g,op).some(a=>a.id === id && a.ok))) return false;
   vsMissionSpend(g, op, id); // Communion: a point for a mission action (Vespid Stingwings)
   spend(g, op, id);
+  nbHatchUsed(g, op, id); // (Deck Hand / System Override Device used)
+  if (id.startsWith('twOpen_') && g.nbWeld?.[id.slice(7)]) delete g.nbWeld[id.slice(7)]; // Weld Shut ends when the hatchway opens
   if (tpl(op).gotIt) op.acted.gotItUsed = true;
   const msg = MISSION_ACTIONS[id].apply(g, op);
   if (msg) log(g, { zh: `${opName(op, 'zh')} ${msg.zh}`, en: `${opName(op, 'en')} ${msg.en}` }, `side${op.side}`); // (Scout)
@@ -1300,7 +1304,7 @@ export function controller(g, obj) {
     const ravaged = o.side < 2 && psyOn(g, 'ravage', 1 - o.side, o) ? 1 : 0;
     // (the Deathknell, an Icon Bearer, keeps its APL even with a Frenzy token)
     const apl = o.frenzy && !tpl(o).warGong ? 1 : tpl(o).control ?? Math.max(0, aplNow(g, o) - ((isDrone(o) && !o.xvFreeDrone) || tpl(o).machine || tpl(o).sfCherub ? 1 : 0) + (tpl(o).iconBearer || tpl(o).controlPlus || tpl(o).ncIconBearer ? 1 : 0) - ravaged); // (controlPlus: Censor, Virge of Admonition Icon Bearer)
-    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl; present[o.side] = true; if (simulacrumNear(g, o) || nightmareNear(g, o, 'creaturesNightmare')) simu[o.side] = true; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o) || grislyNear(g, o)) nuncio[o.side] = true; }
+    if (dist(o, obj) - radius(o) - OBJ_R <= CONTROL) { sum[o.side] += apl + (nbLocked(g, o, obj) ? 1 : 0); present[o.side] = true; if (simulacrumNear(g, o) || nightmareNear(g, o, 'creaturesNightmare')) simu[o.side] = true; if (shrieked(g, o)) shriek[o.side] = true; if (nuncioNear(g, o) || scrapNear(g, o) || grislyNear(g, o)) nuncio[o.side] = true; } // (+1: Lock It Down, Navy Breachers)
   }
   // Nuncio-aquila (Exaction Squad): likewise 1 lower if one is within 3" of the Proctor-exactant (cumulative).
   for (let s = 0; s < 3; s++) if (nuncio[s]) sum[s] = Math.max(0, sum[s] - 1);
@@ -1470,6 +1474,11 @@ export const ACTIONS = {
   jamToken: { ap: 1, name: { zh: '系統干擾', en: 'System Jam' } },
   panScan: { ap: 1, name: { zh: '全光譜掃描', en: 'Pan Spectral Scan' } },
   hkUtility: { ap: 1, name: { zh: '瓦爾-3 多功能手雷', en: 'Vâyr-3 Utility Grenade' } },
+  nbBreach: { ap: 1, name: { zh: '破口', en: 'Breach Point' } },
+  nbWeld: { ap: 1, name: { zh: '焊死', en: 'Weld Shut' } },
+  nbRemote: { ap: 1, name: { zh: '遠端操控', en: 'Remote Control' } },
+  nbOrderMove: { ap: 0, name: { zh: '指揮突破：移動命令標記', en: 'Command Breach: move the Order marker' } },
+  nbOrderSwap: { ap: 0, name: { zh: '指揮突破：攻擊／防禦命令互換', en: 'Command Breach: swap Attack / Defence Order' } },
   hkAppraisal: { ap: 1, name: { zh: '加速評估', en: 'Accelerated Appraisal' } },
   systemJam: { ap: 1, name: { zh: '系統干擾', en: 'System Jam' } },
   medikit: { ap: 1, name: { zh: '醫療包', en: 'Medikit' } },
@@ -1562,7 +1571,7 @@ Object.assign(ACTIONS, {
 });
 
 export function actionCost(g, op, id) {
-  if (/^tw(Open|Close)_/.test(id)) return 1;
+  if (/^tw(Open|Close)_/.test(id)) return Math.max(0, 1 + nbWeldExtra(g, op, id) - nbHatchDiscount(g, op, id)); // (Weld Shut, System Override Device, Deck Hand: Navy Breachers)
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
   if (kfGatherFree(op, id)) return 0; // Gather (Kroot Hound): a free Pick Up Marker
@@ -1878,6 +1887,23 @@ export const TARGET_ACTIONS = {
     apply(g, op, t) {
       (g.hkUtil ||= [null, null])[op.side] = { x: t.x, y: t.y, tp: g.tp, left: null };
       return { zh: `多功能手雷：標記放在 ${opName(t, 'zh')} 處（3" 內撿起標記與任務動作 +1AP）`, en: `Utility Grenade: marker by ${opName(t, 'en')} (Pick Up Marker and mission actions within 3" cost +1AP)` };
+    },
+  },
+  // Remote Control (Navy Breacher Surveyor): the C.A.T. Unit performs one free action, moving no more than 3"; then the activation continues.
+  nbRemote: {
+    targets: (g, op) => living(g, op.side).filter((t) => tpl(t).catUnit && t.x > -50),
+    apply(g, op, t) {
+      g.netcounter = { side: op.side, only: [t.uid], resume: op.uid, resumeCounter: !!g.counter, kind: 'control', onlyActions: ['charge', 'dash', 'fallBack', 'reposition', 'spot'], ctlMove: 3 };
+      g.active = null; g.counter = true; g.turn = op.side;
+      return { zh: `遠端操控：${opName(t, 'zh')} 立刻免費執行一個動作（移動不超過 3"）`, en: `Remote Control: ${opName(t, 'en')} performs a free action now (moving no more than 3")` };
+    },
+  },
+  // Command Breach (Sergeant-at-Arms): once per activation, move the Attack / Defence Order marker (here: to where an operative stands).
+  nbOrderMove: {
+    targets: (g, op) => g.ops.filter((t) => !t.dead && t.side < 2 && t.x > -50),
+    apply(g, op, t) {
+      const m = g.navyOrder[op.side]; m.x = t.x; m.y = t.y; op.acted.nbCmd = true;
+      return { zh: `指揮突破：命令標記移到 ${opName(t, 'zh')} 處`, en: `Command Breach: the Order marker moves to ${opName(t, 'en')}` };
     },
   },
   // Accelerated Appraisal (Hearthkyn Kognitâar): move the Tactician marker — the Attack marker by an enemy, or the Defence marker by a friendly.
@@ -2394,6 +2420,14 @@ export function availableActions(g, op) {
   if (tpl(op).jamToken) unique('jamToken');
   if (tpl(op).panScan) unique('panScan');
   if (tpl(op).utilityGrenade) unique('hkUtility'); // Hearthkyn Grenadier
+  // Navy Breachers: Breach Point / Weld Shut (Hatchcutter), Remote Control (Surveyor), Command Breach marker moves (Sergeant).
+  if (tpl(op).breachPoint) add('nbBreach', !engaged && nbTerrainNear(g, op).length > 0 && !count(op, 'nbBreach'), engaged ? ENG : count(op, 'nbBreach') ? DONE : { zh: '控制範圍內沒有地形', en: 'No terrain in control range' });
+  if (tpl(op).weldShut && accessPointsOf(g).some((d) => d.kind === 'hatchway')) add('nbWeld', !engaged && !!nbHatchToWeld(g, op) && !count(op, 'nbWeld'), engaged ? ENG : count(op, 'nbWeld') ? DONE : { zh: '1" 內沒有關著的艙門', en: 'No closed hatchway within 1"' });
+  if (tpl(op).remoteControl) unique('nbRemote');
+  if (tpl(op).commandBreach && g.navyOrder?.[op.side]?.tp === g.tp) {
+    add('nbOrderMove', !op.acted.nbCmd, DONE);
+    add('nbOrderSwap', !op.acted.nbCmd, DONE);
+  }
   if (tpl(op).tactician && op.team === 'hearthkyn') unique('hkAppraisal'); // Hearthkyn Kognitâar
   if (tpl(op).pulse) unique('pulse');
   if (tpl(op).helix) unique('helix');
@@ -2586,6 +2620,7 @@ export function fightTargets(g, op) {
 
 /** Simple instant actions without a target (Energise, Long-sight, Stealth Attack). */
 export function doSelfAction(g, op, id) {
+  if (nbSelf(g, op, id)) return; // Navy Breachers: Breach Point, Weld Shut, Command Breach swap
   if (mdSelfAction(g, op, id)) return;
   if (mwSelf(g, op, id)) return;
   if (wkSelf(g, op, id)) return;
@@ -2905,6 +2940,7 @@ function validTarget(g, op, target, weapon) {
   if (!v.visible || spCamoHidden(g, op, target) || vdElusiveHidden(g, op, target) || vsHidden(g, op, target) || !vsTargetOk(g, op, target)) return null; // (Ghost Rig / Evasive Drone; Communion: the closest enemy) // (Elusive Target: Void-dancer Troupe) // (Advanced Camouflage: Spectre Squad)
   if (weapon.rules?.psychic && isCI(target) && target.side !== op.side) return null; // (Psychic ranged weapons can't damage Insidiants)
   if (target.reserve) return null; // (an Exodite rider still in reserve isn't in the killzone)
+  if (nbBreachwalled(g, op, target)) return null; // Breachwall (Navy Breacher Endurant)
   if (target.order === 'conceal') {
     const ml = mlLevel(g, op, weapon, target);
     const seek = weapon.rules.seek || ml >= 5 || (tpl(op).deathmark && !!target.dmk?.[op.side]); // Deathmarked
@@ -3247,6 +3283,7 @@ export function effectiveRules(g, op, weapon, target) {
   if ((mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o))) || voxbroken(g, op) || neurostatic(g, op) || ncScreeched(g, op)) { // (Neurostatic Interference: Hunter Clade; Screecher: Nemesis Claw)
     delete r.balanced; delete r.ceaseless; delete r.relentless;
   }
+  if (weapon.type === 'ranged' && nbSlugsOk(g, op, weapon)) { r.slugs = true; r.accurate = Math.max(r.accurate || 0, 1); } // Slugs (Navy Breachers)
   if (r.feast && target && target.wounds < target.maxW) { r.atkPlus = (r.atkPlus || 0) + 1; r.lethal = Math.min(r.lethal || 6, 5); } // Feast (Cursemite): against a wounded operative, +1 Atk and Lethal 5+
   if (target && tpl(target).wkArmouredUp) { delete r.lethal; delete r.rending; delete r.severe; delete r.promote; delete r.grudge; } // Armoured Up (Krusha): only 6s are crits against it
   return r;
@@ -3264,6 +3301,78 @@ export function cursed(g, op, curse) {
   return [0, 1].some((s) => s !== op.side && g.teams[s] === 'gellerpox' && TEAM_MAP[g.teams[s]].tacticSlots === 1
     && living(g, s).some((o) => !tpl(o).vermin && has(s, o) && edgeDist(o, op) <= (tpl(o).glitchling ? rg : r) + 0.01));
 }
+
+// ---------- Imperial Navy Breachers (equipment, Lock It Down, Deck Hand) ----------
+const nbEquip = (g, op, id) => !!op && op.side < 2 && op.team === 'navyBreachers' && !!g.equip?.[op.side]?.includes(id);
+/** Combat Stimms: no Move change from being injured. Rebreathers: no APL changes and no enemy Shock. */
+export const nbStimms = (g, op) => nbEquip(g, op, 'nbStimms');
+export const nbRebreathe = (g, op) => nbEquip(g, op, 'nbRebreathers');
+/** Slugs: up to three times per turning point, a Navis shotgun (long range) shot gets Hit +1, Dmg +1/+1 and Accurate 1. */
+function nbSlugsOk(g, op, weapon) {
+  return nbEquip(g, op, 'nbSlugs') && weapon.id === 'shotgunLong' && abilityArmed(g, op.side, 'nbSlugs') && (g.nbSlugs?.[op.side]?.tp !== g.tp || g.nbSlugs[op.side].n < 3);
+}
+function nbSlugsUsed(g, op) {
+  const s = (g.nbSlugs ||= [null, null]);
+  s[op.side] = { tp: g.tp, n: (s[op.side]?.tp === g.tp ? s[op.side].n : 0) + 1 };
+  log(g, { zh: `${opName(op, 'zh')} 使用獨頭彈（本回合第 ${s[op.side].n} 次）`, en: `${opName(op, 'en')} fires Slugs (${s[op.side].n} this turning point)` }, `side${op.side}`);
+}
+/** System Override Device: once per turning point, one friendly's Operate Hatch costs 1 less AP. Deck Hand: a free one. */
+function nbHatchDiscount(g, op, id) {
+  if (!/^tw(Open|Close)_/.test(id) || op.team !== 'navyBreachers') return 0;
+  if (op.acted?.nbDeck && !op.acted.nbDeckHatch) return 99;
+  return nbEquip(g, op, 'nbOverride') && g.nbOverride?.[op.side] !== g.tp ? 1 : 0;
+}
+/** Weld Shut (Hatchcutter): opening that hatchway costs others 1 more AP until it is opened. */
+function nbWeldExtra(g, op, id) { const w = id.startsWith('twOpen_') && g.nbWeld?.[id.slice(7)]; return w && w.by !== op.uid ? 1 : 0; }
+function nbHatchUsed(g, op, id) {
+  if (!/^tw(Open|Close)_/.test(id) || op.team !== 'navyBreachers') return;
+  if (op.acted?.nbDeck && !op.acted.nbDeckHatch) { op.acted.nbDeckHatch = true; return; }
+  if (nbEquip(g, op, 'nbOverride') && g.nbOverride?.[op.side] !== g.tp) (g.nbOverride ||= [0, 0])[op.side] = g.tp;
+}
+/**
+ * Breachwall (Endurant): with an Engage order and intervening, the friendly whose base touches it can't be selected as a valid target —
+ * unless more than one other friendly's base touches the Endurant.
+ */
+function nbBreachwalled(g, shooter, target) {
+  if (target.side > 1 || shooter.side === target.side) return false;
+  const touching = (a, b) => edgeDist(a, b) <= 0.05;
+  return living(g, target.side).some((e) => tpl(e).breachwall && e !== target && e.order === 'engage' && touching(e, target)
+    && distPointSegment(e, shooter, target) < radius(e) && living(g, target.side).filter((o) => o !== e && touching(o, e)).length <= 1);
+}
+const nbTerrainNear = (g, op) => g.terrain.filter((t) => (t.kind === 'heavy' || t.kind === 'light') && distPointRect(op, t) - radius(op) <= CONTROL + 0.01);
+const nbHatchToWeld = (g, op) => accessPointsOf(g).find((d) => d.kind === 'hatchway' && d.state !== 'open' && !g.nbWeld?.[d.id] && nearHatch(g, op, d, radius(op)));
+/** Breach Point (a Breach marker on terrain in control range: parts no more than 1" thick within 1" of it are Accessible), Weld Shut, Command Breach swap. */
+function nbSelf(g, op, id) {
+  if (id === 'nbBreach') {
+    const t = nbTerrainNear(g, op).sort((a, b) => distPointRect(op, a) - distPointRect(op, b))[0];
+    if (!t) return true;
+    spend(g, op, id);
+    const p = { x: Math.max(t.x, Math.min(t.x + t.w, op.x)), y: Math.max(t.y, Math.min(t.y + t.h, op.y)) };
+    (g.markers ||= []).push({ id: g.markers.length, kind: 'breach', owner: op.side, x: p.x, y: p.y, rect: { x: t.x, y: t.y, w: t.w, h: t.h }, carriedBy: null });
+    log(g, { zh: `${opName(op, 'zh')} 破口：在地形上放破口標記（1" 內厚度 1" 以下的部分可以穿過）`, en: `${opName(op, 'en')} Breach Point: a Breach marker on the terrain (parts no more than 1" thick within 1" can be passed through)` }, `side${op.side}`);
+    return true;
+  }
+  if (id === 'nbWeld') {
+    const d = nbHatchToWeld(g, op);
+    if (!d) return true;
+    spend(g, op, id);
+    (g.nbWeld ||= {})[d.id] = { by: op.uid };
+    log(g, { zh: `${opName(op, 'zh')} 焊死艙門 ${d.component}：其他人開門要多花 1AP`, en: `${opName(op, 'en')} welds hatchway ${d.component} shut: others pay 1 more AP to open it` }, `side${op.side}`);
+    return true;
+  }
+  if (id === 'nbOrderSwap') {
+    const m = g.navyOrder?.[op.side];
+    if (!m) return true;
+    spend(g, op, id);
+    m.kind = m.kind === 'attack' ? 'defence' : 'attack'; op.acted.nbCmd = true;
+    g.ploys[op.side] = g.ploys[op.side].map((p) => (p === 'attackOrder' ? 'defenceOrder' : p === 'defenceOrder' ? 'attackOrder' : p));
+    log(g, { zh: `指揮突破：改為${m.kind === 'attack' ? '攻擊' : '防禦'}命令`, en: `Command Breach: now a ${m.kind === 'attack' ? 'Attack' : 'Defence'} Order` }, `side${op.side}`);
+    return true;
+  }
+  return false;
+}
+/** Lock It Down: this operative counts 1 higher APL for control of the chosen objective until the end of the battle (or the next use). */
+const nbLocked = (g, o, obj) => !!g.nbLock?.[o.side] && g.nbLock[o.side].uid === o.uid && g.nbLock[o.side].id === obj.id;
 
 // ---------- Hearthkyn Salvagers ----------
 const hkEquip = (g, op, id) => op.side < 2 && op.team === 'hearthkyn' && !!g.equip?.[op.side]?.includes(id);
@@ -3875,6 +3984,16 @@ function registerCoreChoices() {
       },
     };
   }
+  CHOICES.nbLock = {
+    kind: 'objective', title: B('鎖定陣地：選一個目標點（這名特工爭奪它時 APL 算多 1，直到戰鬥結束）', 'Lock It Down: pick an objective marker (this operative counts 1 higher APL for its control until the end of the battle)'),
+    options: (g) => (g.objectives || []).map((o) => ({ value: o.id })),
+    auto: (g, side, ctx) => { const o = getOp(g, ctx.uid); return o ? [...(g.objectives || [])].sort((a, b) => dist(o, a) - dist(o, b))[0]?.id ?? null : null; },
+    apply(g, side, id, ctx) {
+      (g.nbLock ||= [null, null])[side] = { uid: ctx.uid, id };
+      const o = getOp(g, ctx.uid);
+      log(g, { zh: `鎖定陣地：${opName(o, 'zh')} 守住目標點 ${id + 1}`, en: `Lock It Down: ${opName(o, 'en')} holds objective ${id + 1}` }, `side${side}`);
+    },
+  };
   CHOICES.gpSymptoms = {
     kind: 'option', title: B('突變症狀（整場一次）：這名特工本回合多獲得一個技術詛咒？', 'Mutated Symptoms (once per battle): give this operative another Techno-curse this turning point?'),
     options: (g, side) => team(g, side).tactics.filter((t) => t.id !== g.tactics?.[side]?.[0]).map((t) => ({ value: t.id, label: t.name })),
@@ -4977,7 +5096,7 @@ export const EQUIPMENT = {
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
-Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT);
+Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT, NAVY_EQUIPMENT);
 export const EQUIPMENT_LIMIT = 4;
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' || teamId === 'hearthkyn' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Hearthkyn: the Lugger's Well Supplied) // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
@@ -4985,7 +5104,7 @@ const FACTION_EQUIPMENT = {
   handOfArchon: ARCHON_EQUIPMENT, corsairVoidscarred: CORSAIR_EQUIPMENT,
   deathwatch: DEATHWATCH_EQUIPMENT, mandrakes: MANDRAKES_EQUIPMENT,
   murderwing: MURDERWING_EQUIPMENT, wreckaKrew: WRECKA_EQUIPMENT,
-  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT, hearthkyn: HEARTHKYN_EQUIPMENT,
+  wolfScouts: WOLF_EQUIPMENT, stealthSuits: STEALTH_EQUIPMENT, vespids: VESPIDS_EQUIPMENT, voidDancers: VOIDDANCERS_EQUIPMENT, aquilons: AQUILONS_EQUIPMENT, spectres: SPECTRES_EQUIPMENT, raveners: RAVENERS_EQUIPMENT, canoptekCircle: CANOPTEK_EQUIPMENT, nemesisClaw: NIGHTLORDS_EQUIPMENT, scoutSquad: SCOUTS_EQUIPMENT, ratlings: RATLINGS_EQUIPMENT, sanctifiers: SANCTIFIERS_EQUIPMENT, tauPathfinders: PATHFINDERS_EQUIPMENT, angels: ANGELS_EQUIPMENT, plagueMarines: PLAGUE_EQUIPMENT, kommandos: KOMMANDOS_EQUIPMENT, farstalkers: KINBAND_EQUIPMENT, deathKorps: DEATHKORPS_EQUIPMENT, gellerpox: GELLERPOX_EQUIPMENT, hearthkyn: HEARTHKYN_EQUIPMENT, navyBreachers: NAVY_EQUIPMENT,
 };
 export const equipmentOptionsFor = (teamId) => [...EQUIP_IDS, ...Object.keys(FACTION_EQUIPMENT[teamId] || {})];
 export function cleanEquipment(teamId, ids = [], limit = equipmentLimitFor(teamId)) {
@@ -5481,6 +5600,9 @@ const FF = {
     cond: (g, op) => (tpl(op).hulk && count(op, 'fight') && fightTargets(g, op).length ? null : { zh: '噩夢巨獸近戰後才能用', en: 'A Nightmare Hulk, after a Fight' }),
     apply(g, op) { op.acted.free = { ...(op.acted.free || {}), fight: 'any' }; } },
   revoltingTech: { kind: 'auto' },
+  lockItDown: { kind: 'button', start: true, cond: (g, op) => ((g.objectives || []).length ? null : { zh: '沒有目標點', en: 'No objective markers' }),
+    apply(g, op) { needChoice(g, op.side, 'nbLock', { uid: op.uid }); } },
+  deckHand: { kind: 'button', cond: (g, op) => (op.acted.nbDeck ? { zh: '本次已經用過', en: 'Already used' } : null), apply(g, op) { op.acted.nbDeck = true; } },
   barge: { kind: 'button',
     cond: (g, op) => (tpl(op).hulk ? (op.acted.gpBarge ? { zh: '本次已經在衝撞', en: 'Already barging' } : null) : { zh: '只有夢魘巨怪', en: 'Nightmare Hulks only' }),
     apply(g, op) { op.acted.gpBarge = true; } },
@@ -6326,11 +6448,13 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     if (shokked(g, op)) hit += 1;
     if (rules.xvHit) hit -= 1; // Focused Markerlight (XV26 Designator) // Shokkwave (Wrecka Krew Pulsa marker): cumulative with being injured
     if (rules.mlHit && hit > 3) hit = Math.max(3, hit - 1);
+    if (rules.slugs) hit -= 1; // Slugs (Navy Breachers equipment)
   }
   hit = clampHit(hit);
   const atk = Math.max(1, weapon.atk + (rules.atkPlus || 0) - (rules.atkMinus || 0) - (cursed(g, op, 'barrelwarp') ? 1 : 0)); // (atkMinus: Sanctification) // Barrelwarp (Gellerpox)
   if (playerPicks(g, op.side)) { rules.balancedManual = true; rules.ceaselessManual = true; rules.relentlessManual = true; } // (a player uses Balanced, Ceaseless and Relentless itself)
   const a = rollPool(atk, hit, rules.lethal || 6, rules, chainPost(kinPost(g, op), scryPost(g, op, 'guide'))); // (No Kin Left Behind, Scry: Guidance)
+  if (rules.slugs) nbSlugsUsed(g, op); // (Slugs: counted once the attack dice are rolled)
   archonPrey(g, op, target, a);
   ncPrey(g, op, target, a); // Death to the False Emperor (Nemesis Claw)
   broodRerolls(g, op, target, a, noReroll); // Psiren Caster, Crossfire tokens, Idolisation (Brood Brothers)
@@ -6348,7 +6472,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   // Toxic: +1 to both Dmg against an enemy that was poisoned at the start of the action.
   // Close Assault (Navy Breachers): Navis shotguns +1 to both Dmg (counted with Toxic's bonus).
   // (Anti-PSYKER, Novitiate Condemnor: +1 to both Dmg against a psyker.)
-  const tox = (rules.toxic && poisonedAtStart?.has(target.uid) ? 1 : 0) + (rules.closeAssault && weapon.rules.shotgun ? 1 : 0) + (rules.antiPsykerOn ? 1 : 0);
+  const tox = (rules.toxic && poisonedAtStart?.has(target.uid) ? 1 : 0) + (rules.closeAssault && weapon.rules.shotgun ? 1 : 0) + (rules.antiPsykerOn ? 1 : 0) + (rules.slugs ? 1 : 0); // (Slugs: +1 to both Dmg)
   // Xenotech Shielding (Archivist): Normal and Critical Dmg of 4+ deal 1 less.
   const shield = (d) => rvCarapace(target, (tpl(target).xenotech || sfSermon(g, target)) && d >= 4 ? d - 1 : d); // (Sermon: Sanctifiers; Reinforced Carapace: Raveners)
   const tough = (d) => ((tpl(target).tough || bulwark(g, target)) && d >= 3 ? d - 1 : d); // Tough (Thug) / Bulwark Imperative: Normal Dmg of 3+ deals 1 less
@@ -6973,7 +7097,7 @@ export function startFight(g, op, weapon, target) {
   // a: the dice pool (re-rolled with Command Re-roll before any dice are resolved).
   const side = (o, foe, w, r, roll, hit) => ({
     uid: o.uid, w: w.id, c: roll.crits, n: roll.norms, brutal: !!r.brutal, dueller: hasTactic(g, o, 'dueller'), hit, dice: roll.dice, before: o.wounds,
-    tox: (r.toxic && foe.poison ? 1 : 0) + (r.antiPsykerOn ? 1 : 0), poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute') && !tpl(foe).chemEnhanced && !tpl(foe).toxicBlessings, hardy: !!tpl(o).hardyCrit || !!tpl(o).brutish,
+    tox: (r.toxic && foe.poison ? 1 : 0) + (r.antiPsykerOn ? 1 : 0), poison: !!r.poison, shock: !!r.shock && !hasTactic(g, foe, 'resolute') && !tpl(foe).chemEnhanced && !tpl(foe).toxicBlessings && !nbRebreathe(g, foe), hardy: !!tpl(o).hardyCrit || !!tpl(o).brutish,
     a: roll, rerolled: {}, noReroll: { a: noRerollHere(g, o) || neurostatic(g, o) || broadcastNear(g, o) },
     // +1 damage on the first critical strike: Canticle of Destruction (Ruststalkers near the Princeps).
     critAll: inspCrit(o) + (tpl(o).mdWarrior && withinShadow(g, o) ? 1 : 0),
