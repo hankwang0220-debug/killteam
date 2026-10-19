@@ -187,7 +187,8 @@ export function operativeLook(team, op) {
   if (/glitchling/i.test(n)) { L.big = 0.6; L.daemon = true; }
   if (/vulgrar|bloatspawn|fleshscreamer|lumberghast|chaos torment|patriarch/i.test(n)) { L.big = 1.35; L.bloated = true; }
   if (team.id === 'gellerpox' && /mutant/i.test(n)) L.bloated = false;
-  if (/heavy intercessor|captain|chaos lord|bombard|breacher veteran|horde-slayer|boss nob|wrecka boss/i.test(n)) L.big = 1.12;
+  if (/heavy intercessor|captain|chaos lord|bombard|breacher veteran|horde-slayer/i.test(n)) L.big = 1.12;
+  if (/boss nob|wrecka boss/i.test(n)) L.big = 1.22; // ScaleMini: Kommando Boss Nob 51mm vs Boyz ~40mm
   if (/immortal|deathmark/i.test(n)) L.big = 1.08;
   if (/technomancer|geomancer/i.test(n)) L.float = true;
   if (/raptor|warp talon|chaos lord|champion|curseclaw|depredator|huntmaster|shrieker|skysear/i.test(n) && team.id === 'murderwing') L.jump = true;
@@ -553,6 +554,7 @@ export function createModelKit(THREE) {
     if (L.body === 'gor' && !L.bird) add(fig, limb(V(0, hipY, -B.td * 0.4), V(0, hipY * 0.6, -B.td * 1.2), 0.012, skin));
     details.body({ fig, upper, head, L, B, k, hipY, torsoY, shY, headY, hunch, front: B.td / 2, back: -B.td / 2, M: { main, trim, cloth, skin, eye }, op, picks });
     fig.userData.humanoid = true;
+    fig.userData.headTop = (headY + B.head) / k; // stature (top of head) at size 1, for scaling to the miniatures' heights
     return fig;
   }
 
@@ -1035,6 +1037,20 @@ export function createModelKit(THREE) {
     return op.weapons || [];
   }
 
+  // Sizes follow the physical miniatures, not the background lore. Top-of-head heights (mm) of a standard
+  // operative of each kind; leaders and big variants scale up from these. Sources: the danireon.com scale guide
+  // (human infantry 30–32mm to the top of the head, Firstborn Marines and Sisters of Battle 32–35mm, Primaris
+  // 38–43mm to the helmet) and ScaleMini's measurements (Assault Intercessor 39mm, Eliminator 42mm, Ork Boyz about
+  // 32–47mm, Kommando Boss Nob 51mm). Kinds with no measured source keep their proportions to the human baseline.
+  const STATURE = { human: 31, sister: 33, primaris: 40, firstborn: 36, scout: 36, ork: 37 };
+  const humanRef = BUILD.guard.leg + BUILD.guard.th + BUILD.guard.head * 1.85 + 0.015; // a guardsman's head top at size 1
+  const HUMAN_GAIN = STATURE.human / 25.4 / humanRef;
+  function statureScale(L, headTop) {
+    const kind = L.body === 'marine' ? (L.scout ? 'scout' : L.chaos ? 'firstborn' : 'primaris')
+      : L.body === 'guard' || L.body === 'tau' ? 'human' : L.body === 'sister' ? 'sister' : L.body === 'ork' ? 'ork' : null;
+    return kind && headTop ? STATURE[kind] / 25.4 / headTop : HUMAN_GAIN;
+  }
+
   /** A complete miniature (model + base) for an operative of a team. */
   function buildOperative(team, op, loadout) {
     const L = operativeLook(team, op);
@@ -1057,7 +1073,7 @@ export function createModelKit(THREE) {
     const root = new THREE.Group();
     root.add(baseFor(op, L, team.color));
     fig.position.y += 0.0;
-    if (fig.userData.humanoid) fig.scale.multiplyScalar(1.15);
+    if (fig.userData.humanoid) fig.scale.multiplyScalar(statureScale(L, fig.userData.headTop));
     if (L.body === 'vespid') { // Vespids hover above the base on a ruined strut, as the official miniatures do
       fig.position.y = 0.35;
       const strut = mat('#4a4c50', { metal: 0.5, rough: 0.6 });
