@@ -258,7 +258,7 @@ export function createModelKit(THREE) {
   }
   const box = (w, h, d, m, x, y, z) => mesh(roundedBoxGeo(w, h, d, Math.min(w, h, d) * 0.28), m, x, y, z);
   /** A darker shade of a colour, for the seams between armour plates. */
-  const seamMat = (c) => mat('#' + new THREE.Color(c).multiplyScalar(0.5).getHexString(), { metal: 0.3, rough: 0.6 });
+  const seamMat = (c) => { const col = new THREE.Color(c), dark = col.r * 0.3 + col.g * 0.59 + col.b * 0.11 < 0.06; return mat('#' + (dark ? col.lerp(new THREE.Color('#6a6e76'), 0.55) : col.multiplyScalar(0.5)).getHexString(), { metal: 0.3, rough: 0.6 }); }; // very dark armour gets lighter seams so they still show
   /** A thin ring around the limb from a to b, at fraction t along it. */
   const band = (a, b, t, r, m, k = 1) => { const p = V().lerpVectors(a, b, t); return aimY(cyl(r, r, 0.02 * k, m, p.x, p.y, p.z, 14), V().subVectors(b, a)); };
   /** A rounded box narrower at the bottom (chests, waists). */
@@ -374,7 +374,7 @@ export function createModelKit(THREE) {
         legs.push(limb(hip, knee, B.legR * 1.1, legM, B.legR * 0.92), limb(knee, foot, B.legR * 0.95, legM, B.legR * 0.7));
         if (plated && legM === main) legs.push(band(hip, knee, 0.8, B.legR * 1.03, seam, k), band(hip, knee, 0.22, B.legR * 1.15, seam, k), band(knee, foot, 0.8, B.legR * 0.84, seam, k)); // thigh plate, hip joint and greave seams
         { const bootM = L.body === 'marine' || L.body === 'battlesuit' ? main : DARK(); legs.push(box(B.legR * 2, B.legR * 1.3, B.legR * 2.6, bootM, foot.x, B.legR * 0.65, foot.z + B.legR * 0.4), sph(B.legR * 0.95, bootM, foot.x, B.legR * 0.55, foot.z + B.legR * 1.5, 12, 8)); } // boot with a rounded toe
-        if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, L.body === 'sister' ? trim : main, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
+        if (['marine', 'battlesuit', 'votann', 'sister'].includes(L.body) || L.carapace) legs.push(sph(B.legR * 1.15, main, knee.x, knee.y, knee.z + B.legR * 0.4, 8, 6));
         if (necron) legs.push(sph(B.legR * 1.3, METAL(), knee.x, knee.y, knee.z));
       }
     }
@@ -906,6 +906,12 @@ export function createModelKit(THREE) {
     add(g, box(0.3, 0.3, 0.22, carapace, top.x, top.y + 0.1, top.z), sph(0.1, carapace, top.x, top.y + 0.32, top.z + 0.12, 8, 6), box(0.12, 0.08, 0.14, flesh, top.x, top.y + 0.26, top.z + 0.2),
       ...[-1, 1].map((s) => sph(0.02, glow(L.eye), top.x + s * 0.05, top.y + 0.34, top.z + 0.2, 6, 4)));
     for (let i = 0; i < 4; i++) add(g, cone(0.04, 0.12, bone, top.x, top.y + 0.2 - i * 0.1, top.z - 0.14).rotateX(-0.8));
+    // Chitin detail: dark seams between the carapace plates, a plated crest on the head, and teeth in the jaw.
+    const seam = seamMat(L.main);
+    for (let i = 0; i < pts.length - 1; i++) add(g, band(pts[i], pts[i + 1], 0.5, 0.068 + i * 0.03, seam));
+    add(g, ...[0, 1, 2].map((i) => box(0.31, 0.012, 0.23, seam, top.x, top.y + 0.17 - i * 0.09, top.z)), // plate seams on the torso
+      ...[0, 1, 2].map((i) => box(0.03, 0.03, 0.08, carapace, top.x, top.y + 0.42 - i * 0.02, top.z + 0.1 - i * 0.07)), // plated crest
+      ...[-1, 0, 1].map((i) => cone(0.008, 0.03, bone, top.x + i * 0.03, top.y + 0.21, top.z + 0.27).rotateX(Math.PI))); // teeth
     if (prime || tremor) add(g, cone(0.05, 0.22, bone, top.x, top.y + 0.48, top.z + 0.05).rotateX(-0.5));
     // Upper pair: scything talons (bigger on a Tremorscythe); lower pair: talons, rending claws or crushing claws.
     const big = tremor ? 1.5 : /felltalon/i.test(L.name) ? 1.25 : 1;
@@ -940,6 +946,11 @@ export function createModelKit(THREE) {
     const fig = humanoid(op, { ...L, body: 'eldar', float: false, seated: true, cloak: true }, picks);
     fig.position.set(0, 0.5, -0.1); fig.scale.setScalar(0.85);
     add(g, fig, box(0.3, 0.06, 0.35, mat(L.cloth), 0, 0.9, -0.1), ...[-1, 1].map((s) => limb(V(s * 0.08, 0.95, -0.1), V(s * 0.28, 0.72, 0.05), 0.04, mat(L.main))));
+    const gold = mat('#d8b04a', { metal: 0.8, rough: 0.3 }), stripe = mat('#3a5a26', { rough: 0.7 }), claw = mat('#e8dcc0', { rough: 0.5 });
+    add(g, ...[-1, 1].map((s) => box(0.012, 0.012, 0.36, gold, s * 0.15, 0.925, -0.1)), box(0.31, 0.012, 0.012, gold, 0, 0.925, 0.075), // gilded saddle rim
+      ...[-1, 1].map((s) => limb(V(s * 0.05, 1.0, 0.78), V(s * 0.1, 1.05, 0.15), 0.006, mat('#5a3a22', { rough: 0.8 }))), // reins from the muzzle
+      ...[0, 1, 2, 3].map((i) => { const st = box(0.42 - i * 0.04, 0.02, 0.05, stripe, 0, 0.88 - i * 0.02, -0.25 - i * 0.12); st.rotation.x = -0.25; return st; }), // dark stripes down the back
+      ...[-1, 1].flatMap((s) => [-1, 0, 1].map((j) => cone(0.012, 0.05, claw, s * 0.2 + j * 0.03, 0.02, 0.15, 4).rotateX(Math.PI / 2)))); // claws
     return g;
   }
 
