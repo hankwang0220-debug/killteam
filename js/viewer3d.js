@@ -81,6 +81,7 @@ export async function mountModels(root) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#15181d');
   scene.fog = new THREE.Fog('#15181d', 45, 90);
+  scene.environment = kit.studioEnv(renderer); // soft reflections so metal edges and trim read
   scene.add(new THREE.HemisphereLight('#dfe8ff', '#3a3226', 1.1));
   const sun = new THREE.DirectionalLight('#fff4e0', 2.2);
   sun.position.set(8, 16, 10); sun.castShadow = true;
@@ -299,9 +300,10 @@ export async function mountModels(root) {
       cancelAnimationFrame(raf);
       root.removeEventListener('click', onClick); root.removeEventListener('change', onChange);
       scene.traverse((o) => { o.geometry?.dispose(); if (o.material?.map) o.material.map.dispose(); });
+      scene.environment?.dispose();
       renderer.dispose();
     },
-    kit, tkit, THREE, cam, focus, st, rebuild: buildScene,
+    kit, tkit, THREE, cam, focus, st, rebuild: buildScene, renderer, scene,
   };
   buildScene();
   raf = requestAnimationFrame(frame);

@@ -5,6 +5,7 @@
 // Units are inches, like the board: a model faces +Z and stands on its base at y = 0.
 
 import { teamDetails } from './models3d-teams.js';
+import { createWeapons } from './models3d-weapons.js';
 
 const MM = 1 / 25.4;
 
@@ -219,7 +220,7 @@ export function createModelKit(THREE) {
         side: o.side === 'double' ? THREE.DoubleSide : THREE.FrontSide,
         color, metalness: o.metal ?? 0.1, roughness: o.rough ?? 0.7,
         emissive: o.glow ? new THREE.Color(o.glow) : new THREE.Color(0), emissiveIntensity: o.glow ? 1.4 : 0,
-        transparent: (o.opacity ?? 1) < 1, opacity: o.opacity ?? 1,
+        transparent: (o.opacity ?? 1) < 1, opacity: o.opacity ?? 1, envMapIntensity: 2, // the studio reflection (studioEnv) is kept dim; this lifts metal edges
       }));
     }
     return mats.get(key);
@@ -290,150 +291,10 @@ export function createModelKit(THREE) {
   const toParent = (o, p) => { o.updateMatrix(); return p.clone().applyMatrix4(o.matrix); };
   const details = teamDetails({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, aimY, aimZ, tz, METAL, DARK, BRASS });
 
-  // ----- ranged weapons: grip at the origin, barrel along +Z; `fore` is where a supporting hand goes -----
-  const FLAV = { plasma: '#4ab8ff', melta: '#ff7a1a', flame: '#ff8a1a', gauss: '#3aff6a', pulse: '#3ae0ff', las: '#ff3a2a', xenos: '#7fe03a', bolt: null, solid: null };
-  function rangedModel(r, L) {
-    const g = new THREE.Group(), body = DARK(), m2 = mat(L.weaponColor || '#3a3c40', { metal: 0.6, rough: 0.45 });
-    const fl = FLAV[r.flav], acc = fl ? glow(fl) : null;
-    const tau = ['tauPathfinders', 'stealthSuits', 'vespids'].includes(L.team), eldar = L.body === 'eldar';
-    const casing = tau ? mat('#d8d0c0', { rough: 0.5 }) : eldar ? mat(L.trim, { rough: 0.4, metal: 0.3 }) : m2;
-    let fore = null;
-    switch (r.form) {
-      case 'pistol': {
-        add(g, box(0.03, 0.08, 0.04, body, 0, -0.035, -0.01), box(0.035, 0.05, 0.15, casing, 0, 0.02, 0.05), tz(cyl(0.012, 0.012, 0.05, body, 0, 0.025, 0.14)));
-        if (r.flav === 'plasma') add(g, tz(cyl(0.022, 0.022, 0.06, acc, 0, 0.02, 0.08)));
-        if (r.flav === 'melta') add(g, tz(cyl(0.025, 0.016, 0.05, acc, 0, 0.02, 0.15)));
-        if (r.flav === 'flame') add(g, sph(0.015, acc, 0, 0.02, 0.18));
-        break;
-      }
-      case 'rifle': {
-        const thick = r.flav === 'bolt' ? 1.25 : 1;
-        add(g, box(0.045 * thick, 0.075 * thick, 0.3, casing, 0, 0.02, 0.07), box(0.035, 0.06, 0.14, body, 0, -0.01, -0.15),
-          box(0.03, 0.09, 0.05, body, 0, -0.07, 0.07), tz(cyl(0.013, 0.013, 0.16, body, 0, 0.03, 0.29)));
-        if (r.flav === 'bolt') add(g, box(0.03, 0.1, 0.05, body, 0, -0.08, 0.12));
-        if (r.flav === 'plasma') add(g, tz(cyl(0.03, 0.03, 0.12, acc, 0, 0.04, 0.2)), tz(cyl(0.022, 0.03, 0.05, casing, 0, 0.04, 0.3)));
-        if (r.flav === 'melta') add(g, tz(cyl(0.022, 0.022, 0.14, body, 0.018, 0.03, 0.27)), tz(cyl(0.022, 0.022, 0.14, body, -0.018, 0.03, 0.27)), sph(0.02, acc, 0, 0.03, 0.35));
-        if (r.flav === 'gauss') add(g, box(0.012, 0.012, 0.22, acc, 0.03, 0.04, 0.15), box(0.012, 0.012, 0.22, acc, -0.03, 0.04, 0.15));
-        if (r.flav === 'pulse' || r.flav === 'las') add(g, sph(0.012, acc, 0, 0.03, 0.375));
-        if (r.flav === 'xenos') add(g, tz(cyl(0.04, 0.04, 0.02, mat(L.trim, { metal: 0.4 }), 0, 0.075, 0.05, 12)), sph(0.012, acc, 0, 0.03, 0.375));
-        fore = V(0, -0.02, 0.2);
-        break;
-      }
-      case 'shotgun': {
-        add(g, box(0.05, 0.07, 0.26, casing, 0, 0.02, 0.06), box(0.035, 0.06, 0.13, body, 0, -0.01, -0.13),
-          tz(cyl(0.02, 0.02, 0.18, body, 0, 0.035, 0.24)), tz(cyl(0.022, 0.022, 0.08, mat('#5a3a24'), 0, -0.015, 0.22)));
-        fore = V(0, -0.02, 0.22);
-        break;
-      }
-      case 'sniper': {
-        add(g, box(0.04, 0.065, 0.36, casing, 0, 0.02, 0.1), box(0.03, 0.07, 0.16, body, 0, -0.015, -0.16),
-          tz(cyl(0.012, 0.012, 0.34, body, 0, 0.03, 0.44)), tz(cyl(0.022, 0.022, 0.15, body, 0, 0.08, 0.06)),
-          tz(cyl(0.024, 0.024, 0.01, glow(fl || '#3ae0ff'), 0, 0.08, 0.14)));
-        add(g, limb(V(0, 0, 0.32), V(0.04, -0.09, 0.36), 0.006, body), limb(V(0, 0, 0.32), V(-0.04, -0.09, 0.36), 0.006, body));
-        if (acc) add(g, sph(0.014, acc, 0, 0.03, 0.61));
-        fore = V(0, -0.02, 0.24);
-        break;
-      }
-      case 'heavy': {
-        const rotary = /rotary|chaincannon|autostub|dakka|cannon|stubber/.test(r.n.toLowerCase());
-        add(g, box(0.1, 0.12, 0.3, casing, 0, 0.03, 0.08), box(0.05, 0.08, 0.06, body, 0, -0.06, -0.02), box(0.02, 0.06, 0.12, body, 0, 0.11, 0.08));
-        if (rotary) for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; add(g, tz(cyl(0.012, 0.012, 0.26, body, Math.cos(a) * 0.025, 0.03 + Math.sin(a) * 0.025, 0.34))); }
-        else add(g, tz(cyl(0.028, 0.03, 0.24, body, 0, 0.04, 0.34)), tz(cyl(0.035, 0.035, 0.04, casing, 0, 0.04, 0.45)));
-        add(g, tz(cyl(0.06, 0.06, 0.05, m2, 0.075, -0.01, 0.02, 12)));
-        if (acc) add(g, tz(cyl(0.04, 0.04, 0.1, acc, 0, 0.04, 0.2)), sph(0.02, acc, 0, 0.04, 0.47));
-        fore = V(0, -0.04, 0.24);
-        break;
-      }
-      case 'launcher': {
-        // Shoulder-fired tube above the grip.
-        add(g, tz(cyl(0.045, 0.045, 0.55, casing, 0, 0.07, 0.05, 12)), tz(cyl(0.05, 0.05, 0.04, body, 0, 0.07, 0.33, 12)), box(0.03, 0.08, 0.04, body, 0, -0.0, 0.0),
-          tz(cone(0.035, 0.09, mat('#a8302a'), 0, 0.07, 0.38)), box(0.02, 0.04, 0.06, glow('#3ae0ff'), -0.055, 0.1, 0.05));
-        fore = V(0, 0.0, 0.18);
-        break;
-      }
-      case 'flamer': {
-        add(g, box(0.045, 0.06, 0.26, casing, 0, 0.02, 0.07), box(0.03, 0.06, 0.1, body, 0, -0.01, -0.1),
-          tz(cyl(0.035, 0.035, 0.14, mat('#a8302a', { metal: 0.4 }), 0, -0.05, 0.08, 10)),
-          tz(cyl(0.016, 0.03, 0.08, body, 0, 0.03, 0.24)), sph(0.018, glow('#ff8a1a'), 0, 0.03, 0.29));
-        if (r.flav === 'plasma') add(g, sph(0.03, glow('#4ab8ff'), 0, 0.03, 0.29));
-        fore = V(0, -0.02, 0.17);
-        break;
-      }
-      case 'bow': {
-        const arc = mesh(new THREE.TorusGeometry(0.22, 0.012, 6, 14, Math.PI * 0.9), mat('#6a4a2a'));
-        arc.rotation.z = Math.PI / 2 + Math.PI * 0.05; arc.rotation.y = Math.PI / 2;
-        add(g, arc, limb(V(0, 0.21, 0.04), V(0, -0.21, 0.04), 0.003, mat('#e8e0d0')));
-        if (/stakethrower|tribalest|accelerator/.test(r.n.toLowerCase())) add(g, box(0.04, 0.05, 0.3, casing, 0, 0, 0.08));
-        break;
-      }
-    }
-    details.weapon(g, r, L);
-    return { g, fore };
-  }
-
-  // ----- melee weapons: grip at the origin, blade along +Y -----
-  function meleeModel(m, L) {
-    const g = new THREE.Group(), grip = mat('#3a2a20'), steel = METAL();
-    const edge = m.power ? glow(L.powerColor || '#6ac8ff') : steel;
-    const n = m.n.toLowerCase();
-    switch (m.form) {
-      case 'sword': {
-        const long = /great|executioner|broadsword|diresword/.test(n) ? 1.5 : /khopesh|rapier|kiss|caress/.test(n) ? 1.05 : 1;
-        add(g, cyl(0.014, 0.014, 0.1, grip, 0, 0, 0), box(0.1, 0.022, 0.035, BRASS(), 0, 0.055, 0),
-          box(0.014, 0.36 * long, 0.045, steel, 0, 0.065 + 0.18 * long, 0), box(0.016, 0.36 * long, 0.012, edge, 0, 0.065 + 0.18 * long, 0.026),
-          cone(0.023, 0.06, steel, 0, 0.065 + 0.36 * long + 0.03, 0, 4));
-        break;
-      }
-      case 'chainsword': {
-        const long = /eviscerator|chainglaive/.test(n) ? 1.6 : 1;
-        add(g, cyl(0.016, 0.016, 0.1, grip, 0, 0, 0), box(0.045, 0.09, 0.07, mat(L.trim, { metal: 0.6 }), 0, 0.09, 0),
-          box(0.022, 0.32 * long, 0.06, DARK(), 0, 0.13 + 0.16 * long, 0), box(0.026, 0.32 * long, 0.012, steel, 0, 0.13 + 0.16 * long, 0.034));
-        break;
-      }
-      case 'axe': {
-        const big = /great|double|heavy|chainaxe|skull/.test(n) ? 1.4 : 1;
-        add(g, cyl(0.014, 0.014, 0.38 * big, grip, 0, 0.12 * big, 0), box(0.02, 0.12 * big, 0.14 * big, steel, 0, 0.27 * big, 0.06 * big),
-          box(0.022, 0.12 * big, 0.015, edge, 0, 0.27 * big, 0.135 * big));
-        break;
-      }
-      case 'hammer': {
-        const big = /thunder|great|heavy|tankhammer|dominator|maul of/.test(n) ? 1.3 : 0.9;
-        add(g, cyl(0.016, 0.016, 0.42 * big, grip, 0, 0.14 * big, 0));
-        if (/thunder|hammer/.test(n)) add(g, box(0.17 * big, 0.08 * big, 0.08 * big, mat(L.trim, { metal: 0.7, rough: 0.35 }), 0, 0.36 * big, 0), box(0.02, 0.085 * big, 0.085 * big, edge, 0.09 * big, 0.36 * big, 0), box(0.02, 0.085 * big, 0.085 * big, edge, -0.09 * big, 0.36 * big, 0));
-        else add(g, cyl(0.04 * big, 0.03 * big, 0.12 * big, m.power ? edge : steel, 0, 0.38 * big, 0, 8), ...[0, 1, 2, 3].map((i) => cone(0.015, 0.04, steel, Math.cos(i * 1.57) * 0.045 * big, 0.38 * big, Math.sin(i * 1.57) * 0.045 * big)));
-        break;
-      }
-      case 'staff': {
-        add(g, cyl(0.013, 0.013, 1.0, mat('#4a3a2a'), 0, 0.12, 0));
-        if (/glaive|polearm|spear|tremor|virge|executioner/.test(n)) add(g, box(0.014, 0.2, 0.05, steel, 0, 0.7, 0), box(0.016, 0.2, 0.012, edge, 0, 0.7, 0.03));
-        else add(g, sph(0.04, m.power || L.psyker ? glow(L.eye || '#6ac8ff') : BRASS(), 0, 0.64, 0), cyl(0.05, 0.02, 0.05, BRASS(), 0, 0.6, 0));
-        break;
-      }
-      case 'flail': {
-        add(g, cyl(0.014, 0.014, 0.16, grip, 0, 0.04, 0), limb(V(0, 0.12, 0), V(0.04, 0.26, 0.06), 0.006, steel), sph(0.045, m.power ? edge : DARK(), 0.04, 0.29, 0.06));
-        break;
-      }
-      case 'knife': {
-        add(g, cyl(0.012, 0.012, 0.07, grip, 0, 0, 0), box(0.05, 0.015, 0.025, steel, 0, 0.04, 0), box(0.01, 0.13, 0.03, m.power ? edge : steel, 0, 0.11, 0));
-        break;
-      }
-      case 'fist': {
-        // Worn over the hand: a big armoured fist, a klaw or a chainfist.
-        const big = mat(L.trim === '#c9ccd1' ? L.main : L.trim, { metal: 0.6, rough: 0.4 });
-        add(g, box(0.13, 0.13, 0.15, big, 0, 0.02, 0), box(0.1, 0.05, 0.08, big, 0, -0.04, 0.08));
-        if (/klaw|pincer|hydraulic|crusher/.test(n)) add(g, box(0.035, 0.03, 0.14, steel, 0.04, 0.06, 0.12), box(0.035, 0.03, 0.14, steel, -0.04, -0.03, 0.12));
-        else if (/chainfist/.test(n)) add(g, box(0.03, 0.06, 0.18, DARK(), 0, 0.0, 0.14));
-        if (m.power) add(g, box(0.135, 0.02, 0.155, edge, 0, 0.09, 0));
-        break;
-      }
-      case 'claws': {
-        for (let i = -1; i <= 1; i++) add(g, aimY(box(0.008, 0.2, 0.02, m.power ? edge : steel, i * 0.025, 0.1, 0), V(i * 0.1, 1, 0.1)));
-        add(g, box(0.08, 0.06, 0.08, mat(L.main, { metal: 0.3 }), 0, -0.01, 0));
-        break;
-      }
-    }
-    return g;
-  }
+  // ----- weapons (shaped after each faction's official designs: js/models3d-weapons.js); team add-ons run on ranged ones -----
+  const weapons = createWeapons({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, tz, aimY, METAL, DARK, BRASS });
+  function rangedModel(r, L) { const res = weapons.ranged(r, L); details.weapon(res.g, r, L); return res; }
+  const meleeModel = (m, L) => weapons.melee(m, L);
 
   // ----- bases -----
   function baseFor(op, L, teamColor) {
@@ -1085,6 +946,60 @@ export function createModelKit(THREE) {
     return kind && headTop ? STATURE[kind] / 25.4 / headTop : HUMAN_GAIN;
   }
 
+
+  // Bakes every part of a finished miniature into one mesh per material, so the GPU draws each model in a dozen
+  // or so calls instead of one per part (the look is unchanged; the materials are already shared per colour).
+  const _m = new THREE.Matrix4(), _n = new THREE.Matrix3(), _v = new THREE.Vector3();
+  function mergeByMaterial(root) {
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), groups = new Map(), parts = [];
+    root.traverse((o) => { if (o.isMesh && !Array.isArray(o.material)) { parts.push(o); if (!groups.has(o.material)) groups.set(o.material, []); groups.get(o.material).push(o); } });
+    for (const [material, meshes] of groups) {
+      let count = 0;
+      for (const o of meshes) { const g = o.geometry; count += g.index ? g.index.count : g.attributes.position.count; }
+      const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3);
+      let k = 0;
+      for (const o of meshes) {
+        const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, I = g.index;
+        _m.multiplyMatrices(inv, o.matrixWorld); _n.getNormalMatrix(_m);
+        const flip = _m.determinant() < 0, n = I ? I.count : P.count;
+        for (let t = 0; t < n; t += 3) for (let c = 0; c < 3; c++) {
+          const s = t + (flip ? 2 - c : c), idx = I ? I.getX(s) : s;
+          _v.fromBufferAttribute(P, idx).applyMatrix4(_m); pos.set([_v.x, _v.y, _v.z], k * 3);
+          if (N) { _v.fromBufferAttribute(N, idx).applyMatrix3(_n).normalize(); nor.set([_v.x, _v.y, _v.z], k * 3); }
+          k++;
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.castShadow = meshes.some((o) => o.castShadow); mesh.receiveShadow = meshes.some((o) => o.receiveShadow);
+      root.add(mesh);
+    }
+    for (const o of parts) o.parent.remove(o);
+    // drop the now-empty groups
+    const empty = (o) => { for (const c of [...o.children]) empty(c); if (o !== root && !o.isMesh && !o.children.length) o.parent.remove(o); };
+    empty(root);
+    return root;
+  }
+
+  // A soft studio for metal to reflect: a dim room with a few light panels. Without it metal parts render almost
+  // black and their edges vanish; with it every plate, rim and barrel picks up a highlight.
+  function studioEnv(renderer) {
+    const room = new THREE.Scene(), panel = (c, w, h, x, y, z, ry = 0, rx = 0) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+      m.position.set(x, y, z); m.rotation.set(rx, ry, 0); room.add(m);
+    };
+    room.add(new THREE.Mesh(new THREE.BoxGeometry(20, 12, 20), new THREE.MeshBasicMaterial({ color: '#3a3e46', side: THREE.BackSide })));
+    panel('#ffffff', 8, 2, 0, 5.9, 0, 0, Math.PI / 2); // overhead strip
+    panel('#c0c8d4', 4, 6, 9.9, 1, 2, -Math.PI / 2); // side panels
+    panel('#a0a8b8', 4, 6, -9.9, 1, -3, Math.PI / 2);
+    panel('#d0d6e0', 6, 3, 2, 2, 9.9, Math.PI);
+    const pm = new THREE.PMREMGenerator(renderer), env = pm.fromScene(room, 0.04).texture;
+    pm.dispose(); room.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+    return env;
+  }
   /** A complete miniature (model + base) for an operative of a team. */
   function buildOperative(team, op, loadout) {
     const L = operativeLook(team, op);
@@ -1116,8 +1031,8 @@ export function createModelKit(THREE) {
     }
     root.add(fig);
     root.userData = { opId: op.id, look: L, picks };
-    return root;
+    return mergeByMaterial(root);
   }
 
-  return { buildOperative, pickWeapons, operativeLook, weaponsOf };
+  return { buildOperative, pickWeapons, operativeLook, weaponsOf, studioEnv };
 }

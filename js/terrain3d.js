@@ -103,7 +103,7 @@ export function createTerrainKit(THREE) {
         const x = -L / 2 + seg * (i + 0.5), h = height * (heavy ? 1 : 0.9);
         add(g, box(seg * 0.94, h * 0.9, D * (heavy ? 0.9 : 0.35), panel, x, h * 0.45 + 0.05, 0));
         add(g, box(seg * 0.5, 0.14, D * (heavy ? 0.95 : 0.4), HAZARD(), x, h * 0.75, 0)); // stripe
-        if (!heavy) add(g, cyl(0.12, 0.12, 0.04, mat('#c9a227', { metal: 0.8 }), x, h * 0.45, D * 0.18 + 0.02, 10).rotateX(Math.PI / 2)); // skull/aquila boss
+        if (!heavy) add(g, cyl(0.12, 0.12, 0.04, mat('#c9a227', { metal: 0.8 }), x, h * 0.45, D * 0.18 + 0.02, 10).rotateX(Math.PI / 2)); // plain round boss
         if (heavy) add(g, ...[-1, 1].map((s) => { const b = box(0.12, h * 0.8, 0.5, panel, x, h * 0.35, s * (D / 2 + 0.2)); b.rotation.x = s * 0.45; return b; }));
       }
       for (let i = 0; i <= n; i++) add(g, box(0.16, height, Math.max(0.2, D * 0.5), mat('#45484e', { metal: 0.6 }), -L / 2 + seg * i, height / 2, 0));
