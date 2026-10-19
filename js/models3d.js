@@ -1034,5 +1034,11 @@ export function createModelKit(THREE) {
     return mergeByMaterial(root);
   }
 
-  return { buildOperative, pickWeapons, operativeLook, weaponsOf, studioEnv };
+  /** An operative's main ranged and melee weapons on their own (for close-up previews). */
+  function previewWeapons(team, op, loadout) {
+    const L = operativeLook(team, op), p = pickWeapons(weaponsOf(op, loadout));
+    return { ranged: p.ranged && rangedModel(p.ranged, L).g, melee: p.melee && meleeModel(p.melee, L), names: [p.ranged?.n, p.melee?.n] };
+  }
+
+  return { buildOperative, pickWeapons, operativeLook, weaponsOf, studioEnv, previewWeapons };
 }

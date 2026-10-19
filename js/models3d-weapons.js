@@ -16,6 +16,7 @@ export function createWeapons(h) {
   const STEEL = () => mat('#a8adb4', { metal: 0.85, rough: 0.3 });
   const RUST = () => mat('#7a4a2e', { metal: 0.4, rough: 0.7 });
   const EDGE = () => mat("#8d939c", { metal: 0.5, rough: 0.3 });
+  const BRIGHT = () => mat('#dfe3e8', { metal: 0.7, rough: 0.2 }); // honed blade edges
   // A box with thin bright piping where its top face meets the sides and front, so the outline of each casing reads (as on the power fist).
   function rim(w, h, d, m, x, y, z, e = EDGE()) {
     const r = Math.min(w, h, d) * 0.28, yt = y + h / 2 - 0.0005;
@@ -53,6 +54,8 @@ export function createWeapons(h) {
         ...[-1, 1].map((s) => Z(cyl(0.006, 0.006, 0.05, DARK(), s * 0.018, 0.04, 0.4))), ...rim(0.07, 0.1, 0.09, mat('#4a4636'), 0.08, -0.02, 0.06),
         limb(V(0.05, 0.02, 0.06), V(0.03, 0.06, 0.12), 0.012, BRASS()), box(0.012, 0.012, 0.16, DARK(), 0, 0.1, 0.07), limb(V(0, 0.1, -0.01), V(0, 0.085, -0.02), 0.008, DARK()),
         ...[-1, 1].map((s) => tilt(box(0.02, 0.07, 0.03, DARK(), s * 0.035, -0.04, -0.05), 0.3)));
+      add(g, Z(cyl(0.03, 0.03, 0.006, EDGE(), 0, 0.04, 0.36)), Z(cyl(0.031, 0.031, 0.006, EDGE(), 0, 0.04, 0.2)), // bright rims on the barrel shroud
+        ...[0, 1, 2, 3, 4].map((i) => box(0.016, 0.012, 0.01, BRASS(), 0.05 - i * 0.006, 0.0 + i * 0.012, 0.06 + i * 0.012)), box(0.014, 0.004, 0.14, EDGE(), 0, 0.107, 0.07)); // belt links, handle highlight
       return V(0, -0.04, 0.18);
     }
     // Primaris bolt rifle (long receiver, curved magazine ahead of the trigger, shrouded barrel, top rail) or a
@@ -130,7 +133,7 @@ export function createWeapons(h) {
     const s = heavy ? 1.3 : 1;
     add(g, ...rim(0.045 * s, 0.065 * s, 0.16, casing, 0, 0.02, -0.02), Z(cyl(0.036 * s, 0.036 * s, 0.14, casing, 0, 0.025, 0.13)), ...[0, 1, 2, 3].map((i) => Z(cyl(0.038 * s, 0.038 * s, 0.008, coil, 0, 0.025, 0.08 + i * 0.03))),
       ...[0, 1, 2, 3, 4, 5].map((i) => { const a = i * Math.PI / 3; return box(0.006, 0.02 * s, 0.07, casing, Math.cos(a) * 0.03 * s, 0.025 + Math.sin(a) * 0.03 * s, 0.25); }), // cooling fins
-      Z(cyl(0.022 * s, 0.026 * s, 0.06, DARK(), 0, 0.025, 0.28)), sph(0.012 * s, coil, 0, 0.025, 0.31, 8, 6), ...rim(0.032, 0.05, 0.11, casing, 0, -0.005, -0.15), tilt(box(0.03, 0.06, 0.03, casing, 0, -0.04, 0.12), 0.2));
+      Z(cyl(0.022 * s, 0.026 * s, 0.06, DARK(), 0, 0.025, 0.28)), sph(0.012 * s, coil, 0, 0.025, 0.31, 8, 6), Z(cyl(0.027 * s, 0.027 * s, 0.005, EDGE(), 0, 0.025, 0.307)), Z(cyl(0.037 * s, 0.037 * s, 0.005, EDGE(), 0, 0.025, 0.2)), ...rim(0.032, 0.05, 0.11, casing, 0, -0.005, -0.15), tilt(box(0.03, 0.06, 0.03, casing, 0, -0.04, 0.12), 0.2));
     grip(g, casing); trigger(g);
     return V(0, -0.02, 0.13);
   }
@@ -146,7 +149,7 @@ export function createWeapons(h) {
     const multi = /multi|heavy/.test(kind);
     const s = multi ? 1.35 : 1;
     add(g, ...rim(0.05 * s, 0.06 * s, 0.14, casing, 0, 0.02, 0.0), Z(cyl(0.03 * s, 0.03 * s, 0.1, mat('#5a4a3a', { metal: 0.4 }), 0, -0.03, 0.08)), // fuel canister
-      ...[-1, 1].map((x) => Z(cyl(0.022 * s, 0.024 * s, 0.24, casing, x * 0.022 * s, 0.035, 0.2))), ...[-1, 1].map((x) => Z(cyl(0.016 * s, 0.016 * s, 0.006, heat, x * 0.022 * s, 0.035, 0.322))),
+      ...[-1, 1].map((x) => Z(cyl(0.022 * s, 0.024 * s, 0.24, casing, x * 0.022 * s, 0.035, 0.2))), ...[-1, 1].map((x) => Z(cyl(0.016 * s, 0.016 * s, 0.006, heat, x * 0.022 * s, 0.035, 0.322))), ...[-1, 1].map((x) => Z(cyl(0.025 * s, 0.025 * s, 0.006, EDGE(), x * 0.022 * s, 0.035, 0.316))),
       ...[0, 1, 2].map((i) => Z(cyl(0.05 * s, 0.05 * s, 0.006, DARK(), 0, 0.035, 0.24 + i * 0.025))), box(0.03, 0.05, 0.1, casing, 0, -0.005, -0.12));
     grip(g, casing); trigger(g);
     return V(0, -0.04, 0.12);
@@ -173,6 +176,7 @@ export function createWeapons(h) {
     if (/grenade launcher|apm|frag cannon|mortar/.test(kind)) {
       add(g, ...rim(0.04, 0.06, 0.16, casing, 0, 0.02, 0.0), Z(cyl(0.05, 0.05, 0.06, casing, 0, -0.01, 0.06)), ...[0, 1, 2, 3, 4, 5].map((i) => { const a = i * Math.PI / 3; return Z(cyl(0.012, 0.012, 0.062, DARK(), Math.cos(a) * 0.03, -0.01 + Math.sin(a) * 0.03, 0.06)); }),
         Z(cyl(0.026, 0.026, 0.16, DARK(), 0, 0.03, 0.18)), box(0.03, 0.05, 0.1, casing, 0, -0.005, -0.12));
+      add(g, ...[-1, 1].map((s) => Z(cyl(0.052, 0.052, 0.005, EDGE(), 0, -0.01, 0.06 + s * 0.03))), Z(cyl(0.029, 0.029, 0.01, EDGE(), 0, 0.03, 0.26))); // drum rims, muzzle
       grip(g, casing); trigger(g);
       return V(0, -0.02, 0.16);
     }
@@ -180,6 +184,8 @@ export function createWeapons(h) {
     add(g, Z(cyl(0.045, 0.045, 0.55, casing, 0, 0.07, 0.05, 16)), Z(cyl(0.05, 0.05, 0.04, DARK(), 0, 0.07, 0.33)), Z(cyl(0.05, 0.05, 0.04, DARK(), 0, 0.07, -0.22)),
       box(0.03, 0.08, 0.04, DARK(), 0, 0, 0), box(0.025, 0.05, 0.07, DARK(), -0.055, 0.1, 0.05), Z(cyl(0.012, 0.012, 0.01, glow('#3ae0ff'), -0.055, 0.1, 0.09)),
       Z(cone(0.035, 0.09, mat('#a8302a'), 0, 0.07, 0.38)));
+    add(g, ...[0.31, 0.35, -0.2, -0.24].map((z) => Z(cyl(0.052, 0.052, 0.005, EDGE(), 0, 0.07, z))), ...[0.1, 0.0].map((z) => Z(cyl(0.047, 0.047, 0.006, EDGE(), 0, 0.07, z))), // rims and bands
+      tilt(cone(0.05, 0.05, DARK(), 0, 0.07, -0.27), Math.PI / 2), box(0.004, 0.054, 0.074, EDGE(), -0.069, 0.1, 0.05)); // rear venturi, sight edge
     return V(0, 0.0, 0.18);
   }
 
@@ -189,30 +195,33 @@ export function createWeapons(h) {
       Z(cyl(0.02, 0.022, 0.16, DARK(), 0, 0.085, 0.07)), Z(cyl(0.022, 0.022, 0.008, glow('#3ae0ff'), 0, 0.085, 0.15)), box(0.01, 0.03, 0.02, DARK(), 0, 0.06, 0.03), box(0.01, 0.03, 0.02, DARK(), 0, 0.06, 0.11),
       ...rim(0.03, 0.07, 0.16, casing, 0, -0.012, -0.17), box(0.032, 0.02, 0.08, casing, 0, 0.035, -0.12), tilt(box(0.03, 0.07, 0.035, DARK(), 0, -0.05, 0.12), -0.25),
       limb(V(0, 0, 0.3), V(0.04, -0.09, 0.34), 0.005, DARK()), limb(V(0, 0, 0.3), V(-0.04, -0.09, 0.34), 0.005, DARK()));
+    add(g, ...[0.0, 0.14].map((z) => Z(cyl(0.024, 0.024, 0.006, EDGE(), 0, 0.085, z))), ...[0.585, 0.615].map((z) => Z(cyl(0.02, 0.02, 0.005, EDGE(), 0, 0.03, z))), // scope rings, muzzle brake rims
+      ...[-1, 1].map((s) => sph(0.008, EDGE(), s * 0.04, -0.09, 0.34, 8, 6))); // bipod feet
     grip(g, casing); trigger(g);
     return V(0, -0.02, 0.24);
   }
 
   function tau(g, L, r) {
     const n = r.n.toLowerCase(), shell = mat('#d8d0c0', { rough: 0.45 }), dark = mat('#2e3038', { metal: 0.4, rough: 0.4 }), emit = glow('#3ae0ff');
+    const seam = mat('#6e6a62', { rough: 0.6 }); // T'au casings are outlined by dark panel lines rather than bright trim
     if (/pistol|neutron sting/.test(n) || r.form === 'pistol') {
-      add(g, box(0.032, 0.045, 0.12, shell, 0, 0.02, 0.04), box(0.02, 0.02, 0.1, dark, 0, 0.02, 0.05), sph(0.008, emit, 0, 0.02, 0.105, 6, 4));
+      add(g, ...rim(0.032, 0.045, 0.12, shell, 0, 0.02, 0.04, seam), box(0.02, 0.02, 0.1, dark, 0, 0.02, 0.05), sph(0.008, emit, 0, 0.02, 0.105, 6, 4), box(0.034, 0.003, 0.1, seam, 0, 0.012, 0.04));
       grip(g, dark); trigger(g);
       return null;
     }
     if (/burst cannon/.test(n)) {
-      add(g, box(0.08, 0.08, 0.2, shell, 0, 0.03, 0.06), ...[0, 1, 2, 3, 4, 5].map((i) => { const a = i * Math.PI / 3; return Z(cyl(0.008, 0.008, 0.18, dark, Math.cos(a) * 0.022, 0.03 + Math.sin(a) * 0.022, 0.22)); }),
-        Z(cyl(0.035, 0.035, 0.02, shell, 0, 0.03, 0.26)), Z(cyl(0.035, 0.035, 0.02, shell, 0, 0.03, 0.18)));
+      add(g, ...rim(0.08, 0.08, 0.2, shell, 0, 0.03, 0.06, seam), box(0.082, 0.003, 0.18, seam, 0, 0.015, 0.06), ...[0, 1, 2, 3, 4, 5].map((i) => { const a = i * Math.PI / 3; return Z(cyl(0.008, 0.008, 0.18, dark, Math.cos(a) * 0.022, 0.03 + Math.sin(a) * 0.022, 0.22)); }),
+        Z(cyl(0.035, 0.035, 0.02, shell, 0, 0.03, 0.26)), Z(cyl(0.035, 0.035, 0.02, shell, 0, 0.03, 0.18)), ...[0.17, 0.27].map((z) => Z(cyl(0.036, 0.036, 0.003, seam, 0, 0.03, z))));
       return V(0, -0.03, 0.12);
     }
     if (/rail/.test(n)) { // two long rails with a glowing gap
-      add(g, box(0.04, 0.06, 0.2, shell, 0, 0.02, 0.02), ...[-1, 1].map((s) => box(0.01, 0.03, 0.42, dark, s * 0.012, 0.03, 0.33)), box(0.012, 0.01, 0.4, emit, 0, 0.03, 0.33),
+      add(g, ...rim(0.04, 0.06, 0.2, shell, 0, 0.02, 0.02, seam), box(0.042, 0.003, 0.18, seam, 0, 0.005, 0.02), ...[-1, 1].map((s) => box(0.01, 0.03, 0.42, dark, s * 0.012, 0.03, 0.33)), ...[0.2, 0.33, 0.46].map((z) => box(0.036, 0.036, 0.01, shell, 0, 0.03, z)), box(0.012, 0.01, 0.4, emit, 0, 0.03, 0.33),
         Z(cyl(0.018, 0.018, 0.12, dark, 0, 0.085, 0.05)), box(0.03, 0.06, 0.14, shell, 0, -0.005, -0.14));
       grip(g, dark); trigger(g);
       return V(0, -0.02, 0.22);
     }
     if (/ion/.test(n)) {
-      add(g, box(0.05, 0.07, 0.24, shell, 0, 0.025, 0.06), ...[0, 1, 2].map((i) => box(0.052, 0.012, 0.03, emit, 0, 0.045, 0.02 + i * 0.05)), Z(cyl(0.02, 0.024, 0.12, dark, 0, 0.03, 0.24)), box(0.03, 0.06, 0.12, shell, 0, -0.005, -0.13));
+      add(g, ...rim(0.05, 0.07, 0.24, shell, 0, 0.025, 0.06, seam), ...[0, 1, 2].map((i) => box(0.052, 0.012, 0.03, emit, 0, 0.045, 0.02 + i * 0.05)), Z(cyl(0.02, 0.024, 0.12, dark, 0, 0.03, 0.24)), box(0.03, 0.06, 0.12, shell, 0, -0.005, -0.13));
       grip(g, dark); trigger(g);
       return V(0, -0.02, 0.17);
     }
@@ -221,7 +230,9 @@ export function createWeapons(h) {
     const carbine = /carbine/.test(n);
     const len = carbine ? 0.28 : 0.36;
     add(g, tilt(box(0.045, 0.07, len, shell, 0, 0.025, 0.02 + len / 2 - 0.08), 0.03), box(0.026, 0.03, len * 0.9, dark, 0, 0.03, len / 2 - 0.02), Z(cyl(0.012, 0.012, 0.03, dark, 0, 0.03, len - 0.04)),
-      sph(0.01, emit, 0, 0.03, len - 0.02, 8, 6), box(0.034, 0.055, 0.12, shell, 0, -0.005, -0.115));
+      sph(0.01, emit, 0, 0.03, len - 0.02, 8, 6), ...rim(0.034, 0.055, 0.12, shell, 0, -0.005, -0.115, seam),
+      box(0.047, 0.003, len * 0.8, seam, 0, 0.012, len / 2 - 0.06), box(0.048, 0.04, 0.003, seam, 0, 0.025, len * 0.35), // panel lines along and across the casing
+      box(0.02, 0.022, 0.05, dark, 0, 0.068, 0.04), Z(cyl(0.007, 0.007, 0.004, emit, 0, 0.068, 0.067)), Z(cyl(0.016, 0.016, 0.006, seam, 0, 0.03, len - 0.025))); // sensor block with its lens, muzzle rim
     if (carbine) add(g, Z(cyl(0.016, 0.016, 0.1, dark, 0, -0.03, 0.12))); // underslung grenade launcher
     grip(g, dark); trigger(g);
     return V(0, -0.025, len * 0.6);
@@ -232,7 +243,7 @@ export function createWeapons(h) {
     if (/fusion/.test(n)) return melta(g, L, n, 'aeldari');
     if (r.form === 'pistol' || /pistol|disruptor/.test(n)) {
       const s1 = sph(0.04, body, 0, 0.022, 0.04, 14, 10); s1.scale.set(0.7, 0.8, 1.6);
-      add(g, s1, box(0.012, 0.012, 0.08, DARK(), 0, 0.028, 0.1), Z(cyl(0.022, 0.022, 0.008, shell, 0, 0.055, 0.03)));
+      add(g, s1, box(0.012, 0.012, 0.08, DARK(), 0, 0.028, 0.1), Z(cyl(0.022, 0.022, 0.008, shell, 0, 0.055, 0.03)), ...[-1, 1].map((x) => limb(V(x * 0.027, 0.025, 0.0), V(x * 0.022, 0.03, 0.09), 0.0025, shell)));
       grip(g, body); trigger(g);
       return null;
     }
@@ -241,7 +252,9 @@ export function createWeapons(h) {
     const s = heavy ? 1.4 : 1;
     const hull = sph(0.06 * s, body, 0, 0.025, 0.1, 18, 12); hull.scale.set(0.55, 0.65, 2.6);
     add(g, hull, Z(cyl(0.045 * s, 0.045 * s, 0.012, shell, 0, 0.075 * s, 0.06)), box(0.012, 0.012, 0.06, DARK(), 0, 0.03, 0.27 * s), box(0.008, 0.06, 0.03, shell, 0, -0.01, 0.2),
-      sph(0.01, gem, 0, 0.05, 0.16, 8, 6), tilt(box(0.026, 0.05, 0.11, body, 0, -0.005, -0.1), -0.08));
+      sph(0.01, gem, 0, 0.05, 0.16, 8, 6), tilt(box(0.026, 0.05, 0.11, body, 0, -0.005, -0.1), -0.08),
+      ...[-1, 1].map((x) => limb(V(x * 0.03 * s, 0.03, -0.02), V(x * 0.03 * s, 0.035, 0.23 * s), 0.003, shell)), // inlaid trim along both flanks
+      new THREE.Mesh(new THREE.TorusGeometry(0.045 * s, 0.003, 6, 24), shell).translateY(0.075 * s).translateZ(0.06), new THREE.Mesh(new THREE.TorusGeometry(0.013, 0.003, 6, 12), shell).translateY(0.05).translateZ(0.16).rotateX(Math.PI / 2)); // disc rim, gem setting
     grip(g, body); trigger(g);
     return V(0, -0.02, 0.17);
   }
@@ -249,13 +262,13 @@ export function createWeapons(h) {
   function drukhari(g, L, r) {
     const n = r.n.toLowerCase(), hull = mat('#22262c', { metal: 0.45, rough: 0.35 }), vial = glow('#7fe03a'), blade = STEEL();
     if (r.form === 'pistol' || /pistol/.test(n)) {
-      add(g, box(0.028, 0.04, 0.13, hull, 0, 0.02, 0.05), Z(cyl(0.012, 0.012, 0.04, vial, 0, 0.045, 0.03)), cone(0.01, 0.06, blade, 0, 0.0, 0.14, 4).rotateX(Math.PI / 2));
+      add(g, ...rim(0.028, 0.04, 0.13, hull, 0, 0.02, 0.05), Z(cyl(0.012, 0.012, 0.04, vial, 0, 0.045, 0.03)), cone(0.01, 0.06, blade, 0, 0.0, 0.14, 4).rotateX(Math.PI / 2));
       grip(g, hull); trigger(g);
       return null;
     }
     const lance = /lance|blaster/.test(n);
     // Splinter rifle: a long thin hull, a crystal vial, blades along the barrel and a blade bayonet.
-    add(g, box(0.03, 0.05, 0.36, hull, 0, 0.02, 0.1), Z(cyl(0.007, 0.007, 0.2, DARK(), 0, 0.03, 0.37)), Z(cyl(0.014, 0.014, 0.05, lance ? glow('#b06aff') : vial, 0, 0.06, 0.04)),
+    add(g, ...rim(0.03, 0.05, 0.36, hull, 0, 0.02, 0.1), ...[0.015, 0.065].map((z) => Z(cyl(0.017, 0.017, 0.006, EDGE(), 0, 0.06, z))), ...[0, 1, 2].map((i) => aimY(box(0.007, 0.05, 0.004, BRIGHT(), 0, -0.025, 0.11 + i * 0.07), V(0, -1, -0.6))), Z(cyl(0.007, 0.007, 0.2, DARK(), 0, 0.03, 0.37)), Z(cyl(0.014, 0.014, 0.05, lance ? glow('#b06aff') : vial, 0, 0.06, 0.04)),
       ...[0, 1, 2].map((i) => aimY(box(0.006, 0.05, 0.02, blade, 0, -0.025, 0.12 + i * 0.07), V(0, -1, -0.6))), cone(0.012, 0.1, blade, 0, 0.0, 0.5, 4).rotateX(Math.PI / 2),
       tilt(box(0.024, 0.06, 0.15, hull, 0, -0.01, -0.13), -0.15));
     grip(g, hull); trigger(g);
@@ -270,6 +283,8 @@ export function createWeapons(h) {
     // Gauss / tesla weapon: an open skeletal frame of rods around a glowing core, with a sling-like stock bar.
     add(g, ...[-1, 1].map((s) => box(0.01, 0.014, len, frame, s * 0.02, 0.04, len / 2 - 0.04)), box(0.034, 0.012, len * 0.9, frame, 0, 0.0, len / 2 - 0.05),
       Z(cyl(0.008, 0.008, len * 0.8, core, 0, 0.025, len / 2 - 0.02)), box(0.03, 0.05, 0.06, frame, 0, 0.02, len - 0.04), limb(V(0, 0.0, -0.02), V(0, -0.02, -0.17), 0.008, frame), box(0.02, 0.05, 0.02, frame, 0, -0.03, -0.17));
+    add(g, ...[0.25, 0.5, 0.75].map((t) => new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.004, 6, 16), frame).translateZ(len * t - 0.02).translateY(0.025)), // ribs round the core
+      ...[-1, 1].map((x) => box(0.012, 0.004, len * 0.9, BRIGHT(), x * 0.02, 0.048, len / 2 - 0.04)), box(0.034, 0.054, 0.004, core, 0, 0.02, len - 0.009)); // bright frame edges, glowing muzzle face
     if (tesla) add(g, sph(0.03, glow('#7ad8ff'), 0, 0.03, len - 0.02, 12, 8));
     if (long) add(g, Z(cyl(0.016, 0.016, 0.1, frame, 0, 0.075, 0.08)));
     grip(g, frame); trigger(g);
@@ -277,19 +292,20 @@ export function createWeapons(h) {
   }
 
   function ork(g, L, r) {
-    const n = r.n.toLowerCase(), plate = RUST(), iron = GUN(), boom = glow('#ff8a1a');
+    const n = r.n.toLowerCase(), plate = RUST(), iron = GUN(), boom = glow('#ff8a1a'), worn = mat('#9a9ea4', { metal: 0.7, rough: 0.45 });
     const rivets = (z0, y, k) => [...Array(k)].map((_, i) => sph(0.006, BRASS(), 0.03, y, z0 + i * 0.04, 6, 4));
     if (/rokkit launcha|rokkit rack|pulsa/.test(n)) return launcher(g, L, n);
     if (/burna/.test(n)) return flamer(g, L, 'burna');
     if (r.form === 'pistol' || /slugga|pistol/.test(n)) {
-      add(g, box(0.042, 0.055, 0.12, plate, 0, 0.02, 0.04), Z(cyl(0.017, 0.017, 0.07, iron, 0, 0.025, 0.12)), box(0.03, 0.04, 0.05, iron, 0, -0.015, 0.03), ...rivets(0.0, 0.035, 3));
+      add(g, ...rim(0.042, 0.055, 0.12, plate, 0, 0.02, 0.04, worn), Z(cyl(0.017, 0.017, 0.07, iron, 0, 0.025, 0.12)), Z(cyl(0.019, 0.019, 0.008, worn, 0, 0.025, 0.155)), box(0.03, 0.04, 0.05, iron, 0, -0.015, 0.03), ...rivets(0.0, 0.035, 3));
       grip(g, WOOD()); trigger(g);
       return null;
     }
     const big = r.form === 'heavy' || /big shoota|dakka|snipa|kannon/.test(n);
     const s = big ? 1.25 : 1;
     // Shoota: a crude riveted box with mismatched plates, twin or rotary barrels and a drum or box magazine.
-    add(g, box(0.06 * s, 0.075 * s, 0.22, plate, 0, 0.025, 0.04), box(0.065 * s, 0.03, 0.08, iron, 0.005, 0.05, -0.01), ...rivets(-0.04, 0.055 * s, 4),
+    add(g, ...rim(0.06 * s, 0.075 * s, 0.22, plate, 0, 0.025, 0.04, worn), box(0.065 * s, 0.03, 0.08, iron, 0.005, 0.05, -0.01), tilt(box(0.004, 0.05 * s, 0.07, iron, 0.032 * s, 0.02, 0.09), 0, 0, 0.08), // bolted-on patch plate
+      ...(big ? [0, 1, 2, 3].map((i) => { const a = i * Math.PI / 2; return Z(cyl(0.014, 0.014, 0.008, worn, Math.cos(a) * 0.022, 0.03 + Math.sin(a) * 0.022, 0.336)); }) : [-1, 1].map((x) => Z(cyl(0.016, 0.016, 0.008, worn, x * 0.017, 0.03, 0.296)))), // worn bright muzzles ...rivets(-0.04, 0.055 * s, 4),
       ...(big ? [0, 1, 2, 3].map((i) => { const a = i * Math.PI / 2; return Z(cyl(0.012, 0.012, 0.2, iron, Math.cos(a) * 0.022, 0.03 + Math.sin(a) * 0.022, 0.24)); }) : [-1, 1].map((x) => Z(cyl(0.014, 0.014, 0.16, iron, x * 0.017, 0.03, 0.22)))),
       big ? Z(cyl(0.05, 0.05, 0.05, iron, 0.06, -0.03, 0.05)) : box(0.034, 0.1, 0.05, iron, 0, -0.07, 0.08), box(0.03, 0.05, 0.1, WOOD(), 0, -0.01, -0.12), box(0.008, 0.02, 0.01, BRASS(), 0, 0.075 * s, 0.13));
     if (/snipa|scoped/.test(n)) add(g, Z(cyl(0.02, 0.02, 0.14, iron, 0, 0.1, 0.04)), Z(cyl(0.02, 0.02, 0.006, boom, 0, 0.1, 0.11)));
@@ -301,14 +317,15 @@ export function createWeapons(h) {
     const n = r.n.toLowerCase(), shell = mat('#5a5e64', { metal: 0.6, rough: 0.35 }), accent = mat(L.main, { metal: 0.4, rough: 0.45 }), ion = glow('#4af0ff');
     if (/etacarn|plasma/.test(n)) return plasma(g, L, n, 'votann');
     if (r.form === 'pistol' || /pistol|revolver/.test(n)) {
-      add(g, box(0.042, 0.055, 0.12, shell, 0, 0.022, 0.04), Z(cyl(0.02, 0.02, 0.05, shell, 0, 0.025, 0.12)), box(0.044, 0.02, 0.06, accent, 0, 0.05, 0.03));
+      add(g, ...rim(0.042, 0.055, 0.12, shell, 0, 0.022, 0.04), Z(cyl(0.02, 0.02, 0.05, shell, 0, 0.025, 0.12)), Z(cyl(0.022, 0.022, 0.006, EDGE(), 0, 0.025, 0.145)), box(0.044, 0.02, 0.06, accent, 0, 0.05, 0.03));
       grip(g, shell); trigger(g);
       return null;
     }
     // Autoch-pattern weapons: chunky rounded receivers, short shrouded barrels, coloured panels, ion cells glowing blue.
     const heavy = r.form === 'heavy';
     const s = heavy ? 1.3 : 1;
-    add(g, box(0.06 * s, 0.08 * s, 0.24, shell, 0, 0.025, 0.05), box(0.062 * s, 0.03, 0.14, accent, 0, 0.055 * s, 0.05), Z(cyl(0.026 * s, 0.026 * s, 0.1, shell, 0, 0.025, 0.22)),
+    add(g, ...rim(0.06 * s, 0.08 * s, 0.24, shell, 0, 0.025, 0.05), box(0.062 * s, 0.03, 0.14, accent, 0, 0.055 * s, 0.05), ...[-1, 1].map((z) => box(0.064 * s, 0.004, 0.004, EDGE(), 0, 0.07 * s, 0.05 + z * 0.068)), // accent panel edges
+      ...[0.19, 0.25].map((z) => Z(cyl(0.028 * s, 0.028 * s, 0.006, EDGE(), 0, 0.025, z))), Z(cyl(0.018 * s, 0.018 * s, 0.006, EDGE(), 0, 0.025, 0.31)), Z(cyl(0.026 * s, 0.026 * s, 0.1, shell, 0, 0.025, 0.22)),
       Z(cyl(0.016 * s, 0.016 * s, 0.04, DARK(), 0, 0.025, 0.29)), box(0.04, 0.09, 0.05, DARK(), 0, -0.06, 0.08), box(0.034, 0.06, 0.1, shell, 0, -0.005, -0.12));
     if (/ion|magna|hylas/.test(n)) add(g, ...[0, 1].map((i) => box(0.064 * s, 0.014, 0.025, ion, 0, 0.03, 0.03 + i * 0.05)));
     if (/magna/.test(n)) add(g, Z(cyl(0.012, 0.012, 0.2, ion, 0, 0.03, 0.36)));
@@ -323,10 +340,22 @@ export function createWeapons(h) {
       grip(g, wood); trigger(g);
       return null;
     }
-    if (/bow|tribalest/.test(n)) return null;
+    if (/bow|tribalest/.test(n)) {
+      // Accelerator bow / tribalest: a crossbow-like stock with swept bow arms at the front, a taut string and a glowing bolt.
+      const arms = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.009, 6, 20, Math.PI * 0.8), mat('#4a3020', { rough: 0.7 }));
+      arms.rotation.set(Math.PI / 2, 0, Math.PI * 0.1); arms.position.set(0, 0.035, 0.1); arms.castShadow = true;
+      const tip = (sx) => V(sx * 0.16 * Math.cos(Math.PI * 0.1), 0.035, 0.1 + 0.16 * Math.sin(Math.PI * 0.1));
+      add(g, ...rim(0.032, 0.05, 0.3, wood, 0, 0.012, 0.06, BRASS()), arms, ...[-1, 1].map((sx) => limb(tip(sx), V(0, 0.04, 0.03), 0.0025, mat('#e8e0d0'))),
+        limb(V(0, 0.045, 0.03), V(0, 0.045, 0.29), 0.004, BRASS()), cone(0.01, 0.035, glow('#ff8a3a'), 0, 0.045, 0.305, 5).rotateX(Math.PI / 2), // the bolt and its glowing fused head
+        ...[-0.04, 0.0].map((z) => Z(cyl(0.024, 0.024, 0.012, mat('#5a3a22', { rough: 0.85 }), 0, 0.012, z))), box(0.03, 0.06, 0.14, wood, 0, -0.01, -0.14));
+      grip(g, wood); trigger(g);
+      return V(0, -0.02, 0.16);
+    }
     const long = r.form === 'sniper';
     add(g, box(0.035, 0.055, 0.24, wood, 0, 0.015, 0.03), Z(cyl(0.012, 0.012, long ? 0.42 : 0.3, iron, 0, 0.03, long ? 0.38 : 0.3)), box(0.03, 0.06, 0.14, wood, 0, -0.01, -0.14),
-      ...[0, 1].map((i) => limb(V(-0.022, 0.03, 0.05 + i * 0.12), V(0.022, 0.03, 0.05 + i * 0.12), 0.006, mat('#c8b890'))));
+      ...[0, 1].map((i) => limb(V(-0.022, 0.03, 0.05 + i * 0.12), V(0.022, 0.03, 0.05 + i * 0.12), 0.006, mat('#c8b890'))),
+      ...[0.2, 0.3, long ? 0.45 : 0.4].map((z) => Z(cyl(0.016, 0.016, 0.01, BRASS(), 0, 0.03, z))), ...[-0.1, -0.16].map((z) => Z(cyl(0.024, 0.024, 0.012, mat('#5a3a22', { rough: 0.85 }), 0, -0.01, z))), // brass bands, leather wraps
+      Z(cyl(0.015, 0.015, 0.012, BRASS(), 0, 0.03, long ? 0.585 : 0.445)));
     grip(g, wood); trigger(g);
     return V(0, -0.02, 0.18);
   }
@@ -334,7 +363,7 @@ export function createWeapons(h) {
   function bow(g) {
     const arc = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.012, 8, 20, Math.PI * 0.9), mat('#6a4a2a', { rough: 0.7 }));
     arc.rotation.z = Math.PI / 2 + Math.PI * 0.05; arc.rotation.y = Math.PI / 2; arc.castShadow = true;
-    add(g, arc, limb(V(0, 0.21, 0.04), V(0, -0.21, 0.04), 0.003, mat('#e8e0d0')));
+    add(g, arc, limb(V(0, 0.21, 0.04), V(0, -0.21, 0.04), 0.003, mat('#e8e0d0')), cyl(0.017, 0.017, 0.07, mat('#5a3a22', { rough: 0.85 }), 0, 0, -0.218));
     return null;
   }
 
@@ -375,13 +404,18 @@ export function createWeapons(h) {
         add(g, cyl(0.013, 0.015, 0.1, hilt, 0, 0, 0), sph(0.02, BRASS(), 0, -0.055, 0, 10, 8), box(0.11, 0.022, 0.035, BRASS(), 0, 0.055, 0),
           box(0.014, L1, 0.045, steel, 0, 0.065 + L1 / 2, 0), box(0.016, L1 * 0.85, 0.006, mat('#6a7078', { metal: 0.8 }), 0, 0.065 + L1 / 2, 0), // fuller
           cone(0.024, 0.07, steel, 0, 0.065 + L1 + 0.035, 0, 4));
-        if (field) add(g, box(0.03, L1 + 0.05, 0.065, field, 0, 0.065 + L1 / 2 + 0.02, 0), limb(V(0, 0.03, -0.02), V(0, -0.04, -0.03), 0.005, DARK())); // power field and cable
+        add(g, ...[-1, 1].map((s) => box(0.016, L1 * 0.97, 0.005, BRIGHT(), 0, 0.065 + L1 / 2, s * 0.021)), ...[-1, 1].map((s) => box(0.112, 0.004, 0.004, EDGE(), 0, 0.066, s * 0.016))); // honed edges, crossguard rims
+        if (m.power) add(g, ...[-1, 1].map((s) => box(0.007, L1 * 0.92, 0.005, glow(L.powerColor || '#7ad0ff'), 0, 0.065 + L1 / 2, s * 0.026)), ...[0, 1, 2].map((i) => limb(V(0.008, 0.1 + i * L1 * 0.3, 0.026), V(0.009, 0.13 + i * L1 * 0.3, 0.008), 0.0022, glow(L.powerColor || '#7ad0ff'))),
+          limb(V(0, 0.03, -0.02), V(0, -0.04, -0.03), 0.005, DARK())); // power field as crackling edges, and its cable
         break;
       }
       case 'chainsword': {
         const long = /eviscerator|chainglaive|great|double/.test(n) ? 1.6 : 1;
         const L1 = 0.3 * long;
-        add(g, cyl(0.015, 0.017, 0.1, hilt, 0, 0, 0), box(0.05, 0.1, 0.075, mat(orky ? '#7a4a2e' : L.trim, { metal: 0.6, rough: 0.4 }), 0, 0.09, 0), // motor housing
+        const housing = mat(orky ? '#7a4a2e' : L.trim, { metal: 0.6, rough: 0.4 });
+        add(g, ...[-1, 1].map((s) => box(0.024, L1, 0.004, EDGE(), 0, 0.14 + L1 / 2, s * 0.031)), tilt(cyl(0.024, 0.024, 0.028, EDGE(), 0, 0.15, 0.0), 0, 0, Math.PI / 2), // chain guide rails, drive sprocket
+          ...[-1, 1].map((s) => box(0.004, 0.09, 0.07, EDGE(), s * 0.026, 0.09, 0)), limb(V(0, -0.04, -0.03), V(0, 0.04, -0.045), 0.006, housing)); // housing edges, hand guard
+        add(g, cyl(0.015, 0.017, 0.1, hilt, 0, 0, 0), box(0.05, 0.1, 0.075, housing, 0, 0.09, 0), // motor housing
           box(0.05, 0.02, 0.09, DARK(), 0, 0.04, 0.0), box(0.022, L1, 0.065, DARK(), 0, 0.14 + L1 / 2, 0));
         const teeth = Math.round(10 * long);
         for (let i = 0; i < teeth; i++) add(g, cone(0.008, 0.02, steel, 0, 0.15 + (i + 0.5) * L1 / teeth, 0.04, 4).rotateX(Math.PI / 2)); // teeth along the edge
@@ -396,9 +430,13 @@ export function createWeapons(h) {
         else {
           const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.11 * big, 0.11 * big, 0.016, 18, 1, false, 0, Math.PI), head);
           blade.rotation.z = Math.PI / 2; blade.position.set(0, 0.28 * big, 0.02); blade.castShadow = true;
-          add(g, blade, box(0.03, 0.08 * big, 0.04, head, 0, 0.28 * big, -0.01));
+          const edge = new THREE.Mesh(new THREE.TorusGeometry(0.108 * big, 0.004, 6, 24, Math.PI), BRIGHT());
+          edge.rotation.y = Math.PI / 2; edge.position.set(0, 0.28 * big, 0.02);
+          add(g, blade, edge, box(0.03, 0.08 * big, 0.04, head, 0, 0.28 * big, -0.01), ...[-1, 1].map((s) => box(0.034, 0.004, 0.044, EDGE(), 0, 0.28 * big + s * 0.04 * big, -0.01)));
+          if (/chain/.test(n)) for (let k = 0; k < 11; k++) { const t = (k + 0.5) / 11 * Math.PI, R = 0.112 * big; add(g, cone(0.008, 0.02, steel, 0, 0.28 * big + R * Math.sin(t), 0.02 - R * Math.cos(t), 4).rotateX(t - Math.PI / 2)); } // chain teeth round the edge
+          if (m.power) { const arc = new THREE.Mesh(new THREE.TorusGeometry(0.114 * big, 0.003, 6, 24, Math.PI), glow(L.powerColor || '#7ad0ff')); arc.rotation.y = Math.PI / 2; arc.position.set(0, 0.28 * big, 0.02); add(g, arc); }
         }
-        if (field) add(g, box(0.035, 0.18 * big, 0.17 * big, field, 0, 0.28 * big, 0.06 * big));
+        if (field && orky) add(g, ...[0, 1].map((i) => box(0.005, 0.15 * big, 0.004, glow(L.powerColor || '#7ad0ff'), 0, 0.27 * big, 0.136 * big - i * 0.004)));
         break;
       }
       case 'hammer': {
@@ -417,7 +455,7 @@ export function createWeapons(h) {
       }
       case 'staff': {
         add(g, cyl(0.012, 0.014, 1.0, mat('#4a3a2a', { rough: 0.7 }), 0, 0.12, 0), cyl(0.018, 0.018, 0.03, BRASS(), 0, 0.3, 0), cyl(0.018, 0.018, 0.03, BRASS(), 0, -0.1, 0));
-        if (/glaive|polearm|spear|tremor|virge|executioner/.test(n)) add(g, box(0.014, 0.22, 0.055, steel, 0, 0.72, 0), cone(0.028, 0.06, steel, 0, 0.86, 0, 4), field ? box(0.03, 0.25, 0.075, field, 0, 0.73, 0) : null);
+        if (/glaive|polearm|spear|tremor|virge|executioner/.test(n)) add(g, box(0.014, 0.22, 0.055, steel, 0, 0.72, 0), cone(0.028, 0.06, steel, 0, 0.86, 0, 4), ...[-1, 1].map((s) => box(0.016, 0.21, 0.004, BRIGHT(), 0, 0.72, s * 0.026)), ...(field ? [-1, 1].map((s) => box(0.005, 0.2, 0.004, glow(L.powerColor || '#7ad0ff'), 0, 0.72, s * 0.03)) : []));
         else add(g, new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.008, 6, 16), BRASS()).translateY(0.66), sph(0.035, m.power || L.psyker ? glow(L.eye || '#7ad0ff') : BRASS(), 0, 0.66, 0, 12, 10), cone(0.02, 0.06, BRASS(), 0, 0.73, 0, 6));
         break;
       }
@@ -429,7 +467,7 @@ export function createWeapons(h) {
         break;
       }
       case 'knife': {
-        add(g, cyl(0.011, 0.012, 0.07, hilt, 0, 0, 0), box(0.05, 0.014, 0.024, steel, 0, 0.04, 0), box(0.01, 0.12, 0.028, field ? glow(L.powerColor || '#7ad0ff') : steel, 0, 0.105, 0), cone(0.014, 0.03, steel, 0, 0.18, 0, 4),
+        add(g, cyl(0.011, 0.012, 0.07, hilt, 0, 0, 0), box(0.05, 0.014, 0.024, steel, 0, 0.04, 0), box(0.01, 0.12, 0.028, field ? glow(L.powerColor || '#7ad0ff') : steel, 0, 0.105, 0), cone(0.014, 0.03, steel, 0, 0.18, 0, 4), box(0.012, 0.11, 0.004, BRIGHT(), 0, 0.105, 0.0135),
           ...[0, 1, 2].map((i) => box(0.011, 0.008, 0.008, steel, 0, 0.07 + i * 0.025, -0.016))); // serrated back
         break;
       }
@@ -473,8 +511,12 @@ export function createWeapons(h) {
         break;
       }
       case 'claws': {
-        add(g, box(0.085, 0.06, 0.085, mat(L.main, { metal: 0.4 }), 0, -0.01, 0));
-        for (let i = -1.5; i <= 1.5; i++) add(g, aimY(box(0.007, 0.22, 0.02, m.power ? glow(L.powerColor || '#7ad0ff') : steel, i * 0.022, 0.11, 0), V(i * 0.06, 1, 0.1)));
+        add(g, ...rim(0.085, 0.06, 0.085, mat(L.main, { metal: 0.4 }), 0, -0.01, 0));
+        // Steel blades with honed edges; a power field shows as a glowing line along each cutting edge, not as glowing blades.
+        for (let i = -1.5; i <= 1.5; i++) {
+          const dir = V(i * 0.06, 1, 0.1);
+          add(g, aimY(box(0.007, 0.22, 0.02, steel, i * 0.022, 0.11, 0), dir), aimY(box(0.008, 0.21, 0.004, m.power ? glow(L.powerColor || '#7ad0ff') : BRIGHT(), i * 0.022, 0.11, 0.011), dir));
+        }
         break;
       }
     }
