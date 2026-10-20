@@ -4,7 +4,7 @@ import {
   netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid, canPickUpMarker, pickUpTargets, doOptics,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
-  isMounted, sprintCheck, doSprint, doTurn, enterFromReserve, wbAiEmerge,
+  isMounted, sprintCheck, doSprint, doTurn, enterFromReserve, wbAiEmerge, moveStat,
   goreOf, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
   resourceOptions, useResource,
 } from './game.js';
@@ -342,6 +342,7 @@ function aiButtonPloys(g, op) {
     if (ok.psychicCabal && shootOptions(g, op).length) return use('psychicCabal');
     if (ok.wrathVengeance && (engagedEnemies(g, op).length || shootOptions(g, op).length)) return use('wrathVengeance');
     if (ok.bondsThatBind) return use('bondsThatBind'); // (Hernkyn Yaegirs)
+    if (ok.controlEdict && g.cp[op.side] >= 2) return use('controlEdict'); // (Hunter Clade: the partner activates next)
   }
   if (ok.wkProppaScrap && engagedEnemies(g, op).length && op.ap >= 2) return use('wkProppaScrap'); // (Wrecka Krew: two Fights)
   if (ok.virulentPoison) return use('virulentPoison');
@@ -636,6 +637,14 @@ export function aiStep(g) {
     const t = TARGET_ACTIONS.wbSoulsight.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
     if (t) { doTargetAction(g, op, 'wbSoulsight', t); return null; }
   }
+  // Hierotek Crypteks: Nightmare Shroud with enemies close, Vision of Madness and Nanomine on the nearest threats.
+  if (can.hcShroud && foes(g, op).some((e) => e.x > -50 && edgeDist(op, e) <= 4)) { doSelfAction(g, op, 'hcShroud'); return null; }
+  for (const id of ['hcVision', 'hcNanomine']) if (can[id] && op.ap >= 2) {
+    const t = TARGET_ACTIONS[id].targets(g, op).sort((a, b) => edgeDist(op, a) - edgeDist(op, b))[0];
+    if (t && edgeDist(op, t) <= 10) { doTargetAction(g, op, id, t); return null; }
+  }
+  // Stealth Attack (Kroot Stalker) / Assassinate (Sanctus Talon): a free Charge and Fight from Conceal when an enemy is in reach.
+  for (const id of ['stealthAttack', 'wbAssassinate']) if (can[id] && foes(g, op).some((e) => e.x > -50 && edgeDist(op, e) <= moveStat(g, op) + 0.5)) { doSelfAction(g, op, id); return null; }
   if (can.wbVuln && op.ap >= 2 && !op.acted?.movedDist && shootOptions(g, op).length) { doSelfAction(g, op, 'wbVuln'); return null; }
   if (can.wcEchoes) { doSelfAction(g, op, 'wcEchoes'); return null; } // Echoes from the Warp: one more action in this counteraction
   if (can.wcBrayhorn && !g.wcHorn?.[op.side]) { doSelfAction(g, op, 'wcBrayhorn'); return null; }

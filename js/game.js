@@ -16,6 +16,11 @@ import { NAVY_EQUIPMENT, navyRosterError } from './data/navy.js';
 import { PHOBOS_EQUIPMENT, phobosRosterError } from './data/phobos.js';
 import { WARPCOVEN_EQUIPMENT, warpcovenRosterError, WC_BOONS, WC_BOON_DEFAULT, WC_BOMBARD } from './data/warpcoven.js';
 import { WYRMBLADE_EQUIPMENT, wyrmbladeRosterError } from './data/wyrmblade.js';
+import { bloodedRosterError } from './data/blooded.js';
+import { fellgorRosterError } from './data/fellgor.js';
+import { exactionRosterError, EX_PATTERNS } from './data/exaction.js';
+import { hierotekRosterError } from './data/hierotek.js';
+import { hunterCladeRosterError } from './data/hunterclade.js';
 import { PLAGUE_EQUIPMENT } from './data/plague.js';
 import { KOMMANDOS_EQUIPMENT } from './data/kommandos.js';
 import { KINBAND_EQUIPMENT } from './data/kinband.js';
@@ -104,7 +109,7 @@ export const rollCount = () => rolls;
 export const d6 = () => { rolls++; return 1 + Math.floor(Math.random() * 6); };
 export const d3 = () => { rolls++; return 1 + Math.floor(Math.random() * 3); };
 /** Injured stat changes apply (And They Shall Know No Fear ignores them). */
-export const injuredPenalty = (g, op) => isInjured(op) && !wsChirurgy(g, op) && !pmBells(g, op) && !op.acted?.mwIgnoreInjury && !op.scRaw && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat // (Raging Heat of the Dying Flame)
+export const injuredPenalty = (g, op) => isInjured(op) && !wsChirurgy(g, op) && !pmBells(g, op) && !op.acted?.mwIgnoreInjury && !op.scRaw && !hasPloy(g, op.side, 'noFear') && !disciplined(g, op) && !op.ragingHeat && !(op.frenzy && tpl(op).warriorFrenzy) // (Raging Heat of the Dying Flame; Warrior Frenzy: Fellgor Warriors)
   && !(markOf(op) === 'nurgle' && hasPloy(g, op.side, 'implacable')); // Implacable (Legionaries)
 /** The operative has this Chapter Tactic (Angels of Death); the sniper's Camo Cloak grants Stealthy. */
 export const hasTactic = (g, op, id) => !!adTactics(g, op.side)?.includes(id) || adVeteran(g, op, id) || (id === 'hardy' && !!tpl(op).repulsive) || (id === 'stealthy' && (!!tpl(op).camoCloak || !!tpl(op).weavewerke || !!tpl(op).wastelandStalker)); // (Repulsive Fortitude: Plague Marine Warrior) // (Wasteland Stalker: Ruststalkers)
@@ -145,7 +150,9 @@ export function moveStat(g, op) {
   if (isDrone(op) && living(g, op.side).some((o) => tpl(o).droneController)) m += 2;
   m += wkMove(g, op); // Shokkwave (Pulsa marker), Extra Armour (Wrecka Krew)
   if (op.scRaw) m += 1; // Raw Physiology (Scout Squad): +1" Move
+  if (exPattern(op, 'swift')) m += 2; // Attack Pattern: Swift (Cyber-mastiff)
   if (wcBoon(op, 'timeWalk')) m += 1; // Time-Walk (Warpcoven boon)
+  if (hcNanoNear(g, op)) m -= 2; // Countertemporal Nanomine (Hierotek Chronomancer)
   m += wcHorn(g, op); // Brayhorn (Tzaangor Horn Bearer)
   return m;
 }
@@ -179,6 +186,7 @@ export function moveAllowance(g, op, kind) {
   if (kind === 'reposition' && op.acted?.vdRestOn) return op.acted.vdRest || 0; // Darting Salvo: the rest of that Reposition
   if (kind === 'reposition' && hasOrder(g, op, 'moveMove')) d += 1; // Move! Move! Move!
   if (kind === 'reposition' && skillOn(g, op, 'strikeFast')) d += 1; // Strike Fast (Kasrkin)
+  if (kind === 'reposition' && op.acted?.fgFlurry === 1) d += 2; // Cleaver Flurry (Fellgor Fluxbray)
   if (kind === 'reposition' && isES(op) && hasPloy(g, op.side, 'quickMarch') && !op.counter) d += 1; // Quick March (Elucidian Starstriders)
   // Stealth Attack's free Charge can't exceed the Move stat.
   if (kind === 'charge') d = moveStat(g, op) + (op.acted?.free?.charge === 'stealth' || tpl(op).sfCherub || op.acted?.wcFly ? 0 : op.acted?.boost ? 4 : 2); // Boost: +4" (the Cherub's Fly and Immaterial Flight gain nothing extra)
@@ -275,6 +283,11 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   for (const s of [0, 1]) if (teams[s] === 'navyBreachers') { const e = navyRosterError(TEAM_MAP.navyBreachers, roster[s]); if (e) throw new Error(e.en); } // Navy Breachers roster limits
   for (const s of [0, 1]) if (teams[s] === 'phobos') { const e = phobosRosterError(TEAM_MAP.phobos, roster[s]); if (e) throw new Error(e.en); } // Phobos roster limits
   for (const s of [0, 1]) if (teams[s] === 'warpcoven') { const e = warpcovenRosterError(TEAM_MAP.warpcoven, roster[s], loadouts[s]); if (e) throw new Error(e.en); } // Warpcoven roster limits
+  for (const s of [0, 1]) if (teams[s] === 'hunterClade') { const e = hunterCladeRosterError(TEAM_MAP.hunterClade, roster[s]); if (e) throw new Error(e.en); } // Hunter Clade roster limits
+  for (const s of [0, 1]) if (teams[s] === 'hierotek') { const e = hierotekRosterError(TEAM_MAP.hierotek, roster[s]); if (e) throw new Error(e.en); } // Hierotek roster limits
+  for (const s of [0, 1]) if (teams[s] === 'exaction') { const e = exactionRosterError(TEAM_MAP.exaction, roster[s]); if (e) throw new Error(e.en); } // Exaction Squad roster limits
+  for (const s of [0, 1]) if (teams[s] === 'fellgor') { const e = fellgorRosterError(TEAM_MAP.fellgor, roster[s]); if (e) throw new Error(e.en); } // Fellgor roster limits
+  for (const s of [0, 1]) if (teams[s] === 'blooded') { const e = bloodedRosterError(TEAM_MAP.blooded, roster[s], loadouts[s]); if (e) throw new Error(e.en); } // Blooded roster limits
   for (const s of [0, 1]) if (teams[s] === 'wyrmblade') { const e = wyrmbladeRosterError(TEAM_MAP.wyrmblade, roster[s]); if (e) throw new Error(e.en); } // Wyrmblade roster limits
   wcSetup(g, roster); // Warpcoven: each Sorcerer's Boon of Tzeentch
   dwSetup(g, roster);
@@ -813,6 +826,10 @@ export function startStrategy(g) {
   g.phase = 'strategy';
   feStrategy(g);
   log(g, { zh: '進入策略階段', en: 'Strategy phase begins' }, 'tp');
+  // A Name Whispered in Blood (Blooded Sharpshooter): a strategic gambit in the first turning point — pick an enemy.
+  if (g.tp === 1) for (const s of [0, 1]) if (living(g, s).some((o) => tpl(o).nameWhispered)) needChoice(g, s, 'blName');
+  for (const s of [0, 1]) if (living(g, s).some((o) => tpl(o).callAttack && !o.frenzy && o.x > -50)) needChoice(g, s, 'fgCallAnchor'); // Call the Attack (Fellgor Ironhorn gambit)
+  if (g.tp === 1) for (const s of [0, 1]) if (living(g, s).some((o) => tpl(o).attackPatterns)) needChoice(g, s, 'exPatterns'); // Attack Pattern (Exaction Leashmaster gambit)
 }
 
 /** The side choosing strategy ploys: the initiative player first, then the other player. */
@@ -931,6 +948,8 @@ export function buyPloy(g, side, ploy) {
   if (ploy.id === 'suspectEliminate') needChoice(g, side, 'suspectEliminate');
   if (ploy.id === 'prioritisedAcq') needChoice(g, side, 'prioritisedAcq');
   if (ploy.id === 'drawnHum') needChoice(g, side, 'drawnHum'); // Drawn to the Hum (Gellerpox): the objective marker
+  if (ploy.id === 'scoutingProtocol' && g.tp > 1) needChoice(g, side, 'huScouting'); // Scouting Protocol (Hunter Clade): free Dashes for Concealed Rangers
+  if (ploy.id === 'commandUnderlings') needChoice(g, side, 'hcUnderlings'); // Command Underlings (Hierotek): free Dashes
   if (ploy.id === 'divertDisappear') needChoice(g, side, 'wbDivert', { n: 3 }); // Divert and Disappear (Wyrmblade): up to three free Dashes
   if (ploy.id === 'fateWeapon') wcFateBuy(g, side); // Fate Itself Is My Weapon (Warpcoven): two reserved dice
   if (ploy.id === 'needKeeps' || ploy.id === 'toilEarns') needChoice(g, side, ploy.id); // Need Keeps / Toil Earns (Hearthkyn): the objective marker
@@ -965,6 +984,7 @@ export function startFirefight(g) {
 export function canActivateOp(g, o) {
   if (!o.ready || o.dead) return false;
   if (tpl(o).catUnit && (isEngaged(g, o) || !living(g, o.side).some((s) => tpl(s).surveyor))) return false;
+  if (hcMadBlocked(g, o)) return false; // (Vision of Madness stopped it this time)
   return true;
 }
 export function hasReady(g, side) { return living(g, side).some((o) => canActivateOp(g, o)); }
@@ -997,6 +1017,7 @@ export function activate(g, op) {
   if(g.feLink?.uids.includes(op.uid) && g.feLink.started.includes(op.uid)){g.active=op.uid;g.turn=op.side;g.counter=false;return true;}
   if (mwDelay(g, op, autoFF)) return false;
   if (ncScream(g, op, autoFF)) return false; // Vox Scream (Nemesis Claw): the opponent must pick another operative
+  if (!hcMadness(g, op)) return false; // Vision of Madness (Hierotek Psychomancer): the opponent must pick another operative
   g.ncScream = null;
   if (mdInterrupt(g, op, d6)) return false;
   for (const o of living(g, op.side)) o.mdWhisperTP = null;
@@ -1016,6 +1037,7 @@ export function activate(g, op) {
   op.acted = {}; // (before Cult Ambush below records whether it started unseen)
   if (op.wbHidden) op.acted.wbFromHiding = true; // (Familiar Territory: a Warrior activated in hiding ignores Group Activation)
   wcFluxActivate(g, op); // Temporal Flux (Warpcoven): its operative's next activation has begun
+  hcActivate(g, op); // Hierotek Circle: the Chronomancer's / Psychomancer's effects end at its next activation
   mdActivate(g, op);
   mwActivation(g);
   wkActivate(g, op); // Wrecka Krew: Tanked Up ends, Stoopid, Engine Oil
@@ -1349,6 +1371,10 @@ export function controller(g, obj) {
   }
   // Nuncio-aquila (Exaction Squad): likewise 1 lower if one is within 3" of the Proctor-exactant (cumulative).
   for (let s = 0; s < 3; s++) if (nuncio[s]) sum[s] = Math.max(0, sum[s] - 1);
+  // Harbinger of Despair (Hierotek Psychomancer): likewise 1 lower if one is within 2" of the enemy's Despair marker.
+  for (const s of [0, 1]) if (living(g, s).some((o) => dist(o, obj) - radius(o) - OBJ_R <= CONTROL && hcDespairNear(g, o))) sum[s] = Math.max(0, sum[s] - 1);
+  // Reanimated Function (Hierotek ploy): the chosen Reanimation marker counts as a friendly with APL 1 (until the next turning point).
+  for (const s of [0, 1]) { const rf = g.hcRF?.[s]; if (rf && rf.tp === g.tp && (g.reanim || []).some((m) => m.uid === rf.uid && getOp(g, m.uid)?.dead && dist(m, obj) - OBJ_R <= CONTROL)) { sum[s] += 1; present[s] = true; } }
   // Horrifying Shrieking: a side's total counts 1 lower if one of its contesting operatives is within 3" of a Fleshscreamer.
   for (let s = 0; s < 3; s++) if (shriek[s]) sum[s] = Math.max(0, sum[s] - 1);
   // Simulacrum Nullificatus (Insidiant Reliquarius): likewise 1 lower if one is within 3" of it.
@@ -1510,7 +1536,20 @@ export const ACTIONS = {
   fate: { ap: 1, name: { zh: '命運庇護', en: 'Protected by Fate' } },
   ravage: { ap: 1, name: { zh: '摧毀命運', en: 'Ravage Destiny' } },
   alight: { ap: 1, name: { zh: '點燃', en: 'Alight' } },
+  blEnforce: { ap: 1, name: { zh: '督戰', en: 'Enforce' } },
+  hcTimesplinter: { ap: 1, name: { zh: '時間碎片', en: 'Timesplinter' } },
+  hcNanomine: { ap: 1, name: { zh: '逆時奈米雷', en: 'Countertemporal Nanomine' } },
+  hcChronometron: { ap: 1, name: { zh: '時間計', en: 'Chronometron' } },
+  hcVision: { ap: 1, name: { zh: '幻視瘋狂', en: 'Vision of Madness' } },
+  hcShroud: { ap: 1, name: { zh: '夢魘帷幕', en: 'Nightmare Shroud' } },
+  hcDespair: { ap: 1, name: { zh: '絕望先兆', en: 'Harbinger of Despair' } },
+  fgSagacious: { ap: 0, name: { zh: '睿智（改變指令）', en: 'Sagacious (change order)' } },
+  exRvr: { ap: 0, name: { zh: 'R-VR 指令（改變攻擊模式）', en: 'R-VR Command (change an Attack Pattern)' } },
+  exHandler: { ap: 0, name: { zh: '馴犬師：獒犬一起啟動', en: 'Handler: the Cyber-mastiff activates with it' } },
+  fgUncomp: { ap: 1, name: { zh: '毫不妥協的攻擊', en: 'Uncompromising Attack' } },
+  fgFlurry: { ap: 2, name: { zh: '劈刀亂舞', en: 'Cleaver Flurry' } },
   wbVuln: { ap: 1, name: { zh: '鎖定弱點', en: 'Target Vulnerability' } },
+  wbAssassinate: { ap: 2, name: { zh: '刺殺', en: 'Assassinate' } },
   wbSoulsight: { ap: 1, name: { zh: '使魔靈視', en: "Familiar's Soulsight" } },
   wcRecon: { ap: 1, name: { zh: '重組儀式', en: 'Reconstitution Ritual' } },
   wcFlux: { ap: 1, name: { zh: '時間通量', en: 'Temporal Flux' } },
@@ -1609,7 +1648,7 @@ export const ACTIONS = {
   nanoscarab: { ap: 1, name: { zh: '奈米聖甲蟲光束', en: 'Nanoscarab Beam' } },
 };
 // Cryptek unique actions (an Apprentek can perform one of them per turning point).
-const CRYPTEK_ACTIONS = ['interstitial', 'canoptekRepair', 'augment', 'reinforce'];
+const CRYPTEK_ACTIONS = ['interstitial', 'canoptekRepair', 'augment', 'reinforce', 'hcTimesplinter', 'hcNanomine', 'hcChronometron', 'hcVision', 'hcShroud', 'hcDespair'];
 Object.assign(ACTIONS, MISSION_ACTIONS); // mission actions (Siphon Power…)
 
 const ACUTE = ['pickUp', 'veriscant'];
@@ -1651,7 +1690,7 @@ export function actionCost(g, op, id) {
     // I've Got It (Hearthkyn Lugger): once per activation, a mission action costs 1 less.
     // Vanguard (Phobos): once per turning point, one operative with it pays 1 less for Pick Up or a mission action.
     const gotIt = (MISSION_ACTIONS[id] && tpl(op).gotIt && !op.acted?.gotItUsed ? 1 : 0)
-      + (tpl(op).vanguard && g.vanguardTP?.[op.side] !== g.tp ? 1 : 0)
+      + (tpl(op).vanguard && op.team === 'phobos' && g.vanguardTP?.[op.side] !== g.tp ? 1 : 0)
       + (MISSION_ACTIONS[id] && isDeathwatch(op) && op.acted?.dwThrall ? 1 : 0)
       + (MISSION_ACTIONS[id] && feAuto(g,op.side,'feSkull',1,true) ? 1 : 0)
       + (id === 'pickUp' && hkEquip(g, op, 'hkTools') ? 1 : 0) // Excavation Tools (Hearthkyn): Pick Up Marker for 1 less AP
@@ -1660,7 +1699,7 @@ export function actionCost(g, op, id) {
     // Nuncio-aquila (Proctor-exactant): +1AP within 3" of it.
     // Energy Cells (crit op): picking up an objective marker costs extra in TP2-3, and that can't be reduced.
     const extra = id === 'pickUp' && pickUpTargets(g, op).some((m) => g.objectives.includes(m)) ? mission(g).pickUpExtra?.(g) || 0 : 0;
-    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) + (nuncioNear(g, op) ? 1 : 0) + (grislyNear(g, op) ? 1 : 0) + rvCrestExtra(g, op) + (intimidated(g, op) ? 1 : 0) - gotIt - acute - wcMarkerDiscount(g, op, id)) + extra; // (+ Grisly Mark) (Mutant Appendage, Relic Hunters: Warpcoven)
+    return Math.max(0, ACTIONS[id].ap + ((tpl(op).hulk && !tpl(op).vulgrar) || tpl(op).slowWitted ? 1 : 0) + (shrieked(g, op) ? 1 : 0) + (nuncioNear(g, op) ? 1 : 0) + (hcDespairNear(g, op) ? 1 : 0) + (grislyNear(g, op) ? 1 : 0) + rvCrestExtra(g, op) + (intimidated(g, op) ? 1 : 0) - gotIt - acute - wcMarkerDiscount(g, op, id)) + extra; // (+ Grisly Mark) (Mutant Appendage, Relic Hunters: Warpcoven)
   }
   if (op.brutalDisplayTP === g.tp && (id === 'pickUp' || MISSION_ACTIONS[id])) return Infinity;
   return ACTIONS[id].ap;
@@ -1779,6 +1818,29 @@ export const TARGET_ACTIONS = {
       return { zh: `強化金屬：${opName(t, 'zh')} 受到 3 以上的傷害時 -1`, en: `Reinforce Metal: attack dice inflicting 3+ damage on ${opName(t, 'en')} deal 1 less` };
     },
   },
+  // Chronomancer: Timesplinter (an expended friendly within 5" is set back up within 5" of it; once per TP, not in TP1),
+  // Countertemporal Nanomine (here on a visible enemy within 8"), Chronometron (SUPPORT: shooters at a friendly within 6" have -1 Atk).
+  hcTimesplinter: {
+    targets: (g, op) => living(g, op.side).filter((t) => t !== op && sameTeam(t, op) && !t.ready && t.x > -50 && edgeDist(op, t) <= 5 + commsBonus(g, op) && visibility(g, op, t).visible),
+    apply(g, op, t) {
+      (g.hcSplinterTP ||= [0, 0])[op.side] = g.tp;
+      const ok = hcTimesplinterTo(g, op, t);
+      return ok ? { zh: `時間碎片：${opName(t, 'zh')} 重新放到時間術士 5" 內`, en: `Timesplinter: ${opName(t, 'en')} is set back up within 5" of the Chronomancer` } : { zh: '時間碎片：沒有能放的位置', en: 'Timesplinter: nowhere it can be placed' };
+    },
+  },
+  hcNanomine: {
+    targets: (g, op) => foes(g, op).filter((t) => t.side < 2 && t.x > -50 && edgeDist(op, t) <= 8 && visibility(g, op, t).visible),
+    apply(g, op, t) { (g.hcNano ||= [null, null])[op.side] = { by: op.uid, x: t.x, y: t.y }; return { zh: `逆時奈米雷：放在 ${opName(t, 'zh')} 處（4" 內的敵人移動 -2"）`, en: `Countertemporal Nanomine: placed by ${opName(t, 'en')} (enemies within 4" have -2" Move)` }; },
+  },
+  hcChronometron: {
+    targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && edgeDist(op, t) <= 6 + commsBonus(g, op) && (t === op || visibility(g, op, t).visible)),
+    apply(g, op, t) { (g.hcChrono ||= [null, null])[op.side] = { by: op.uid, uid: t.uid }; return { zh: `時間計：射擊 ${opName(t, 'zh')} 的武器攻擊 -1`, en: `Chronometron: weapons shooting ${opName(t, 'en')} have -1 Atk` }; },
+  },
+  // Psychomancer: Vision of Madness — a visible enemy gains a Madness token.
+  hcVision: {
+    targets: (g, op) => foes(g, op).filter((t) => t.side < 2 && t.x > -50 && visibility(g, op, t).visible),
+    apply(g, op, t) { t.hcMad = { side: op.side, by: op.uid }; return { zh: `幻視瘋狂：${opName(t, 'zh')} 得到瘋狂標記`, en: `Vision of Madness: ${opName(t, 'en')} gains a Madness token` }; },
+  },
   // Accelerate (Plasmacyte): a Deathmark or Immortal visible within 6" gets +1 APL until the end of its next activation.
   accelerate: {
     targets: (g, op) => living(g, op.side).filter((t) => sameTeam(t, op) && (tpl(t).deathmark || tpl(t).steadfast) && edgeDist(op, t) <= 6 && visibility(g, op, t).visible),
@@ -1859,6 +1921,16 @@ export const TARGET_ACTIONS = {
     apply(g, op, t) {
       (g.alight ||= [null, null])[op.side] = { by: op.uid, uid: t.uid };
       return { zh: `點燃：攻擊 ${opName(t, 'zh')} 的友方武器「無休」`, en: `Alight: friendly weapons have Ceaseless against ${opName(t, 'en')}` };
+    },
+  },
+  // Enforce (Blooded Enforcer): another friendly visible within 3" performs a free 1AP action now, moving no more than 2" (a Commsman: not Actuation or Signal).
+  blEnforce: {
+    targets: (g, op) => living(g, op.side).filter((t) => t !== op && sameTeam(t, op) && t.x > -50 && edgeDist(op, t) <= 3 && visibility(g, op, t).visible),
+    apply(g, op, t) {
+      const only = tpl(t).actuation ? ['reposition', 'dash', 'charge', 'fallBack', 'shoot', 'fight', 'pickUp', ...missionActionsFor(g, op.side)] : null;
+      g.netcounter = { side: op.side, only: [t.uid], resume: op.uid, resumeCounter: !!g.counter, kind: 'control', onlyActions: only, ctlMove: 2 };
+      g.active = null; g.counter = true; g.turn = op.side;
+      return { zh: `督戰：${opName(t, 'zh')} 立刻免費執行一個 1AP 動作（移動不超過 2"）`, en: `Enforce: ${opName(t, 'en')} performs a free 1AP action now (moving no more than 2")` };
     },
   },
   // Familiar's Soulsight (Sanctus): a visible enemy gains this side's Soulsight token (until the end of the battle or the next use).
@@ -2265,12 +2337,12 @@ export const TARGET_ACTIONS = {
   // Stun Grenade (Taktical Wot-notz, one Boy per turning point): an enemy visible within 6" and every
   // other operative within 1" of it roll a D6 — on a 3+, -1 APL until the end of its next activation.
   stunGrenade: {
-    targets: (g, op) => (g.wotNotz?.[op.side] === g.tp ? [] : foes(g, op).filter((t) => edgeDist(op, t) <= 6 && visibility(g, op, t).visible)),
+    targets: (g, op) => (!tpl(op).poxBomb && g.wotNotz?.[op.side] === g.tp ? [] : foes(g, op).filter((t) => edgeDist(op, t) <= 6 && visibility(g, op, t).visible)), // (Pox Bomb, Fellgor Toxhorn: not the team's once per TP)
     apply(g, op, t) {
-      (g.wotNotz ||= [0, 0])[op.side] = g.tp;
+      if (!tpl(op).poxBomb) (g.wotNotz ||= [0, 0])[op.side] = g.tp;
       const hit = [t, ...g.ops.filter((o) => !o.dead && o !== t && edgeDist(o, t) <= 1)].map((o) => {
         const roll = d6();
-        if (roll >= 3) {changeApl(g, o, -1);if(hasEquip(g,op.side,'fePsyk'))applyDamage(g,op,o,isPsyker(o) ? roll : Math.ceil(roll/2));}
+        if (roll >= 3) {changeApl(g, o, -1);if(hasEquip(g,op.side,'fePsyk'))applyDamage(g,op,o,isPsyker(o) ? roll : Math.ceil(roll/2));else if (tpl(op).poxBomb && o.side !== op.side) applyDamage(g, op, o, Math.ceil(roll / 2));} // (Pox Bomb: half the roll as damage)
         return { o, roll };
       });
       const list = (lang) => hit.map(({ o, roll }) => `${opName(o, lang)} ${roll}${roll >= 3 ? (lang === 'zh' ? '（APL -1）' : ' (-1 APL)') : ''}`).join(lang === 'zh' ? '、' : ', ');
@@ -2451,8 +2523,9 @@ export function availableActions(g, op) {
   const bladeDash = tpl(op).blademaster && count(op, 'charge') && (op.acted.chargeRemaining || 0) > 0;
   const caprice = free.dash === 'capricious' || free.dash === 'fade' || free.dash === 'murder'; // Capricious Plan / Strike and Fade: a free Dash whatever it did before
   add('dash', !moveEng && (caprice || (!heavyBlocks('dash') && !count(op, 'dash') && (!count(op, 'charge') || bladeDash || (isVD(op) && hasPloy(g, op.side, 'vdCrescendo'))))) && op.plunderTP !== g.tp, moveEng ? ENG : heavyBlocks('dash') ? HEAVY : count(op, 'dash') ? DONE : COMBO);
-  // A Concealed operative can never Charge (the Kommandos' Throat Slittas and the Stalker's exception are not applied).
-  const noCharge = conceal && !tpl(op).creepingShadow && !(tpl(op).rvTremor && op.acted.rvBurrow) && !op.acted.spSilent && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !wsConcealCharge(g, op) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
+  // A Concealed operative can't Charge unless one of its own rules explicitly says it can (Throat Slittas, Kroot Stalker,
+  // Yaegir Bladekyn, Death World Veteran, Knife Fighter's Assassin, Sanctus Talon, Stealth Attack / Assassinate's free Charge, ...).
+  const noCharge = conceal && !tpl(op).creepingShadow && !tpl(op).concealCharge && !tpl(op).assassin && free.charge !== 'stealth' && !(tpl(op).rvTremor && op.acted.rvBurrow) && !op.acted.spSilent && !tpl(op).dwHeadtaker && !tpl(op).rtHunter && !(TEAM_MAP[op.team].concealCharge && !tpl(op).stoopid) && !wsConcealCharge(g, op) && !(isMandrake(op) && hasPloy(g, op.side, 'mdBladeDark')); // (Hunter: Ratling Hardbit)
   // (Dakka Dash includes a Dash, so it also rules out Charge.)
   const rampage = free.charge === 'rampage' || free.charge === 'woe' || free.charge === 'bloodlust' || free.charge === 'murder'; // (murder: Proclivity for Murder) // Ruthless Rampage / The Woe / Obsessive Bloodlust: a free Charge even after one
   add('charge', !chargeEngaged && !noCharge && (rampage || (!heavyBlocks('charge') && !did('charge', 'reposition', 'dash', 'fallBack', 'dakkaDash'))), chargeEngaged ? ENG : noCharge ? CONC : heavyBlocks('charge') ? HEAVY : count(op, 'charge') ? DONE : COMBO);
@@ -2462,7 +2535,7 @@ export function availableActions(g, op) {
   const shots = weaponsFor(g, op).filter((w) => w.type === 'ranged').map((w) => shootWeapon(g, op, w));
   // Close Quarters Vigilance (Vigilant): may Shoot while engaged, unless it Charged this activation (counteracting is fine).
   // (Explosive: a Bomb Squig can set off its explosives within an enemy's control range.)
-  const shootEngaged = engaged && !tpl(op).quickTrigger && !(tpl(op).vigilance && (op.counter || !count(op, 'charge')))
+  const shootEngaged = engaged && !tpl(op).quickTrigger && !op.acted.fgUncomp && !(tpl(op).vigilance && (op.counter || !count(op, 'charge')))
     && !weaponsFor(g, op).some((w) => w.rules.wkExplosive && shootWeapon(g, op, w).ok);
   const shootWhy = shootEngaged ? ENG : !attackAllowed(op, 'shoot') ? DONE : (shots.find((s) => !s.ok)?.why || DONE);
   add('shoot', hasRanged && !shootEngaged && attackAllowed(op, 'shoot') && shots.some((s) => s.ok), shootWhy);
@@ -2507,7 +2580,7 @@ export function availableActions(g, op) {
   if (tpl(op).remoteControl) unique('nbRemote');
   // Phobos: Comms Array (any friendly's activation, with the Commsman in the killzone), Track Target (Incursor Marksman: Guard anywhere, even Concealed).
   if (op.team === 'phobos' && op.side < 2 && phCommsOk(g, op.side)) add('phComms', g.phCommsOpen !== op.side, DONE);
-  if (tpl(op).phTrack) add('phGuard', !op.counter && !engaged && !op.dwGuard && !count(op, 'phGuard'), engaged ? ENG : DONE);
+  if (tpl(op).phTrack || op.hcAmbush) add('phGuard', !op.counter && !engaged && !op.dwGuard && !count(op, 'phGuard'), engaged ? ENG : DONE);
   if (tpl(op).commandBreach && g.navyOrder?.[op.side]?.tp === g.tp) {
     add('nbOrderMove', !op.acted.nbCmd, DONE);
     add('nbOrderSwap', !op.acted.nbCmd, DONE);
@@ -2527,8 +2600,20 @@ export function availableActions(g, op) {
   if (tpl(op).alight) unique('alight');
   // ---- Warpcoven ----
   if (tpl(op).tempyrion) { unique('wcRecon'); unique('wcFlux'); }
+  if (tpl(op).enforce) unique('blEnforce'); // (Blooded Enforcer)
+  // Fellgor: Sagacious (here a button during the activation), Uncompromising Attack, Cleaver Flurry, Pox Bomb.
+  if (tpl(op).sagacious && !op.counter) add('fgSagacious', !op.frenzy && !count(op, 'fgSagacious') && Object.keys(op.acted).some((k) => ACTIONS[k] && k !== 'fgSagacious'), op.frenzy ? { zh: '狂暴中不能隱蔽', en: 'Frenzied: no Conceal' } : DONE);
+  if (tpl(op).uncompromising) add('fgUncomp', !count(op, 'fgUncomp') && !count(op, 'fight') && !count(op, 'shoot') && engagedEnemies(g, op).length > 0, !engaged ? { zh: '需要在交戰中', en: 'Must be engaged' } : DONE);
+  if (tpl(op).cleaverFlurry) add('fgFlurry', !conceal && !engaged && !did('fgFlurry', 'reposition', 'charge', 'fallBack'), conceal ? CONC : engaged ? ENG : DONE);
+  if (tpl(op).poxBomb) unique('stunGrenade');
+  // Exaction Squad: R-VR Command (Leashmaster), Handler (when activated).
+  if (tpl(op).rvrCommand) add('exRvr', !count(op, 'exRvr') && living(g, op.side).some((o) => tpl(o).attackPatterns), DONE);
+  if (tpl(op).handler && !op.counter) add('exHandler', !op.acted.exHandler && !op.wcHerd && !Object.keys(op.acted).some((k) => ACTIONS[k]) && living(g, op.side).some((o) => tpl(o).attackPatterns && canActivateOp(g, o)), DONE);
   if (tpl(op).sanctus) unique('wbSoulsight'); // (Wyrmblade Sanctus)
   if (tpl(op).sanctus === 'sniper') add('wbVuln', !engaged && !count(op, 'wbVuln'), engaged ? ENG : DONE);
+  // Assassinate (Sanctus Talon): Concealed, not engaged, an enemy that can't see it within reach — a free Charge (up to its Move) and a free Fight with an extra strike.
+  if (tpl(op).sanctus === 'talon') add('wbAssassinate', conceal && !engaged && !did('wbAssassinate', 'charge', 'reposition', 'dash', 'fallBack') && foes(g, op).some((e) => e.x > -50 && edgeDist(op, e) <= moveStat(g, op) + CONTROL && !visibility(g, e, op).visible),
+    !conceal ? { zh: '需要隱蔽指令', en: 'Needs a Conceal order' } : engaged ? ENG : count(op, 'wbAssassinate') ? DONE : { zh: '移動範圍內沒有看不到它的敵人', en: 'No enemy within reach that cannot see it' });
   if (op.acted.cabal?.kind === 'a' && !count(op, op.acted.cabal.id)) unique(op.acted.cabal.id); // Psychic Cabal: a borrowed PSYCHIC action
   if (tpl(op).brayhorn) add('wcBrayhorn', !engaged && !count(op, 'wcBrayhorn'), engaged ? ENG : DONE);
   if (wcBoon(op, 'flight') && !op.counter) add('wcFlight', !op.acted.wcFly && g.wcFlyTP?.[op.uid] !== g.tp && !did('reposition', 'charge'), DONE);
@@ -2613,7 +2698,9 @@ export function availableActions(g, op) {
   const crypDone = tpl(op).apprentek && op.crypTP === g.tp;
   const CRYP = { zh: '本回合已用過一次技師動作', en: 'Already used a Cryptek action this turning point' };
   if (tpl(op).interstitial) unique('interstitial', !op.counter && !crypDone, op.counter ? { zh: '反擊時不能執行', en: 'Not while counteracting' } : CRYP);
-  for (const id of ['canoptekRepair', 'augment', 'reinforce']) if (tpl(op)[id]) unique(id, !crypDone, CRYP);
+  for (const id of ['canoptekRepair', 'augment', 'reinforce', 'hcChronometron', 'hcNanomine', 'hcVision']) if (hcHas(g, op, id)) unique(id, !crypDone, CRYP); // (an Apprentek has its Cryptek's actions)
+  if (hcHas(g, op, 'hcTimesplinter')) unique('hcTimesplinter', !crypDone && g.tp > 1 && g.hcSplinterTP?.[op.side] !== g.tp, g.tp <= 1 ? { zh: '第一回合不能用', en: 'Not in the first turning point' } : CRYP);
+  for (const id of ['hcShroud', 'hcDespair']) if (hcHas(g, op, id)) add(id, !engaged && !crypDone && !count(op, id), engaged ? ENG : crypDone ? CRYP : DONE);
   if (tpl(op).accelerate) unique('accelerate');
   if (tpl(op).mdVision) add('mdVision', !engaged && !count(op, 'mdVision'), engaged ? ENG : DONE);
   if (tpl(op).reanimate) {
@@ -2717,6 +2804,9 @@ export function fightTargets(g, op) {
 export function doSelfAction(g, op, id) {
   if (nbSelf(g, op, id)) return; // Navy Breachers: Breach Point, Weld Shut, Command Breach swap
   if (wbSelf(g, op, id)) return; // Wyrmblade: Target Vulnerability
+  if (fgSelf(g, op, id)) return; // Fellgor: Sagacious, Uncompromising Attack, Cleaver Flurry
+  if (exSelf(g, op, id)) return; // Exaction Squad: R-VR Command, Handler
+  if (hcSelf(g, op, id)) return; // Hierotek Circle: Nightmare Shroud, Harbinger of Despair
   if (wcSelf(g, op, id)) return; // Warpcoven: Brayhorn, Immaterial Flight, Echoes from the Warp, Sorcerous Scrolls
   if (mdSelfAction(g, op, id)) return;
   if (mwSelf(g, op, id)) return;
@@ -2840,7 +2930,7 @@ export function spend(g, op, id, ap = actionCost(g, op, id)) {
   if ((tpl(op).acuteFocus || tpl(op).lightFingered || tpl(op).gotAPlan) && (ACUTE.includes(id) || MISSION_ACTIONS[id])) op.acted.acuteUsed = true; // Acute Focus / Light-fingered used
   if (tpl(op).apprentek && CRYPTEK_ACTIONS.includes(id)) op.crypTP = g.tp; // Apprentek Assistance: one per turning point
   if (op.team === 'warpcoven' && ap < ACTIONS[id]?.ap) wcMarkerSpent(g, op, id); // Mutant Appendage / Relic Hunters used (Warpcoven)
-  if (tpl(op).vanguard && (id === 'pickUp' || MISSION_ACTIONS[id])) (g.vanguardTP ||= [0, 0])[op.side] = g.tp; // Vanguard used
+  if (tpl(op).vanguard && op.team === 'phobos' && (id === 'pickUp' || MISSION_ACTIONS[id])) (g.vanguardTP ||= [0, 0])[op.side] = g.tp; // Vanguard used
   op.acted[id] = count(op, id) + 1;
   op.orderSet = true;
 }
@@ -2940,6 +3030,7 @@ export function doMove(g, op, kind, path) {
   op.movedTP = (op.movedTP || 0) + path.len; // NPO movement limit per turning point
   for (const m of carriables(g)) if (m.carriedBy === op.uid) { m.x = op.x; m.y = op.y; } // carried markers
   checkMines(g, op); // Mines (universal equipment)
+  if (kind === 'reposition' && op.acted.fgFlurry === 1) { if (op.acted.free?.reposition) op.acted.free.reposition = null; fgFlurryHits(g, op, path.pts); } // Cleaver Flurry (Fellgor)
   if (trap) scTrapFire(g, op, trap.m); // Booby Trap (Scout Squad): 2D3 damage, the action ends here
   if (kind === 'dash' && op.acted.free?.dash) op.acted.free.dash = false;
   if (kind === 'charge' && op.acted.free?.charge) op.acted.free.charge = null;
@@ -3056,7 +3147,8 @@ function validTarget(g, op, target, weapon) {
     // Small (Borewyrm): Concealed in cover it can't be targeted, whatever else applies.
     // Mantle of Darkness (Fellgor Shaman): within 3" of it and in cover — can't be targeted, whatever else applies.
     const sh = g.mantle?.[target.side] && getOp(g, g.mantle[target.side]);
-    const mantled = sh && !sh.dead && edgeDist(sh, target) <= 3 && visibility(g, sh, target).visible;
+    const mantled = (sh && !sh.dead && edgeDist(sh, target) <= 3 && visibility(g, sh, target).visible)
+      || (target.team === 'hunterClade' && !!tpl(target).infiltrator && living(g, target.side).some((p) => tpl(p).shroudpsalm && edgeDist(p, target) <= 3)); // (Canticle of Shroudpsalm: Hunter Clade Infiltrator Princeps)
     // Guilt Reveals Itself (Exaction Squad ploy): within 4" it can't be in cover for picking targets.
     const guilt = (TEAM_MAP[op.team].ruthless && hasPloy(g, op.side, 'guiltReveals') && edgeDist(op, target) <= 4)
       || (isIA(op) && op.side < 2 && hasPloy(g, op.side, 'intenseScrutiny') && edgeDist(op, target) <= 4); // Intense Scrutiny (Inquisition)
@@ -3072,6 +3164,9 @@ function validTarget(g, op, target, weapon) {
 /** Can op shoot target with weapon? Returns {ok, cover, obscured} */
 export function shootCheck(g, op, target, weapon, secondary = false) {
   if(weapon.rules.feSave3 && tpl(target).save>3) return {ok:false};
+  // Uncompromising Attack (Fellgor Gnarlscar): engaged, it can only shoot its autopistol at an enemy in its control range.
+  const fgUnc = !!op.acted?.fgUncomp && isEngaged(g, op);
+  if (fgUnc && (weapon.id !== 'autopistolFG' || edgeDist(op, target) > CONTROL + 0.01)) return { ok: false };
   if (!secondary && op.mdFocusTarget && op.mdFocusTarget !== target.uid) return { ok: false };
   // Detonate (Void-jammer): the friendly Gheistskull is always the primary target — no cover, not obscured.
   if (weapon.rules.detonate) {
@@ -3093,7 +3188,7 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   const support = (ffOn(g, op, 'supportingFire') && edgeDist(op, target) <= 6) || (ffOn(g, op, 'rtSharpshot') && isRifle(weapon)); // (Sharpshot: Ratlings)
   const stalwart = g.stalwart?.by === op.uid && g.stalwart.target === target.uid; // Stalwart Defence (Hernkyn Yaegirs)
   if (g.stalwart?.by === op.uid && !stalwart) return { ok: false };
-  if (!TEAM_MAP[op.team].ruthless && !tpl(op).quickTrigger && !support && !stalwart && living(g, op.side).some((f) => inEngagement(f, target, g) && !(tpl(op).rqRuthless && tpl(f).rqRuthless))) return { ok: false }; // (Requisitioned Exaction Squad: Ruthless Efficiency among themselves)
+  if (!TEAM_MAP[op.team].ruthless && !tpl(op).quickTrigger && !support && !fgUnc && !blCallousOk(g, op) && !stalwart && living(g, op.side).some((f) => inEngagement(f, target, g) && !(tpl(op).rqRuthless && tpl(f).rqRuthless))) return { ok: false }; // (Requisitioned Exaction Squad: Ruthless Efficiency among themselves)
   // Long Arm of the Emperor's Law (Exaction firefight ploy): Range +3".
   if (!inRange(op, target, weapon, ffOn(g, op, 'longArm') ? 3 : 0)) return { ok: false };
   // Markerlights: after a Markerlight this activation, Shoot must pick that same target.
@@ -3169,7 +3264,8 @@ export function effectiveRules(g, op, weapon, target) {
     if (others >= 2) r.relentless = true; else if (others === 1) r.ceaseless = true; // Pelting Firepower
   }
   // ---- Blooded ----
-  if (op.bloodToken) { r.accurate = Math.max(r.accurate || 0, 1); if (underGaze(g, op)) r.gaze = true; } // Blooded token / Gaze of the Gods
+  if (tpl(op).nameWhispered && target && g.blName?.[op.side] === target.uid) { r.accurate = Math.max(r.accurate || 0, 1); r.gaze = true; } // A Name Whispered in Blood (Sharpshooter): as if it had a token and the Gaze
+  else   if (op.bloodToken) { r.accurate = Math.max(r.accurate || 0, 1); if (underGaze(g, op)) r.gaze = true; } // Blooded token / Gaze of the Gods
   else if (tpl(op).leadWithStrength && underGaze(g, op)) r.gaze = true;
   if (TEAM_MAP[op.team].bloodedTokens && hasPloy(g, op.side, 'recklessAspirant') && whollyIn(g, op, 1 - op.side)) {
     if (op.bloodToken) r.punishing = true; else r.accurate = Math.max(r.accurate || 0, 1);
@@ -3248,7 +3344,11 @@ export function effectiveRules(g, op, weapon, target) {
     if (weapon.type === 'melee' && hasPloy(g, op.side, 'dispenseJustice') && (g.active !== op.uid || op.counter || (op.acted?.movedDist || 0) <= moveStat(g, op))) r.ceaseless = true;
     if (weapon.type === 'ranged' && target && hasPloy(g, op.side, 'terminalDecree') && edgeDist(op, target) <= 6) r.balanced = true; // Terminal Decree
   }
-  if (tpl(op).aggressivePattern && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  if (exPattern(op, 'aggressive') && weapon.type === 'melee') r.relentless = true; // Attack Pattern: Aggressive
+  if (weapon.type === 'ranged' && op.team === 'hunterClade' && tpl(op).ranger && living(g, op.side).some((a) => tpl(a).canticleElim && edgeDist(a, op) <= 3)) r.punishing = true; // Canticle of Elimination (Ranger Alpha)
+  if (op.side < 2 && radSaturated(g, op) && living(g, 1 - op.side).some((a) => tpl(a).canticleGlow && edgeDist(a, op) <= 3)) r.atkMinus = (r.atkMinus || 0) + 1; // Canticle of the Glow (Vanguard Alpha)
+  if (hcShrouded(g, op)) { delete r.balanced; delete r.ceaseless; delete r.relentless; delete r.lethal; delete r.rending; delete r.severe; } // Nightmare Shroud (Hierotek Psychomancer)
+  if (weapon.type === 'ranged' && target && hcOn(g, 'hcChrono', target.side)?.uid === target.uid) r.atkMinus = (r.atkMinus || 0) + 1; // Chronometron (Hierotek Chronomancer)
   // ---- Exodite Dragon Masters ----
   if (isEDM(op) && op.side < 2) {
     const spd = speedOf(g, op);
@@ -3722,6 +3822,19 @@ function blessings(pool) {
 
 // ---------- Blooded ----------
 const isBloodedTeam = (g, side) => side < 2 && !!TEAM_MAP[g.teams[side]]?.bloodedTokens;
+/** Callous Disregard (Blooded firefight ploy, automatic): it may shoot an enemy its friends are fighting... */
+const blFriendsIn = (g, op, target) => living(g, op.side).filter((f) => f !== op && inEngagement(f, target, g));
+const blCallousOk = (g, op) => isBloodedTeam(g, op.side) && ffReady(g, op.side, 'callousDisregard') && ffArmed(g, op.side, 'callousDisregard');
+function blCallousUse(g, op, target) { return blFriendsIn(g, op, target).length > 0 && blCallousOk(g, op) && autoFF(g, op.side, 'callousDisregard'); }
+/** ...and each attack dice discarded as a fail inflicts its result on a friend within the target's control range (the sturdiest). */
+function blCallousHits(g, op, target, pool) {
+  for (const d of pool.dice.filter((x) => !x.auto && x.res === 'miss')) {
+    const f = blFriendsIn(g, op, target).sort((a, b) => b.wounds - a.wounds)[0];
+    if (!f) return;
+    log(g, { zh: `冷酷漠視：失敗骰 ${d.v} 打到 ${opName(f, 'zh')}`, en: `Callous Disregard: a failed ${d.v} hits ${opName(f, 'en')}` }, `side${op.side}`);
+    applyDamage(g, null, f, d.v);
+  }
+}
 function gainBlood(g, side, why) {
   if (!isBloodedTeam(g, side)) return;
   (g.bloodPool ||= [0, 0])[side]++;
@@ -3770,6 +3883,8 @@ function bloodedOnDeath(g, dead) {
     if (dead.side < 2 && isBloodedTeam(g, foe) && !t[foe].enemy) { t[foe].enemy = true; gainBlood(g, foe, { zh: '本回合第一次使敵人殘廢', en: 'first enemy down this TP' }); }
     if (!isBloodedTeam(g, dead.side)) break gains;
     dead.bloodToken = false;
+    // Blooded Icon (Chieftain): once per TP, a friendly with a Blooded token falling within 6" of it — the token is regained.
+    if (dead.hadToken && g.blIconTP?.[dead.side] !== g.tp && living(g, dead.side).some((c) => c !== dead && tpl(c).bloodedIcon && c.x > -50 && edgeDist(c, dead) <= 6)) { (g.blIconTP ||= [0, 0])[dead.side] = g.tp; gainBlood(g, dead.side, { zh: '血祭聖像', en: 'Blooded Icon' }); }
     // The first friendly incapacitated within 6" of an enemy each TP.
     if (!t[dead.side].friend && foes(g, dead).some((e) => edgeDist(e, dead) <= 6)) { t[dead.side].friend = true; gainBlood(g, dead.side, { zh: '本回合第一次友方在敵人附近殘廢', en: 'first friendly down near the enemy this TP' }); }
   }
@@ -3893,6 +4008,11 @@ function wbHiddenEnd(g) {
 }
 /** Wyrmblade self actions: Target Vulnerability (Sanctus Sniper). */
 function wbSelf(g, op, id) {
+  if (id === 'wbAssassinate') { // (the free Charge and Fight are the Stealth Attack ones: up to its Move, then an extra strike)
+    spend(g, op, id); op.acted.free = { ...(op.acted.free || {}), charge: 'stealth', fight: 'stealth' };
+    log(g, { zh: `${opName(op, 'zh')} 刺殺：免費衝鋒（不超過移動值）後免費近戰，第一次打擊後可再追加一次打擊`, en: `${opName(op, 'en')} Assassinate: a free Charge (up to its Move) then a free Fight; its first strike is followed by another` }, `side${op.side}`);
+    return true;
+  }
   if (id !== 'wbVuln') return false;
   spend(g, op, id); op.acted.wbVuln = true;
   log(g, { zh: `${opName(op, 'zh')} 鎖定弱點：這次啟動定點狙擊「致命 5+」`, en: `${opName(op, 'en')} Target Vulnerability: the stationary profile has Lethal 5+ this activation` }, `side${op.side}`);
@@ -3900,6 +4020,13 @@ function wbSelf(g, op, id) {
 }
 /** Divert and Disappear (strategy ploy): up to three friendlies make a free Dash (a Cult Agent counts as two). */
 function registerWyrmbladeChoices() {
+  // (Blooded) A Name Whispered in Blood: the Sharpshooter's chosen enemy for the battle.
+  CHOICES.blName = {
+    kind: 'op', title: { zh: '血中低語之名：選一名敵人（神射手射擊它時視為持有血祭標記且受諸神注視）', en: 'A Name Whispered in Blood: pick an enemy (the Sharpshooter shoots it as if it had a Blooded token and the Gaze of the Gods)' },
+    options: (g, side) => living(g, 1 - side).filter((e) => e.side < 2).map((e) => ({ value: e.uid })),
+    auto: (g, side) => living(g, 1 - side).filter((e) => e.side < 2).sort((a, b) => b.maxW - a.maxW || tpl(b).apl - tpl(a).apl)[0]?.uid ?? null,
+    apply(g, side, uid) { (g.blName ||= [null, null])[side] = uid; log(g, { zh: `血中低語之名：${opName(getOp(g, uid), 'zh')}`, en: `A Name Whispered in Blood: ${opName(getOp(g, uid), 'en')}` }, `side${side}`); },
+  };
   const movers = (g, side, ctx) => living(g, side).filter((o) => isWB(o) && o.x > -50 && !o.wbHidden && !isEngaged(g, o) && (ctx.done?.length || 0) + (tpl(o).cultAgent ? 2 : 1) <= 3);
   CHOICES.wbDivert = {
     kind: 'move', title: { zh: '轉移與消失：最多三名友方免費衝刺（教派特工算兩名）', en: 'Divert and Disappear: up to three friendlies make a free Dash (a Cult Agent counts as two)' },
@@ -3911,6 +4038,226 @@ function registerWyrmbladeChoices() {
         const near = (p) => Math.min(...objs.map((m) => dist(m, p)));
         const q = bestStep(g, o, 3, 'dash', (p) => (near(p) < near(o) ? -near(p) : null));
         if (q) { stepTo(g, o, q); ctx.done.push(o.uid); log(g, { zh: `轉移與消失：${opName(o, 'zh')} 免費衝刺`, en: `Divert and Disappear: ${opName(o, 'en')} makes a free Dash` }, `side${side}`); }
+      }
+    },
+  };
+}
+// ---------- Fellgor Ravagers (the rules added with the full roster) ----------
+const isFG = (op) => op?.team === 'fellgor';
+/** Fellgor self actions: Sagacious (change order), Uncompromising Attack (free Fight + free autopistol Shoot), Cleaver Flurry. */
+function fgSelf(g, op, id) {
+  if (id === 'fgSagacious') { op.order = op.order === 'conceal' ? 'engage' : 'conceal'; op.acted.fgSagacious = 1; log(g, { zh: `${opName(op, 'zh')} 睿智：改為${op.order === 'engage' ? '交戰' : '隱蔽'}指令`, en: `${opName(op, 'en')} Sagacious: now ${op.order === 'engage' ? 'Engage' : 'Conceal'}` }, `side${op.side}`); return true; }
+  if (id === 'fgUncomp') {
+    spend(g, op, id); op.acted.fgUncomp = true; op.acted.free = { ...(op.acted.free || {}), fight: 'any', shoot: 'any' };
+    log(g, { zh: `${opName(op, 'zh')} 毫不妥協的攻擊：免費近戰一次、免費用自動手槍射擊一次（交戰中也能射擊控制範圍內的敵人）`, en: `${opName(op, 'en')} Uncompromising Attack: a free Fight and a free autopistol Shoot (it can shoot an enemy in its control range while engaged)` }, `side${op.side}`);
+    return true;
+  }
+  if (id === 'fgFlurry') {
+    spend(g, op, id); op.acted.fgFlurry = 1; op.acted.free = { ...(op.acted.free || {}), reposition: 'flurry' };
+    log(g, { zh: `${opName(op, 'zh')} 劈刀亂舞：免費轉移（多 2"），經過的敵人控制範圍內各受 D3+1 傷害`, en: `${opName(op, 'en')} Cleaver Flurry: a free Reposition (2" further); each enemy it moved within control range of takes D3+1` }, `side${op.side}`);
+    return true;
+  }
+  return false;
+}
+/** Cleaver Flurry: after the move, D3+1 to each enemy whose control range the path went through (in the order it reached them). */
+function fgFlurryHits(g, op, pts) {
+  op.acted.fgFlurry = 2;
+  const hit = [];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(dist(a, b) / 0.1));
+    for (let k = 0; k <= n; k++) {
+      const p = { x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n };
+      for (const e of foes(g, op)) if (!hit.includes(e) && e.x > -50 && dist(p, e) - radius(op) - radius(e) <= CONTROL + 0.01) hit.push(e);
+    }
+  }
+  for (const e of hit) { if (e.dead) continue; const dmg = d3() + 1; log(g, { zh: `劈刀亂舞：${opName(e, 'zh')} 受到 ${dmg} 傷害`, en: `Cleaver Flurry: ${opName(e, 'en')} takes ${dmg} damage` }, `side${op.side}`); applyDamage(g, op, e, dmg); }
+}
+/** Bloodsense (firefight ploy, automatic): a kill in its control range during its activation lets a nearby ready friend activate next. */
+function fgBloodsense(g, src, target) {
+  if (!isFG(src) || src.side === target.side || g.active !== src.uid || src.counter || src.wcHerd || edgeDist(src, target) > CONTROL + 0.01) return;
+  const next = living(g, src.side).filter((o) => o !== src && isFG(o) && canActivateOp(g, o) && edgeDist(o, target) <= 3 && visibility(g, target, o).visible).sort((a, b) => b.wounds - a.wounds)[0];
+  if (next && autoFF(g, src.side, 'bloodsense')) { src.wcHerd = next.uid; log(g, { zh: `嗜血感知：${opName(next, 'zh')} 接著啟動`, en: `Bloodsense: ${opName(next, 'en')} activates next` }, `side${src.side}`); } // (the same chain as Mutant Herd)
+}
+/** Call the Attack (Ironhorn strategic gambit): a friendly within 6" and everyone within 2" of it make free Dashes. */
+function fgCallMovers(g, side, ctx) { const a = getOp(g, ctx.anchor); return a ? living(g, side).filter((o) => isFG(o) && o.x > -50 && !isEngaged(g, o) && (o === a || (edgeDist(o, a) <= 2 && visibility(g, a, o).visible))) : []; }
+function registerFellgorChoices() {
+  const ironhorn = (g, side) => living(g, side).find((o) => tpl(o).callAttack && !o.frenzy && o.x > -50);
+  CHOICES.fgCallAnchor = {
+    kind: 'op', title: { zh: '號令進攻：選一名鐵角首領 6" 內看得到的友方（它和它 2" 內的友方免費衝刺）', en: 'Call the Attack: pick a friendly visible within 6" of the Ironhorn (it and friendlies within 2" of it make free Dashes)' },
+    skippable: true, none: () => {},
+    options: (g, side) => { const h = ironhorn(g, side); return h ? living(g, side).filter((o) => isFG(o) && o.x > -50 && (o === h || (edgeDist(o, h) <= 6 && visibility(g, h, o).visible))).map((o) => ({ value: o.uid })) : []; },
+    auto: (g, side) => { const h = ironhorn(g, side); if (!h) return null; const c = living(g, side).filter((o) => isFG(o) && o.x > -50 && !isEngaged(g, o) && (o === h || (edgeDist(o, h) <= 6 && visibility(g, h, o).visible))); return c.sort((a, b) => fgCallMovers(g, side, { anchor: b.uid }).length - fgCallMovers(g, side, { anchor: a.uid }).length)[0]?.uid ?? null; },
+    apply: (g, side, uid) => needChoice(g, side, 'fgCallMoves', { anchor: uid }),
+  };
+  CHOICES.fgCallMoves = {
+    kind: 'move', title: { zh: '號令進攻：免費衝刺', en: 'Call the Attack: free Dashes' },
+    movers: fgCallMovers, moveKind: () => 'dash', max: () => 3,
+    autoAll(g, side, ctx) {
+      for (const o of fgCallMovers(g, side, ctx)) {
+        const es = foes(g, o).filter((e) => e.x > -50), near = (p) => Math.min(...es.map((e) => dist(e, p)));
+        if (!es.length) return;
+        const q = bestStep(g, o, 3, 'dash', (p) => (near(p) < near(o) ? -near(p) : null));
+        if (q) { stepTo(g, o, q); log(g, { zh: `號令進攻：${opName(o, 'zh')} 免費衝刺`, en: `Call the Attack: ${opName(o, 'en')} makes a free Dash` }, `side${side}`); }
+      }
+    },
+  };
+}
+// ---------- Exaction Squad (the rules added with the full roster) ----------
+/** Attack Patterns (R-VR Cyber-mastiff): two of Aggressive / Swift / Defensive (Aggressive + Swift until picked in TP1). */
+export const exPattern = (op, id) => !!tpl(op).attackPatterns && (op.patterns || ['aggressive', 'swift']).includes(id);
+const EX_PAIRS = [['aggressive', 'swift'], ['aggressive', 'defensive'], ['swift', 'defensive']];
+/** Brutal Backup: other friendlies within control range of an enemy that is within this operative's control range. */
+const exBackups = (g, op) => living(g, op.side).filter((f) => f !== op && f.team === 'exaction' && engagedEnemies(g, op).some((e) => inEngagement(f, e, g))).sort((a, b) => b.wounds - a.wounds);
+const exPairName = (p) => ({ zh: p.map((id) => EX_PATTERNS[id].name.zh).join('＋'), en: p.map((id) => EX_PATTERNS[id].name.en).join(' + ') });
+/** Exaction self actions: R-VR Command (change one Attack Pattern), Handler (the Cyber-mastiff activates with it, here straight after). */
+function exSelf(g, op, id) {
+  if (id === 'exRvr') { op.acted.exRvr = 1; needChoice(g, op.side, 'exPatterns', { rvr: true }); return true; }
+  if (id === 'exHandler') {
+    const m = living(g, op.side).find((o) => tpl(o).attackPatterns && canActivateOp(g, o));
+    if (!m) return false;
+    op.acted.exHandler = 1; op.wcHerd = m.uid; // (the same chain as Mutant Herd: it activates when this one is expended)
+    log(g, { zh: `馴犬師：${opName(m, 'zh')} 跟著一起啟動（這裡在它之後）`, en: `Handler: ${opName(m, 'en')} activates with it (here, straight after)` }, `side${op.side}`);
+    return true;
+  }
+  return false;
+}
+/** Exact Punishment (firefight ploy, automatic): a friendly shot from within 6" and still standing shoots back at that enemy. */
+function exPunish(g, shooter, target) {
+  if (!target || target.dead || target.side > 1 || shooter.side === target.side || shooter.dead || target.team !== 'exaction' || edgeDist(shooter, target) > 6) return;
+  if (!ffReady(g, target.side, 'exactPunishment') || !ffArmed(g, target.side, 'exactPunishment') || isEngaged(g, target)) return;
+  const keep = { ap: target.ap, acted: target.acted }; target.ap = 1; target.acted = {};
+  const w = weaponsFor(g, target).filter((x) => x.type === 'ranged' && shootWeapon(g, target, x).ok && shootCheck(g, target, shooter, x).ok).sort((a, b) => avgDmg(b) - avgDmg(a))[0];
+  target.ap = keep.ap; target.acted = keep.acted;
+  if (!w || !autoFF(g, target.side, 'exactPunishment')) return;
+  log(g, { zh: `精確懲處：${opName(target, 'zh')} 對 ${opName(shooter, 'zh')} 還擊`, en: `Exact Punishment: ${opName(target, 'en')} shoots back at ${opName(shooter, 'en')}` }, `side${target.side}`);
+  forcedShot(g, target, w, [shooter], true);
+}
+function registerExactionChoices() {
+  CHOICES.exPatterns = {
+    kind: 'option', title: { zh: '攻擊模式：機械獒犬的兩種模式', en: 'Attack Pattern: the Cyber-mastiff\'s two patterns' },
+    options: () => EX_PAIRS.map((p) => ({ value: p.join('+'), label: exPairName(p) })),
+    // The computer keeps Aggressive + Swift, or Defensive in place of Swift once the mastiff is in a fight.
+    auto: (g, side) => { const m = living(g, side).find((o) => tpl(o).attackPatterns); return m && isEngaged(g, m) ? 'aggressive+defensive' : 'aggressive+swift'; },
+    apply(g, side, v) {
+      for (const m of living(g, side).filter((o) => tpl(o).attackPatterns)) m.patterns = v.split('+');
+      log(g, { zh: `攻擊模式：${exPairName(v.split('+')).zh}`, en: `Attack Pattern: ${exPairName(v.split('+')).en}` }, `side${side}`);
+    },
+  };
+}
+// ---------- Hierotek Circle (the Chronomancer, the Psychomancer and the rest of the full roster) ----------
+/** Which Cryptek flag grants each of these unique actions (an Apprentek has its Cryptek's actions). */
+const HC_ACTION_FLAG = { canoptekRepair: 'canoptekRepair', augment: 'augment', reinforce: 'reinforce', hcTimesplinter: 'chronomancer', hcNanomine: 'chronomancer', hcChronometron: 'chronomancer', hcVision: 'psychomancer', hcShroud: 'psychomancer', hcDespair: 'psychomancer' };
+const hcHas = (g, op, id) => { const f = HC_ACTION_FLAG[id]; if (tpl(op)[f]) return true; if (!tpl(op).apprentek) return false; const c = g.ops.find((o) => o.side === op.side && tpl(o).cryptek); return !!c && !!tpl(c)[f]; };
+/** Effects that last until the caster's next activation: {by, ...}. */
+const hcOn = (g, key, side) => { const e = g[key]?.[side]; return e && !getOp(g, e.by)?.dead ? e : null; };
+function hcActivate(g, op) {
+  if (g.counter) return;
+  for (const k of ['hcNano', 'hcChrono', 'hcShroud', 'hcDespair']) if (g[k]?.[op.side]?.by === op.uid) g[k][op.side] = null;
+  for (const o of g.ops) if (o.hcMad?.by === op.uid) o.hcMad = null; // (Vision of Madness)
+  op.hcAmbush = false; // (Dimensional Ambush lasts until its next activation)
+}
+/** Countertemporal Nanomine: -2" Move within 4" of the enemy's marker. */
+const hcNanoNear = (g, op) => op.side < 2 && !!hcOn(g, 'hcNano', 1 - op.side) && dist(op, g.hcNano[1 - op.side]) - radius(op) <= 4;
+/** Nightmare Shroud: an enemy within 4" of the Psychomancer can't re-roll attack dice or retain results below 6 as crits. */
+const hcShrouded = (g, op) => op.side < 2 && !!hcOn(g, 'hcShroud', 1 - op.side) && edgeDist(op, getOp(g, g.hcShroud[1 - op.side].by)) <= 4;
+/** Harbinger of Despair: +1AP for Pick Up / mission actions within 2" of the enemy's Despair marker, and 1 lower for control. */
+const hcDespairNear = (g, op) => op.side < 2 && !!hcOn(g, 'hcDespair', 1 - op.side) && dist(op, g.hcDespair[1 - op.side]) - radius(op) <= 2;
+/** Self actions: Nightmare Shroud, Harbinger of Despair (the Despair marker goes on the visible objective with most enemies near it). */
+function hcSelf(g, op, id) {
+  if (id === 'hcShroud') { spend(g, op, id); (g.hcShroud ||= [null, null])[op.side] = { by: op.uid }; log(g, { zh: `${opName(op, 'zh')} 夢魘帷幕：4" 內的敵人攻擊時不能重擲、只有 6 算暴擊`, en: `${opName(op, 'en')} Nightmare Shroud: enemies within 4" can't re-roll attack dice or crit on less than 6` }, `side${op.side}`); return true; }
+  if (id === 'hcDespair') {
+    const near = (m) => foes(g, op).filter((e) => dist(e, m) <= 4).length;
+    const m = (g.objectives || []).slice().sort((a, b) => near(b) - near(a) || dist(op, a) - dist(op, b))[0] || { x: op.x, y: op.y }; // (the marker's visibility from the Psychomancer isn't checked)
+    spend(g, op, id); (g.hcDespair ||= [null, null])[op.side] = { by: op.uid, x: m.x, y: m.y };
+    log(g, { zh: `${opName(op, 'zh')} 絕望先兆：在目標點放下絕望標記（2" 內的敵人撿標記與任務動作多 1AP，控制時 APL -1）`, en: `${opName(op, 'en')} Harbinger of Despair: the Despair marker goes on an objective (enemies within 2": +1AP to pick up / mission actions, 1 lower for control)` }, `side${op.side}`);
+    return true;
+  }
+  return false;
+}
+/** Timesplinter: set the friendly back up within 5" of the Chronomancer, out of enemy sight if possible, else as close as it was. */
+function hcTimesplinterTo(g, op, t) {
+  const from = { x: t.x, y: t.y }, ctx = moveCtx(g, t, 'reposition');
+  let best = null;
+  for (let r = 0.5; r <= 5; r += 0.5) for (let a = 0; a < 24; a++) {
+    const p = { x: op.x + Math.cos(a * Math.PI / 12) * (r + radius(op) + radius(t)), y: op.y + Math.sin(a * Math.PI / 12) * (r + radius(op) + radius(t)) };
+    if (!ctx.placement(p).ok || ctx.inEnemyER(p)) continue;
+    const probe = { ...t, x: p.x, y: p.y };
+    if (!visibility(g, op, probe).visible) continue;
+    const seen = foes(g, t).filter((e) => e.x > -50 && visibility(g, e, probe).visible).length;
+    const s = seen * 100 + dist(p, from);
+    if (!best || s < best.s) best = { p, s };
+  }
+  if (best) { t.x = best.p.x; t.y = best.p.y; }
+  return !!best;
+}
+/** Vision of Madness: when the opponent would activate it, a D6 equal to or above its APL stops that (if it has others to activate). */
+function hcMadness(g, op) {
+  if (g.counter || !op.hcMad || op.hcMad.side === op.side) return true;
+  if (!living(g, op.side).some((o) => o !== op && canActivateOp(g, o))) { op.hcMad = null; return true; }
+  const r = d6();
+  if (r >= aplNow(g, op)) {
+    op.hcMadBlock = `${g.tp}:${(g.actCount || [])[op.side] || 0}`;
+    log(g, { zh: `幻視瘋狂：擲 ${r}，${opName(op, 'zh')} 這次不能啟動`, en: `Vision of Madness: rolled ${r} — ${opName(op, 'en')} can't activate this time` }, `side${op.hcMad.side}`);
+    return false;
+  }
+  log(g, { zh: `幻視瘋狂：擲 ${r}，${opName(op, 'zh')} 照常啟動，標記移除`, en: `Vision of Madness: rolled ${r} — ${opName(op, 'en')} activates; the token is removed` }, `side${op.hcMad.side}`);
+  op.hcMad = null;
+  return true;
+}
+const hcMadBlocked = (g, o) => !!o.hcMadBlock && o.hcMadBlock === `${g.tp}:${(g.actCount || [])[o.side] || 0}`;
+/** Command Underlings (strategy ploy): free Dashes near the Cryptek (6") or the Apprentek (3"). */
+function hcUnderMovers(g, side, ctx) {
+  const lead = living(g, side).filter((o) => (ctx.mode === 'apprentek' ? tpl(o).apprentek : tpl(o).cryptek) && o.x > -50);
+  return living(g, side).filter((o) => o.team === 'hierotek' && o.x > -50 && !isEngaged(g, o) && !lead.includes(o) && !(ctx.mode === 'apprentek' && tpl(o).cryptek)
+    && lead.some((c) => edgeDist(c, o) <= (ctx.mode === 'apprentek' ? 3 : 6) && visibility(g, c, o).visible));
+}
+function registerHierotekChoices() {
+  CHOICES.hcUnderlings = {
+    kind: 'option', title: { zh: '指揮下屬：誰下令？', en: 'Command Underlings: which leader?' },
+    options: (g, side) => ['cryptek', 'apprentek'].filter((m) => hcUnderMovers(g, side, { mode: m }).length).map((m) => ({ value: m, label: m === 'cryptek' ? { zh: '技師：6" 內的友方免費衝刺', en: 'Cryptek: friendlies within 6" make free Dashes' } : { zh: '學徒：3" 內的友方免費衝刺', en: 'Apprentek: friendlies within 3" make free Dashes' } })),
+    auto: (g, side) => ['cryptek', 'apprentek'].sort((a, b) => hcUnderMovers(g, side, { mode: b }).length - hcUnderMovers(g, side, { mode: a }).length)[0],
+    none: () => {},
+    apply: (g, side, mode) => needChoice(g, side, 'hcUnderMoves', { mode }),
+  };
+  CHOICES.hcUnderMoves = {
+    kind: 'move', title: { zh: '指揮下屬：免費衝刺', en: 'Command Underlings: free Dashes' },
+    movers: hcUnderMovers, moveKind: () => 'dash', max: () => 3,
+    autoAll(g, side, ctx) {
+      for (const o of hcUnderMovers(g, side, ctx)) {
+        const objs = g.objectives || [], near = (p) => Math.min(...objs.map((m) => dist(m, p)));
+        if (!objs.length || near(o) <= 1) continue;
+        const q = bestStep(g, o, 3, 'dash', (p) => (near(p) < near(o) ? -near(p) : null));
+        if (q) { stepTo(g, o, q); log(g, { zh: `指揮下屬：${opName(o, 'zh')} 免費衝刺`, en: `Command Underlings: ${opName(o, 'en')} makes a free Dash` }, `side${side}`); }
+      }
+    },
+  };
+}
+// ---------- Hunter Clade (the leaders and ploys added with the full roster) ----------
+/** Control Protocol (every Hunter Clade leader): Command Override costs 0CP for an operative the leader can see. */
+function huControlFree(g, side, id) {
+  if (id !== 'commandOverride' || g.teams[side] !== 'hunterClade') return false;
+  const op = g.ffSpec || activeOp(g);
+  return !!op && op.side === side && living(g, side).some((l) => tpl(l).controlProtocol && l.x > -50 && (l === op || visibility(g, l, op).visible));
+}
+/** Control Edict: the Leader and another ready friendly visible within 3" (no more than one Sicarian) activate one after the other. */
+function huEdictPartners(g, op) {
+  if (op.team !== 'hunterClade') return [];
+  const lead = (o) => !!tpl(o).controlProtocol;
+  return living(g, op.side).filter((o) => o !== op && canActivateOp(g, o) && (lead(op) || lead(o)) && !(tpl(op).sicarian && tpl(o).sicarian)
+    && edgeDist(o, op) <= 3 && visibility(g, op, o).visible).sort((a, b) => b.wounds - a.wounds);
+}
+/** Scouting Protocol: Concealed Rangers more than 6" from enemies make free Dashes. */
+const huScoutMovers = (g, side) => living(g, side).filter((o) => o.team === 'hunterClade' && tpl(o).ranger && o.order === 'conceal' && o.x > -50 && !foes(g, o).some((e) => e.x > -50 && edgeDist(e, o) <= 6));
+function registerHunterCladeChoices() {
+  CHOICES.huScouting = {
+    kind: 'move', title: { zh: '偵察協定：隱蔽的遊騎兵免費衝刺', en: 'Scouting Protocol: Concealed Rangers make free Dashes' },
+    movers: huScoutMovers, moveKind: () => 'dash', max: () => 3,
+    autoAll(g, side) {
+      for (const o of huScoutMovers(g, side)) { // (the computer: towards the nearest objective, staying out of enemy sight where it can)
+        const objs = g.objectives || [], near = (p) => Math.min(...objs.map((m) => dist(m, p)));
+        if (!objs.length || near(o) <= 2) continue;
+        const q = bestStep(g, o, 3, 'dash', (p) => (near(p) < near(o) ? -near(p) - (foes(g, o).some((e) => visibility(g, e, { ...o, x: p.x, y: p.y }).visible) ? 5 : 0) : null));
+        if (q) { stepTo(g, o, q); log(g, { zh: `偵察協定：${opName(o, 'zh')} 免費衝刺`, en: `Scouting Protocol: ${opName(o, 'en')} makes a free Dash` }, `side${side}`); }
       }
     },
   };
@@ -5284,13 +5631,14 @@ function loyalSwap(g, attacker, target, weapon) {
   if (!target || target.side > 1 || weapon?.rules.blast || weapon?.rules.torrent) return target;
   // (Faithful Follower, Chaos Cult: a Dark Commune operative, swapped with a friendly that isn't Dark Commune.)
   const thrall = !!tpl(target).ccLeader, commune = isCult(target) && !!tpl(target).darkCommune;
-  const id = thrall ? 'sacrificialThrall' : commune ? 'faithfulFollower' : 'unquestioningLoyalty';
+  const favour = isBloodedTeam(g, target.side) && !!target.bloodToken; // (Dark Favour, Blooded: any other friendly for one with a Blooded token)
+  const id = thrall ? 'sacrificialThrall' : commune ? 'faithfulFollower' : favour ? 'darkFavour' : 'unquestioningLoyalty';
   const wb = isWB(target) && (!!tpl(target).cultAgent || !!tpl(target).wbLeader); // (Wyrmblade: a Neophyte, not the Leader, for a Cult Agent or the Leader)
-  if ((!thrall && !commune && !broodLeader(g, target) && !wb) || !ffDef(g, target.side, id)) return target;
-  const fits = (o) => (thrall ? tpl(o).canoptek : commune ? isCult(o) && !tpl(o).darkCommune : wb ? isWB(o) && !!tpl(o).neophyte && !tpl(o).wbLeader && o.x > -50 : broodguard(o) && !broodLeader(g, o));
+  if ((!thrall && !commune && !broodLeader(g, target) && !wb && !favour) || !ffDef(g, target.side, id)) return target;
+  const fits = (o) => (thrall ? tpl(o).canoptek : commune ? isCult(o) && !tpl(o).darkCommune : favour ? sameTeam(o, target) && o.x > -50 : wb ? isWB(o) && !!tpl(o).neophyte && !tpl(o).wbLeader && o.x > -50 : broodguard(o) && !broodLeader(g, o));
   const guard = living(g, target.side).filter((o) => o !== target && fits(o) && edgeDist(o, target) <= 3 && visibility(g, target, o).visible)
     .sort((a, b) => (tpl(b).bodyguard ? 1 : 0) - (tpl(a).bodyguard ? 1 : 0) || b.wounds - a.wounds)[0];
-  if (!guard) return target;
+  if (!guard || (favour && guard.wounds <= target.wounds)) return target; // (Dark Favour: only when the stand-in is sturdier)
   g.loyalFree = !!tpl(guard).bodyguard; // Bodyguard (Veteran): 0CP
   const used = autoFF(g, target.side, id);
   g.loyalFree = false;
@@ -5792,7 +6140,7 @@ export function checkMines(g, op) {
   g.markers = g.markers.filter((x) => !x.gone);
 }
 /** Comms Device: +3" to Support distances that pick friendlies, while this operative controls its own marker. */
-const commsBonus = (g, op) => ((g.markers || []).some((m) => m.kind === 'comms' && m.owner === op.side && dist(op, m) - radius(op) - OBJ_R <= CONTROL && controller(g, m) === op.side) ? 3 : 0);
+const commsBonus = (g, op) => (op.acted?.cortical ? 99 : 0) + ((g.markers || []).some((m) => m.kind === 'comms' && m.owner === op.side && dist(op, m) - radius(op) - OBJ_R <= CONTROL && controller(g, m) === op.side) ? 3 : 0);
 /** Smoke: an operative wholly within 1" of a smoke marker. */
 const inSmoke = (g, op) => (g.smoke || []).some((s) => dist(op, s) + radius(op) <= 1.01);
 const ammoTarget = (g, op) => (g.markers || []).find((m) => m.kind === 'ammo' && m.owner === op.side && m.usedTP !== g.tp && dist(op, m) - radius(op) - OBJ_R <= CONTROL && controller(g, m) === op.side);
@@ -5819,7 +6167,7 @@ function techWhy(g, op, id) {
   return null;
 }
 /** Can this side pay for and still use this firefight ploy this turning point? */
-const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => feFreePloy(g,side,id) ? 0 : aqVetFree(g, side, id) || vdLuckFree(g, side, id) || phTacFree(g, side, id) || wbShadowFree(g, side, id) || (id === 'planGenerations' && g.wbPlanFree) ? 0 : (g.ccFree || ccAwakenedFree(g, side, id)) && id === 'animateNodes' ? 0 : scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
+const ffBaseCost = (g, side, id, target = g.dwAuspexTarget) => feFreePloy(g,side,id) ? 0 : aqVetFree(g, side, id) || vdLuckFree(g, side, id) || phTacFree(g, side, id) || wbShadowFree(g, side, id) || (id === 'planGenerations' && g.wbPlanFree) || huControlFree(g, side, id) ? 0 : (g.ccFree || ccAwakenedFree(g, side, id)) && id === 'animateNodes' ? 0 : scVoxFree(g, side, id) || rtFree(g, side, id) || dkFreeHas(g, side, id) || dkAdaptiveFree(g, side, id) || (g.pfFree && id === 'saviourProtocols') || (id === 'wrathVengeance' && adReliquaries(g, side)) || adHeroicFree(g, side, id, g.ffSpec) ? 0 : dwCommandFree(g, side, 'firefight') || id === 'dwAuspex' && dwTriangulation(g, side, target) ? 0 : (id === 'unquestioningLoyalty' && g.loyalFree ? 0 : ['lightFingers', 'capriciousFlight'].includes(id) && tpl(activeOp(g) || { team: g.teams[side], tplId: TEAM_MAP[g.teams[side]].ops[0].id }).prowlingRaiders && activeOp(g)?.side === side ? 0 : ffDef(g, side, id)?.cp || 0);
 const ffCostNow = (g, side, id, target = g.dwAuspexTarget) => ffBaseCost(g, side, id, target) + (g.deviousTax?.[side] === id ? 1 : 0);
 export const ffReady = (g, side, id, target = g.dwAuspexTarget) => { const p = ffDef(g, side, id); return !!p && !ffUsedNow(g, side, id) && g.cp[side] >= ffCostNow(g, side, id, target) && (id !== 'deviousScheme' || !g.deviousTax?.[1 - side]); };
 function spendFF(g, side, id) {
@@ -6006,6 +6354,29 @@ const FF = {
   autoFerric: { kind: 'auto' }, // (Battleclade)
   // ---- Brood Brothers / Canoptek Circle ----
   unquestioningLoyalty: { kind: 'auto' },
+  darkFavour: { kind: 'auto' }, // (Blooded: loyalSwap)
+  exactPunishment: { kind: 'auto' }, // (Exaction Squad: exPunish at the end of an enemy Shoot)
+  controlEdict: { kind: 'button', cond: (g, op) => (wcFresh(op) && huEdictPartners(g, op).length ? null : { zh: '剛啟動、領袖與 3" 內看得到的另一名準備好的友方', en: 'When activated: the Leader and another ready friendly visible within 3"' }),
+    apply(g, op) { const p = huEdictPartners(g, op)[0]; op.wcHerd = p.uid; log(g, { zh: `控制敕令：${opName(p, 'zh')} 接著啟動`, en: `Control Edict: ${opName(p, 'en')} activates next` }, `side${op.side}`); } }, // (the Mutant Herd chain)
+  // Hierotek Circle: Cortical Control (its SUPPORT actions this activation ignore distance), Dimensional Ambush (a Concealed
+  // Deathmark can Guard anywhere, going Engage to attack), Reanimated Function (a Reanimation marker counts for control).
+  corticalControl: { kind: 'button', cond: (g, op) => ((tpl(op).cryptek || tpl(op).apprentek) && !op.acted.cortical ? null : { zh: '只有技師或學徒', en: 'Cryptek or Apprentek only' }), apply(g, op) { op.acted.cortical = true; } },
+  dimensionalAmbush: { kind: 'button', cond: (g, op) => (tpl(op).deathmark && op.order === 'conceal' && !op.counter && !op.hcAmbush ? null : { zh: '隱蔽指令的死亡標記啟動中', en: 'A Concealed Deathmark during its activation' }), apply(g, op) { op.hcAmbush = true; } },
+  reanimatedFunction: { kind: 'button', cond: (g, op) => ((g.reanim || []).some((m) => m.side === op.side && getOp(g, m.uid)?.dead) ? null : { zh: '沒有復甦標記', en: 'No Reanimation marker' }),
+    apply(g, op) {
+      const objs = g.objectives || [], ms = (g.reanim || []).filter((m) => m.side === op.side && getOp(g, m.uid)?.dead);
+      const m = ms.sort((a, b) => Math.min(...objs.map((o) => dist(o, a))) - Math.min(...objs.map((o) => dist(o, b))))[0];
+      (g.hcRF ||= [null, null])[op.side] = { tp: g.tp, uid: m.uid };
+    } },
+  // Brutal Backup (Exaction Squad): another friendly in the same enemy's control range makes a free Fight now.
+  brutalBackup: { kind: 'button', cond: (g, op) => (op.team === 'exaction' && !op.counter && exBackups(g, op).length ? null : { zh: '控制範圍內的敵人旁邊沒有其他友方', en: 'No other friendly in control range of an enemy in its control range' }),
+    apply(g, op) {
+      const b = exBackups(g, op)[0];
+      g.netcounter = { side: op.side, only: [b.uid], resume: op.uid, resumeCounter: false, kind: 'control', onlyActions: ['fight'], ctlMove: 0 };
+      g.active = null; g.counter = true; g.turn = op.side;
+      log(g, { zh: `殘暴支援：${opName(b, 'zh')} 立刻免費近戰`, en: `Brutal Backup: ${opName(b, 'en')} makes a free Fight now` }, `side${op.side}`);
+    } },
+  callousDisregard: { kind: 'auto' }, // (Blooded: shootCheck / shootSequence)
   idolisation: { kind: 'attack', cond: (g, op) => (!broodLeader(g, op) && living(g, op.side).some((o) => o !== op && (broodLeader(g, o) || tpl(o).cultIcon) && edgeDist(o, op) <= 6)
     ? null : { zh: '要在領袖或聖像守衛 6" 內（自己不是領袖）', en: 'Needs a Leader or the Iconward within 6" (and not be a Leader)' }) },
   sacrificialThrall: { kind: 'auto' },
@@ -6120,6 +6491,7 @@ const FF = {
   // ---- Hearthkyn Salvagers ----
   sturdy: { kind: 'auto' },
   worthIt: { kind: 'auto' },
+  stealthAssault: { kind: 'auto' }, // (Phobos: in startFight)
   planGenerations: { kind: 'auto' }, // (Wyrmblade: hkWorthIt)
   engageToAcquire: { kind: 'attack', cond: (g, op, t) => (t && holdsObjective(g, t) ? null : { zh: '目標沒有控制目標點', en: 'The target doesn\'t control an objective' }) },
   ancestorsWatching: { kind: 'button', apply(g, op) { op.acted.ancestors = true; op.acted.free = { ...(op.acted.free || {}), shoot: 'any', fight: 'any' }; } },
@@ -6538,7 +6910,7 @@ function expectedDamage(ac, an, n, save, critOn, cN, cC, dn, dc) {
 export const isComputer = (g, side) => side === NPO || side === g.ai;
 /** A player operative near an objective can't re-roll (Sickening Emissions). */
 const noRerollHere = (g, op, attack = true) => (attack && feTotemNear(g,op)) || (!!mission(g).noRerollNearObjective && op.side !== NPO && g.objectives.some((o) => inMarkerRange(op, o)))
-  || voxbroken(g, op) || hexorcised(g, op) || rvNoReroll(g, op);
+  || voxbroken(g, op) || hexorcised(g, op) || rvNoReroll(g, op) || (attack && hcShrouded(g, op)); // (Nightmare Shroud)
 
 /** Can `side` spend 1CP to re-roll one die of this pool? Each roll of dice can be re-rolled once. */
 export function canCommandReroll(g, side, holder, which) {
@@ -6741,6 +7113,7 @@ function ffOnDeath(g, src, target) {
   const side = target.side;
   if (side > 1) return;
   hkWorthIt(g, target); // Worth It (Hearthkyn): a free mission action before it's removed
+  if (src) fgBloodsense(g, src, target); // Bloodsense (Fellgor)
   const near = (r) => foes(g, target).filter((e) => e.side < 2 && edgeDist(e, target) <= r && visibility(g, target, e).visible);
   // Vengeance for the Kinband: Relentless against the killer for the rest of the battle.
   const v = g.vengeance?.[side] && getOp(g, g.vengeance[side]);
@@ -6978,12 +7351,14 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   phRoll(g, op, a, tally); // Purity Seals (Phobos)
   feRoll(g,op,a);
   wcFateRoll(g, [[op, a]]); // Fate Itself Is My Weapon (Warpcoven)
+  const callous = blCallousUse(g, op, target); // Callous Disregard (Blooded): shooting into a fight its friends are in
   if (rules.phAmmoNew) phAmmoUsed(g, op, weapon); // Special Issue Ammunition (Phobos): loaded for this turning point
   if (weapon.id === 'wbCharge') (g.wbChargeTP ||= [0, 0])[op.side] = g.tp; // Blasting Charges (Wyrmblade): once per turning point
   if (weapon.rules.psychic && op.team === 'warpcoven') (op.wcPsyUsed ||= {})[weapon.id] = g.tp; // (Psychic Cabal can't borrow a weapon used this TP)
   wsTeeth(g, op, a, tally); // Wolfteeth Necklaces (Wolf Scouts)
   const seq = { op: op.uid, target: target.uid, weapon, a, d: null, hit, rerolled: {}, noReroll: { a: noReroll || noRerollHere(g, op) || neurostatic(g, op) || broadcastNear(g, op), d: noRerollHere(g, target, false) } };
   yield { stage: 'attack', seq };
+  if (callous) blCallousHits(g, op, target, seq.a); // (each attack dice discarded as a fail hurts a friend in the fight)
   if(seq.feSanctified && /^(autogun|autopistol|relic bolt pistol|relic boltgun)$/i.test(weapon.name.en))rules.piercingCrits=Math.max(1,rules.piercingCrits||0);
   const inCover = vis.cover && !rules.ignoreCover;
   // Toxic: +1 to both Dmg against an enemy that was poisoned at the start of the action.
@@ -7054,7 +7429,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // Take Cover: if cover saves can be retained, the Save stat improves by 1.
     // Gong Knell (Deathknell): +1 Save when shot until its next activation.
     // Aggressor Imperative (Hunter Clade): the Save is worsened by 1.
-    const save = Math.min(6, Math.max(2, (g.feWarded?.[target.side]?.tp===g.tp && g.feWarded[target.side].uid===target.uid ? 2 : tpl(target).save) - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target) - sfConversion(g, op, target) - (coverN + coverC > 0 ? protectiveBonus(g, target) : 0)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
+    const save = Math.min(6, Math.max(2, (g.feWarded?.[target.side]?.tp===g.tp && g.feWarded[target.side].uid===target.uid ? 2 : tpl(target).save) - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (exPattern(target, 'defensive') ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target) - sfConversion(g, op, target) - (coverN + coverC > 0 ? protectiveBonus(g, target) : 0)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
   // Only a shared terrain feature forces a cover/obscuring choice. Independent features stack.
@@ -7489,6 +7864,7 @@ export function* shootFlow(g, op, weapon, target) {
   sfMiracleMoves(g); // Miracle (Sanctifier Miraculist)
   for (const o of g.ops) o.medicShield = false;
   rtAfterEnemyAction(g, op, false); // Ratlings: Evade after an enemy action
+  exPunish(g, op, target); // Exact Punishment (Exaction Squad): the target shoots back
   return { kind: 'shoot', attacker: op.uid, weapon, ap, ...main, extra, hot, suppressed: noReroll };
 }
 
@@ -7645,6 +8021,9 @@ export function startFight(g, op, weapon, target) {
   if (op.acted.darknessTarget === target.uid) op.acted.darknessUsed = true;
   g.fight.A.assist = aAssist; g.fight.D.assist = dAssist;
   if (free === 'stealth' || tpl(op).dwHeadtaker && op.acted.dwUnseen?.includes(target.uid)) g.fight.A.extraStrike = true;
+  // Stealth Assault (Phobos firefight ploy): Concealed when activated, now Engage, it has only Charged before this first Fight.
+  else if (op.team === 'phobos' && g.active === op.uid && !op.counter && op.prevOrder === 'conceal' && op.order === 'engage' && count(op, 'charge') === 1 && count(op, 'fight') === 1
+    && !Object.keys(op.acted).some((k) => ACTIONS[k] && k !== 'charge' && k !== 'fight') && autoFF(g, op.side, 'stealthAssault')) g.fight.A.extraStrike = true;
   // ---- Firefight ploys ----
   if (ffOn(g, op, 'shockAssault')) g.fight.A.firstBonus = 1; // the first strike deals 1 more (max 7)
   if (ffOn(g, op, 'animalisticFury')) g.fight.A.critBonus += 1;
@@ -8419,4 +8798,4 @@ function feFreePloy(g,s,id) {
   return id==='rewardEarned' && hasEquip(g,s,'feBloodSigil') || ['animalisticFury','wildRage'].includes(id) && hasEquip(g,s,'feBrass') && !(g.feUsed?.[s]?.[`feBrass_${id}`]?.total) || id==='controlEdict' && feAvailable(g,s,'feMindLink',1,true);
 }
 
-registerEquipmentChoices(); registerCoreChoices(); registerWarpcovenChoices(); registerWyrmbladeChoices(); aqChoices(); pmChoices(); adChoices(); rvChoices(); xvChoices(); dkChoices(); kmChoices(); pfChoices(); dkMoveChoices(); sfChoices(); scChoices(); spChoices(); ncChoices(); // (after CHOICES is defined)
+registerEquipmentChoices(); registerCoreChoices(); registerWarpcovenChoices(); registerWyrmbladeChoices(); registerFellgorChoices(); registerExactionChoices(); registerHierotekChoices(); registerHunterCladeChoices(); aqChoices(); pmChoices(); adChoices(); rvChoices(); xvChoices(); dkChoices(); kmChoices(); pfChoices(); dkMoveChoices(); sfChoices(); scChoices(); spChoices(); ncChoices(); // (after CHOICES is defined)

@@ -47,6 +47,31 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
   assert(G.availableActions(g, t).find((a) => a.id === 'charge').ok, 'Creeping Shadow: Charge while Concealed');
 }
 
+// Assassinate (Sanctus Talon): from Conceal, an enemy that can't see it within reach — free Charge up to its Move, free Fight with an extra strike.
+{
+  const g = arena({ roster: { wbAgent2: 'wbTalon' } }), t = get(g, 'wbTalon'), e = foe(g);
+  t.order = 'conceal'; place(t, 10, 10); place(e, 15, 10);
+  g.terrain = [{ kind: 'heavy', x: 12, y: 8, w: 0.6, h: 4 }]; // (e can't see it through the wall)
+  G.activate(g, t);
+  const a = G.availableActions(g, t).find((x) => x.id === 'wbAssassinate');
+  assert(a.ok, 'Assassinate offered'); assert.equal(a.ap, 2);
+  G.doSelfAction(g, t, 'wbAssassinate');
+  assert.equal(t.acted.free.charge, 'stealth'); assert.equal(G.moveAllowance(g, t, 'charge'), G.moveStat(g, t), 'no extra 2"');
+  assert(G.availableActions(g, t).find((x) => x.id === 'charge').ok, 'the free Charge while Concealed');
+  g.terrain = []; const h = arena({ roster: { wbAgent2: 'wbTalon' } }), t2 = get(h, 'wbTalon'); t2.order = 'conceal'; place(t2, 10, 10); place(foe(h), 15, 10); G.activate(h, t2);
+  assert(!G.availableActions(h, t2).find((x) => x.id === 'wbAssassinate').ok, 'not when every enemy in reach can see it');
+}
+// Other rules that explicitly allow a Concealed Charge: the Kroot Stalker.
+{
+  const g = G.newGame({ teams: ['farstalkers', 'kommandos'], ai: null, equip: [[], []] });
+  Object.assign(g, { tp: 1, phase: 'firefight', turn: 0, terrain: [], cp: [3, 3, 0] });
+  g.ops.forEach((o, i) => { o.x = o.side === 0 ? 1 : 29; o.y = 1.2 + (i % 13) * 1.6; o.placed = true; o.order = 'engage'; o.ready = true; });
+  const s = g.ops.find((o) => o.tplId === 'stalker'); s.order = 'conceal'; place(s, 20, 10); place(g.ops.find((o) => o.side === 1), 24, 10); G.activate(g, s);
+  assert(G.availableActions(g, s).find((x) => x.id === 'charge').ok, 'Kroot Stalker: Charge while Concealed');
+  const w = g.ops.find((o) => o.tplId === 'warrior' && o.side === 0); w.order = 'conceal'; place(w, 20, 14); g.active = null; s.ready = false; G.activate(g, w);
+  assert(!G.availableActions(g, w).find((x) => x.id === 'charge').ok, '(but not a Kroot Warrior)');
+}
+
 // Equipment: Cult Knives, Blasting Charges once per TP, Spotlights, Explosive Traps.
 {
   const g = arena({ equip: ['wbKnives', 'wbCharges', 'wbSpotlights', 'wbTraps'] }), w = get(g, 'warrior'), e = foe(g);

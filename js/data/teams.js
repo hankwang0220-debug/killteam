@@ -454,6 +454,25 @@ const longLasMobileBL = W('longLasMobileBL', '長管雷射槍（機動）', 'Lon
 const longLasStatBL = W('longLasStatBL', '長管雷射槍（定點）', 'Long-las (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 1, heavy: 'dash', silent: true }, 'longLasBL');
 const heavyClub = W('heavyClub', '重棍', 'Heavy club', 'melee', 4, 3, 4, 4, { brutal: true });
 const shotgunBL = W('shotgunBL', '霰彈槍', 'Shotgun', 'ranged', 4, 3, 3, 3, { range: 6 });
+// Chieftain options (its own 3+ profiles) and the other Gunners.
+const autopistolBL = W('autopistolBL', '自動手槍', 'Autopistol', 'ranged', 4, 3, 2, 3, { range: 8 });
+const boltgunBL = W('boltgunBL', '爆彈槍', 'Boltgun', 'ranged', 4, 3, 3, 4);
+const plasmaPistolBLs = W('plasmaPistolBLs', '電漿手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolBL');
+const plasmaPistolBLx = W('plasmaPistolBLx', '電漿手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 3, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolBL');
+const powerWeaponBL = W('powerWeaponBL', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const improvisedBL = W('improvisedBL', '簡易刀刃', 'Improvised blade', 'melee', 4, 3, 2, 3);
+const bayonetChief = W('bayonetChief', '刺刀', 'Bayonet', 'melee', 3, 3, 2, 3);
+const BL_CHIEF_LOADOUTS = {
+  'laspistol+chainsword': [laspistolBL, chainswordBL], 'laspistol+power': [laspistolBL, powerWeaponBL],
+  'autopistol+chainsword': [autopistolBL, chainswordBL], 'autopistol+power': [autopistolBL, powerWeaponBL],
+  'boltPistol+chainsword': [boltPistolBL, chainswordBL], 'boltgun+bayonet': [boltgunBL, bayonetChief], 'plasma+improvised': [plasmaPistolBLs, plasmaPistolBLx, improvisedBL],
+};
+const glFragBL = W('glFragBL', '榴彈發射器（破片）', 'Grenade launcher (frag)', 'ranged', 4, 4, 2, 4, { blast: 2 }, 'glBL');
+const glKrakBL = W('glKrakBL', '榴彈發射器（穿甲）', 'Grenade launcher (krak)', 'ranged', 4, 4, 4, 5, { piercing: 1 }, 'glBL');
+const meltagunBL = W('meltagunBL', '熱熔槍', 'Meltagun', 'ranged', 4, 4, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const plasmaGunBLs = W('plasmaGunBLs', '電漿槍（標準）', 'Plasma gun (standard)', 'ranged', 4, 4, 4, 6, { piercing: 1 }, 'plasmaGunBL');
+const plasmaGunBLx = W('plasmaGunBLx', '電漿槍（超載）', 'Plasma gun (supercharge)', 'ranged', 4, 4, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'plasmaGunBL');
+const BL_PICKS = ['brimstone', 'butcher', 'commsman', 'corpseman', 'flenser', 'gunner', 'gunnerGL', 'gunnerMelta', 'gunnerPlasma', 'sharpshooter', 'thug', 'sweeper', 'trooper'];
 const bayonetShield = W('bayonetShield', '刺刀與盾牌', 'Bayonet & shield', 'melee', 3, 3, 2, 3, { shield: true });
 
 // ---- Fellgor Ravagers ----
@@ -472,6 +491,10 @@ const skullcleaver = W('skullcleaver', '碎顱斧', 'Skullcleaver', 'melee', 4, 
 // Tactual Hunter: against an expended enemy, the first critical strike is followed by another strike.
 const viciousClaws = W('viciousClaws', '兇殘爪', 'Vicious claws', 'melee', 4, 4, 4, 6, { ceaseless: true, tactualHunter: true });
 const cleaverFG = W('cleaverFG', '劈刀', 'Cleaver', 'melee', 4, 3, 4, 5);
+// Ironhorn options; Fellgor Warriors (autopistol with bludgeon or cleaver).
+const plasmaPistolFGs = W('plasmaPistolFGs', '電漿手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 4, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolFG');
+const plasmaPistolFGx = W('plasmaPistolFGx', '電漿手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 4, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolFG');
+const FG_PICKS = ['deathknell', 'fluxbray', 'gnarlscar', 'gorehorn', 'herdgoad', 'mangler', 'shaman', 'toxhorn', 'vandal', 'fgWarriorB', 'fgWarriorC'];
 // Vicious Blows: Ceaseless when fighting (not when retaliating).
 const mancrusher = W('mancrusher', '碎人錘', 'Mancrusher', 'melee', 4, 4, 5, 5, { brutal: true, viciousBlows: true });
 
@@ -482,6 +505,15 @@ const dominatorMaul = W('dominatorMaul', '統治者錘與突擊盾', 'Dominator 
 const combatShotgunClose = W('combatShotgunClose', '戰鬥霰彈槍（近距離）', 'Combat shotgun (close range)', 'ranged', 4, 3, 4, 4, { range: 6 }, 'combatShotgun');
 const combatShotgunLong = W('combatShotgunLong', '戰鬥霰彈槍（遠距離）', 'Combat shotgun (long range)', 'ranged', 4, 5, 2, 2, {}, 'combatShotgun');
 const baton = W('baton', '鎮壓警棍', 'Repression baton', 'melee', 3, 4, 2, 3);
+// Proctor-exactant's combat shotgun option (its own better profiles) and the Gunners.
+const pcShotgunClose = W('pcShotgunClose', '戰鬥霰彈槍（近距離）', 'Combat shotgun (close range)', 'ranged', 4, 2, 4, 4, { range: 6 }, 'pcShotgun');
+const pcShotgunLong = W('pcShotgunLong', '戰鬥霰彈槍（遠距離）', 'Combat shotgun (long range)', 'ranged', 4, 4, 2, 2, {}, 'pcShotgun');
+const pcBaton = W('pcBaton', '鎮壓警棍', 'Repression baton', 'melee', 3, 3, 2, 3);
+const exGL = W('exGL', '榴彈發射器', 'Grenade launcher', 'ranged', 5, 4, 4, 5, { piercing: 1 });
+const exStubberF = W('exStubberF', '重型機槍（集中）', 'Heavy stubber (focused)', 'ranged', 5, 4, 4, 5, { heavy: 'dash' }, 'exStubber');
+const exStubberS = W('exStubberS', '重型機槍（掃射）', 'Heavy stubber (sweeping)', 'ranged', 4, 4, 4, 5, { heavy: 'dash', torrent: 1 }, 'exStubber');
+const exWebber = W('exWebber', '蛛網槍', 'Webber', 'ranged', 4, 3, 4, 5, { range: 12, severe: true, stun: true });
+const EX_PICKS = ['castigator', 'chirurgant', 'leashmaster', 'mastiff', 'malocator', 'marksman', 'revelatum', 'subductor', 'vigilant', 'vox', 'exGunnerGL', 'exGunnerStubber', 'exGunnerWebber'];
 const excruciatorMaul = W('excruciatorMaul', '刑罰錘', 'Excruciator maul', 'melee', 4, 3, 5, 5, { rending: true, shock: true });
 const shotpistolAB = W('shotpistolAB', '霰彈手槍', 'Shotpistol', 'ranged', 4, 4, 3, 3, { range: 8 });
 const mechBite = W('mechBite', '機械咬擊', 'Mechanical bite', 'melee', 4, 4, 3, 5, { lethal: 5 });
@@ -500,6 +532,15 @@ const fistsN = W('fistsN', '拳頭', 'Fists', 'melee', 3, 3, 3, 4);
 const gaussBlaster = W('gaussBlaster', '高斯爆能槍', 'Gauss blaster', 'ranged', 4, 3, 4, 5, { piercing: 1 });
 const teslaCarbine = W('teslaCarbine', '特斯拉卡賓槍', 'Tesla carbine', 'ranged', 5, 3, 3, 3, { devastating: 1, devSplash: 2 });
 const bayonetN = W('bayonetN', '刺刀', 'Bayonet', 'melee', 4, 3, 3, 4);
+// Chronomancer (aeonstave or entropic lance) and Psychomancer (abyssal lance).
+const aeonstave = W('aeonstave', '永世之杖（遠程）', 'Aeonstave (ranged)', 'ranged', 5, 3, 3, 3, { blast: 2, lethal: 5, stun: true, magnify: true }, 'aeonstave');
+const aeonstaveM = W('aeonstaveM', '永世之杖（近戰）', 'Aeonstave (melee)', 'melee', 4, 4, 3, 4, { lethal: 5, shock: true }, 'aeonstave');
+const entropicLance = W('entropicLance', '熵能長矛（遠程）', 'Entropic lance (ranged)', 'ranged', 4, 3, 5, 3, { devastating: 3, piercing: 1, magnify: true }, 'entropicLance');
+const entropicLanceM = W('entropicLanceM', '熵能長矛（近戰）', 'Entropic lance (melee)', 'melee', 4, 4, 3, 6, {}, 'entropicLance');
+const abyssalLance = W('abyssalLance', '深淵長矛（遠程）', 'Abyssal lance (ranged)', 'ranged', 5, 3, 2, 2, { blast: 2, devastating: 1, devSplash: 2, piercing: 2, magnify: true }, 'abyssalLance');
+const abyssalLanceM = W('abyssalLanceM', '深淵長矛（近戰）', 'Abyssal lance (melee)', 'melee', 4, 4, 4, 4, { devastating: 1 }, 'abyssalLance');
+const HC_IMMORTAL = { gauss: [gaussBlaster, bayonetN], tesla: [teslaCarbine, bayonetN] };
+const HC_PICKS = ['apprentek', 'deathmark', 'despotek', 'guardian'];
 const spark = W('spark', '火花', 'Spark', 'ranged', 4, 4, 2, 3, { range: 4, piercing: 1 });
 const atomiser = W('atomiser', '原子化光束', 'Atomiser beam', 'ranged', 4, 4, 3, 4, { range: 6, lethal: 5 });
 const clawsP = W('clawsP', '爪', 'Claws', 'melee', 3, 5, 1, 2);
@@ -517,6 +558,19 @@ const arquebusMobile = W('arquebusMobile', '超鈾火繩槍（機動）', 'Trans
 const arquebusStationary = W('arquebusStationary', '超鈾火繩槍（定點）', 'Transuranic arquebus (stationary)', 'ranged', 4, 2, 4, 3, { devastating: 3, heavy: true, piercing: 1, severe: true }, 'arquebus');
 const caliverStd = W('caliverStd', '電漿短銃（標準）', 'Plasma caliver (standard)', 'ranged', 4, 3, 4, 6, { piercing: 1 }, 'caliver');
 const caliverSuper = W('caliverSuper', '電漿短銃（超載）', 'Plasma caliver (supercharge)', 'ranged', 4, 3, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'caliver');
+// Hunter Clade: Infiltrator options, Alpha options, the arc rifle.
+const stubcarbine = W('stubcarbine', '自動短卡賓槍', 'Stubcarbine', 'ranged', 4, 3, 3, 4, { ceaseless: true });
+const powerWeaponSic = W('powerWeaponSic', '動力武器', 'Power weapon', 'melee', 4, 3, 4, 6, { lethal: 5 });
+const HU_INF_LOADOUTS = { 'flechette+taser': [flechette, taserGoadS], 'flechette+power': [flechette, powerWeaponSic], 'stub+taser': [stubcarbine, taserGoadS], 'stub+power': [stubcarbine, powerWeaponSic] };
+const arcPistolHC = W('arcPistolHC', '電弧手槍', 'Arc pistol', 'ranged', 4, 3, 4, 5, { range: 8, piercing: 1, stun: true });
+const mcRadiumPistol = W('mcRadiumPistol', '大師級鐳手槍', 'Master-crafted radium pistol', 'ranged', 4, 3, 2, 4, { range: 8, balanced: true, rending: true });
+const phosphorPistol = W('phosphorPistol', '磷光爆能手槍', 'Phosphor blast pistol', 'ranged', 4, 3, 3, 4, { range: 8, blast: 1, severe: true });
+const arcMaul = W('arcMaul', '電弧錘', 'Arc maul', 'melee', 4, 4, 4, 5, { shock: true });
+const powerWeaponSk = W('powerWeaponSk', '動力武器', 'Power weapon', 'melee', 4, 4, 4, 6, { lethal: 5 });
+const taserGoadSk = W('taserGoadSk', '電擊刺棒', 'Taser goad', 'melee', 4, 4, 3, 4, { lethal: 5, shock: true });
+const HU_ALPHA = (gun) => ({ rifle: [gun, gunButt], 'radium+power': [mcRadiumPistol, powerWeaponSk], 'arc+maul': [arcPistolHC, arcMaul], 'arc+taser': [arcPistolHC, taserGoadSk], 'phosphor+maul': [phosphorPistol, arcMaul], 'phosphor+taser': [phosphorPistol, taserGoadSk] });
+const arcRifle = W('arcRifle', '電弧步槍', 'Arc rifle', 'ranged', 4, 3, 4, 5, { piercing: 1, stun: true });
+const HU_PICKS = ['infWarrior', 'rsWarrior', 'rsWarriorC', 'rgDiktat', 'rgGunner', 'rgGunnerArc', 'rgGunnerPlasma', 'rgSurveyor', 'rgWarrior', 'vgDiktat', 'vgGunner', 'vgGunnerArc', 'vgGunnerArq', 'vgSurveyor', 'vgWarrior'];
 
 // ---- Kasrkin ----
 const hsLasgun = W('hsLasgun', '熱射雷射槍', 'Hot-shot lasgun', 'ranged', 4, 3, 3, 4, { rapid: true });
@@ -1511,19 +1565,26 @@ export const TEAMS = [
       { id: 'bitterDemise', cp: 1, name: { zh: '苦澀的死亡', en: 'Bitter Demise' },
         desc: { zh: '本回合友方殘廢時擲 D3：擲出 3（持有標記時 2+）就對 2" 內一名可見敵人造成等量傷害。', en: 'This TP, when a friendly is incapacitated roll a D3: on a 3 (2+ with a token), that much damage to a visible enemy within 2".' } },
     ],
+    // The Chieftain, nine picks (one per copy) and two selections from the second list (packages below).
+    perCopyRoster: true,
+    replacements: Object.fromEntries(['brimstone', 'butcher', 'commsman', 'corpseman', 'flenser', 'gunner', 'sharpshooter', 'thug', 'sweeper'].map((s) => [s, BL_PICKS])),
     ops: [
-      op('chieftain', '叛軍首領', 'Traitor Chieftain', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, leadWithStrength: true }, [laspistolBL, chainswordBL]),
+      op('chieftain', '叛軍首領', 'Traitor Chieftain', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, leadWithStrength: true, bloodedIcon: true, loadouts: BL_CHIEF_LOADOUTS }, [laspistolBL, chainswordBL]),
       op('brimstone', '硫磺擲彈兵', 'Brimstone Grenadier', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, explosiveDemise: true }, [diabolykBomb, fragBL, krakBL, lasgunBL, bayonetBL]),
       op('butcher', '屠夫', 'Traitor Butcher', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, unholySustenance: true }, [cleaver]),
       op('commsman', '叛軍通訊兵', 'Traitor Commsman', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, signal: true, actuation: true }, [lasgunBL, bayonetBL]),
       op('corpseman', '屍醫', 'Traitor Corpseman', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, stimms: true }, [lasgunBL, bayonetBL, stimmNeedle]),
-      op('flenser', '剝皮者', 'Traitor Flenser', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, wretched: true }, [skinningBlades]),
-      op('gunner', '叛軍槍手（火焰）', 'Traitor Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25 }, [flamerBL, bayonetBL]),
-      op('sharpshooter', '叛軍神射手', 'Traitor Sharpshooter', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, camo1: true }, [longLasMobileBL, longLasStatBL, bayonetBL]),
+      op('flenser', '剝皮者', 'Traitor Flenser', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, wretched: true, concealCharge: true }, [skinningBlades]),
+      op('gunner', '叛軍槍手（火焰）', 'Traitor Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, blSpecial: true }, [flamerBL, bayonetBL]),
+      op('gunnerGL', '叛軍槍手（榴彈）', 'Traitor Gunner (grenade launcher)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, blSpecial: true }, [glFragBL, glKrakBL, bayonetBL], 0),
+      op('gunnerMelta', '叛軍槍手（熱熔）', 'Traitor Gunner (meltagun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, blSpecial: true }, [meltagunBL, bayonetBL], 0),
+      op('gunnerPlasma', '叛軍槍手（電漿）', 'Traitor Gunner (plasma gun)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, blSpecial: true, blPlasma: true }, [plasmaGunBLs, plasmaGunBLx, bayonetBL], 0),
+      op('sharpshooter', '叛軍神射手', 'Traitor Sharpshooter', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, camo1: true, blSpecial: true, nameWhispered: true }, [longLasMobileBL, longLasStatBL, bayonetBL]),
       op('thug', '暴徒', 'Traitor Thug', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, tough: true }, [heavyClub]),
       op('sweeper', '戰壕掃蕩兵', 'Traitor Trench Sweeper', { apl: 2, move: 6, save: 4, wounds: 9, base: 25, shielding: true }, [shotgunBL, bayonetShield]),
-      op('enforcer', '執法官', 'Traitor Enforcer', { apl: 2, move: 6, save: 4, wounds: 9, base: 32, disciplinarian: true }, [boltPistolBL, powerFistBL]),
-      op('ogryn', '叛軍歐格林', 'Traitor Ogryn', { apl: 2, move: 6, save: 5, wounds: 16, base: 40, chemEnhanced: true, brute: true, slowWitted: true, avalanche: true }, [maulClaw]),
+      op('enforcer', '執法官', 'Traitor Enforcer', { apl: 2, move: 6, save: 4, wounds: 9, base: 32, disciplinarian: true, enforce: true }, [boltPistolBL, powerFistBL], 0),
+      op('ogryn', '叛軍歐格林', 'Traitor Ogryn', { apl: 2, move: 6, save: 5, wounds: 16, base: 40, chemEnhanced: true, brute: true, slowWitted: true, avalanche: true }, [maulClaw], 0),
+      op('trooper', '叛軍步兵', 'Traitor Trooper', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, groupAct: 'blTrooper', blTrooper: true }, [lasgunBL, bayonetBL], 0),
     ],
   },
   {
@@ -1561,17 +1622,22 @@ export const TEAMS = [
       { id: 'ambushFG', cp: 1, name: { zh: '伏擊', en: 'Ambush' },
         desc: { zh: '本回合友方啟動時從隱蔽改為交戰，本次啟動近戰時可把一顆普通成功當暴擊（沒有時把一顆失敗當普通成功）。有狂暴標記不能伏擊。', en: 'This TP, a friendly whose order changes from Conceal to Engage when activated can, when fighting that activation, retain a normal success as a critical (or a fail as a normal success). Not with a Frenzy token.' } },
     ],
+    // The Ironhorn and nine picks, one per copy (each once except Warriors).
+    perCopyRoster: true,
+    replacements: Object.fromEntries(FG_PICKS.slice(0, 9).map((s) => [s, FG_PICKS])),
     ops: [
-      op('ironhorn', '鐵角首領', 'Fellgor Ironhorn', { apl: 2, move: 6, save: 5, wounds: 11, base: 32, ironhorn: true }, [corruptedPistol, corruptedChainsword]),
+      op('ironhorn', '鐵角首領', 'Fellgor Ironhorn', { apl: 2, move: 6, save: 5, wounds: 11, base: 32, ironhorn: true, callAttack: true, loadouts: { corrupted: [corruptedPistol, corruptedChainsword], plasma: [plasmaPistolFGs, plasmaPistolFGx, bludgeon] } }, [corruptedPistol, corruptedChainsword]),
       op('deathknell', '喪鐘手', 'Fellgor Deathknell', { apl: 2, move: 6, save: 4, wounds: 10, base: 32, iconBearer: true, warGong: true, gongKnell: true }, [autopistolFG, bludgeon]),
-      op('fluxbray', '變異獸人', 'Fellgor Fluxbray', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [tripleCleavers]),
-      op('gnarlscar', '疤面獸人', 'Fellgor Gnarlscar', { apl: 2, move: 6, save: 5, wounds: 10, base: 32 }, [autopistolFG, bionicFist]),
+      op('fluxbray', '變異獸人', 'Fellgor Fluxbray', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, cleaverFlurry: true }, [tripleCleavers]),
+      op('gnarlscar', '疤面獸人', 'Fellgor Gnarlscar', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, sagacious: true, uncompromising: true }, [autopistolFG, bionicFist]),
       op('gorehorn', '血角獸人', 'Fellgor Gorehorn', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, twoFights: true }, [autopistolFG, skullcleaver]),
       op('herdgoad', '驅群者', 'Fellgor Herd-goad', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, whipControl: true, inciteFury: true }, [autopistolFG, whipRanged, whipMelee]),
       op('mangler', '撕裂者', 'Fellgor Mangler', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, savageBrutality: true, slowWitted: true }, [viciousClaws]),
       op('shaman', '獸人薩滿', 'Fellgor Shaman', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, fgShaman: true }, [autopistolFG, techCurse, braystave]),
-      op('toxhorn', '毒角獸人', 'Fellgor Toxhorn', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, toxicBlessings: true }, [autopistolFG, cleaverFG]),
+      op('toxhorn', '毒角獸人', 'Fellgor Toxhorn', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, toxicBlessings: true, poxBomb: true }, [autopistolFG, cleaverFG]),
       op('vandal', '破壞者', 'Fellgor Vandal', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, sweepingBlow: true }, [mancrusher]),
+      op('fgWarriorB', '惡角戰士（重錘）', 'Fellgor Warrior (bludgeon)', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, warriorFrenzy: true, fgWarrior: true }, [autopistolFG, bludgeon], 0),
+      op('fgWarriorC', '惡角戰士（劈刀）', 'Fellgor Warrior (cleaver)', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, warriorFrenzy: true, fgWarrior: true }, [autopistolFG, cleaverFG], 0),
     ],
   },
   {
@@ -1611,19 +1677,26 @@ export const TEAMS = [
       { id: 'terminalDecree', cp: 1, name: { zh: '終結令', en: 'Terminal Decree' },
         desc: { zh: '本回合友方射擊 6" 內的敵人時，遠程武器「平衡」。', en: 'This TP, a friendly shooting an enemy within 6" has Balanced.' } },
     ],
+    // The Proctor-exactant (shotpistol and maul, or combat shotgun) and ten picks, one per copy.
+    perCopyRoster: true,
+    replacements: { proctor: ['proctor', 'proctorShotgun'], ...Object.fromEntries(EX_PICKS.slice(0, 10).map((s) => [s, EX_PICKS])) },
     ops: [
       op('proctor', '執法隊長', 'Proctor-exactant', { apl: 2, move: 6, save: 3, wounds: 9, base: 28, nuncio: true }, [shotpistolPE, dominatorMaul]),
       op('castigator', '懲戒者', 'Castigator', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, engenderedFocus: true, zealous: true, arrest: true }, [combatShotgunClose, combatShotgunLong, excruciatorMaul]),
       op('chirurgant', '執法醫官', 'Chirurgant', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, medic: true, medikit: true }, [combatShotgunClose, combatShotgunLong, baton]),
-      op('leashmaster', '馴犬師', 'Leashmaster', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [combatShotgunClose, combatShotgunLong, shotpistolAB, baton]),
+      op('leashmaster', '馴犬師', 'Leashmaster', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, handler: true, rvrCommand: true }, [combatShotgunClose, combatShotgunLong, shotpistolAB, baton]),
       // Attack Pattern (Leashmaster): Aggressive (melee Relentless) and Swift (+2" Move) picked for the battle.
-      op('mastiff', 'R-VR 機械獒犬', 'R-VR Cyber-mastiff', { apl: 2, move: 8, save: 4, wounds: 8, base: 25, apprehend: true, aggressivePattern: true, actionsOnly: ['apprehend', 'charge', 'dash', 'fallBack', 'fight', 'reposition', 'pickUp'] }, [mechBite]),
+      op('mastiff', 'R-VR 機械獒犬', 'R-VR Cyber-mastiff', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, apprehend: true, attackPatterns: true, actionsOnly: ['apprehend', 'charge', 'dash', 'fallBack', 'fight', 'reposition', 'pickUp'] }, [mechBite]),
       op('malocator', '鑑識官', 'Malocator', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, veriscant: true, acuteFocus: true }, [combatShotgunClose, combatShotgunLong, baton]),
       op('marksman', '神射手', 'Marksman', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, optics: true }, [execConcealed, execMobile, execStationary, baton]),
       op('revelatum', '偵察官', 'Revelatum', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, support: 'spot', spotRange: 8 }, [scopedShort, scopedLong, baton]),
-      op('subductor', '鎮壓兵', 'Subductor', { apl: 2, move: 6, save: 3, wounds: 8, base: 28, stubbornSubjugator: true }, [shotpistolAB, shockMaulShield]),
-      op('vigilant', '警戒兵', 'Vigilant', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, vigilance: true }, [combatShotgunClose, combatShotgunLong, baton]),
+      op('subductor', '鎮壓兵', 'Subductor', { apl: 2, move: 6, save: 3, wounds: 8, base: 28, stubbornSubjugator: true, exRepeat: true }, [shotpistolAB, shockMaulShield]),
+      op('vigilant', '警戒兵', 'Vigilant', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, vigilance: true, exRepeat: true }, [combatShotgunClose, combatShotgunLong, baton]),
       op('vox', '通訊官', 'Vox-signifier', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, signalAny: true }, [combatShotgunClose, combatShotgunLong, baton]),
+      op('proctorShotgun', '執法隊長（霰彈槍）', 'Proctor-exactant (combat shotgun)', { apl: 2, move: 6, save: 4, wounds: 9, base: 28, nuncio: true }, [pcShotgunClose, pcShotgunLong, pcBaton], 0),
+      op('exGunnerGL', '槍手（榴彈）', 'Arbites Gunner (grenade launcher)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, exGunner: true }, [exGL, baton], 0),
+      op('exGunnerStubber', '槍手（重型機槍）', 'Arbites Gunner (heavy stubber)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, exGunner: true }, [exStubberF, exStubberS, baton], 0),
+      op('exGunnerWebber', '槍手（蛛網槍）', 'Arbites Gunner (webber)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, exGunner: true }, [exWebber, baton], 0),
     ],
   },
   {
@@ -1660,15 +1733,22 @@ export const TEAMS = [
         desc: { zh: '本回合友方被射擊時，若不能保留掩護豁免，可直接保留 1 顆防禦骰作為普通成功。', en: 'This TP, a friendly being shot that can\'t retain cover saves retains one defence die as a normal success without rolling it.' } },
       { id: 'methodicalElim', cp: 1, name: { zh: '有條不紊的殲滅', en: 'Methodical Elimination' },
         desc: { zh: '本回合友方近戰武器「精準 1」；本次啟動移動沒超過 Move 時近戰、或反擊時改為「精準 2」。', en: 'This TP, friendly melee weapons have Accurate 1; fighting without having moved more than its Move this activation, or retaliating: Accurate 2.' } },
+      { id: 'commandUnderlings', cp: 1, name: { zh: '指揮下屬', en: 'Command Underlings' },
+        desc: { zh: '支援。選一項：技師 6" 內看得到的其他友方各免費衝刺；或學徒 3" 內看得到的其他友方（技師除外）各免費衝刺。', en: 'SUPPORT. Either each other friendly visible within 6" of the Cryptek, or each other friendly (not the Cryptek) visible within 3" of the Apprentek, makes a free Dash.' } },
     ],
+    // The Cryptek (Technomancer, Chronomancer or Psychomancer), the two Plasmacytes and five picks, one per copy.
+    perCopyRoster: true,
+    replacements: { technomancer: ['technomancer', 'chronomancer', 'psychomancer'], ...Object.fromEntries(HC_PICKS.map((s) => [s, HC_PICKS])) },
     ops: [
       op('technomancer', '技術術士', 'Technomancer', { apl: 3, move: 6, save: 3, wounds: 14, base: 50, cryptek: true, magnifyRelay: true, interstitial: true, canoptekRepair: true, augment: true, reinforce: true }, [staffLight, staffLightM]),
-      op('apprentek', '學徒', 'Apprentek', { apl: 3, move: 6, save: 3, wounds: 11, base: 32, apprentek: true, magnifyRelay: true, interstitial: true, canoptekRepair: true, augment: true, reinforce: true }, [arcaneConduit, arcaneConduitM]),
+      op('apprentek', '學徒', 'Apprentek', { apl: 3, move: 6, save: 3, wounds: 11, base: 32, apprentek: true, magnifyRelay: true, interstitial: true }, [arcaneConduit, arcaneConduitM]),
       op('deathmark', '死亡標記', 'Deathmark', { apl: 2, move: 5, save: 3, wounds: 10, base: 32, deathmark: true, mdVision: true }, [synapticDis, fistsN], 2),
-      op('despotek', '不朽者指揮官', 'Immortal Despotek', { apl: 2, move: 5, save: 3, wounds: 11, base: 32, control: 3, steadfast: true, despotek: true, interstitial: true }, [teslaCarbine, bayonetN]),
-      op('guardian', '不朽者衛士', 'Immortal Guardian', { apl: 2, move: 5, save: 3, wounds: 10, base: 32, control: 3, steadfast: true }, [gaussBlaster, bayonetN]),
+      op('despotek', '不朽者指揮官', 'Immortal Despotek', { apl: 2, move: 5, save: 3, wounds: 11, base: 32, control: 3, steadfast: true, despotek: true, interstitial: true, loadouts: { tesla: HC_IMMORTAL.tesla, gauss: HC_IMMORTAL.gauss } }, [teslaCarbine, bayonetN]),
+      op('guardian', '不朽者衛士', 'Immortal Guardian', { apl: 2, move: 5, save: 3, wounds: 10, base: 32, control: 3, steadfast: true, loadouts: HC_IMMORTAL }, [gaussBlaster, bayonetN]),
       op('accelerator', '加速漿體', 'Plasmacyte Accelerator', { apl: 2, move: 7, save: 5, wounds: 5, base: 25, small: true, disengage: true, accelerate: true }, [spark, clawsP]),
       op('reanimator', '復甦漿體', 'Plasmacyte Reanimator', { apl: 2, move: 7, save: 5, wounds: 5, base: 25, small: true, disengage: true, reanimate: true }, [atomiser, clawsP]),
+      op('chronomancer', '時間術士', 'Chronomancer', { apl: 3, move: 6, save: 3, wounds: 14, base: 40, cryptek: true, chronomancer: true, magnifyRelay: true, interstitial: true, loadouts: { aeonstave: [aeonstave, aeonstaveM], entropic: [entropicLance, entropicLanceM] } }, [aeonstave, aeonstaveM], 0),
+      op('psychomancer', '心靈術士', 'Psychomancer', { apl: 3, move: 6, save: 3, wounds: 14, base: 40, cryptek: true, psychomancer: true, magnifyRelay: true, interstitial: true }, [abyssalLance, abyssalLanceM], 0),
     ],
   },
   {
@@ -1715,18 +1795,32 @@ export const TEAMS = [
         desc: { zh: '本回合友方滲透者 6" 內的敵人射擊、近戰或反擊時，不能重擲攻擊骰（包括指揮重擲）。', en: 'This TP, enemies within 6" of a friendly Infiltrator can\'t re-roll attack dice when shooting, fighting or retaliating (Command Re-roll included).' } },
       { id: 'accelerant', cp: 1, name: { zh: '加速劑', en: 'Accelerant Agents' },
         desc: { zh: '本回合友方潛行者每次啟動可以近戰兩次，其中一次免費。', en: 'This TP, each friendly Ruststalker can Fight twice per activation, and one of them is free.' } },
+      { id: 'scoutingProtocol', cp: 1, name: { zh: '偵察協定', en: 'Scouting Protocol' },
+        desc: { zh: '每名隱蔽指令、離敵人超過 6" 的友方遊騎兵立刻免費衝刺。第 1 回合不能用。', en: 'Each friendly Ranger with a Conceal order more than 6" from enemy operatives makes a free Dash. Not in the first turning point.' } },
     ],
+    // The leader (four options) and nine picks, one per copy.
+    perCopyRoster: true,
+    replacements: { rsPrinceps: ['rsPrinceps', 'infPrinceps', 'rgAlpha', 'vgAlpha'], ...Object.fromEntries(['rsWarrior', 'rsWarriorC', 'infWarrior', 'rgGunner', 'rgDiktat', 'rgSurveyor', 'rgWarrior', 'vgGunner', 'vgWarrior'].map((s) => [s, HU_PICKS])) },
     ops: [
-      op('rsPrinceps', '潛行者首領', 'Sicarian Ruststalker Princeps', { apl: 2, move: 6, save: 4, wounds: 11, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true, canticleDestruction: true }, [chordclawBlades]),
-      op('rsWarrior', '潛行者戰士', 'Sicarian Ruststalker Warrior', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true }, [transonicBlades]),
-      op('rsWarriorC', '潛行者戰士（和弦爪）', 'Sicarian Ruststalker Warrior (chordclaw)', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true }, [chordclawRazor]),
-      op('infWarrior', '滲透者戰士', 'Sicarian Infiltrator Warrior', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, infiltrator: true, sicarian: true }, [flechette, taserGoadS]),
-      op('rgGunner', '遊騎兵槍手', 'Skitarii Ranger Gunner', { apl: 2, move: 6, save: 4, wounds: 7, base: 35, ranger: true, targetingProtocol: true }, [arquebusMobile, arquebusStationary, gunButt]),
-      op('rgDiktat', '遊騎兵傳令官', 'Skitarii Ranger Diktat', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, signal: true }, [galvanic, gunButt]),
-      op('rgSurveyor', '遊騎兵勘測員', 'Skitarii Ranger Surveyor', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, support: 'spot' }, [galvanic, gunButt]),
-      op('rgWarrior', '遊騎兵戰士', 'Skitarii Ranger Warrior', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true }, [galvanic, gunButt]),
-      op('vgGunner', '先鋒軍槍手', 'Skitarii Vanguard Gunner', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true }, [caliverStd, caliverSuper, gunButt]),
-      op('vgWarrior', '先鋒軍戰士', 'Skitarii Vanguard Warrior', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true }, [radiumCarbine, gunButt]),
+      op('rsPrinceps', '潛行者首領', 'Sicarian Ruststalker Princeps', { apl: 2, move: 6, save: 4, wounds: 11, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true, canticleDestruction: true, controlProtocol: true }, [chordclawBlades]),
+      op('rsWarrior', '潛行者戰士', 'Sicarian Ruststalker Warrior', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true, huRepeat: true }, [transonicBlades]),
+      op('rsWarriorC', '潛行者戰士（和弦爪）', 'Sicarian Ruststalker Warrior (chordclaw)', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, ruststalker: true, sicarian: true, wastelandStalker: true, huRepeat: true }, [chordclawRazor]),
+      op('infWarrior', '滲透者戰士', 'Sicarian Infiltrator Warrior', { apl: 2, move: 6, save: 4, wounds: 10, base: 40, infiltrator: true, sicarian: true, huRepeat: true, loadouts: HU_INF_LOADOUTS }, [flechette, taserGoadS]),
+      op('rgGunner', '遊騎兵槍手（火繩槍）', 'Skitarii Ranger Gunner (arquebus)', { apl: 2, move: 6, save: 4, wounds: 7, base: 35, ranger: true, targetingProtocol: true, huSpecial: 'arq' }, [arquebusMobile, arquebusStationary, gunButt]),
+      op('rgDiktat', '遊騎兵傳令官', 'Skitarii Ranger Diktat', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, signal: true, huDiktat: true }, [galvanic, gunButt]),
+      op('rgSurveyor', '遊騎兵勘測員', 'Skitarii Ranger Surveyor', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, support: 'spot', huSurveyor: true }, [galvanic, gunButt]),
+      op('rgWarrior', '遊騎兵戰士', 'Skitarii Ranger Warrior', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, huRepeat: true }, [galvanic, gunButt]),
+      op('vgGunner', '先鋒軍槍手（電漿）', 'Skitarii Vanguard Gunner (plasma caliver)', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true, huSpecial: 'plasma' }, [caliverStd, caliverSuper, gunButt]),
+      op('vgWarrior', '先鋒軍戰士', 'Skitarii Vanguard Warrior', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true, huRepeat: true }, [radiumCarbine, gunButt]),
+      op('infPrinceps', '滲透者首領', 'Sicarian Infiltrator Princeps', { apl: 2, move: 6, save: 4, wounds: 11, base: 40, infiltrator: true, sicarian: true, shroudpsalm: true, controlProtocol: true, loadouts: HU_INF_LOADOUTS }, [flechette, taserGoadS], 0),
+      op('rgAlpha', '遊騎兵首領', 'Skitarii Ranger Alpha', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, ranger: true, targetingProtocol: true, canticleElim: true, controlProtocol: true, loadouts: HU_ALPHA(galvanic) }, [galvanic, gunButt], 0),
+      op('vgAlpha', '先鋒軍首領', 'Skitarii Vanguard Alpha', { apl: 2, move: 6, save: 4, wounds: 8, base: 25, vanguard: true, radSat: true, canticleGlow: true, controlProtocol: true, loadouts: HU_ALPHA(radiumCarbine) }, [radiumCarbine, gunButt], 0),
+      op('rgGunnerArc', '遊騎兵槍手（電弧）', 'Skitarii Ranger Gunner (arc rifle)', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, huSpecial: 'arc' }, [arcRifle, gunButt], 0),
+      op('rgGunnerPlasma', '遊騎兵槍手（電漿）', 'Skitarii Ranger Gunner (plasma caliver)', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, ranger: true, targetingProtocol: true, huSpecial: 'plasma' }, [caliverStd, caliverSuper, gunButt], 0),
+      op('vgGunnerArc', '先鋒軍槍手（電弧）', 'Skitarii Vanguard Gunner (arc rifle)', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true, huSpecial: 'arc' }, [arcRifle, gunButt], 0),
+      op('vgGunnerArq', '先鋒軍槍手（火繩槍）', 'Skitarii Vanguard Gunner (arquebus)', { apl: 2, move: 6, save: 4, wounds: 7, base: 35, vanguard: true, radSat: true, huSpecial: 'arq' }, [arquebusMobile, arquebusStationary, gunButt], 0),
+      op('vgDiktat', '先鋒軍傳令官', 'Skitarii Vanguard Diktat', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true, signal: true, huDiktat: true }, [radiumCarbine, gunButt], 0),
+      op('vgSurveyor', '先鋒軍勘測員', 'Skitarii Vanguard Surveyor', { apl: 2, move: 6, save: 4, wounds: 7, base: 25, vanguard: true, radSat: true, support: 'spot', huSurveyor: true }, [radiumCarbine, gunButt], 0),
     ],
   },
   {
@@ -2587,6 +2681,8 @@ const FIREFIGHT = {
   blooded: [
     ff('momentRepute', '榮耀時刻', 'Moment of Repute', '受諸神注視的友方啟動中：本次 APL +1。', 'During the activation of the operative under the Gaze of the Gods: +1 APL.'),
     ff('rewardEarned', '應得的獎賞', 'Reward Earned', '自動：持有血祭標記的友方在 2" 內使敵人殘廢時，獲得 1 個血祭標記。', 'Auto: when a friendly with a Blooded token incapacitates an enemy within 2", gain a Blooded token.'),
+    ff('callousDisregard', '冷酷漠視', 'Callous Disregard', '自動：友方射擊時，即使有其他友方在敵人控制範圍內也能選它為目標；這次射擊每丟掉一顆失敗的攻擊骰，就對目標控制範圍內的一名友方造成等同骰值的傷害。', 'Auto: a friendly can shoot an enemy that other friendlies are within control range of; each attack dice discarded as a fail inflicts damage equal to its result on a friendly within the target\'s control range.'),
+    ff('darkFavour', '黑暗恩寵', 'Dark Favour', '自動：持有血祭標記的友方被選為射擊或近戰目標時，3" 內看得到的另一名友方代替它（爆炸、洪流除外）。', 'Auto: when a friendly with a Blooded token is picked as a target to shoot or fight, another friendly visible within 3" takes its place (not against Blast or Torrent).'),
   ],
   deathKorps: [
     ff('inspirationalLeadership', '鼓舞領導', 'Inspirational Leadership', '支援。看守長或心腹啟動中、行動前後：下達一道衛兵命令（自動選擇命令）。看守長這次啟動沒有以策略謀略下令時 0CP（適應性命令）。', 'Support. During a Watchmaster\'s or Confidant\'s activation, before or after an action: it issues a Guardsman Order (chosen automatically). Free for a Watchmaster that didn\'t issue one as a strategic gambit (Adaptive Orders).'),
@@ -2596,11 +2692,14 @@ const FIREFIGHT = {
   ],
   exaction: [
     ff('longArm', '帝皇律法之臂', 'Long Arm of the Emperor\'s Law', '射擊選武器時：有射程限制的武器射程 +3"。', 'When shooting with a Range x weapon: +3" to x.'),
+    ff('exactPunishment', '精確懲處', 'Exact Punishment', '自動：敵人射擊 6" 內的友方而它沒有殘廢時，那名友方立刻免費射擊那名敵人（只能射牠；免費近戰的選項沒有實作）。', 'Auto: after an enemy shoots a friendly within 6" of it and that friendly is not incapacitated, the friendly immediately makes a free Shoot against that enemy only (the free Fight option is not modelled).'),
+    ff('brutalBackup', '殘暴支援', 'Brutal Backup', '友方啟動中：另一名同樣在那名敵人控制範圍內的友方立刻免費近戰一次（只能打牠）。', 'During the activation of a friendly: another friendly within control range of that enemy makes a free Fight at once (against it only).'),
   ],
   fellgor: [
     ff('animalisticFury', '獸性狂怒', 'Animalistic Fury', '近戰時第一次暴擊打擊 +1 傷害（反擊時自動使用）。', 'Fighting: the first critical strike deals 1 more (used automatically when retaliating).'),
     ff('wildRage', '狂野暴怒', 'Wild Rage', '啟動時：本次啟動 Move +1"。', 'When activated: +1" Move for this activation.'),
     ff('ruthlessRampage', '無情暴走', 'Ruthless Rampage', '近戰後若已不在敵人控制範圍內：免費衝鋒一次（最多 3"）。', 'After a Fight, if out of enemy control range: a free Charge of up to 3".'),
+    ff('bloodsense', '嗜血感知', 'Bloodsense', '自動：友方惡角獸人在啟動中使控制範圍內的敵人殘廢時，那名敵人 3" 內看得到、準備好的另一名友方接著啟動。', 'Auto: when a friendly Fellgor incapacitates an enemy within its control range during its activation, another ready friendly visible within 3" of that enemy activates straight after.'),
   ],
   farstalkers: [
     ff('slipAway', '溜走', 'Slip Away', '啟動中：本次撤退少花 1AP。', 'During an activation: Fall Back costs 1 less AP.'),
@@ -2618,6 +2717,7 @@ const FIREFIGHT = {
     ff('commandOverride', '指令覆寫', 'Command Override', '啟動時：這名特工改用最適合它的指令（近戰型→征服者，射擊型→守護者）。', 'When activated: this operative switches to the Imperative that suits it (melee → Conqueror, shooting → Protector).'),
     ff('omnissiah', '萬機神指令', 'Omnissiah\'s Imperative', '啟動中：直到下回合，守護者→遠程「重創」；征服者→近戰時第一次打擊後可再打擊一次。', 'During an activation: until next TP, Protector → ranged Severe; Conqueror → after its first strike when fighting, another.'),
     ff('scrapcode', '廢碼過載', 'Scrapcode Overload', '滲透者啟動時：直到它下次啟動，它 3" 內的敵人爭奪目標時 APL 總和 -1。', 'When an Infiltrator is activated: until its next activation, enemies within 3" of it count 1 less total APL for marker control.'),
+    ff('controlEdict', '控制敕令', 'Control Edict', '輪到己方啟動時：領袖與它 3" 內看得到、準備好的另一名友方接連啟動（最多一名西卡里安）；這裡在其中一名啟動時使用，另一名接著啟動。', 'When it is your turn to activate: the Leader and another ready friendly visible within 3" of it activate one after the other (no more than one Sicarian); here used as one of them is activated, the other activates straight after.'),
   ],
   hearthkyn: [
     ff('sturdy', '結實', 'Sturdy', '自動：被射擊時，攻擊方保留的暴擊全部變成普通成功。', 'Auto: when shot, the attacker\'s retained crits become normal successes.'),
@@ -2627,6 +2727,9 @@ const FIREFIGHT = {
   ],
   hierotek: [
     ff('livingLightning', '活體閃電', 'Living Lightning', '用特斯拉卡賓槍射擊時：改為「爆炸 2\"」（不再有 2" 毀滅）。', 'Shooting a tesla carbine: Blast 2" instead of its 2" Devastating.'),
+    ff('corticalControl', '皮質控制', 'Cortical Control', '技師或學徒啟動中：這次啟動的支援動作選友方時不限距離（只要看得到）。', 'During a Cryptek\'s or Apprentek\'s activation: its SUPPORT actions this activation ignore the distance requirement for picking a friendly (visibility only).'),
+    ff('dimensionalAmbush', '次元伏擊', 'Dimensional Ambush', '隱蔽指令的死亡標記啟動中：本次啟動可以在任何地圖、隱蔽指令下執行警戒（攻擊時改為交戰）。', 'During a Concealed Deathmark\'s activation: it can Guard in any killzone while Concealed (going Engage when it attacks).'),
+    ff('reanimatedFunction', '復甦機能', 'Reanimated Function', '選一個復甦標記：到下個回合開始前，控制目標時它算一名 APL 1 的友方（這裡選最靠近目標點的）。', 'Pick a Reanimation marker: until the next turning point it counts as a friendly with APL 1 for control (here the one nearest an objective).'),
   ],
   navyBreachers: [
     ff('blitz', '閃擊', 'Blitz', '全隊本回合第一次攻擊、目標在 6" 內：「精準 1」；若也是第一個啟動的再加「重創」。', 'The team\'s first attack this TP, target within 6": Accurate 1; also Severe if it\'s the first operative activated.'),
@@ -2650,8 +2753,7 @@ const FIREFIGHT = {
     ff('criticalShot', '致命一擊', 'Critical Shot', '用爆彈武器射擊：有暴擊命中時，多造成 D3 傷害（每次行動一次）。', 'Shooting a bolt weapon: a critical hit inflicts D3 more damage (once per action).'),
     ff('transhuman', '超人生理', 'Transhuman Physiology', '自動：被射擊時，一顆普通豁免當成暴擊豁免（能多擋暴擊時才用）。', 'Auto: when shot, one normal save is retained as a critical one (used when it blocks a crit).'),
     ff('patientAmbush', '耐心伏擊', 'Patient Ambush', '輪到己方啟動特工時：跳過這次啟動機會（啟動選單上的按鈕）。', 'When it\'s your turn to activate an operative: skip that activation (a button when you pick an operative).'),
-    // Stealth Assault needs a Concealed operative to Charge, which the house rules here don't allow (concealed operatives can't Charge).
-    ff('stealthAssault', '潛行突擊', 'Stealth Assault', '依本模擬器的房規，隱蔽指令的特工不能衝鋒，所以這張計謀目前無法使用。', 'With this simulator\'s house rule that Concealed operatives can\'t Charge, this ploy can\'t be used at the moment.'),
+    ff('stealthAssault', '潛行突擊', 'Stealth Assault', '自動：啟動時是隱蔽指令、改成交戰後先衝鋒再近戰，結算這次啟動的第一顆攻擊骰後，可以立刻再結算一顆（對手之前）；這之前不能做其他動作。', 'Auto: activated with a Conceal order, given an Engage order, it Charges and then Fights — after resolving its first attack dice this activation, it immediately resolves another (before the opponent); no other actions before that.'),
   ],
   plagueMarines: [
     ff('sickeningResilience', '令人作嘔的堅韌', 'Sickening Resilience', '自動：受到重傷時，本次行動中「令人作嘔的韌性」不用擲骰，3 以上的傷害一律 -1（最低 2）。', 'Auto: when badly hit, for the rest of the activation Disgustingly Resilient takes 1 off every 3+ damage (min 2) without rolling.'),
@@ -2734,6 +2836,17 @@ const FIREFIGHT = {
   ],
 };
 for (const t of TEAMS) t.firefight = FIREFIGHT[t.id] || t.firefight || [];
+
+// Blooded: the second list — four selections: an Enforcer or an Ogryn (two selections each), or two Troopers.
+{
+  const bl = TEAMS.find((t) => t.id === 'blooded'), T = (id) => bl.ops.find((o) => o.id === id);
+  const entry = (ids) => [ids.join('+'), { name: { zh: ids.map((id) => T(id).name.zh).join(' + '), en: ids.map((id) => T(id).name.en).join(' + ') }, ops: ids }];
+  const opts = [['enforcer'], ['ogryn'], ['trooper', 'trooper']];
+  bl.packages = Object.fromEntries([['enforcer'], ['ogryn']].map((d, i) => [`blSel${i + 1}`, {
+    name: { zh: `第二名單名額 ${i + 1}（兩個選擇）`, en: `Second list selection ${i + 1} (two selections)` },
+    options: Object.fromEntries([entry(d), ...opts.filter((o) => o.join('+') !== d.join('+')).map(entry)]),
+  }]));
+}
 
 // Wyrmblade: two Cult Agent selections (each counts as two), or two Neophyte Warriors in their place.
 {

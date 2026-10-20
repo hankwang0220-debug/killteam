@@ -23,6 +23,11 @@ import { navyRosterError } from './data/navy.js';
 import { phobosRosterError } from './data/phobos.js';
 import { warpcovenRosterError, warpcovenIds, WC_BOONS, WC_BOON_DEFAULT } from './data/warpcoven.js';
 import { wyrmbladeRosterError, wyrmbladeIds } from './data/wyrmblade.js';
+import { bloodedRosterError, bloodedIds } from './data/blooded.js';
+import { fellgorRosterError } from './data/fellgor.js';
+import { exactionRosterError } from './data/exaction.js';
+import { hierotekRosterError } from './data/hierotek.js';
+import { hunterCladeRosterError } from './data/hunterclade.js';
 import { wbCanHide, wbHide, wbEmergeCheck } from './game.js';
 import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
@@ -506,7 +511,7 @@ function setupView() {
     <input class="teamsearch" type="search" data-act="teamSearch" data-side="${side}" value="${esc(s.search?.[side] || '')}" placeholder="${L('搜尋隊伍名稱或風格…', 'Search team name or style…')}">
     <div class="picklist">${TEAMS.map((tm) => { const key = `${tm.name.zh} ${tm.name.en} ${tx(tm.style)}`.toLowerCase(); const q = (s.search?.[side] || '').trim().toLowerCase();
       return `<button class="teampick ${s.teams[side] === tm.id ? 'on' : ''}" style="--tc:${tm.color}${q && !key.includes(q) ? ';display:none' : ''}" data-act="pick" data-side="${side}" data-team="${tm.id}" data-search="${esc(key)}">
-      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.id === 'warpcoven' ? warpcovenIds(tm).length : tm.id === 'wyrmblade' ? wyrmbladeIds(tm).length : tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
+      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.id === 'warpcoven' ? warpcovenIds(tm).length : tm.id === 'wyrmblade' ? wyrmbladeIds(tm).length : tm.id === 'blooded' ? bloodedIds(tm).length : tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
     <article class="teamcard chosen" style="--tc:${t.color}"><h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
       <p>${esc(tx(t.blurb))}</p><p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>${teamInfo(t)}</article>
   </div>`; };
@@ -672,6 +677,11 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'hearthkyn') { const error = hearthkynRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'navyBreachers') { const error = navyRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'phobos') { const error = phobosRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'hunterClade') { const error = hunterCladeRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'hierotek') { const error = hierotekRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'exaction') { const error = exactionRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'fellgor') { const error = fellgorRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'blooded') { const error = bloodedRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wyrmblade') { const error = wyrmbladeRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'warpcoven') { const error = warpcovenRosterError(t, cur, ui.setup.loadouts?.[side]); return wcBoonPick(t, side, cur) + (error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''); }
   if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -722,7 +732,7 @@ function loadoutPick(side) {
   const t = TEAM_MAP[ui.setup.teams[side]];
   const cur = ui.setup.loadouts?.[side] || {};
   const rs = ui.setup.roster?.[side] || {};
-  const picked = new Set([...t.ops.filter((o) => o.count).flatMap((o) => (rs[o.id] ? [rs[o.id]].flat() : [o.id])), ...(t.id === 'warpcoven' ? warpcovenIds(t, rs) : t.id === 'wyrmblade' ? wyrmbladeIds(t, rs) : [])]); // templates in the roster (Warpcoven, Wyrmblade: from their selections)
+  const picked = new Set([...t.ops.filter((o) => o.count).flatMap((o) => (rs[o.id] ? [rs[o.id]].flat() : [o.id])), ...(t.id === 'warpcoven' ? warpcovenIds(t, rs) : t.id === 'wyrmblade' ? wyrmbladeIds(t, rs) : t.id === 'blooded' ? bloodedIds(t, rs) : [])]); // templates in the roster (Warpcoven, Wyrmblade: from their selections)
   return t.ops.filter((o) => o.loadouts && picked.has(o.id)).map((o) => `<label>${esc(bi(o.name))}<select data-act="loadout" data-side="${side}" data-id="${o.id}">${Object.entries(o.loadouts).map(([id, ws]) => `<option value="${id}" ${(cur[o.id] || Object.keys(o.loadouts)[0]) === id ? 'selected' : ''}>${ws.map((w) => esc(tx(w.name))).join(' + ')}${o.loadoutExtra?.[id] ? ` + ${esc(tx(o.loadoutExtra[id]))}` : ''}</option>`).join('')}</select></label>`).join('');
 }
 
@@ -831,7 +841,7 @@ function teamInfo(t) {
   return `<dl class="teaminfo">
     <dt>${L('戰術行動', 'Archetypes')}</dt><dd>${i.archetypes.map((a) => esc(bi(a))).join(' + ')}</dd>
     <dt>${L('戰鬥類型', 'Play style')}</dt><dd>${esc(tx(i.kind))}</dd>
-    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.id === 'warpcoven' ? warpcovenIds(t).length : t.id === 'wyrmblade' ? wyrmbladeIds(t).length : t.ops.reduce((n, o) => n + o.count, 0)}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
+    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.id === 'warpcoven' ? warpcovenIds(t).length : t.id === 'wyrmblade' ? wyrmbladeIds(t).length : t.id === 'blooded' ? bloodedIds(t).length : t.ops.reduce((n, o) => n + o.count, 0)}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
     <dt>${L('一盒成軍', 'One box')}</dt><dd>${esc(tx(i.oneBox))}</dd>
     <dt>${L('目前可購買', 'Available')}</dt><dd>${esc(tx(i.buyable))}</dd>
     ${t.rulesUrl ? `<dt>${L('官方規則', 'Official rules')}</dt><dd><a href="${esc(t.rulesUrl)}" target="_blank" rel="noopener">PDF</a></dd>` : ''}
@@ -850,7 +860,7 @@ function roster(t, side) {
     selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
   }
   // Teams with a choice of operatives: show who is actually taking the field (each pick once per copy), and their weapons.
-  if ((t.replacements || t.id === 'warpcoven') && t.id !== 'deathwatch' && (!t.packages || t.id === 'navyBreachers' || t.id === 'warpcoven' || t.id === 'wyrmblade') && t.id !== 'mandrakes' && t.id !== 'murderwing') {
+  if ((t.replacements || t.id === 'warpcoven') && t.id !== 'deathwatch' && (!t.packages || ['navyBreachers', 'warpcoven', 'wyrmblade', 'blooded'].includes(t.id)) && t.id !== 'mandrakes' && t.id !== 'murderwing') {
     const cur = ui.setup.roster?.[side] || {}, counts = new Map();
     for (const slot of t.ops.filter((o) => o.count)) {
       const pick = cur[slot.id];
@@ -2374,7 +2384,6 @@ const ABILITIES = {
   zealous: () => ['狂熱奉獻', 'Zealous Dedication', '受到 3 以上的傷害時擲 D6：5+ 傷害 -1。', 'Whenever an attack die inflicts 3+ damage on it, roll a D6: on a 5+, 1 less.'],
   arrest: () => ['懲戒者的逮捕', "Castigator's Arrest", '若它控制範圍內只有一名敵人，該敵人不能撤退。', 'If only one enemy is in its control range, that enemy cannot Fall Back.'],
   apprehend: () => ['扣押', 'Apprehend', '0AP：控制範圍內一名敵人，在它離開前命中變差 1（不與重傷疊加）且不能撤退。', "0AP: an enemy in its control range has its Hit worsened by 1 (not cumulative with injured) and can't Fall Back while it stays there."],
-  aggressivePattern: () => ['攻擊模式', 'Attack Pattern', '馴犬師為牠選了「凶猛」（近戰武器「毫不留情」）與「迅捷」（Move +2"，已算入 8"）。', 'The Leashmaster picked Aggressive (melee Relentless) and Swift (+2" Move, included in its 8").'],
   veriscant: () => ['真相鑑定', 'Veriscant', '1AP（敏銳專注時 0AP）：一名可見敵人，直到它下次啟動，友方攻擊它時武器「致命 5+」＋「重創」。', '1AP (0AP with Acute Focus): a visible enemy — until its next activation, friendly weapons have Lethal 5+ and Severe against it.'],
   acuteFocus: () => ['敏銳專注', 'Acute Focus', '每次啟動一次：撿起標記、真相鑑定或任務動作少花 1AP。', 'Once per activation: Pick Up Marker, Veriscant or a mission action costs 1 less AP.'],
   stubbornSubjugator: () => ['頑強鎮壓者', 'Stubborn Subjugator', '近戰武器的命中值不受任何變化影響。', 'Changes to the Hit stat of its melee weapons are ignored.'],
@@ -2396,7 +2405,7 @@ const ABILITIES = {
   unholySustenance: () => ['邪惡滋養', 'Unholy Sustenance', '近戰或反擊時使對手殘廢，回復 D3 生命。', 'Incapacitating the enemy when fighting or retaliating regains D3 wounds.'],
   actuation: () => ['褻瀆啟動', 'Sacrilegious Actuation', '1AP（自己持有血祭標記時）：獲得一個血祭標記。', '1AP (while it has a Blooded token): gain a Blooded token.'],
   stimms: () => ['興奮劑', 'Stimms', '1AP：控制範圍內的友方，受傷時注射「回春」（回復 2D3），否則給「強化」或「狂怒」（整場）。開局給歐格林「強化」。', '1AP: a friendly in control range gets Rejuvenated (2D3 wounds) if hurt, otherwise Fortified or Enraged for the battle. The Ogryn starts Fortified.'],
-  wretched: () => ['卑劣者', 'Wretched', '在近戰中殘廢時，可先用一顆未結算的成功骰打擊對方。（隱蔽衝鋒依基本規則停用）', 'If incapacitated in a fight, strikes with an unresolved success first. (Charging while Concealed is disabled by the basic rules.)'],
+  wretched: () => ['卑劣者', 'Wretched', '在近戰中殘廢時，可先用一顆未結算的成功骰打擊對方。', 'If incapacitated in a fight, strikes with an unresolved success first.'],
   camo1: () => ['迷彩斗篷', 'Camo Cloak', '被射擊時若能保留掩護豁免，多保留 1 顆。（以血之名未實作）', 'When shot with cover saves, retains one more. (A Name Whispered in Blood isn\'t modelled.)'],
   tough: () => ['堅韌', 'Tough', '近戰、反擊或被射擊時，3 以上的普通傷害 -1。', 'When fighting, retaliating or shot, Normal Dmg of 3+ deals 1 less.'],
   shielding: () => ['舉盾', 'Shielding', '0AP（啟動時）：直到下次啟動 Move -2"，被射擊時可重擲任意防禦骰。', '0AP (when activated): until its next activation, -2" Move and re-roll any defence dice when shot.'],
@@ -2430,15 +2439,37 @@ const ABILITIES = {
   savageAssault: () => ['野蠻突擊', 'Savage Assault', '每次啟動第一次近戰後若雙方都還站著，可對同一敵人免費再近戰一次。', 'After its first Fight each activation, if both still stand, a free Fight against the same enemy.'],
   badTempered: () => ['脾氣暴躁', 'Bad-tempered', '敵人近戰時若能選牠，就必須改打牠。', 'An enemy fighting while it is a valid choice must fight it instead.'],
   longSight: () => ['遠視', 'Long-sight', '1AP：直到下次啟動，獵槍（隱蔽／定點）「致命 5+」，射擊時敵人不能被遮蔽。', '1AP: until its next activation, the hunting rifle (concealed/stationary) has Lethal 5+ and enemies cannot be obscured.'],
-  concealCharge: () => ['潛獵者', 'Stalker', '（隱蔽衝鋒的例外已依基本規則停用；「潛行突襲」仍可使用。）', '(The Conceal-Charge exception is disabled by the basic rules; Stealth Attack still works.)'],
+  concealCharge: () => ['隱蔽衝鋒', 'Concealed Charge', '隱蔽指令也能衝鋒（規則明文允許，不受「隱蔽不能衝鋒」的房規限制）。', 'Can Charge with a Conceal order (its rules say so explicitly, so the "Concealed can\'t Charge" house rule doesn\'t apply).'],
   stealthAttack: () => ['潛行突襲', 'Stealth Attack', '2AP（隱蔽、地形 1" 內）：免費衝鋒（不超過 Move）後免費近戰，第一次打擊後立刻再打擊一次。', '2AP (Concealed, within 1" of terrain): a free Charge (up to its Move) then a free Fight; its first strike is followed by another.'],
   pechra: () => ['標記獵物', 'Marked for the Hunt', '1AP：把鳥標放在可見敵人旁；友方射擊其 1" 內的敵人時獲得「搜尋（輕型）」，直到追蹤者下次啟動。', '1AP: place the Pech\'ra marker by a visible enemy; friendly shooting at enemies within 1" of it has Seek Light until the Tracker\'s next activation.'],
   sorcerer: () => ['巫師', 'Sorcerer', '靈能使用者；9" 內的符文戰士不受巫術自動機影響。', 'A psyker; Rubric Marines within 9" of it aren\'t slowed by Sorcerous Automata.'],
   destiny: () => ['命運之術', 'Destiny', '命運庇護（1AP，靈能）：可見友方被射擊時可重擲任意防禦骰。摧毀命運（1AP，靈能）：9" 內可見的敵人攻擊時必須重擲 6，控制目標時 APL -1。效果到它下次啟動。', 'Protected by Fate (1AP, Psychic): a visible friendly re-rolls any defence dice when shot. Ravage Destiny (1AP, Psychic): a visible enemy within 9" must re-roll attack 6s and counts 1 lower for control. Until its next activation.'],
+  controlProtocol: () => ['控制協定', 'Control Protocol', '它看得到的友方使用「指令覆寫」0CP。', 'Command Override costs 0CP for a friendly it can see.'],
+  shroudpsalm: () => ['隱匿聖詠', 'Canticle of Shroudpsalm', '它 3" 內、隱蔽指令且在掩體中的友方滲透者不能被選為目標（2" 內除外）。', 'Friendly Infiltrators within 3" of it with a Conceal order and in cover can\'t be selected as valid targets (except within 2").'],
+  canticleElim: () => ['殲滅聖詠', 'Canticle of Elimination', '它 3" 內的友方遊騎兵遠程武器「懲罰」。', 'Friendly Rangers within 3" of it have Punishing ranged weapons.'],
+  canticleGlow: () => ['輻光聖詠', 'Canticle of the Glow', '它 3" 內受輻射飽和影響的敵人武器攻擊 -1。', 'Enemies within 3" of it under Rad-Saturation have -1 Atk.'],
+  huRepeat: () => ['可重複', 'Repeatable', '可以重複選。', 'Can be picked more than once.'],
+  chronomancer: () => ['時間術士', 'Chronomancer', '時間碎片（1AP，每回合全隊一次，第一回合不能用）：5" 內看得到、已行動的友方重新放到它 5" 內（自動選看不到敵人的位置）。逆時奈米雷（1AP）：放在 8" 內看得到的敵人處，4" 內的敵人移動 -2"。時間計（1AP，支援）：射擊 6" 內那名友方的武器攻擊 -1。效果到它下次啟動。', 'Timesplinter (1AP, once per TP for the team, not in TP1): an expended friendly visible within 5" is set back up within 5" of it (out of enemy sight where possible). Countertemporal Nanomine (1AP): placed by a visible enemy within 8"; enemies within 4" have -2" Move. Chronometron (1AP, SUPPORT): weapons shooting a friendly within 6" have -1 Atk. Until its next activation.'],
+  psychomancer: () => ['心靈術士', 'Psychomancer', '夢魘帷幕（1AP）：4" 內的敵人攻擊時不能重擲、只有 6 算暴擊。幻視瘋狂（1AP）：看得到的敵人得到瘋狂標記，對手要啟動它時擲 D6，大於等於它的 APL 就要改選別人。絕望先兆（1AP）：絕望標記 2" 內的敵人撿標記與任務動作多 1AP、控制時 APL -1（這裡自動放在敵人最多的目標點）。效果到它下次啟動。', 'Nightmare Shroud (1AP): enemies within 4" can\'t re-roll attack dice or crit on less than 6. Vision of Madness (1AP): a visible enemy gains a Madness token — when the opponent would activate it, a D6 equal to or above its APL makes them pick another. Harbinger of Despair (1AP): enemies within 2" of the Despair marker pay 1 more AP to pick up or for mission actions and count 1 lower for control (here placed on the objective with most enemies). Until its next activation.'],
+  attackPatterns: () => ['攻擊模式', 'Attack Pattern', '第一回合策略階段由馴犬師選兩種：凶猛（近戰「毫不留情」）、迅捷（移動 +2"）、防禦（豁免改善 1）。選之前是凶猛＋迅捷。', 'Two picked by the Leashmaster in the first Strategy phase: Aggressive (melee Relentless), Swift (+2" Move), Defensive (Save improved by 1). Aggressive + Swift until then.'],
+  handler: () => ['馴犬師', 'Handler', '啟動時：準備好的機械獒犬可以一起啟動（這裡在它之後馬上啟動）。R-VR 指令（0AP）：改變獒犬的攻擊模式。', 'When activated: a ready Cyber-mastiff can activate with it (here, straight after). R-VR Command (0AP): change the Cyber-mastiff\'s Attack Patterns.'],
+  exGunner: () => ['槍手', 'Gunner', '最多 2 名，武器要不同。', 'Two at most, each with a different weapon.'],
+  exRepeat: () => ['可重複', 'Repeatable', '可以重複選（鎮壓兵最多 4 名）。', 'Can be picked more than once (Subductors four at most).'],
+  callAttack: () => ['號令進攻', 'Call the Attack', '策略階段（自己沒有狂暴標記時）：選 6" 內看得到的一名友方，它和它 2" 內看得到的友方免費衝刺。', 'Strategy phase (while it has no Frenzy token): pick a friendly visible within 6"; it and friendlies visible within 2" of it make free Dashes.'],
+  sagacious: () => ['睿智', 'Sagacious', '啟動結束前可改變指令（這裡是啟動中做過動作後的一個按鈕）。', 'It can change its order at the end of its activation (here a button once it has acted).'],
+  uncompromising: () => ['毫不妥協的攻擊', 'Uncompromising Attack', '1AP（交戰中）：免費近戰一次、免費用自動手槍射擊一次（可以射擊控制範圍內的敵人，即使有友方在那敵人控制範圍內）。', '1AP (engaged): a free Fight and a free autopistol Shoot (at an enemy in its control range, even with friendlies in that enemy\'s control range).'],
+  cleaverFlurry: () => ['劈刀亂舞', 'Cleaver Flurry', '2AP（不能隱蔽、不能交戰）：免費轉移，多 2"；經過的每名敵人控制範圍內各受 D3+1 傷害（刃之旋風沒有實作）。', '2AP (not Concealed, not engaged): a free Reposition 2" further; each enemy it moved within control range of takes D3+1 (Blade Whirl isn\'t modelled).'],
+  poxBomb: () => ['瘟疫炸彈', 'Pox Bomb', '可以用震撼手雷（不算次數）；敵人擲震撼測試 3+ 時，另受骰值一半（進位）的傷害。', 'Can use stun grenades (not counting toward limited uses); an enemy rolling 3+ on its stun test also takes half the result (rounding up) as damage.'],
+  warriorFrenzy: () => ['戰士狂暴', 'Warrior Frenzy', '有狂暴標記時不算重傷。', 'It isn\'t injured while it has a Frenzy token.'],
+  fgWarrior: () => ['戰士', 'Warrior', '可以重複選。', 'Can be picked more than once.'],
+  bloodedIcon: () => ['血祭聖像', 'Blooded Icon', '每回合一次：持有血祭標記的友方在它 6" 內殘廢時，取回那個標記。', 'Once per turning point: when a friendly with a Blooded token is incapacitated within 6" of it, regain that token.'],
+  enforce: () => ['督戰', 'Enforce', '1AP：3" 內看得到的另一名友方立刻免費執行一個 1AP 動作，移動不超過 2"（通訊兵不能用褻瀆啟動或信號）。', '1AP: another friendly visible within 3" performs a free 1AP action now, moving no more than 2" (a Commsman can\'t use Sacrilegious Actuation or Signal).'],
+  nameWhispered: () => ['血中低語之名', 'A Name Whispered in Blood', '第一回合的策略階段選一名敵人：射擊它時視為持有血祭標記且受諸神注視。', 'In the first Strategy phase, pick an enemy: when shooting it, this operative counts as having a Blooded token and the Gaze of the Gods.'],
+  blTrooper: () => ['步兵', 'Trooper', '群體啟動；可以重複選。', 'Group Activation; can be picked more than once.'],
   wbLeader: () => ['暗影向量', 'Shadow Vector', '每回合一次：對它看得到的友方新信徒使用「遁入黑暗」或「盤蛇」0CP。', 'Once per turning point: Slink into Darkness or Coiled Serpent costs 0CP for a friendly Neophyte it can see.'],
   expertSwordsman: () => ['劍術專家', 'Expert Swordsman', '每次啟動可兩次近戰；近戰結束後若已不在敵人控制範圍內，可免費衝鋒最多 3"（快銀突擊與刃之架勢沒有實作）。', 'Two Fights per activation; after a Fight, if no longer within enemy control range, a free Charge of up to 3" (Quicksilver Strike and Bladed Stance aren\'t modelled).'],
   sanctus: () => ['聖者', 'Sanctus', '使魔靈視（1AP）：看得到的敵人得到靈視標記——狙擊手對它射擊時狙擊槍「飽和」且它不會被遮擋；利爪對它近戰時生物匕首「殘暴」「平衡」。狙擊手另有鎖定弱點（1AP）：這次啟動定點狙擊「致命 5+」。', 'Familiar\'s Soulsight (1AP): a visible enemy gains a Soulsight token — the Sniper\'s rifle has Saturate against it and it can\'t be obscured; the Talon\'s bio-dagger has Brutal and Balanced against it. The Sniper also has Target Vulnerability (1AP): Lethal 5+ on the stationary profile this activation.'],
-  creepingShadow: () => ['潛行之影', 'Creeping Shadow', '隱蔽指令也能衝鋒；每次近戰後可免費衝刺（之前做過什麼都可以）。刺殺沒有實作。', 'Can Charge with a Conceal order; after each Fight, a free Dash whatever it did before. Assassinate isn\'t modelled.'],
+  creepingShadow: () => ['潛行之影', 'Creeping Shadow', '隱蔽指令也能衝鋒；每次近戰後可免費衝刺（之前做過什麼都可以）。刺殺（2AP，隱蔽、沒交戰、移動範圍內有看不到它的敵人）：免費衝鋒（不超過移動值）後免費近戰，第一次打擊後可再追加一次打擊（這裡不限定要打那名敵人）。', 'Can Charge with a Conceal order; after each Fight, a free Dash whatever it did before. Assassinate (2AP; Concealed, not engaged, an enemy within reach that can\'t see it): a free Charge (up to its Move) then a free Fight whose first strike is followed by another (here the target isn\'t restricted to that enemy).'],
   overthrow: () => ['推翻壓迫者', 'Overthrow the Oppressors', '每回合一次：6" 內看得到的準備好的友方新信徒殘廢時，「世代籌劃之計」0CP（免費射擊的選項沒有實作）。', 'Once per turning point: when a ready friendly Neophyte visible within 6" is incapacitated, A Plan Generations in the Making costs 0CP (the free Shoot option isn\'t modelled).'],
   tempyrion: () => ['時間之術', 'Tempyrion', '重組儀式（1AP，靈能，每回合全隊一次）：6" 內可見的友方回復最多 2D3 生命。時間通量（1AP，靈能）：在 6" 內可見友方旁放標記，它下次啟動結束時若完全在標記 6" 內，就回到標記處。', 'Reconstitution Ritual (1AP, Psychic, once per TP for the team): a friendly visible within 6" regains up to 2D3 wounds. Temporal Flux (1AP, Psychic): a marker by a friendly visible within 6"; at the end of its next activation, if wholly within 6" of the marker, it is set back up there.'],
   herdBanner: () => ['獸群旗幟', 'Herd Banner', '3" 內看得到的友方奸奇獸人受到 3 點以上的普通傷害時 -1。', 'Normal Dmg of 3+ on a friendly Tzaangor visible within 3" of it deals 1 less.'],
@@ -2601,7 +2632,7 @@ const ABILITIES = {
   psiren: () => ['心靈警報器', 'Psiren Caster', '友方攻擊它 6" 內的敵人時，可重擲一顆攻擊骰（自動用在失敗骰）。', 'Friendlies attacking an enemy within 6" of it re-roll one attack die (a fail, automatically).'],
   cultIcon: () => ['教派聖像', 'Cult Icon', '它 4" 內的標記，我方有人爭奪時總 APL +1。（族群奉獻未實作）', 'Markers within 4" of it: +1 to your total APL while a friendly contests them. (Broodmind Devotion isn\'t modelled.)'],
   counterattack: () => ['反擊刀法', 'Counterattack', '近戰或反擊時，對手每結算一顆普通成功，對手受 1 傷害。', 'Fighting or retaliating: each normal success the opponent resolves deals 1 damage to the opponent.'],
-  assassin: () => ['刺客', 'Assassin', '隱蔽指令也能衝鋒。（本遊戲規定隱蔽不能衝鋒，此規則不生效）', 'Can Charge with a Conceal order. (This game\'s house rule — Concealed can\'t Charge — overrides it.)'],
+  assassin: () => ['刺客', 'Assassin', '隱蔽指令也能衝鋒。', 'Can Charge with a Conceal order.'],
   grenadier: () => ['擲彈兵', 'Grenadier', '自帶破片與穿甲手榴彈（命中改善 1，不占用全隊次數，各限用一次）。', 'Its own frag and krak grenades (Hit improved by 1, not from the team\'s uses, once each).'],
   explosives: () => ['爆破', 'Explosives', '1AP（整場兩次，不在交戰中，不能和衝鋒／衝刺／撤退同一次啟動）：第一次放置炸藥標記，第二次引爆，標記 2" 內每名特工受 2D6（中間有重型地形擋住則無）。', '1AP (twice per battle, not engaged, not in an activation with Charge/Dash/Fall Back): first places the marker, then detonates it — 2D6 to every operative within 2" (unless Heavy terrain is in the way).'],
   finalDefiance: () => ['最後的反抗', 'Final Defiance', '殘廢時若已放置炸藥，立刻引爆。', 'If incapacitated with its charge placed, it detonates it.'],
@@ -3429,6 +3460,11 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'hearthkyn' && hearthkynRosterError(TEAM_MAP.hearthkyn, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'navyBreachers' && navyRosterError(TEAM_MAP.navyBreachers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'phobos' && phobosRosterError(TEAM_MAP.phobos, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'hunterClade' && hunterCladeRosterError(TEAM_MAP.hunterClade, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'hierotek' && hierotekRosterError(TEAM_MAP.hierotek, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'exaction' && exactionRosterError(TEAM_MAP.exaction, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'fellgor' && fellgorRosterError(TEAM_MAP.fellgor, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'blooded' && bloodedRosterError(TEAM_MAP.blooded, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'wyrmblade' && wyrmbladeRosterError(TEAM_MAP.wyrmblade, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'warpcoven' && warpcovenRosterError(TEAM_MAP.warpcoven, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
       clearSave();
@@ -3639,7 +3675,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate' || d.id.startsWith('wc')) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate' || d.id.startsWith('wc') || d.id.startsWith('wb') || d.id.startsWith('fg') || d.id === 'exRvr' || d.id === 'exHandler' || d.id === 'hcShroud' || d.id === 'hcDespair') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

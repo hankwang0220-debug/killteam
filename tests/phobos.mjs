@@ -71,6 +71,19 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
   G.doSelfAction(g, m, 'phGuard'); assert(m.dwGuard);
 }
 
+// Stealth Assault: Concealed when activated, Engage, Charge then Fight — an extra attack dice resolved first.
+{
+  const g = arena(), r = get(g, 'reiver'), e = foe(g);
+  r.order = 'conceal'; place(r, 10, 10); place(e, 11.4, 10); G.activate(g, r);
+  r.order = 'engage'; r.orderSet = true; r.acted.charge = 1;
+  G.startFight(g, r, G.weaponsFor(g, r).find((w) => w.type === 'melee'), e);
+  assert(g.fight.A.extraStrike, 'Stealth Assault'); assert.equal(g.cp[0], 2, 'paid 1CP');
+  const h = arena(), r2 = get(h, 'reiver'), e2 = foe(h);
+  place(r2, 10, 10); place(e2, 11.4, 10); G.activate(h, r2); r2.acted.charge = 1;
+  G.startFight(h, r2, G.weaponsFor(h, r2).find((w) => w.type === 'melee'), e2);
+  assert(!h.fight.A.extraStrike, '(not without starting Concealed)');
+}
+
 // AI vs AI full battles.
 for (const [a, b] of [['phobos', 'kommandos'], ['angels', 'phobos']]) {
   const ph = a === 'phobos' ? 0 : 1, eq = [[], []]; eq[ph] = ['phSeals', 'phAmmo', 'phGrenades', 'phBlades'];
