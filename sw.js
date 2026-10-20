@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v82';
+const CACHE = 'killteam-v83';
 const ASSETS = [
   'js/battle3d.js',
   'js/data/faction-equipment.js',

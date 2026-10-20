@@ -22,6 +22,8 @@ import { hearthkynRosterError } from './data/hearthkyn.js';
 import { navyRosterError } from './data/navy.js';
 import { phobosRosterError } from './data/phobos.js';
 import { warpcovenRosterError, warpcovenIds, WC_BOONS, WC_BOON_DEFAULT } from './data/warpcoven.js';
+import { wyrmbladeRosterError, wyrmbladeIds } from './data/wyrmblade.js';
+import { wbCanHide, wbHide, wbEmergeCheck } from './game.js';
 import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
@@ -504,7 +506,7 @@ function setupView() {
     <input class="teamsearch" type="search" data-act="teamSearch" data-side="${side}" value="${esc(s.search?.[side] || '')}" placeholder="${L('搜尋隊伍名稱或風格…', 'Search team name or style…')}">
     <div class="picklist">${TEAMS.map((tm) => { const key = `${tm.name.zh} ${tm.name.en} ${tx(tm.style)}`.toLowerCase(); const q = (s.search?.[side] || '').trim().toLowerCase();
       return `<button class="teampick ${s.teams[side] === tm.id ? 'on' : ''}" style="--tc:${tm.color}${q && !key.includes(q) ? ';display:none' : ''}" data-act="pick" data-side="${side}" data-team="${tm.id}" data-search="${esc(key)}">
-      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.id === 'warpcoven' ? warpcovenIds(tm).length : tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
+      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.id === 'warpcoven' ? warpcovenIds(tm).length : tm.id === 'wyrmblade' ? wyrmbladeIds(tm).length : tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
     <article class="teamcard chosen" style="--tc:${t.color}"><h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
       <p>${esc(tx(t.blurb))}</p><p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>${teamInfo(t)}</article>
   </div>`; };
@@ -670,6 +672,7 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'hearthkyn') { const error = hearthkynRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'navyBreachers') { const error = navyRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'phobos') { const error = phobosRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'wyrmblade') { const error = wyrmbladeRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'warpcoven') { const error = warpcovenRosterError(t, cur, ui.setup.loadouts?.[side]); return wcBoonPick(t, side, cur) + (error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''); }
   if (t.id === 'stealthSuits') { const error = stealthRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'vespids') { const error = vespidsRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -719,7 +722,7 @@ function loadoutPick(side) {
   const t = TEAM_MAP[ui.setup.teams[side]];
   const cur = ui.setup.loadouts?.[side] || {};
   const rs = ui.setup.roster?.[side] || {};
-  const picked = new Set([...t.ops.filter((o) => o.count).flatMap((o) => (rs[o.id] ? [rs[o.id]].flat() : [o.id])), ...(t.id === 'warpcoven' ? warpcovenIds(t, rs) : [])]); // templates in the roster (Warpcoven: from its selections)
+  const picked = new Set([...t.ops.filter((o) => o.count).flatMap((o) => (rs[o.id] ? [rs[o.id]].flat() : [o.id])), ...(t.id === 'warpcoven' ? warpcovenIds(t, rs) : t.id === 'wyrmblade' ? wyrmbladeIds(t, rs) : [])]); // templates in the roster (Warpcoven, Wyrmblade: from their selections)
   return t.ops.filter((o) => o.loadouts && picked.has(o.id)).map((o) => `<label>${esc(bi(o.name))}<select data-act="loadout" data-side="${side}" data-id="${o.id}">${Object.entries(o.loadouts).map(([id, ws]) => `<option value="${id}" ${(cur[o.id] || Object.keys(o.loadouts)[0]) === id ? 'selected' : ''}>${ws.map((w) => esc(tx(w.name))).join(' + ')}${o.loadoutExtra?.[id] ? ` + ${esc(tx(o.loadoutExtra[id]))}` : ''}</option>`).join('')}</select></label>`).join('');
 }
 
@@ -828,7 +831,7 @@ function teamInfo(t) {
   return `<dl class="teaminfo">
     <dt>${L('戰術行動', 'Archetypes')}</dt><dd>${i.archetypes.map((a) => esc(bi(a))).join(' + ')}</dd>
     <dt>${L('戰鬥類型', 'Play style')}</dt><dd>${esc(tx(i.kind))}</dd>
-    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.id === 'warpcoven' ? warpcovenIds(t).length : t.ops.reduce((n, o) => n + o.count, 0)}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
+    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.id === 'warpcoven' ? warpcovenIds(t).length : t.id === 'wyrmblade' ? wyrmbladeIds(t).length : t.ops.reduce((n, o) => n + o.count, 0)}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
     <dt>${L('一盒成軍', 'One box')}</dt><dd>${esc(tx(i.oneBox))}</dd>
     <dt>${L('目前可購買', 'Available')}</dt><dd>${esc(tx(i.buyable))}</dd>
     ${t.rulesUrl ? `<dt>${L('官方規則', 'Official rules')}</dt><dd><a href="${esc(t.rulesUrl)}" target="_blank" rel="noopener">PDF</a></dd>` : ''}
@@ -847,7 +850,7 @@ function roster(t, side) {
     selected = [...counts].map(([id, count]) => ({ ...t.ops.find((o) => o.id === id), count }));
   }
   // Teams with a choice of operatives: show who is actually taking the field (each pick once per copy), and their weapons.
-  if ((t.replacements || t.id === 'warpcoven') && t.id !== 'deathwatch' && (!t.packages || t.id === 'navyBreachers' || t.id === 'warpcoven') && t.id !== 'mandrakes' && t.id !== 'murderwing') {
+  if ((t.replacements || t.id === 'warpcoven') && t.id !== 'deathwatch' && (!t.packages || t.id === 'navyBreachers' || t.id === 'warpcoven' || t.id === 'wyrmblade') && t.id !== 'mandrakes' && t.id !== 'murderwing') {
     const cur = ui.setup.roster?.[side] || {}, counts = new Map();
     for (const slot of t.ops.filter((o) => o.count)) {
       const pick = cur[slot.id];
@@ -1344,6 +1347,7 @@ function deployPanel() {
       ${left > 0 ? `<div class="oplist">${waiting.map((o) => `<button class="${ui.sel === o.uid ? 'on' : ''}" data-act="depsel" data-uid="${o.uid}">${nm(o)}</button>`).join('')}</div>` : ''}
       ${aqCanAbove(g, d.turn) ? `<button data-act="depabove">🪂 ${L('整批放在天上（待命空降）', 'Set this whole third up above (grav-chute drop)')}</button>` : ''}
       ${ui.sel && getOp(g, ui.sel) && rvCanUnderground(g, getOp(g, ui.sel)) ? `<button data-act="depunder">🕳 ${L('改成在地下部署', 'Set up underground instead')}</button>` : ''}
+      ${ui.sel && getOp(g, ui.sel) && wbCanHide(g, getOp(g, ui.sel)) ? `<button data-act="dephide">🫥 ${L('躲藏起來（熟悉的地盤，最多三分之一）', 'Set up in hiding (Familiar Territory, up to a third)')}</button>` : ''}
       <div class="row"><button data-act="depauto">${L('自動部署這一批', 'Auto-place this step')}</button>
         <button class="primary" data-act="depdone" ${left > 0 ? 'disabled' : ''}>${L('完成這一批 ▶', 'Done ▶')}</button></div>`
     : `<p class="hint">${L('電腦部署中…', 'The computer is setting up…')}</p>`}
@@ -1923,7 +1927,8 @@ function firefightPanel() {
     html += `<p class="hint">${L('指令', 'Order')}：${op.order === 'engage' ? L('⚔ 交戰', '⚔ Engage') : L('◐ 隱蔽', '◐ Conceal')}</p>`;
   }
 
-  if (op.reserve) html += `<p class="hint"><b>${L('還在預備區：點棋盤，沿你的場邊選擇進場位置（視同轉向，花 1AP）。', 'In reserve: tap the board to choose where along your killzone edge it enters (counts as a Turn, 1AP).')}</b></p>`;
+  if (op.reserve && op.wbHidden) html += `<p class="hint"><b>${L('躲藏中：先選指令，再點棋盤現身（完全在己方降落區 6" 內、離敵人超過 6"，視為轉移）；不想現身就直接結束啟動。', 'In hiding: pick its order, then tap the board to emerge (wholly within 6" of your drop zone, more than 6" from enemies; a Reposition) — or just end the activation.')}</b></p>`;
+  else if (op.reserve) html += `<p class="hint"><b>${L('還在預備區：點棋盤，沿你的場邊選擇進場位置（視同轉向，花 1AP）。', 'In reserve: tap the board to choose where along your killzone edge it enters (counts as a Turn, 1AP).')}</b></p>`;
   if (ui.pending) html += pendingView();
   else if (ui.mode) html += modeView(op);
   else {
@@ -2430,6 +2435,11 @@ const ABILITIES = {
   pechra: () => ['標記獵物', 'Marked for the Hunt', '1AP：把鳥標放在可見敵人旁；友方射擊其 1" 內的敵人時獲得「搜尋（輕型）」，直到追蹤者下次啟動。', '1AP: place the Pech\'ra marker by a visible enemy; friendly shooting at enemies within 1" of it has Seek Light until the Tracker\'s next activation.'],
   sorcerer: () => ['巫師', 'Sorcerer', '靈能使用者；9" 內的符文戰士不受巫術自動機影響。', 'A psyker; Rubric Marines within 9" of it aren\'t slowed by Sorcerous Automata.'],
   destiny: () => ['命運之術', 'Destiny', '命運庇護（1AP，靈能）：可見友方被射擊時可重擲任意防禦骰。摧毀命運（1AP，靈能）：9" 內可見的敵人攻擊時必須重擲 6，控制目標時 APL -1。效果到它下次啟動。', 'Protected by Fate (1AP, Psychic): a visible friendly re-rolls any defence dice when shot. Ravage Destiny (1AP, Psychic): a visible enemy within 9" must re-roll attack 6s and counts 1 lower for control. Until its next activation.'],
+  wbLeader: () => ['暗影向量', 'Shadow Vector', '每回合一次：對它看得到的友方新信徒使用「遁入黑暗」或「盤蛇」0CP。', 'Once per turning point: Slink into Darkness or Coiled Serpent costs 0CP for a friendly Neophyte it can see.'],
+  expertSwordsman: () => ['劍術專家', 'Expert Swordsman', '每次啟動可兩次近戰；近戰結束後若已不在敵人控制範圍內，可免費衝鋒最多 3"（快銀突擊與刃之架勢沒有實作）。', 'Two Fights per activation; after a Fight, if no longer within enemy control range, a free Charge of up to 3" (Quicksilver Strike and Bladed Stance aren\'t modelled).'],
+  sanctus: () => ['聖者', 'Sanctus', '使魔靈視（1AP）：看得到的敵人得到靈視標記——狙擊手對它射擊時狙擊槍「飽和」且它不會被遮擋；利爪對它近戰時生物匕首「殘暴」「平衡」。狙擊手另有鎖定弱點（1AP）：這次啟動定點狙擊「致命 5+」。', 'Familiar\'s Soulsight (1AP): a visible enemy gains a Soulsight token — the Sniper\'s rifle has Saturate against it and it can\'t be obscured; the Talon\'s bio-dagger has Brutal and Balanced against it. The Sniper also has Target Vulnerability (1AP): Lethal 5+ on the stationary profile this activation.'],
+  creepingShadow: () => ['潛行之影', 'Creeping Shadow', '隱蔽指令也能衝鋒；每次近戰後可免費衝刺（之前做過什麼都可以）。刺殺沒有實作。', 'Can Charge with a Conceal order; after each Fight, a free Dash whatever it did before. Assassinate isn\'t modelled.'],
+  overthrow: () => ['推翻壓迫者', 'Overthrow the Oppressors', '每回合一次：6" 內看得到的準備好的友方新信徒殘廢時，「世代籌劃之計」0CP（免費射擊的選項沒有實作）。', 'Once per turning point: when a ready friendly Neophyte visible within 6" is incapacitated, A Plan Generations in the Making costs 0CP (the free Shoot option isn\'t modelled).'],
   tempyrion: () => ['時間之術', 'Tempyrion', '重組儀式（1AP，靈能，每回合全隊一次）：6" 內可見的友方回復最多 2D3 生命。時間通量（1AP，靈能）：在 6" 內可見友方旁放標記，它下次啟動結束時若完全在標記 6" 內，就回到標記處。', 'Reconstitution Ritual (1AP, Psychic, once per TP for the team): a friendly visible within 6" regains up to 2D3 wounds. Temporal Flux (1AP, Psychic): a marker by a friendly visible within 6"; at the end of its next activation, if wholly within 6" of the marker, it is set back up there.'],
   herdBanner: () => ['獸群旗幟', 'Herd Banner', '3" 內看得到的友方奸奇獸人受到 3 點以上的普通傷害時 -1。', 'Normal Dmg of 3+ on a friendly Tzaangor visible within 3" of it deals 1 less.'],
   brayhorn: () => ['號角', 'Brayhorn', '0AP：友方奸奇獸人移動 +1"，直到下個策略階段的準備步驟（不能在交戰中）。', '0AP: friendly Tzaangor have +1" Move until the next Strategy phase\'s Ready step (not while engaged).'],
@@ -2987,6 +2997,7 @@ function onBoardClick(evt) {
   const detonating = ui.mode?.kind === 'shoot' && !!ui.mode.weapon?.rules.detonate;
   if (clicked && ui.mode?.kind !== 'target' && !detonating && trySelectOwn(clicked)) return;
   // Exodite riders in reserve: a tap on the board picks where along your killzone edge they come in.
+  if (op && op.reserve && op.wbHidden && myTurn && (op.orderSet || op.orderPicked)) { const c = wbEmergeCheck(g, op, p); if (!c.ok) { ui.notice = tx(c.why); return render(); } }
   if (op && op.reserve && myTurn && (op.orderSet || op.orderPicked) && op.ap > 0) { undoable(() => enterFromReserve(g, op, p)); return afterChange(); }
   if (op && ui.mode && myTurn) {
     const m = ui.mode;
@@ -3418,6 +3429,7 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'hearthkyn' && hearthkynRosterError(TEAM_MAP.hearthkyn, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'navyBreachers' && navyRosterError(TEAM_MAP.navyBreachers, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'phobos' && phobosRosterError(TEAM_MAP.phobos, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'wyrmblade' && wyrmbladeRosterError(TEAM_MAP.wyrmblade, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'warpcoven' && warpcovenRosterError(TEAM_MAP.warpcoven, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
       clearSave();
       resetRecorder();
@@ -3446,6 +3458,7 @@ function handle(act, d) {
     case 'aqrapid': aqRapid(g, +d.side); return afterChange();
     case 'initoverseer': if (!isAI(+d.side) && aqOverseerOk(g, +d.side)) { aqUseOverseer(g, +d.side); aiInitCards(g); } return afterChange();
     case 'depunder': { const o = ui.sel && getOp(g, ui.sel); if (o && rvGoUnderground(g, o)) ui.sel = null; return afterChange(); }
+    case 'dephide': { const o = ui.sel && getOp(g, ui.sel); if (o && wbHide(g, o)) ui.sel = null; return afterChange(); }
     case 'tunnelmode': ui.tunnelMode = ui.tunnelMode?.side === +d.side ? null : { side: +d.side }; return render();
     case 'tunnelauto': rvAutoMarker(g, +d.side); ui.tunnelMode = null; return afterChange();
     case 'rvlink': rvLink(g, +d.side); return afterChange();

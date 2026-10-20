@@ -1014,6 +1014,7 @@ export function activate(g, op) {
   }
   g.chain = null;
   op.acted = {}; // (before Cult Ambush below records whether it started unseen)
+  if (op.wbHidden) op.acted.wbFromHiding = true; // (Familiar Territory: a Warrior activated in hiding ignores Group Activation)
   wcFluxActivate(g, op); // Temporal Flux (Warpcoven): its operative's next activation has begun
   mdActivate(g, op);
   mwActivation(g);
@@ -1235,7 +1236,7 @@ export function endActivation(g) {
     if (mate && canActivateOp(g, mate)) { g.chain = { side: op.side, uids: [mate.uid], must: true, by: op.uid }; g.turn = op.side; return; }
   }
   // Group Activation (Trooper, mandatory) / Directive (Confidant, optional): one more friendly activation first.
-  if (op && !wasCounter && !wasNpo && !op.dead && !op.chained) {
+  if (op && !wasCounter && !wasNpo && !op.dead && !op.chained && !op.acted?.wbFromHiding) {
     const cur = op.side;
     const grp = tpl(op).groupAct; // Trooper / Glitchling / Mutant / Armsman
     const grpUids = grp ? living(g, cur).filter((o) => canActivateOp(g, o) && tpl(o).groupAct === grp).map((o) => o.uid) : [];
@@ -4345,6 +4346,7 @@ export function entryPoint(g, op, p) {
 }
 export function enterFromReserve(g, op, p) {
   if (!op.reserve) return false;
+  if (op.wbHidden) return wbEmerge(g, op, p); // Familiar Territory (Wyrmblade): emerge from hiding
   const q = entryPoint(g, op, p);
   op.x = q.x; op.y = q.y;
   if (!moveCtx(g, op).free(q)) { op.x = -99; op.y = -99; return false; }

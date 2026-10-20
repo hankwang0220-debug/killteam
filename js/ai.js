@@ -4,7 +4,7 @@ import {
   netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid, canPickUpMarker, pickUpTargets, doOptics,
   readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
-  isMounted, sprintCheck, doSprint, doTurn, enterFromReserve,
+  isMounted, sprintCheck, doSprint, doTurn, enterFromReserve, wbAiEmerge,
   goreOf, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
   resourceOptions, useResource,
 } from './game.js';
@@ -408,6 +408,7 @@ export function aiStep(g) {
   if (op.underground) { rvAiUnderground(g, op); return null; } // Raveners underground: emerge on the tunnel, or wait
   if (rvAiBurrow(g, op)) return null; // a hurt Ravener on the tunnel burrows away
   // Exodite riders in reserve come in along the killzone edge nearest to where they want to go.
+  if (op.wbHidden) { if (!(op.ap > 0 && wbAiEmerge(g, op))) endActivation(g); return null; } // Familiar Territory (Wyrmblade): emerge, else stay hidden
   if (op.reserve) {
     const goal = pickGoal(g, op) || foes(g, op)[0] || { x: 15, y: 11 };
     const along = g.axis === 'y' ? 'x' : 'y';
@@ -630,6 +631,12 @@ export function aiStep(g) {
     const t = shootOptions(g, op)[0].t;
     if (TARGET_ACTIONS.alight.targets(g, op).includes(t)) { doTargetAction(g, op, 'alight', t); return null; }
   }
+  // Wyrmblade Sanctus: Soulsight the toughest visible enemy (once), Target Vulnerability before a stationary shot.
+  if (can.wbSoulsight && op.ap >= 2 && !foes(g, op).some((e) => g.wbSoul?.[op.side] === e.uid)) {
+    const t = TARGET_ACTIONS.wbSoulsight.targets(g, op).sort((a, b) => b.wounds - a.wounds)[0];
+    if (t) { doTargetAction(g, op, 'wbSoulsight', t); return null; }
+  }
+  if (can.wbVuln && op.ap >= 2 && !op.acted?.movedDist && shootOptions(g, op).length) { doSelfAction(g, op, 'wbVuln'); return null; }
   if (can.wcEchoes) { doSelfAction(g, op, 'wcEchoes'); return null; } // Echoes from the Warp: one more action in this counteraction
   if (can.wcBrayhorn && !g.wcHorn?.[op.side]) { doSelfAction(g, op, 'wcBrayhorn'); return null; }
   if (can.wcRecon) {
