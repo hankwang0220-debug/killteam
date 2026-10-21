@@ -183,7 +183,7 @@ function createView(T,initial) {
     if(pointers.size===2){drag={mode:'gesture',moved:true,span:gesture().span,mid:gesture().mid};return;}
     const hit=pick(e),p=point(e),op=hit.uid&&g.ops.find(o=>o.uid===hit.uid);
     const canDrag=e.button===0 && !callbacks.measuring() && op && g.phase==='deploy' && (!g.eqDeploy || g.eqDeploy.done) && canPlace(g,op) && op.placed!==false && op.side!==g.ai;
-    drag={id:e.pointerId,start:{x:e.clientX,y:e.clientY},last:{x:e.clientX,y:e.clientY},hit,p,mode:e.button===0&&!callbacks.measuring()&&hit.handle!=null?'rotate':canDrag?'unit':e.button===1||e.shiftKey?'pan':'orbit',moved:false,angle:ui.equipmentPreview?.angle||0};
+    drag={id:e.pointerId,start:{x:e.clientX,y:e.clientY},last:{x:e.clientX,y:e.clientY},hit,p,mode:e.button===0&&!callbacks.measuring()&&hit.handle!=null?'rotate':canDrag?'unit':e.button===1||e.shiftKey?'pan':'orbit',reverseOrbit:e.button===0&&e.pointerType!=='touch',moved:false,angle:ui.equipmentPreview?.angle||0};
   }
   function gesture(){const ps=[...pointers.values()];return {span:Math.hypot(ps[1].x-ps[0].x,ps[1].y-ps[0].y),mid:{x:(ps[0].x+ps[1].x)/2,y:(ps[0].y+ps[1].y)/2}};}
   function move(e){if(!pointers.has(e.pointerId)){const p=point(e);if(p){callbacks.hover?.(p,pick(e).uid,e);if(callbacks.measuring())scheduleOverlay();}return;}
@@ -195,7 +195,7 @@ function createView(T,initial) {
     if(drag.mode==='rotate'){const p=point(e);if(p&&drag.p){drag.angleNow=handleRotation(ui.equipmentPreview.p,drag.p,p,drag.angle,e.shiftKey);syncPreview(drag.angleNow);}}
     else if(drag.mode==='unit'){const p=point(e),o=g.ops.find(o=>o.uid===drag.hit.uid);if(p&&o){drag.dest=p;models.get(o.uid)?.position.set(p.x-boardOf(g).w/2,0,p.y-boardOf(g).h/2);clearDynamic(rings);ring(p.x,p.y,radius(o)+.1,deployOk(g,o,p)?'#37d995':'#ff6262');}}
     else if(drag.mode==='pan')pan(dx,dy);
-    else {pose.theta-=dx*.008;pose.phi=Math.max(.06,Math.min(1.35,pose.phi+dy*.006));}
+    else {const direction=drag.reverseOrbit?-1:1;pose.theta-=dx*.008*direction;pose.phi=Math.max(.06,Math.min(1.35,pose.phi+dy*.006*direction));}
     updateCamera();
   }
   function up(e,cancel=false){const d=drag;pointers.delete(e.pointerId);drag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
