@@ -25,6 +25,10 @@ import { warpcovenRosterError, warpcovenIds, WC_BOONS, WC_BOON_DEFAULT } from '.
 import { wyrmbladeRosterError, wyrmbladeIds } from './data/wyrmblade.js';
 import { bloodedRosterError, bloodedIds } from './data/blooded.js';
 import { fellgorRosterError } from './data/fellgor.js';
+import { kasrkinRosterError } from './data/kasrkin.js';
+import { legionariesRosterError, legionarySlots } from './data/legionaries.js';
+import { novitiatesRosterError } from './data/novitiates.js';
+import { battlecladeRosterError } from './data/battleclade.js';
 import { exactionRosterError } from './data/exaction.js';
 import { hierotekRosterError } from './data/hierotek.js';
 import { hunterCladeRosterError } from './data/hunterclade.js';
@@ -54,7 +58,7 @@ import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation
 import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
-  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, midMoveHatches, hatchOpenView, buyPloy, deployOk, doMove, endActivation,
+  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, LG_MARKS, midMoveHatches, hatchOpenView, buyPloy, deployOk, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName, makeTerrain, OBJECTIVES, DEPLOY,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
@@ -666,6 +670,13 @@ function wcBoonPick(t, side, cur) {
       <p class="hint small">${esc(tx(WC_BOONS[now].desc))}</p>`;
   }).join('');
 }
+/** Legionaries: each operative's Mark of Chaos for the battle (a Balefire Acolyte can't be Khorne). */
+function lgMarkPick(t, side, cur) {
+  return legionarySlots(t, cur).map(({ slot, id }) => {
+    const o = t.ops.find((x) => x.id === id), now = cur[`mark_${slot}`] || o.mark;
+    return `<label>${esc(bi(o.name))} · ${L('混沌印記', 'Mark of Chaos')}<select data-act="roster" data-side="${side}" data-id="mark_${slot}">${Object.entries(LG_MARKS).filter(([k]) => !(k === 'khorne' && id === 'lgBalefire')).map(([k, v]) => `<option value="${k}" ${now === k ? 'selected' : ''}>${esc(tx(v))}</option>`).join('')}</select></label>`;
+  }).join('');
+}
 /** Brood Brothers selection limits: each option once (Troopers excepted), at most three Gunners / Sniper. */
 function rosterWarning(t, cur, side) {
   if (t.id === 'murderwing') { const error = murderwingRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
@@ -681,6 +692,10 @@ function rosterWarning(t, cur, side) {
   if (t.id === 'hierotek') { const error = hierotekRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'exaction') { const error = exactionRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'fellgor') { const error = fellgorRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'kasrkin') { const error = kasrkinRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'novitiates') { const error = novitiatesRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'battleclade') { const error = battlecladeRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
+  if (t.id === 'legionaries') { const error = legionariesRosterError(t, cur); return lgMarkPick(t, side, cur) + (error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''); }
   if (t.id === 'blooded') { const error = bloodedRosterError(t, cur, ui.setup.loadouts?.[side]); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'wyrmblade') { const error = wyrmbladeRosterError(t, cur); return error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''; }
   if (t.id === 'warpcoven') { const error = warpcovenRosterError(t, cur, ui.setup.loadouts?.[side]); return wcBoonPick(t, side, cur) + (error ? `<p class="bad small">⚠ ${esc(tx(error))}</p>` : ''); }
@@ -1863,7 +1878,9 @@ function firefightPanel() {
   const undoBtn = ui.undo.length ? `<button class="wide" data-act="undo">↶ ${L('回復上一動作', 'Undo last action')}</button>` : '';
   if (!op && g.counter) {
     const cands = counterCandidates(g, g.turn);
-    html += g.netcounter?.kind === 'control' && g.netcounter.onlyActions ? `<p><b>${L('煽動', 'Incite')}</b></p>
+    html += g.netcounter?.label ? `<p><b>${esc(tx(g.netcounter.label.title))}</b></p><p class="hint">${esc(tx(g.netcounter.label.hint))}</p>
+      <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
+      : g.netcounter?.kind === 'control' && g.netcounter.onlyActions ? `<p><b>${L('煽動', 'Incite')}</b></p>
       <p class="hint">${g.netcounter.onlyActions.includes('fight') ? L('選定的信徒免費近戰一次，之後煽動者繼續啟動；也可以略過。', 'The chosen cultist fights for free, then the Demagogue\'s activation continues; or pass.')
         : L('選定的信徒免費衝鋒（最多 3"）或衝刺一次，之後煽動者繼續啟動；也可以略過。', 'The chosen cultist Charges (up to 3") or Dashes for free, then the Demagogue\'s activation continues; or pass.')}</p>
       <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
@@ -3473,6 +3490,10 @@ function handle(act, d) {
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'hierotek' && hierotekRosterError(TEAM_MAP.hierotek, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'exaction' && exactionRosterError(TEAM_MAP.exaction, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'fellgor' && fellgorRosterError(TEAM_MAP.fellgor, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'kasrkin' && kasrkinRosterError(TEAM_MAP.kasrkin, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'legionaries' && legionariesRosterError(TEAM_MAP.legionaries, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'novitiates' && novitiatesRosterError(TEAM_MAP.novitiates, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
+      for (const side of [0, 1]) if (ui.setup.teams[side] === 'battleclade' && battlecladeRosterError(TEAM_MAP.battleclade, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'blooded' && bloodedRosterError(TEAM_MAP.blooded, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'wyrmblade' && wyrmbladeRosterError(TEAM_MAP.wyrmblade, ui.setup.roster?.[side])) { ui.setup.step = 'units'; return render(); }
       for (const side of [0, 1]) if (ui.setup.teams[side] === 'warpcoven' && warpcovenRosterError(TEAM_MAP.warpcoven, ui.setup.roster?.[side], ui.setup.loadouts?.[side])) { ui.setup.step = 'units'; return render(); }

@@ -1,5 +1,5 @@
 // battleclade: team rules moved out of game.js (the engine hooks that call these stay in game.js).
-import { CONTROL, OBJ_R, TARGET_ACTIONS, advanceStrategy, aplNow, availableActions, boardOf, deployZones, doMissionAction, doMove, doPickUp, dropMarkers, edgeDist, hasPloy, isEngaged, living, log, mission, missionActionsFor, moveAllowance, opName, ployChooser, radius, sameTeam, team, teamZh, tpl, visibility } from '../game.js';
+import { CONTROL, OBJ_R, TARGET_ACTIONS, advanceStrategy, autoFF, aplNow, availableActions, boardOf, deployZones, doMissionAction, doMove, doPickUp, dropMarkers, edgeDist, hasPloy, isEngaged, living, log, mission, missionActionsFor, moveAllowance, opName, ployChooser, radius, sameTeam, team, teamZh, tpl, visibility } from '../game.js';
 import { TEAM_MAP } from '../data/teams.js';
 import { dist, distPointRect } from '../geometry.js';
 import { findPath, moveCtx, wholeInchPath } from '../path.js';
@@ -79,4 +79,31 @@ export function useSeeker(g, op, order, action=null, target=null, path=null) {
   log(g,{zh:`${opName(op,'zh')} 尋覓神聖秘藏（0CP）：${order==='engage'?'交戰':'隱蔽'}${action?'＋免費行動':''}`,en:`${opName(op,'en')} Seeker of Divine Arcana (0CP): ${order}${action?' and a free action':''}`},`side${op.side}`);
   advanceStrategy(g,op.side);
   return true;
+}
+
+/** System Exorcism (firefight ploy, as it activates): the first of the opponent's effects on it — an APL loss, Poison, a Blaze token or Markerlights. */
+export function bcExorciseWhat(op) {
+  if ((op.aplNext || 0) < 0) return 'apl';
+  if (op.poison) return 'poison';
+  if (op.blaze != null) return 'blaze';
+  if (op.ml > 0) return 'ml';
+  return null;
+}
+export function bcExorcise(g, op) {
+  const what = bcExorciseWhat(op);
+  if (what === 'apl') { op.ap += -op.aplNext; op.aplNext = 0; }
+  if (what === 'poison') op.poison = false;
+  if (what === 'blaze') op.blaze = null;
+  if (what === 'ml') op.ml = 0;
+  const name = { apl: { zh: 'APL 減少', en: 'the APL loss' }, poison: { zh: '中毒標記', en: 'the Poison token' }, blaze: { zh: '燃燒標記', en: 'the Blaze token' }, ml: { zh: '標記光', en: 'the Markerlights' } }[what];
+  return name && { zh: `移除${name.zh}`, en: `removes ${name.en}` };
+}
+/** Servile Surrogacy (firefight ploy, automatic): a servitor visible within 3" of the targeted Tech-Priest is shot or fought instead (not against Blast or Torrent). */
+export function bcSurrogate(g, attacker, target, weapon) {
+  if (target.team !== 'battleclade' || !tpl(target).techPriest || attacker.side === target.side || attacker.side > 1) return null;
+  if (weapon?.type === 'ranged' && (weapon.rules.blast || weapon.rules.torrent)) return null;
+  const s = living(g, target.side).filter((o) => tpl(o).servitor && o.x > -50 && edgeDist(o, target) <= 3 && visibility(g, target, o).visible).sort((a, b) => b.wounds - a.wounds)[0];
+  if (!s || !autoFF(g, target.side, 'servileSurrogacy')) return null;
+  log(g, { zh: `奴僕代受：${opName(s, 'zh')} 代替 ${opName(target, 'zh')} 承受攻擊`, en: `Servile Surrogacy: ${opName(s, 'en')} takes the attack instead of ${opName(target, 'en')}` }, `side${target.side}`);
+  return s;
 }

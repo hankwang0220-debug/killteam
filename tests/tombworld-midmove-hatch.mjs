@@ -14,10 +14,10 @@ function arena() {
 }
 const state = (g, d) => accessPointsOf(g).find((x) => x.id === d.id).state;
 
-// Closed: the move can't go through it.
+// Closed: the move can't go through it (it stops in front of the hatchway).
 {
   const { g, op, d, end } = arena();
-  assert.equal(G.doMove(g, op, 'reposition', { pts: [{ x: op.x, y: op.y }, end] }), false);
+  G.doMove(g, op, 'reposition', { pts: [{ x: op.x, y: op.y }, end] });
   assert(op.x < d.x);
 }
 // Opened at a waypoint: 1AP for the hatchway, then the move goes on through it.

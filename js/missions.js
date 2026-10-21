@@ -309,7 +309,7 @@ export const MISSION_ACTIONS = {
     ap:1,name:{zh:id.startsWith('twOpen_') ? '開門':'關門',en:id.startsWith('twOpen_') ? 'Open hatch':'Close hatch'},
     cond(g,op) {
       const d=accessPointsOf(g).find(d=>d.kind === 'hatchway' && hatchActionId(d) === id);
-      if(!d || !nearHatch(g,op,d,radius(op))) return {zh:'門口須在底座 1 吋內',en:'Door must be within 1 inch of the base'};
+      if(!d || !nearHatch(g,op,d,radius(op),op.acted?.bcRemote ? 4 : 1)) return {zh:'門口須在底座 1 吋內',en:'Door must be within 1 inch of the base'};
       if(isEngaged(g,op)) return {zh:'交戰中不能開關門',en:'Cannot operate a hatch while engaged'};
       if(d.state === 'open' && living(g).some(o=>o.uid !== op.uid && (distPointRect(o,accessRect(d)) < radius(o)-.001 || o.side !== op.side && nearHatch(g,o,d,radius(o))))) return {zh:'門口被底座占用或在敵人控制範圍內，不能關門',en:'Cannot close an occupied hatch or one within enemy control range'};
       if(d.state === 'open' && distPointRect(op,accessRect(d)) < radius(op)-.001) return {zh:'自己的底座占用門口，不能關門',en:'Your base occupies the hatch'};
@@ -514,9 +514,11 @@ export const MISSION_ACTIONS = {
   },
 };
 
-const nearObj = (op, o) => !o.carriedBy && dist(op, o) - radius(op) - 0.4 <= 1.01;
-const clearTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous || op.kfPoach) && o.cleared?.[op.side] !== g.tp);
-const retrieveTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous || op.kfPoach) && !o.searched?.[op.side]);
+// Remote Access (Battleclade firefight ploy): a Tech-Priest can use a marker within 4" that no enemy contests (ignoring enemies within control range of its other operatives).
+const nearObj = (op, o) => !o.carriedBy && dist(op, o) - radius(op) - 0.4 <= (op.acted?.bcRemote ? 4.01 : 1.01);
+const remoteHeld = (g, op, o) => !!op.acted?.bcRemote && !living(g, 1 - op.side).some((e) => dist(e, o) - radius(e) - 0.4 <= 1.01 && !living(g, op.side).some((f) => f !== op && edgeDist(f, e) <= CONTROL + 0.01));
+const clearTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous || op.kfPoach || remoteHeld(g, op, o)) && o.cleared?.[op.side] !== g.tp);
+const retrieveTarget = (g, op) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous || op.kfPoach || remoteHeld(g, op, o)) && !o.searched?.[op.side]);
 
 function siphonTarget(g, op) {
   return g.objectives.find((o) => o.siphonedTP !== g.tp && dist(op, o) - radius(op) - 0.4 <= 1.01 && (controller(g, o) === op.side || op.rtLarcenous || op.kfPoach));
@@ -602,7 +604,7 @@ const energyCells = {
 /** A player's objective marker: the one in their territory (not the centre one). */
 const isOwnObj = (g, o, side) => !o.centre && territoryOf(g, o) === side;
 /** The objective marker the active operative controls (within its control range) that passes the test. */
-const ctrlObj = (g, op, test = () => true) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous || op.kfPoach) && test(o)); // (Larcenous: Ratlings only need to contest it)
+const ctrlObj = (g, op, test = () => true) => g.objectives.find((o) => nearObj(op, o) && (controller(g, o) === op.side || op.rtLarcenous || op.kfPoach || remoteHeld(g, op, o)) && test(o)); // (Larcenous: Ratlings only need to contest it)
 /** Per-turning-point counter for a side (Loot VP, Compile Data actions…), reset each turning point. */
 function perTP(g, key, side) {
   const c = ((g.critTP ||= {})[key] ||= { tp: g.tp, n: [0, 0] });

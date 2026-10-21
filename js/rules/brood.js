@@ -1,11 +1,12 @@
 // brood: team rules moved out of game.js (the engine hooks that call these stay in game.js).
 import { TEAM_MAP } from '../data/teams.js';
-import { applyDamage, autoFF, broadcastNear, d6, edgeDist, ffDef, ffOn, hasPloy, living, log, noRerollHere, opName, radius, sameTeam, sprungNow, tally, team, teamZh, tpl, validTarget, visibility } from '../game.js';
+import { applyDamage, autoFF, broadcastNear, d6, edgeDist, engagedEnemies, ffDef, ffOn, foes, hasPloy, living, log, noRerollHere, opName, radius, sameTeam, sprungNow, tally, team, teamZh, tpl, validTarget, visibility } from '../game.js';
 import { voxbroken } from './phobos.js';
 import { neurostatic } from './hunterclade.js';
 import { isCult } from './chaoscult.js';
 import { isBloodedTeam } from './blooded.js';
 import { isWB } from './wyrmblade.js';
+import { bestStep, stepTo } from '../sanctifiers.js';
 import { dist, segRect } from '../geometry.js';
 
 
@@ -106,5 +107,29 @@ export function broodStrategyEnd(g, side) {
   if (mine.some((o) => tpl(o).spiritualLeader)) {
     (g.spiritual ||= [null, null])[side] = { tp: g.tp, mode: 'piercing' };
     log(g, { zh: `${teamZh(g, side)} 精神領袖：本回合友方被射擊時忽略穿甲`, en: `${team(g, side).name.en} Spiritual Leader: this TP, friendlies ignore Piercing when shot` }, `side${side}`);
+  }
+}
+
+/** Ruthless Coordination (firefight ploy): cover can be judged from another friendly that sees the target (not in enemy control range) — a friend from which the target has no cover. */
+export function bbCoordFriend(g, op, target) {
+  if (!isBrood(op) || !target) return null;
+  return living(g, op.side).find((f) => f !== op && isBrood(f) && f.x > -50 && !engagedEnemies(g, f).length
+    && visibility(g, op, f).visible && visibility(g, f, target).visible && !visibility(g, f, target).cover) || null;
+}
+/** Insidious (firefight ploy, not in TP1, automatic): after an activation, a Brood Brother no enemy can target makes a free Dash towards an objective, ending out of their sight too. */
+export function bbInsidious(g) {
+  if (g.tp < 2 || g.phase !== 'firefight') return;
+  for (const side of [0, 1]) {
+    if (g.teams[side] !== 'broodBrothers' || !ffDef(g, side, 'insidious')) continue;
+    const hidden = (o, p) => !foes(g, o).some((e) => e.x > -50 && validTarget(g, e, { ...o, x: p.x, y: p.y }));
+    const objD = (p) => Math.min(99, ...(g.objectives || []).map((m) => dist(m, p)));
+    let best = null;
+    for (const o of living(g, side).filter((x) => isBrood(x) && x.x > -50 && !engagedEnemies(g, x).length && hidden(x, x))) {
+      const q = bestStep(g, o, 3, 'dash', (p) => (hidden(o, p) && objD(p) < objD(o) - 1 ? -objD(p) : null));
+      if (q && (!best || objD(q) < objD(best.q))) best = { o, q };
+    }
+    if (!best || !autoFF(g, side, 'insidious')) continue;
+    stepTo(g, best.o, best.q);
+    log(g, { zh: `陰險：${opName(best.o, 'zh')} 免費衝刺`, en: `Insidious: ${opName(best.o, 'en')} makes a free Dash` }, `side${side}`);
   }
 }

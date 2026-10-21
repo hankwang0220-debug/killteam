@@ -84,4 +84,47 @@ for (const [a, b] of [['exoditeDragonMasters', 'angels'], ['kasrkin', 'exoditeDr
   assert(g.ops.filter((o) => o.side === edm && G.isMounted(o)).every((o) => !o.reserve || o.dead), 'riders entered');
   console.log(`${a} vs ${b}: full battle passed (${steps} steps, TP ${g.tp}, VP ${g.vp[0]}-${g.vp[1]})`);
 }
+// Riding Mastery: straight after a Sprint, an action, then the rest of the Sprint (forwards 9" in all).
+{
+  const g = arena(), r = get(g, 'edClanblade'); r.x = 6; r.y = 12; r.facing = 0;
+  G.activate(g, r);
+  assert(G.doSprint(g, r, { x: 10, y: 12 }));
+  assert(!G.availableActions(g, r).find((a) => a.id === 'edSprint')?.ok, 'one Sprint');
+  assert(G.ffButtons(g, r).find((x) => x.id === 'ridingMastery').ok);
+  G.useFFButton(g, r, 'ridingMastery');
+  assert(G.availableActions(g, r).find((a) => a.id === 'edSprint')?.ok, 'Sprint on');
+  assert(!G.sprintCheck(g, r, { x: 16, y: 12 }).ok, '4" + 6" is too far');
+  assert(G.doSprint(g, r, { x: 15, y: 12 }));
+  assert.equal(G.speedOf(g, r), 7, 'one Sprint of 9": SPEED 7+');
+}
+// Nomad Executioner: a Shoot straight after a Sprint, then Sprint on.
+{
+  const g = arena(), r = get(g, 'edLeystalker'); r.loadout = 'nomad+fated'; r.x = 6; r.y = 12; r.facing = 0;
+  const e = g.ops.find((o) => o.side === 1); e.x = 20; e.y = 12;
+  G.activate(g, r); G.doSprint(g, r, { x: 9, y: 12 });
+  const w = G.weaponsFor(g, r).find((x) => x.type === 'ranged' && G.shootCheck(g, r, e, x).ok);
+  if (w) { G.resolveShoot(g, r, w, e); assert(G.availableActions(g, r).find((a) => a.id === 'edSprint')?.ok, 'Sprint on after shooting'); }
+}
+// Focused Reflection: a critical save that blocks inflicts 1 damage on a shooter within 6".
+{
+  const g = arena(), r = get(g, 'edClanblade'); r.loadout = 'reflection+speartip';
+  const e = g.ops.find((o) => o.side === 1); e.x = 14; e.y = 10; r.x = 10; r.y = 10;
+  const { edReflection } = await import('../js/rules/exodite.js');
+  const w0 = e.wounds; edReflection(g, e, r, 2);
+  assert.equal(e.wounds, w0 - 2);
+  e.x = 20; edReflection(g, e, r, 1); assert.equal(e.wounds, w0 - 2, 'not from more than 6"');
+}
+// Sow the Seeds: an objective it controls stays its own (APL 1) after it leaves, until an enemy controls it.
+{
+  const g = arena(), s = get(g, 'edStonesinger'); s.loadout = 'sow+winds';
+  for (const o of g.ops) if (o !== s) o.x = -60;
+  const m = g.objectives[0]; s.x = m.x + 1.6; s.y = m.y;
+  G.activate(g, s);
+  assert(G.availableActions(g, s).find((a) => a.id === 'edSow')?.ok);
+  G.doSelfAction(g, s, 'edSow');
+  s.x = m.x + 8;
+  assert.equal(G.controller(g, m), 0, 'still controlled from afar');
+  const e = g.ops.find((o) => o.side === 1); e.x = m.x - 1.2; e.y = m.y;
+  assert.equal(G.controller(g, m), 1, 'an enemy takes it'); assert.equal(g.sow[0], null);
+}
 console.log('exodite ok');

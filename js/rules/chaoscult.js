@@ -1,6 +1,6 @@
 // chaoscult: team rules moved out of game.js (the engine hooks that call these stay in game.js).
 import { TEAM_MAP } from '../data/teams.js';
-import { contagion, d3, edgeDist, getOp, hasPloy, injuredPenalty, living, log, opName, tpl } from '../game.js';
+import { CHOICES, contagion, d3, edgeDist, getOp, hasPloy, injuredPenalty, living, log, opName, tpl } from '../game.js';
 import { moveCtx } from '../path.js';
 import { witchHunted } from './insidiants.js';
 import { isEDM } from './exodite.js';
@@ -15,7 +15,7 @@ export const CULT_GIFTS = {
   horned: { zh: '角', en: 'Horned' }, sinewed: { zh: '筋腱', en: 'Sinewed' }, barbed: { zh: '倒刺', en: 'Barbed' },
 };
 /** Accursed Gifts: Mutants have the primary one, Torments the primary and the secondary. */
-export const hasGift = (g, op, id) => { const gs = isCult(op) && g.cultGifts?.[op.side]; return !!gs && ((tpl(op).mutant && gs.primary === id) || (tpl(op).torment && (gs.primary === id || gs.secondary === id))); };
+export const hasGift = (g, op, id) => { if (isCult(op) && op.ctExtraGift === id) return true; const gs = isCult(op) && g.cultGifts?.[op.side]; return !!gs && ((tpl(op).mutant && gs.primary === id) || (tpl(op).torment && (gs.primary === id || gs.secondary === id))); }; // (ctExtraGift: Abhorrent Mutation)
 /** The Accursed Gifts this operative has (for its datacard). */
 export const giftsOf = (g, op) => Object.keys(CULT_GIFTS).filter((k) => hasGift(g, op, k));
 /** MUTATE: Devotee → Mutant (max 5), Mutant → Torment (max 3, twice per TP), otherwise regain D3+1. Once per TP each. */
@@ -71,3 +71,14 @@ export const cultIgnoresInjury = (g, op, w) => injuredPenalty(g, op) && !contagi
     || (isEDM(op) && (op.survSpirit || (tpl(op).implacable && w?.id === 'edFangs'))));
 /** Creatures of Nightmare / Sickening Aura (ploys): an enemy within 2" of a friendly Mutant or Torment. */
 export const nightmareNear = (g, o, ploy) => o.side < 2 && TEAM_MAP[g.teams[1 - o.side]]?.chaosCult && hasPloy(g, 1 - o.side, ploy) && living(g, 1 - o.side).some((m) => isWarped(m) && edgeDist(m, o) <= 2);
+
+/** Abhorrent Mutation (firefight ploy): as a non-Dark-Commune cultist activates, it gains an Accursed Gift (once per operative per battle; kept when it mutates). */
+export const ctAbhorrentOk = (g, op) => isCult(op) && !tpl(op).darkCommune && !op.ctExtraGift && Object.keys(CULT_GIFTS).some((k) => !hasGift(g, op, k));
+export function registerChaosCultChoices() {
+  CHOICES.ctAbhorrent = {
+    kind: 'option', title: { zh: '可憎突變：獲得哪一個受詛咒的恩賜？', en: 'Abhorrent Mutation: which Accursed Gift does it gain?' },
+    options: (g, side, ctx) => { const o = getOp(g, ctx.uid); return Object.entries(CULT_GIFTS).filter(([k]) => !hasGift(g, o, k)).map(([k, v]) => ({ value: k, label: v })); },
+    auto: (g, side, ctx) => { const o = getOp(g, ctx.uid); return ['chitinous', 'sinewed', 'fleet', 'barbed', 'horned', 'wings'].find((k) => !hasGift(g, o, k)); },
+    apply(g, side, gift, ctx) { const o = getOp(g, ctx.uid); o.ctExtraGift = gift; log(g, { zh: `可憎突變：${opName(o, 'zh')} 獲得「${CULT_GIFTS[gift].zh}」`, en: `Abhorrent Mutation: ${opName(o, 'en')} gains ${CULT_GIFTS[gift].en}` }, `side${side}`); },
+  };
+}

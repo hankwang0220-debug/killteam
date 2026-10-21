@@ -18,6 +18,10 @@ import { WARPCOVEN_EQUIPMENT, warpcovenRosterError, WC_BOONS, WC_BOON_DEFAULT, W
 import { WYRMBLADE_EQUIPMENT, wyrmbladeRosterError } from './data/wyrmblade.js';
 import { bloodedRosterError } from './data/blooded.js';
 import { fellgorRosterError } from './data/fellgor.js';
+import { kasrkinRosterError } from './data/kasrkin.js';
+import { legionariesRosterError } from './data/legionaries.js';
+import { novitiatesRosterError } from './data/novitiates.js';
+import { battlecladeRosterError } from './data/battleclade.js';
 import { exactionRosterError, EX_PATTERNS } from './data/exaction.js';
 import { hierotekRosterError } from './data/hierotek.js';
 import { hunterCladeRosterError } from './data/hunterclade.js';
@@ -67,25 +71,27 @@ import { moveCtx, findPath, wholeInchPath } from './path.js'; // (Exodite Sprint
 // Team rules split out of this file (js/rules/*.js); they call back into this module, which is fine because nothing runs at load time.
 import { hitWorse, psyOn, registerWarpcovenChoices, wcBanner, wcBoon, wcCabalOptions, wcEquip, wcFateBuy, wcFateRoll, wcFluxActivate, wcFluxEnd, wcFresh, wcHerdMates, wcHorn, wcMarkerDiscount, wcMarkerSpent, wcReach, wcRobes, wcScrollBoons, wcSelf, wcSetup, wcWeapons } from './rules/warpcoven.js';
 import { blCallousHits, blCallousOk, blCallousUse, bloodedOnDeath, disciplined, gainBlood, giveStimm, setGloryKill, underGaze, whollyIn } from './rules/blooded.js';
-import { daemonShell, grislyNear, markOf, nurgleVigour, quick, siphonLife } from './rules/legionaries.js';
+import { daemonShell, grislyNear, lgEyes, lgFavoured, lgSelf, lgSetup, lgUnending, markOf, nurgleVigour, quick, registerLegionaryChoices, siphonLife } from './rules/legionaries.js';
+export { LG_MARKS } from './rules/legionaries.js';
+import { nvAdvanceN, nvBlaze, nvBlazeActivate, nvBlazeOut, nvBlinded, nvBlindingAura, nvDivine, nvMartyrdom, nvMilitantRefund, nvRelicSeeker, registerNovitiateChoices } from './rules/novitiates.js';
 import { braced, navyOrderNear, nbBreachwalled, nbHatchDiscount, nbHatchToWeld, nbHatchUsed, nbLocked, nbRebreathe, nbSelf, nbSlugsOk, nbSlugsUsed, nbStimms, nbTerrainNear, nbWeldExtra, placeNavyOrder } from './rules/navy.js';
 import { CHAOS_TEAMS, IMPERIUM_TEAMS, benediction, declinedVs, deedsSource, holySwap, insidiantsStrategyEnd, inspCrit, inspire, isCI, martyrdom, nullFielded, pickInspire, simulacrumNear, witchHunted } from './rules/insidiants.js';
-import { CULT_GIFTS, cultStrategyEnd, hasGift, isCult, isWarped, mutate, nightmareNear, ruinousIconDmg } from './rules/chaoscult.js';
-import { drakolitheSpeed, facingIn, hasUp, isEDM, isMounted, speedOf } from './rules/exodite.js';
+import { CULT_GIFTS, ctAbhorrentOk, cultStrategyEnd, hasGift, registerChaosCultChoices, isCult, isWarped, mutate, nightmareNear, ruinousIconDmg } from './rules/chaoscult.js';
+import { drakolitheSpeed, edMoonsong, edNomad, edPhantasm, edReflection, edSow, edSowControl, edSowOk, facingIn, hasUp, isEDM, isMounted, ridingMastery, ridingMasteryOk, speedOf, sprintsLeft } from './rules/exodite.js';
 import { bulwark, debilitated, deprecated, doctrina, huControlFree, huEdictPartners, neurostatic, optimised, radSaturated, registerHunterCladeChoices } from './rules/hunterclade.js';
 import { arrested, exBackups, exPattern, exPunish, exSelf, nuncioNear, registerExactionChoices, scrapNear } from './rules/exaction.js';
 import { doReanimate, endProxy, hcActivate, hcDespairNear, hcHas, hcMadBlocked, hcMadness, hcNanoNear, hcOn, hcSelf, hcShrouded, hcTimesplinterTo, interstitialTargets, isHierotek, livingMetal, magnifyRelay, readyReanimation, reanimTargets, registerHierotekChoices, startProxy } from './rules/hierotek.js';
 import { cursed, gpActivate, gpBellows, gpHumNear, gpHumOn, gpStockpile, gpVerminSetup } from './rules/gellerpox.js';
 import { banish, ccAwakenedFree, ccManipActivate, ccPhaseStart, ceaselessScuttling, geoPoint, inMatrix, isCC, matrixBetween, matrixCovers, nodesOf, placeNodes, souldrained } from './rules/canoptek.js';
-import { SKILLS, adaptiveOk, rapidOK, rapidWeapon, skillOn, skillsStrategyEnd, sweepOn } from './rules/kasrkin.js';
+import { SKILLS, adaptiveOk, ksCoverers, ksGNGControl, ksGNGEnd, ksGNGPick, ksGNGSet, ksSeizeStart, rapidOK, rapidWeapon, registerKasrkinChoices, skillOn, skillsStrategyEnd, sweepOn } from './rules/kasrkin.js';
 import { assetsFor, claimBoost, isES, starstridersStrategyEnd, useWarrant, voltagheistField } from './rules/starstriders.js';
 import { bondsCands, chainPost, dauntlessExplorers, hyMines, isHY, kinPost, setupMinefield, stalwartDefence, wroughtlockNegotiation, yaegirReady } from './rules/yaegirs.js';
 import { dragTarget, goreDown, goreOf, goreOnKill, goreUp, goremongerStrategyEnd, isGM } from './rules/goremongers.js';
 import { HK_PLASMA_KNIFE, addGrudge, blessings, defenceMarker, hkAfterActivation, hkBeam, hkEquip, hkMarker, hkReady, hkSecureSalvage, hkTrimEquipment, hkUseWrit, hkUtilityNear, hkWorthIt, hkWritOk, placeTactician, shrieked, useCrest, within3 } from './rules/hearthkyn.js';
 import { PH_COMBAT_BLADE, auspexOn, phAmmo, phAmmoUsed, phCommsOk, phEquip, phRoll, phTacFree, phTacInit, phTacInitOk, scrambled, voxbroken } from './rules/phobos.js';
-import { achillan, battlecladeStrategyEnd, isServitor, nearRelay, netCands } from './rules/battleclade.js';
+import { achillan, battlecladeStrategyEnd, bcExorcise, bcExorciseWhat, bcSurrogate, isServitor, nearRelay, netCands } from './rules/battleclade.js';
 import { CATAPULTS, bladesAfterFight, danceOfDeath, isBlade, shimmered } from './rules/blades.js';
-import { broodLeader, broodMark, broodRerolls, broodStrategyEnd, broodValid, broodguard, detonateExplosives, isBrood, loyalSwap, spiritual, uprising } from './rules/brood.js';
+import { bbCoordFriend, bbInsidious, broodLeader, broodMark, broodRerolls, broodStrategyEnd, broodValid, broodguard, detonateExplosives, isBrood, loyalSwap, spiritual, uprising } from './rules/brood.js';
 import { absoluteAuthority, denounceOn, denounced, hexorcised, inquisitionPloy, intimidated, isIA, isIATeam, pickQuarry, quarryAuto, quarryOf, relentlessPursuit, scrivener, scryPost, tomeNear } from './rules/inquisition.js';
 import { isWB, registerWyrmbladeChoices, wbHiddenEnd, wbSelf, wbShadowFree, wbSoulOn, wbSpotlight, wbWeapons } from './rules/wyrmblade.js';
 import { fgBloodsense, fgFlurryHits, fgSelf, registerFellgorChoices } from './rules/fellgor.js';
@@ -310,7 +316,7 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
         if (t.none) continue; // (an empty selection: the MB3 Recon Drone's second one, the Kommandos' extra half selection)
         n++;
         g.ops.push({
-          uid: `${side}-${n}`, side, team: teams[side], tplId: t.id, num: n, x: 0, y: 0,
+          uid: `${side}-${n}`, side, team: teams[side], tplId: t.id, num: n, slot: slot.id, x: 0, y: 0,
           // Operatives are set up with Conceal orders.
           wounds: t.wounds, maxW: t.wounds, order: 'conceal', ready: true, ap: 0, acted: {},
           // ml: enemy Markerlight tokens on it; aplNext: APL change until the end of its next activation;
@@ -330,9 +336,14 @@ export function newGame({ teams, ai, tactics = [], mission: missionId = 'standar
   for (const s of [0, 1]) if (teams[s] === 'hierotek') { const e = hierotekRosterError(TEAM_MAP.hierotek, roster[s]); if (e) throw new Error(e.en); } // Hierotek roster limits
   for (const s of [0, 1]) if (teams[s] === 'exaction') { const e = exactionRosterError(TEAM_MAP.exaction, roster[s]); if (e) throw new Error(e.en); } // Exaction Squad roster limits
   for (const s of [0, 1]) if (teams[s] === 'fellgor') { const e = fellgorRosterError(TEAM_MAP.fellgor, roster[s]); if (e) throw new Error(e.en); } // Fellgor roster limits
+  for (const s of [0, 1]) if (teams[s] === 'kasrkin') { const e = kasrkinRosterError(TEAM_MAP.kasrkin, roster[s]); if (e) throw new Error(e.en); } // Kasrkin roster limits
+  for (const s of [0, 1]) if (teams[s] === 'legionaries') { const e = legionariesRosterError(TEAM_MAP.legionaries, roster[s]); if (e) throw new Error(e.en); } // Legionaries roster limits
+  for (const s of [0, 1]) if (teams[s] === 'novitiates') { const e = novitiatesRosterError(TEAM_MAP.novitiates, roster[s]); if (e) throw new Error(e.en); } // Novitiates roster limits
+  for (const s of [0, 1]) if (teams[s] === 'battleclade') { const e = battlecladeRosterError(TEAM_MAP.battleclade, roster[s]); if (e) throw new Error(e.en); } // Battleclade roster limits
   for (const s of [0, 1]) if (teams[s] === 'blooded') { const e = bloodedRosterError(TEAM_MAP.blooded, roster[s], loadouts[s]); if (e) throw new Error(e.en); } // Blooded roster limits
   for (const s of [0, 1]) if (teams[s] === 'wyrmblade') { const e = wyrmbladeRosterError(TEAM_MAP.wyrmblade, roster[s]); if (e) throw new Error(e.en); } // Wyrmblade roster limits
   wcSetup(g, roster); // Warpcoven: each Sorcerer's Boon of Tzeentch
+  lgSetup(g, roster); // Legionaries: each operative's Mark of Chaos
   dwSetup(g, roster);
   mdSetup(g, roster);
   mwSetup(g, roster, loadouts);
@@ -563,6 +574,8 @@ export function doMissionAction(g, op, id) {
   const msg = MISSION_ACTIONS[id].apply(g, op);
   if (msg) log(g, { zh: `${opName(op, 'zh')} ${msg.zh}`, en: `${opName(op, 'en')} ${msg.en}` }, `side${op.side}`); // (Scout)
   dwMissionDone(g, op, id);
+  nvDivine(g, op); // Divine Acquisition (Novitiate Pronatus)
+  if (op.acted.bcRemote) op.acted.bcRemote = false; // (Remote Access: once)
   dwAfterAction(g, op);
 }
 
@@ -894,6 +907,7 @@ export function startStrategy(g) {
   if (g.initiative == null) setInitiative(g, g.initDecider); // (not chosen: the winner takes it)
   g.phase = 'strategy';
   feStrategy(g);
+  lgFavoured(g); // Favoured of the Dark Gods (Legionary Icon Bearer): taint a controlled objective, +1CP
   log(g, { zh: '進入策略階段', en: 'Strategy phase begins' }, 'tp');
   // A Name Whispered in Blood (Blooded Sharpshooter): a strategic gambit in the first turning point — pick an enemy.
   if (g.tp === 1) for (const s of [0, 1]) if (living(g, s).some((o) => tpl(o).nameWhispered)) needChoice(g, s, 'blName');
@@ -978,7 +992,7 @@ const broodFreePloy = (g, side, ploy) => !!g.freePloyCount?.[side] && team(g, si
  * Can't be used now: already used this ploy, or another from its group this turning point (e.g. one
  * Combat Doctrine), a once-per-battle ploy already used, or the operative it needs isn't in the killzone.
  */
-export const ployTaken = (g, side, ploy) => (ploy.id === 'mdCreeping' && g.tp === 1) || g.ploys[side].some((id) => id === ploy.id
+export const ployTaken = (g, side, ploy) => ((ploy.id === 'mdCreeping' || ploy.notTP1) && g.tp === 1) || g.ploys[side].some((id) => id === ploy.id
   || (ploy.group && team(g, side).ploys.find((p) => p.id === id)?.group === ploy.group))
   || (ploy.oncePerBattle && !!g.battlePloys?.[side]?.includes(ploy.id))
   || (ploy.needs && !living(g, side).some((o) => o.tplId === ploy.needs))
@@ -987,7 +1001,7 @@ export const ployTaken = (g, side, ploy) => (ploy.id === 'mdCreeping' && g.tp ==
 
 export function buyPloy(g, side, ploy) {
   if (g.phase !== 'strategy' || !ploy) return false;
-  if (ploy.id === 'mdCreeping' && g.tp === 1) return false;
+  if ((ploy.id === 'mdCreeping' || ploy.notTP1) && g.tp === 1) return false;
   const cost = ployCost(g, side, ploy);
   if (side !== ployChooser(g) || g.cp[side] < cost || ployTaken(g, side, ploy) || pendingChoice(g, side)) return false;
   if (g.ployBlocked?.[side]?.[ploy.id] === g.tp) return false; // (Absolute Authority: not again this TP)
@@ -1019,6 +1033,8 @@ export function buyPloy(g, side, ploy) {
   if (ploy.id === 'drawnHum') needChoice(g, side, 'drawnHum'); // Drawn to the Hum (Gellerpox): the objective marker
   if (ploy.id === 'scoutingProtocol' && g.tp > 1) needChoice(g, side, 'huScouting'); // Scouting Protocol (Hunter Clade): free Dashes for Concealed Rangers
   if (ploy.id === 'commandUnderlings') needChoice(g, side, 'hcUnderlings'); // Command Underlings (Hierotek): free Dashes
+  if (ploy.id === 'ksRelocate') needChoice(g, side, 'ksRelocate'); // Relocate (Kasrkin): free Dashes
+  if (ploy.id === 'righteousAdvance') needChoice(g, side, 'nvAdvance', { n: nvAdvanceN(g, side) }); // Righteous Advance (Novitiates): a third make free Dashes
   if (ploy.id === 'divertDisappear') needChoice(g, side, 'wbDivert', { n: 3 }); // Divert and Disappear (Wyrmblade): up to three free Dashes
   if (ploy.id === 'fateWeapon') wcFateBuy(g, side); // Fate Itself Is My Weapon (Warpcoven): two reserved dice
   if (ploy.id === 'needKeeps' || ploy.id === 'toilEarns') needChoice(g, side, ploy.id); // Need Keeps / Toil Earns (Hearthkyn): the objective marker
@@ -1043,6 +1059,7 @@ function advanceStrategy(g, side) {
 export function startFirefight(g) {
   g.phase = 'firefight';
   g.turn = g.initiative;
+  ksSeizeStart(g); // Seize the Initiative (Kasrkin): the other player first, one free 1AP action
   pfWorthy(g); // Pathfinders: A Worthy Cause
 }
 
@@ -1153,6 +1170,7 @@ export function activate(g, op) {
     if (g.netcounter) { op.netCounter = true; op.netWasReady = op.ready; if (g.netcounter.kind === 'control') op.ctlCounter = true; else { op.netTP = g.tp; op.orderSet = false; } }
     // (Incite Slaughter / Urgency, Chaos Cult: only that free action, and Charge / Dash up to 3".)
     op.ctlOnly = g.netcounter?.onlyActions || null; op.ctlMove = g.netcounter?.ctlMove || null;
+    op.ctlNoMove = !!g.netcounter?.noMove; if (g.netcounter?.ksSeize) spendFF(g, op.side, 'seizeInitiative'); // (Seize the Initiative: no moving; the CP is spent once one is picked)
     // Gorethirst (Goremonger firefight ploy): a Concealed one counteracts — Engage first, then only Charge, Shoot or Fight.
     if (!g.netcounter && isGM(op) && op.order === 'conceal' && ffReady(g, op.side, 'gorethirst') && ffArmed(g, op.side, 'gorethirst')) {
       spendFF(g, op.side, 'gorethirst'); op.order = 'engage'; op.ctlOnly = ['charge', 'shoot', 'fight'];
@@ -1161,6 +1179,7 @@ export function activate(g, op) {
     if (op.darkAnimus) { op.aplNext = (op.aplNext || 0) - 1; op.aplKeep = false; }
     dwBeforeActivation(g, op);
     op.ap = aplNow(g, op);
+    nvBlazeActivate(g, op); // Blaze token (Novitiates): D3 damage, and -1 APL puts it out
     // Alpha Predator (Patriarch): two activations a turning point, no more than 4AP between them.
     if (tpl(op).alphaPredator) { op.ap = Math.max(0, Math.min(op.ap, 4 - (op.patSpent || 0))); op.patStartAp = op.ap; }
     // Draconic Cavalry Tactics (mounted Dragon Masters): two activations a TP, 3AP each at most and the APL in total.
@@ -1248,6 +1267,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side // Ba
 
 export function endActivation(g) {
   const op = activeOp(g);
+  g.nvBlind = null; // (Blinding Aura lasts for the activation)
   g.ccManip = null; g.nodalOpen = null; g.phCommsOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); xvEnd(g, op); wsEnd(g, op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
@@ -1260,7 +1280,7 @@ export function endActivation(g) {
   if (op?.acted?.slink && op.order === 'engage') { op.order = 'conceal'; log(g, { zh: `${opName(op, 'zh')} 遁入黑暗：改為隱蔽指令`, en: `${opName(op, 'en')} Slink into Darkness: now Concealed` }, `side${op.side}`); }
   if (op) {
     op.ready = false; op.ap = 0; op.rtLarcenous = false; op.kfPoach = false; sfEnd(op); pfEnd(op); adEnd(op); // (Larcenous: Ratlings, until the end of the activation; the Sanctifier Sermon)
-    if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; op.ctlOnly = null; op.ctlMove = null; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
+    if (op.counter) { op.counter = false; if (!op.ctlCounter) op.counteracted = true; op.ctlCounter = false; op.ctlOnly = null; op.ctlMove = null; op.ctlNoMove = false; } else if (op.aplKeep) op.aplKeep = false; else op.aplNext = 0;
     if (op.netCounter) { op.ready = op.netWasReady && !op.dead; op.netCounter = false; } // (it can still activate later)
     // Lacerate Flesh (Goremonger firefight ploy): the tank goes down again at the end, or it takes D3.
     if (op.acted.lacerate && !op.dead && !goreDown(op)) { const d = d3(); log(g, { zh: `割裂血肉：${opName(op, 'zh')} 血槽已空，受到 ${d} 傷害`, en: `Lacerate Flesh: ${opName(op, 'en')}'s tank is empty — it takes ${d} damage` }, `side${op.side}`); applyDamage(g, null, op, d); }
@@ -1297,6 +1317,7 @@ export function endActivation(g) {
     g.feLink=null;
   }
   if (op && !wasCounter && !wasNpo && op.side < 2) rtScarper(g, 1 - op.side); // Scarper (Ratlings): a free Dash after each enemy activation
+  if (op && !wasCounter && !wasNpo) bbInsidious(g); // Insidious (Brood Brothers): a free Dash between activations
   if (g.mdResume) {
     const resume = g.mdResume; g.mdResume = null;
     const next = getOp(g, resume.uid); g.turn = resume.side;
@@ -1462,6 +1483,8 @@ export function controller(g, obj) {
     const nodeSides = [0, 1].filter((s) => !present[1 - s] && nodesOf(g, s).some((n) => dist(n, obj) - OBJ_R <= 1));
     if (nodeSides.length === 1) return nodeSides[0];
   }
+  edSowControl(g, obj, sum); // Sow the Seeds (Exodite Stonesinger)
+  { const k = ksGNGControl(g, obj, sum); if (k != null) return k; } // Give No Ground (Kasrkin): a tie at 2+
   const best = Math.max(...sum);
   return best > 0 && sum.filter((v) => v === best).length === 1 ? sum.indexOf(best) : null;
 }
@@ -1470,6 +1493,8 @@ function endTP(g) {
   log(g, { zh: `第 ${g.tp} 回合結束`, en: `End of Turning Point ${g.tp}` }, 'tp');
   spTPEnd(g); // Spectre Squad: the Fieldcraft points are discarded
   aqTPEnd(g); // Tempestus Aquilons: more than half in the killzone after TP1; whoever is still above after TP2 falls
+  ksGNGEnd(g); // Give No Ground (Kasrkin): at the end of the Firefight phase, before scoring
+  edPhantasm(g); // Elusive Phantasm (Exodite Leystalker): a free Turn
   mission(g).onTPEnd?.(g);
   tacOnTPEnd(g); // Tac Op scoring (before damage this TP is forgotten)
   kmEndFirefight(g); // Krump 'Em! (Kommandos): a free Fight at the end of the Firefight phase
@@ -1613,6 +1638,9 @@ export const ACTIONS = {
   hcShroud: { ap: 1, name: { zh: '夢魘帷幕', en: 'Nightmare Shroud' } },
   hcDespair: { ap: 1, name: { zh: '絕望先兆', en: 'Harbinger of Despair' } },
   fgSagacious: { ap: 0, name: { zh: '睿智（改變指令）', en: 'Sagacious (change order)' } },
+  lgPact: { ap: 0, name: { zh: '地獄契約（改變印記）', en: 'Infernal Pact (change Mark)' } },
+  nvBlazeOut: { ap: 0, name: { zh: '撲滅火焰（本次 APL -1）', en: 'Put out the flames (-1 APL)' } },
+  edSow: { ap: 0, name: { zh: '播種（佔據目標）', en: 'Sow the Seeds' } },
   exRvr: { ap: 0, name: { zh: 'R-VR 指令（改變攻擊模式）', en: 'R-VR Command (change an Attack Pattern)' } },
   exHandler: { ap: 0, name: { zh: '馴犬師：獒犬一起啟動', en: 'Handler: the Cyber-mastiff activates with it' } },
   fgUncomp: { ap: 1, name: { zh: '毫不妥協的攻擊', en: 'Uncompromising Attack' } },
@@ -1732,6 +1760,7 @@ Object.assign(ACTIONS, {
 
 export function actionCost(g, op, id) {
   if(id==='transferPower' && feAuto(g,op.side,'feCells')) return 0;
+  if ((id === 'pickUp' || MISSION_ACTIONS[id] || id === 'placeMarker') && nvRelicSeeker(g, op, id, true)) return Math.max(0, actionCost(g, { ...op, acted: { ...op.acted, nvRelic: 1 } }, id) - 1); // Relic Seeker (Novitiate Pronatus)
   if (/^tw(Open|Close)_/.test(id)) return Math.max(0, 1 + nbWeldExtra(g, op, id) - nbHatchDiscount(g, op, id)); // (Weld Shut, System Override Device, Deck Hand: Navy Breachers)
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
@@ -2671,6 +2700,8 @@ export function availableActions(g, op) {
   if (tpl(op).tempyrion) { unique('wcRecon'); unique('wcFlux'); }
   if (tpl(op).enforce) unique('blEnforce'); // (Blooded Enforcer)
   // Fellgor: Sagacious (here a button during the activation), Uncompromising Attack, Cleaver Flurry, Pox Bomb.
+  if (op.blaze != null && !op.counter && startOfActivation(op)) add('nvBlazeOut', op.ap >= 1, DONE); // Blaze token (Novitiates): -1 APL to put it out, before any action
+  if (tpl(op).infernalPact && !op.counter && startOfActivation(op) && !g.lgPact?.[op.side]) add('lgPact', !count(op, 'lgPact'), DONE); // Infernal Pact (Legionary Warrior): once per battle, when activated
   if (tpl(op).sagacious && !op.counter) add('fgSagacious', !op.frenzy && !count(op, 'fgSagacious') && Object.keys(op.acted).some((k) => ACTIONS[k] && k !== 'fgSagacious'), op.frenzy ? { zh: '狂暴中不能隱蔽', en: 'Frenzied: no Conceal' } : DONE);
   if (tpl(op).uncompromising) add('fgUncomp', !count(op, 'fgUncomp') && !count(op, 'fight') && !count(op, 'shoot') && engagedEnemies(g, op).length > 0, !engaged ? { zh: '需要在交戰中', en: 'Must be engaged' } : DONE);
   if (tpl(op).cleaverFlurry) add('fgFlurry', !conceal && !engaged && !did('fgFlurry', 'reposition', 'charge', 'fallBack'), conceal ? CONC : engaged ? ENG : DONE);
@@ -2805,7 +2836,7 @@ export function availableActions(g, op) {
   if (op.side !== NPO && op.homeSide == null && !op.unleashed && op.brutalDisplayTP !== g.tp && op.ncFlayTP !== g.tp) { // (Unleash Daemon: no Pick Up or mission actions)
     for (const id of missionActionsFor(g, op.side)) {
       const hatch=/^tw(Open|Close)_/.test(id) && accessPointsOf(g).find(d=>hatchActionId(d) === id);
-      if(hatch && !nearHatch(g,op,hatch,radius(op))) continue;
+      if(hatch && !nearHatch(g,op,hatch,radius(op),op.acted?.bcRemote ? 4 : 1)) continue;
       const why = MISSION_ACTIONS[id].cond(g, op);
       add(id, !why && !count(op, id), why || DONE);
       if(hatch) list.at(-1).name={zh:`${hatch.state === 'open' ? '關門':'開門'} ${hatch.component}（${Number(hatch.id.split('-')[1])+1}）`,en:`${hatch.state === 'open' ? 'Close':'Open'} ${hatch.component} door ${Number(hatch.id.split('-')[1])+1}`};
@@ -2834,10 +2865,12 @@ export function availableActions(g, op) {
   if (isMounted(op)) {
     for (let i = list.length - 1; i >= 0; i--) if (['reposition', 'dash', 'charge', 'fallBack'].includes(list[i].id)) list.splice(i, 1);
     const left = Math.min(9 - (op.acted.sprintFwd || 0), 12 - (op.movedTP || 0));
-    add('edSprint', !count(op, 'sprint') && left > 0, count(op, 'sprint') ? DONE : { zh: '本回合移動距離已用完', en: 'No movement left this turning point' });
+    add('edSprint', sprintsLeft(op) > 0 && left > 0, sprintsLeft(op) <= 0 ? DONE : { zh: '本回合移動距離已用完', en: 'No movement left this turning point' }); // (Riding Mastery, Nomad Executioner, Moonsong Cull: Sprint on)
     add('edTurn', !op.counter && !count(op, 'edTurn'), op.counter ? { zh: '反擊時不能轉向', en: 'Not while counteracting' } : DONE);
     list.unshift(...list.splice(list.length - 2, 2)); // (movement first)
     if (tpl(op).songRenewal) { unique('songOne', op.songTP !== g.tp, DONE); add('songAll', !engaged && op.songTP !== g.tp, engaged ? ENG : DONE); }
+    if (hasUp(op, 'sow')) add('edSow', edSowOk(g, op), op.sowTP === g.tp ? DONE : { zh: '要控制一個目標點', en: 'It must control an objective' }); // Sow the Seeds
+    if (hasUp(op, 'nexus')) add('phGuard', !op.counter && !engaged && !op.dwGuard && speedOf(g, op) === 3 && op.nexusTP !== g.tp, engaged ? ENG : { zh: '速度要 3-、每回合一次', en: 'SPEED 3-, once per turning point' }); // Nexus Sentinel: Guard anywhere
     if (hasUp(op, 'cleansing')) unique('cleansing');
     if (hasUp(op, 'wails')) unique('wails', op.wailsTP !== g.tp, DONE);
     if (hasUp(op, 'winds')) unique('windsGrace', op.windsTP !== g.tp, DONE);
@@ -2852,6 +2885,7 @@ export function availableActions(g, op) {
   { const f = wsFilter(g, op, list); if (f !== list) { list.length = 0; list.push(...f); } } // Pounce (Wolf Scouts) // XV26: Covert Protocols, Target Locks // Communion: Pick Up and mission actions need a point (Vespid Stingwings)
   if (op.vsNoAtkTP === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Darting Flight (Vespid Stingwings)
   if (op.aqNoAtk === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['dash', 'shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Adjust Coordinates (Aquilons)
+  if (op.ctlNoMove) for (let i = list.length - 1; i >= 0; i--) if (['reposition', 'dash', 'fallBack', 'charge'].includes(list[i].id)) list.splice(i, 1); // Seize the Initiative (Kasrkin): an action without moving
   if (op.counter && op.acted.wcEchoes) for (const a of list) if (a.ok && count(op, a.id)) { a.ok = false; a.why = { zh: '亞空間回聲：兩個動作要不同', en: 'Echoes from the Warp: the two actions must be different' }; }
   const nulled = nullRodded(g, op) || witchHunted(g, op) ? list.filter((a) => !PSYCHIC_ACTIONS.includes(a.id)) : list; // Null Rod (Condemnor) / Weapons of the Witch Hunters
   return allowed ? nulled.filter((a) => allowed.includes(a.id)) : nulled;
@@ -2874,6 +2908,9 @@ export function doSelfAction(g, op, id) {
   if (nbSelf(g, op, id)) return; // Navy Breachers: Breach Point, Weld Shut, Command Breach swap
   if (wbSelf(g, op, id)) return; // Wyrmblade: Target Vulnerability
   if (fgSelf(g, op, id)) return; // Fellgor: Sagacious, Uncompromising Attack, Cleaver Flurry
+  if (lgSelf(g, op, id)) return; // Legionaries: Infernal Pact
+  if (id === 'nvBlazeOut') { nvBlazeOut(g, op); return; } // Blazing Inferno: remove the Blaze token
+  if (id === 'edSow') { const m = edSow(g, op); if (m) log(g, { zh: `${opName(op, 'zh')} 播種：${m.zh}`, en: `${opName(op, 'en')} Sow the Seeds: ${m.en}` }, `side${op.side}`); return; } // (Exodite Stonesinger)
   if (exSelf(g, op, id)) return; // Exaction Squad: R-VR Command, Handler
   if (hcSelf(g, op, id)) return; // Hierotek Circle: Nightmare Shroud, Harbinger of Despair
   if (wcSelf(g, op, id)) return; // Warpcoven: Brayhorn, Immaterial Flight, Echoes from the Warp, Sorcerous Scrolls
@@ -2988,6 +3025,10 @@ export function doOptics(g, op) {
 }
 
 export function spend(g, op, id, ap = actionCost(g, op, id)) {
+  if (op.acted?.ksFellBack) op.acted.ksFellBack = false; // (Cover Retreat: only straight after the Fall Back)
+  if (nvRelicSeeker(g, op, id, !!MISSION_ACTIONS[id])) op.acted.nvRelic = 1; // (Relic Seeker used)
+  if (op.acted?.sprintJust) { edNomad(g, op, id); op.acted.sprintJust = false; } // (Nomad Executioner: a Shoot straight after a Sprint)
+  if (id === 'phGuard' && hasUp(op, 'nexus')) op.nexusTP = g.tp; // (Nexus Sentinel: once per turning point)
   if(id==='transferPower' && ap===0 && feAuto(g,op.side,'feCells')) feUse(g,op.side,'feCells');
   if(MISSION_ACTIONS[id] && feAuto(g,op.side,'feSkull',1,true) && !g.seekerFree) feUse(g,op.side,'feSkull');
   if (g.seekerFree === op.uid) ap = 0;
@@ -3079,6 +3120,7 @@ export function doMove(g, op, kind, path) {
   op.x = end.x; op.y = end.y;
   if (mvbFrom) mvbMoved(g, op, mvbFrom, mvbFrom.t);
   spend(g, op, kind);
+  if (kind === 'fallBack' && op.team === 'kasrkin') op.acted.ksFellBack = true; // (Cover Retreat can follow straight after)
   mwMoved(g, op, kind, path, movedFrom, mwPursuers);
   const rec = g.recent?.[op.side];
   const pts = path.pts.map((p) => ({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 }));
@@ -3201,6 +3243,7 @@ const shotVisibility = (g, op, target, weapon, extra = {}) => visibility(g, op, 
 /** Is target a valid target for op with this weapon (visible, and not a Concealed operative in cover)? */
 function validTarget(g, op, target, weapon = { rules: {}, type: 'ranged', group: '' }) { // (no weapon given: a plain ranged weapon)
   const v = shotVisibility(g, op, target, weapon);
+  if (nvBlinded(g, op, target)) return null; // Blinding Aura (Novitiates)
   if ((target.mdGlyph || target.scCovert || rtShifty(g, target) || tpl(target).sneaky) && target.order === 'conceal' && visibility(g, op, target).cover && edgeDist(op, target) > 2) return null; // (Covert Position: Scout Squad)
   if (!v.visible || spCamoHidden(g, op, target) || vdElusiveHidden(g, op, target) || vsHidden(g, op, target) || !vsTargetOk(g, op, target)) return null; // (Ghost Rig / Evasive Drone; Communion: the closest enemy) // (Elusive Target: Void-dancer Troupe) // (Advanced Camouflage: Spectre Squad)
   if (weapon.rules?.psychic && isCI(target) && target.side !== op.side) return null; // (Psychic ranged weapons can't damage Insidiants)
@@ -3522,6 +3565,8 @@ export function effectiveRules(g, op, weapon, target) {
     if (exposed && hasPloy(g, op.side, 'eliminationPattern')) { if (/volley/i.test(weapon.name.en)) r.piercing = Math.max(r.piercing || 0, 1); else r.piercingCrits = Math.max(r.piercingCrits || 0, 1); } // Elimination Pattern
   }
   if (ffOn(g, op, 'neutraliseTarget')) r.relentless = true; // Neutralise Target: re-roll any attack dice
+  if (ffOn(g, op, 'guidedFaith') && target && edgeDist(op, target) <= 6) r.seekLight = true; // Guided by Faith (Novitiates)
+  if (ffOn(g, op, 'ruthlessCoord') && bbCoordFriend(g, op, target)) r.saturate = true; // Ruthless Coordination (Brood Brothers): cover judged from a friend that sees it in the open
   // ---- Legionaries ----
   const mk = markOf(op);
   if ((mk === 'khorne' && weapon.type === 'melee') || (mk === 'tzeentch' && weapon.type === 'ranged')) r.severe = true; // Wrathful Onslaught / Empyreal Guidance
@@ -3720,7 +3765,7 @@ export const FAITH_ACTS = {
 };
 for (const id of ['guidance','blessing','intervention']) FAITH_ACTS[`fe_${id}`] = {cost:0,base:id,damage:FAITH_ACTS[id].cost,name:{zh:`${FAITH_ACTS[id].name.zh}（自傷 ${FAITH_ACTS[id].cost}）`,en:`${FAITH_ACTS[id].name.en} (take ${FAITH_ACTS[id].cost} damage)`},desc:FAITH_ACTS[id].desc};
 export const faithOf = (g, side) => g.faith?.[side] || 0;
-function gainFaith(g, side, n, why) {
+export function gainFaith(g, side, n, why) {
   if (n <= 0 || side > 1 || !TEAM_MAP[g.teams[side]].actsOfFaith) return;
   (g.faith ||= [0, 0])[side] += n;
   log(g, { zh: `${teamZh(g, side)} 獲得 ${n} 信仰點（${why.zh}，共 ${g.faith[side]}）`, en: `${team(g, side).name.en} gains ${n} Faith (${why.en}, ${g.faith[side]} total)` }, `side${side}`);
@@ -3753,6 +3798,7 @@ export function useFaith(g, side, holder, which, act, opUid = null) {
   used.push(baseAct);
   if(o.damage){const op=getOp(g,opUid || holder.uid || holder.op);if(!op || op.wounds<=o.damage)return false;feUse(g,side,'feChastisers');applyDamage(g,op,op,o.damage);}
   g.faith[side] -= o.cost;
+  { const h = getOp(g, which === 'a' ? (holder.uid || holder.op) : (holder.uid || holder.target)); if (h && tpl(h).militantFaith && h.side === side) h.nvFaithSpent = (h.nvFaithSpent || 0) + o.cost; } // (Militant Faith: refunded on a kill)
   if(o.cost>0 && which==='a' && hasEquip(g,side,'feSanctified'))holder.feSanctified=true;
   (holder.faithUsed ||= {})[which] = true;
   const old = d.v;
@@ -4270,6 +4316,22 @@ const FF = {
       g.active = null; g.counter = true; g.turn = op.side;
       log(g, { zh: `殘暴支援：${opName(b, 'zh')} 立刻免費近戰`, en: `Brutal Backup: ${opName(b, 'en')} makes a free Fight now` }, `side${op.side}`);
     } },
+  // ---- Kasrkin ----
+  seizeInitiative: { kind: 'auto' }, // (offered at the start of the Firefight phase: ksSeizeStart)
+  // Cover Retreat: right after this Kasrkin Falls Back, a friendly within 6" that it can see (not in enemy control range) makes a free Shoot.
+  coverRetreat: { kind: 'button', cond: (g, op) => (ksCoverers(g, op).length ? null : { zh: '要在剛撤退後，6" 內看得到、不在敵人控制範圍內的友方', en: 'Right after a Fall Back, with a friendly visible within 6" and not in enemy control range' }),
+    apply(g, op) {
+      const b = ksCoverers(g, op).sort((x, y) => (y.order === 'engage') - (x.order === 'engage'))[0];
+      op.acted.ksFellBack = false;
+      if (b.order !== 'engage') b.order = 'engage';
+      g.netcounter = { side: op.side, only: [b.uid], resume: op.uid, resumeCounter: !!g.counter, kind: 'control', onlyActions: ['shoot'], ctlMove: 0,
+        label: { title: { zh: '掩護撤退', en: 'Cover Retreat' }, hint: { zh: '選定的友方（已改為交戰指令）免費射擊一次，之後撤退的特工繼續啟動；也可以略過。', en: 'The chosen friendly (now on Engage) makes a free Shoot, then the operative that fell back carries on; or pass.' } } };
+      g.active = null; g.counter = true; g.turn = op.side;
+      log(g, { zh: `掩護撤退：${opName(b, 'zh')} 立刻免費射擊`, en: `Cover Retreat: ${opName(b, 'en')} makes a free Shoot now` }, `side${op.side}`);
+    } },
+  // Give No Ground: during this activation, a tie at a total APL of 2+ on the chosen marker goes to the Kasrkin (end of the Firefight phase: ksGNGEnd).
+  giveNoGround: { kind: 'button', cond: (g, op) => (op.team === 'kasrkin' && ksGNGPick(g, op.side, op) ? null : { zh: '沒有友方爭奪中的目標', en: 'No marker contested by a friendly' }),
+    apply(g, op) { ksGNGSet(g, op.side, ksGNGPick(g, op.side, op), op.uid); } },
   callousDisregard: { kind: 'auto' }, // (Blooded: shootCheck / shootSequence)
   idolisation: { kind: 'attack', cond: (g, op) => (!broodLeader(g, op) && living(g, op.side).some((o) => o !== op && (broodLeader(g, o) || tpl(o).cultIcon) && edgeDist(o, op) <= 6)
     ? null : { zh: '要在領袖或聖像守衛 6" 內（自己不是領袖）', en: 'Needs a Leader or the Iconward within 6" (and not be a Leader)' }) },
@@ -4444,6 +4506,23 @@ const FF = {
   // ---- Legionaries ----
   mutability: { kind: 'button', start: true, cond: (g, op) => (markOf(op) === 'tzeentch' ? null : { zh: '只有奸奇印記', en: 'Tzeentch only' }), apply(g, op) { op.ap += 1; } },
   malignantAura: { kind: 'attack', shoot: true, cond: (g, op, t) => (markOf(op) === 'nurgle' && t && edgeDist(op, t) <= 3 ? null : { zh: '納垢印記、目標在 3" 內', en: 'Nurgle, target within 3"' }) },
+  unendingBloodshed: { kind: 'auto' }, // (Legionaries: fightApply → lgUnending)
+  // ---- Battleclade ----
+  remoteAccess: { kind: 'button', cond: (g, op) => (tpl(op).techPriest && op.team === 'battleclade' && !op.acted.bcRemoteUsed ? null : { zh: '只有技術神甫、每次啟動一次', en: 'Tech-Priests only, once per activation' }), apply(g, op) { op.acted.bcRemote = true; op.acted.bcRemoteUsed = true; return { zh: '下一個任務動作或開關門可用 4" 內的目標／門口', en: 'its next mission action or Operate Hatch can use a marker / access point within 4"' }; } },
+  systemExorcism: { kind: 'button', start: true, cond: (g, op) => (op.team === 'battleclade' && bcExorciseWhat(op) ? null : { zh: '剛啟動時、身上有對手造成的效果', en: 'As it activates, with an effect from the opponent on it' }), apply: (g, op) => bcExorcise(g, op) },
+  servileSurrogacy: { kind: 'auto' }, // (shootFlow / startFight → bcSurrogate)
+  // ---- Brood Brothers ----
+  ruthlessCoord: { kind: 'attack', shoot: true, cond: (g, op, t) => (bbCoordFriend(g, op, t) ? null : { zh: '要有另一名看得到目標、目標對它沒有掩護的友方', en: 'Needs another friendly that sees the target in the open' }) },
+  insidious: { kind: 'auto' }, // (endActivation → bbInsidious)
+  // ---- Chaos Cult ----
+  abhorrentMutation: { kind: 'button', start: true, cond: (g, op) => (ctAbhorrentOk(g, op) ? null : { zh: '黑暗聖會以外的邪教徒、剛啟動時，每名整場一次', en: 'A cultist (not Dark Commune) as it activates, once per operative per battle' }), apply(g, op) { needChoice(g, op.side, 'ctAbhorrent', { uid: op.uid }); } },
+  // ---- Exodite Dragon Masters ----
+  ridingMastery: { kind: 'button', cond: (g, op) => (ridingMasteryOk(op) ? null : { zh: '騎乘者剛疾馳後', en: 'Straight after a rider Sprints' }), apply: (g, op) => ridingMastery(op) },
+  // ---- Novitiates ----
+  blindingAura: { kind: 'auto' }, // (shootFlow → nvBlindingAura)
+  guidedFaith: { kind: 'attack', shoot: true, cond: (g, op, t) => (t && edgeDist(op, t) <= 6 ? null : { zh: '目標要在 6" 內', en: 'The target must be within 6"' }) },
+  gloriousMartyrdom: { kind: 'auto' }, // (ffOnDeath → nvMartyrdom)
+  blazingInferno: { kind: 'auto' }, // (shootFlow → nvBlaze)
   sickeningCaptivation: { kind: 'button',
     cond: (g, op) => (markOf(op) === 'slaanesh' && foes(g, op).some((e) => e.side < 2 && edgeDist(op, e) <= 4 && visibility(g, op, e).visible) ? null : { zh: '色孽印記、4" 內有看得到的敵人', en: 'Slaanesh, a visible enemy within 4"' }),
     apply(g, op) {
@@ -4779,7 +4858,7 @@ function bestBlock(ac, an, sc, sn, dn, dc) {
       const n2n = Math.min(sn - pairs * 2, an - c2n);
       const remC = ac - c2c - pairs, remN = an - c2n - n2n;
       const dmg = remC * dc + remN * dn;
-      if (dmg < best.dmg) best = { dmg, remC, remN };
+      if (dmg < best.dmg) best = { dmg, remC, remN, critUsed: c2c + c2n };
     }
   }
   return best;
@@ -4901,7 +4980,7 @@ function countKill(g, src, target) {
   if (g.mark?.[scorer] === target.uid) markDown(g, scorer);
   tacOnKill(g, src, target); // Tac Ops (Dominate, Sweep & Clear, Martyrs)
   // Inspirational Example (Superior) / Unflinching Example (Preceptor: a ready enemy in its control range): Faith.
-  if (src && src.side === scorer && (tpl(src).inspirational || (tpl(src).unflinching && target.readyAtDeath && edgeDist(src, target) <= CONTROL + 0.01))) {
+  if (src && src.side === scorer && !g.nvMartyr && (tpl(src).inspirational || (tpl(src).unflinching && target.readyAtDeath && edgeDist(src, target) <= CONTROL + 0.01))) {
     gainFaith(g, scorer, tpl(target).wounds >= 12 ? 2 : 1, { zh: tpl(src).inspirational ? '激勵榜樣' : '不屈榜樣', en: tpl(src).inspirational ? 'Inspirational Example' : 'Unflinching Example' });
   }
 }
@@ -4927,6 +5006,10 @@ function ffOnDeath(g, src, target) {
   if (side > 1) return;
   hkWorthIt(g, target); // Worth It (Hearthkyn): a free mission action before it's removed
   if (src) fgBloodsense(g, src, target); // Bloodsense (Fellgor)
+  lgEyes(g, src); // In the Eyes of the Gods (Legionary Aspiring Champion)
+  if (src && g.fight && hasUp(src, 'moonsong')) src.acted.moonKill = true; // (Moonsong Cull: checked when the fight ends)
+  nvMartyrdom(g, target); // Glorious Martyrdom (Novitiates)
+  if (src && src.side !== side) nvMilitantRefund(g, src); // Militant Faith (Novitiate Militant)
   const near = (r) => foes(g, target).filter((e) => e.side < 2 && edgeDist(e, target) <= r && visibility(g, target, e).visible);
   // Vengeance for the Kinband: Relentless against the killer for the rest of the battle.
   const v = g.vengeance?.[side] && getOp(g, g.vengeance[side]);
@@ -4944,10 +5027,6 @@ function ffOnDeath(g, src, target) {
       if (!e.poison) { e.poison = true; log(g, { zh: `劇毒之死：${opName(e, 'zh')} 中毒`, en: `Poisonous Demise: ${opName(e, 'en')} is poisoned` }, `side${side}`); }
       else { log(g, { zh: `劇毒之死：${opName(e, 'zh')} 受到 1 傷害`, en: `Poisonous Demise: ${opName(e, 'en')} takes 1 damage` }, `side${side}`); applyDamage(g, target, e, 1); }
     }
-  }
-  // Glorious Martyrdom (Novitiates): for each enemy visible within 2", 1 Faith and D3 damage.
-  if (near(2).length && autoFF(g, side, 'gloriousMartyrdom')) {
-    for (const e of near(2)) { const dmg = d3(); log(g, { zh: `光榮殉道：${opName(e, 'zh')} 受到 ${dmg} 傷害`, en: `Glorious Martyrdom: ${opName(e, 'en')} takes ${dmg} damage` }, `side${side}`); gainFaith(g, side, 1, { zh: '光榮殉道', en: 'Glorious Martyrdom' }); applyDamage(g, target, e, dmg); }
   }
   // Reward Earned (Blooded): the killer had a Blooded token and was within 2" — one more token.
   if (src && src.side === 1 - side && src.bloodToken && edgeDist(src, target) <= 2 && autoFF(g, src.side, 'rewardEarned')) gainBlood(g, src.side, { zh: '應得的獎賞', en: 'Reward Earned' });
@@ -5393,14 +5472,13 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   for (let i = 0; i < normals.length; i++) normals[i] = wcBanner(g, target, normals[i]); // Herd Banner (Tzaangor Icon Bearer)
   // Defenders of the Faith (Novitiates): contesting an objective, one normal success deals half (rounding up, min 2).
   if (normals.length && normals[0] > 2 && TEAM_MAP[target.team]?.actsOfFaith && hasPloy(g, target.side, 'defendersFaith') && contesting2(g, target)) normals[0] = Math.max(2, Math.ceil(normals[0] / 2));
-  // Blazing Inferno (Novitiate firefight ploy): critical damage from the Ministorum flamer leaves a Blaze token.
-  if (ffOn(g, op, 'blazingInferno') && weapon.id === 'ministorumFlamer' && block.remC > 0 && target.side < 2) target.blaze = op.side;
   // Unleash Daemon (4+ deals 1 less), else Disgusting Vigour (Nurgle) — never more than 1 off a die.
   for (let i = 0; i < normals.length; i++) { const a2 = daemonShell(target, normals[i]); normals[i] = a2 < normals[i] ? a2 : nurgleVigour(g, target, normals[i]); }
   if (weapon.rules.drag) dragTarget(g, op, target, block.remC + block.remN); // Drag (Impaler): pulled in before the damage
   const res = resolveDice(target, [...Array(block.remC).fill(daemonShell(target, dc)), ...normals, critShot].filter((x) => x > 0), g);
   const dmg = res.dmg + devDmg; // (reported with the Devastating damage dealt earlier)
   let killed = target.dead || applyDamage(g, op, target, res.dmg);
+  edReflection(g, op, target, block.critUsed); // Focused Reflection (Exodite Clanblade): 1 damage back per critical save that blocked
   sfShootBlaze(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); // Blaze (Sanctifiers)
   rvPoisonHit(g, op, weapon, target, devDmg > 0 || (block.remC > 0 && res.dmg > 0)); rvShot(op, weapon); // Poison (Raveners)
   vdShootEnd(g, op, weapon, target, dmg > 0); // Humbling Cruelty (Void-dancer Death Jester)
@@ -5516,6 +5594,9 @@ export function forcedShot(g, op, weapon, targets, real = false) {
 
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
 export function* shootFlow(g, op, weapon, target) {
+  // Blinding Aura (Novitiates): picking that Novitiate from more than 2" — pick again, or the Shoot ends if there's no other target.
+  { const s = bcSurrogate(g, op, target, weapon); if (s) target = s; } // Servile Surrogacy (Battleclade): a servitor is shot instead
+  { op.nvFaithSpent = 0; const b = nvBlindingAura(g, op, weapon, target); if (b) { if (b === 'end') spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot', title: { zh: '炫目光環', en: 'Blinding Aura' }, text: b === 'end' ? { zh: '沒有其他可以射擊的目標：這次射擊結束（AP 已花費）。', en: 'No other target: this Shoot action ends (the AP is spent).' } : { zh: '從 2" 外不能選它為目標；請改選其他目標（AP 沒有花費）。', en: 'It cannot be targeted from more than 2"; pick another target (no AP spent).' } }; } }
   g.spTvidOn = spTvid(g, op, target) ? op.uid : null; if (g.spTvidOn) spTvidUsed(g, op); // Tvid-feed Triangulation (Spectre Squad)
   if (sfDeclaim(g, op, 'shoot')) { spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot' }; } // Commanding Declamation (Sanctifier Confessor)
   pfShootStart(g, op, weapon, target); // Target Analysis Optic (Pathfinders)
@@ -5664,6 +5745,7 @@ export function* shootFlow(g, op, weapon, target) {
   if (g.proxy?.uid === op.uid) endProxy(g); // Interstitial Command's free Shoot is done
   // Siphon Life (life siphon): heal a friendly for the dice that inflicted damage.
   if (weapon.rules.siphon && !op.dead) siphonLife(g, op, [...Array(main.remC).fill(true), ...Array(main.remN).fill(false)].slice(0, main.dmg > 0 ? 99 : 0));
+  nvBlaze(g, op, weapon, target, main.remC, main.dmg); // Blazing Inferno (Novitiates)
   g.ffAtk = null;
   demolitionJob(g, op, target); // Demolition Job (Wrecka Krew)
   if (op.acted.contemptuous) op.acted.contemptUsed = true;
@@ -5703,6 +5785,8 @@ const other = (k) => (k === 'A' ? 'D' : 'A');
 const left = (p) => p.c + p.n;
 
 export function startFight(g, op, weapon, target) {
+  { const s = bcSurrogate(g, op, target, weapon); if (s) target = s; } // Servile Surrogacy (Battleclade): a servitor is fought instead
+  op.nvFaithSpent = 0; target.nvFaithSpent = 0; // (Militant Faith counts this sequence only)
   if(weapon.rules.feEquip && !feAvailable(g,op.side,weapon.rules.feEquip,feWeaponLimit(weapon.rules.feEquip),feWeaponBattle(weapon.rules.feEquip)))return false;
   if (sfDeclaim(g, op, 'fight')) { spend(g, op, 'fight'); return null; } // Commanding Declamation (Sanctifier Confessor): the Fight is cancelled, the AP isn't refunded
   const hatch = !isEngaged(g,op) && target && hatchwayFightAccess(g,op,target,radius(op),radius(target));
@@ -6135,6 +6219,7 @@ export function fightApply(g, optId) {
     const mdContext = g.mdMeleeKill;
     g.mdMeleeKill = { uid: meOp.uid, id: fightWeapon(g, k).id };
     let killed = applyDamage(g, meOp, foeOp, res.dmg);
+    if (killed) lgUnending(g, foeOp, foe, meOp, fightWeapon(g, other(k))); // Unending Bloodshed (Legionaries)
     g.mdMeleeKill = mdContext;
     if (res.dmg > 0) me.mdDamageDice = (me.mdDamageDice || 0) + 1;
     // Goremongers: Ritual blade (first damage this sequence fills the tank), Claim Skull (great chainaxe kill: +1CP once per TP), Bleeding tokens.
@@ -6338,6 +6423,7 @@ export function endFight(g) {
   }
   // Obsessive Bloodlust (Goremonger Aspirant, once per TP): after its Fight, out of enemy control range — a free Charge of up to 2".
   const fa = g.fight && getOp(g, g.fight.A.uid);
+  if (fa && g.active === fa.uid) edMoonsong(g, fa); // Moonsong Cull (Exodite Clanblade): Sprint on forwards after a kill
   if (fa && !fa.dead && g.active === fa.uid && tpl(fa).obsessiveBloodlust && fa.bloodlustTP !== g.tp && !isEngaged(g, fa) && fa.order === 'engage') {
     fa.bloodlustTP = g.tp; fa.acted.free = { ...(fa.acted.free || {}), charge: 'bloodlust' };
     log(g, { zh: `${opName(fa, 'zh')} 執迷的血慾：可以免費衝鋒最多 2"`, en: `${opName(fa, 'en')} Obsessive Bloodlust: may make a free Charge of up to 2"` }, `side${fa.side}`);
@@ -6611,6 +6697,6 @@ function feFreePloy(g,s,id) {
   return id==='rewardEarned' && hasEquip(g,s,'feBloodSigil') || ['animalisticFury','wildRage'].includes(id) && hasEquip(g,s,'feBrass') && !(g.feUsed?.[s]?.[`feBrass_${id}`]?.total) || id==='controlEdict' && feAvailable(g,s,'feMindLink',1,true);
 }
 
-registerEquipmentChoices(); registerCoreChoices(); registerWarpcovenChoices(); registerWyrmbladeChoices(); registerFellgorChoices(); registerExactionChoices(); registerHierotekChoices(); registerHunterCladeChoices(); aqChoices(); pmChoices(); adChoices(); rvChoices(); xvChoices(); dkChoices(); kmChoices(); pfChoices(); dkMoveChoices(); sfChoices(); scChoices(); spChoices(); ncChoices(); // (after CHOICES is defined)
+registerEquipmentChoices(); registerCoreChoices(); registerWarpcovenChoices(); registerWyrmbladeChoices(); registerFellgorChoices(); registerExactionChoices(); registerHierotekChoices(); registerHunterCladeChoices(); registerKasrkinChoices(); registerLegionaryChoices(); registerNovitiateChoices(); registerChaosCultChoices(); aqChoices(); pmChoices(); adChoices(); rvChoices(); xvChoices(); dkChoices(); kmChoices(); pfChoices(); dkMoveChoices(); sfChoices(); scChoices(); spChoices(); ncChoices(); // (after CHOICES is defined)
 // (game.js internals the team rule files use)
 export { advanceStrategy, broadcastNear, commsBonus, contagion, count, dropMarkers, feAuto, feUse, killOff, moved, noRerollHere, nullRodded, rolls, sameTeam, spendFF, sprungNow, startOfActivation, tally, teamZh, validTarget };

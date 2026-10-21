@@ -111,4 +111,52 @@ for (const [a, b] of [['battleclade', 'angels'], ['kasrkin', 'battleclade']]) {
   assert(steps < 3000, `${a} vs ${b}: simulation stalled`); assert(g.cp.every((x) => x >= 0));
   console.log(`${a} vs ${b}: full battle passed (${steps} steps, TP ${g.tp}, network counteract steps ${nets})`);
 }
+// Roster: each once except Combat Servitors (one meltagun, up to three incendine igniters).
+{
+  const { battlecladeRosterError } = await import('../js/data/battleclade.js');
+  const { TEAM_MAP } = await import('../js/data/teams.js'), T = TEAM_MAP.battleclade;
+  assert.equal(battlecladeRosterError(T, {}), null);
+  assert.equal(battlecladeRosterError(T, { bcProxy: 'bcPhosphor', bcBreacher: 'bcPhosphor', bcMedic: 'bcIgniter' }), null);
+  assert(battlecladeRosterError(T, { bcProxy: 'bcMelta' }), 'two meltaguns');
+  assert(battlecladeRosterError(T, { bcProxy: 'bcIgniter', bcBreacher: 'bcIgniter', bcMedic: 'bcIgniter' }), 'four igniters');
+  assert(battlecladeRosterError(T, { bcProxy: 'bcGunArc' }), 'two heavy arc rifles');
+}
+
+// Servile Surrogacy: a servitor within 3" takes the Tech-Priest's place; not against Torrent.
+{
+  const g = arena(), tp = get(g, 'bcArcheo'), sv = get(g, 'bcBreacher'), e = g.ops.find((o) => o.side === 1);
+  tp.x = 10; tp.y = 10; sv.x = 11.8; sv.y = 10; e.x = 18; e.y = 10;
+  for (const o of g.ops) if (o.side === 0 && o !== tp && o !== sv) o.x = -60;
+  g.turn = 1; G.activate(g, e);
+  const w = G.weaponsFor(g, e).find((x) => x.type === 'ranged' && !x.rules.torrent && !x.rules.blast);
+  const before = sv.wounds, tpw = tp.wounds;
+  G.resolveShoot(g, e, w, tp);
+  assert.equal(tp.wounds, tpw, 'the Tech-Priest untouched');
+  assert(g.log.some((l) => /Servile Surrogacy/.test(l.msg?.en || '')));
+  assert(before >= sv.wounds);
+}
+
+// System Exorcism: as it activates, remove the opponent's APL loss.
+{
+  const g = arena(), gun = get(g, 'bcGunBolter'); gun.aplNext = -1;
+  G.activate(g, gun); const ap = gun.ap;
+  const b = G.ffButtons(g, gun).find((x) => x.id === 'systemExorcism');
+  assert(b.ok); G.useFFButton(g, gun, 'systemExorcism');
+  assert.equal(gun.ap, ap + 1); assert.equal(gun.aplNext, 0);
+}
+
+// Remote Access: a hatchway within 4" can be operated.
+{
+  const g = G.newGame({ teams: ['battleclade', 'angels'], ai: null, map: 'tombworld-1' });
+  Object.assign(g, { tp: 1, phase: 'firefight', turn: 0, cp: [3, 3, 0] });
+  g.ops.forEach((o, i) => { o.x = o.side ? 27 : 1; o.y = 1 + i * 1.5; o.placed = true; o.order = 'engage'; o.ready = true; });
+  const tp = get(g, 'bcArcheo'); tp.x = 4 - 0.125 - G.radius(tp) - 2.5; tp.y = 20; // (3" from access-12 at (4, 20))
+  G.activate(g, tp);
+  assert(!G.availableActions(g, tp).some((a) => a.id === 'twOpen_access-12'));
+  G.useFFButton(g, tp, 'remoteAccess');
+  assert(G.availableActions(g, tp).find((a) => a.id === 'twOpen_access-12')?.ok);
+  G.doMissionAction(g, tp, 'twOpen_access-12');
+  assert.equal(g.hatches['access-12'], 'open');
+  assert(!tp.acted.bcRemote, 'once');
+}
 console.log('battleclade ok');

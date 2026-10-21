@@ -88,4 +88,18 @@ for (const [a, b] of [['chaosCult', 'angels'], ['celestianInsidiants', 'chaosCul
   assert(steps < 4000, `${a} vs ${b}: simulation stalled`); assert(g.cp.every((x) => x >= 0));
   console.log(`${a} vs ${b}: full battle passed (${steps} steps, TP ${g.tp})`);
 }
+// Abhorrent Mutation: as a Devotee activates, it gains a chosen Accursed Gift, kept when it mutates (once per operative).
+{
+  const g = arena(); g.pick = [true, false];
+  const d = get(g, 'ctDevotee'), dc = get(g, 'ctDemagogue');
+  G.activate(g, dc);
+  assert(!G.ffButtons(g, dc).find((x) => x.id === 'abhorrentMutation')?.ok, 'not the Dark Commune');
+  G.endActivation(g); g.turn = 0;
+  G.activate(g, d);
+  assert(G.ffButtons(g, d).find((x) => x.id === 'abhorrentMutation').ok);
+  G.useFFButton(g, d, 'abhorrentMutation');
+  assert(G.resolveChoice(g, 0, 'fleet'));
+  assert(G.giftsOf(g, d).includes('fleet'));
+  assert(!G.ffButtons(g, d).find((x) => x.id === 'abhorrentMutation')?.ok, 'once');
+}
 console.log('chaoscult ok');

@@ -106,4 +106,29 @@ for (const [a, b, roster] of [['broodBrothers', 'angels', []], ['kasrkin', 'broo
   assert(steps < 3000, `${a} vs ${b}: simulation stalled`); assert(g.cp.every((x) => x >= 0));
   console.log(`${a} vs ${b}: full battle passed (${steps} steps, TP ${g.tp})`);
 }
+// Ruthless Coordination: a friend that sees the target in the open denies its cover save.
+{
+  const { bbCoordFriend } = await import('../js/rules/brood.js');
+  const g = arena(), mine = g.ops.filter((o) => o.side === 0), a = mine[0], f = mine[1], e = g.ops.find((o) => o.side === 1);
+  for (const o of g.ops) if (o !== a && o !== f && o !== e) o.x = -60;
+  a.x = 10; a.y = 10; e.x = 16; e.y = 10; f.x = 16; f.y = 16;
+  g.terrain = [{ kind: 'light', x: 14.6, y: 9, w: 0.4, h: 2 }];
+  assert(G.visibility(g, a, e).cover, 'in cover from the shooter');
+  assert.equal(bbCoordFriend(g, a, e), f, 'in the open from the friend');
+  const w = G.weaponsFor(g, a).find((x) => x.type === 'ranged');
+  g.ffPending = { uid: a.uid, ids: ['ruthlessCoord'] };
+  assert(G.effectiveRules(g, a, w, e).saturate);
+}
+// Insidious: not in TP1; after an activation, a friend nobody can target Dashes towards an objective, still unseen.
+{
+  const g = arena(); g.tp = 2;
+  const o = g.ops.find((x) => x.side === 0), m = g.objectives[0];
+  for (const x of g.ops) if (x !== o && x.side === 0) x.x = -60;
+  for (const x of g.ops.filter((y) => y.side === 1)) { x.x = 1; x.y = 1; }
+  g.terrain = [{ kind: 'heavy', x: 2.5, y: 0, w: 0.5, h: 24 }];
+  o.x = m.x - 5; o.y = m.y; const d0 = Math.hypot(m.x - o.x, m.y - o.y);
+  const a = g.ops.find((x) => x.side === 1); g.turn = 1; G.activate(g, a); G.endActivation(g);
+  assert(Math.hypot(m.x - o.x, m.y - o.y) < d0 - 1, 'moved towards the objective');
+  assert.equal(g.cp[0], 2);
+}
 console.log('brood ok');

@@ -495,6 +495,10 @@ const cleaverFG = W('cleaverFG', '劈刀', 'Cleaver', 'melee', 4, 3, 4, 5);
 const plasmaPistolFGs = W('plasmaPistolFGs', '電漿手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 4, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolFG');
 const plasmaPistolFGx = W('plasmaPistolFGx', '電漿手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 4, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolFG');
 const FG_PICKS = ['deathknell', 'fluxbray', 'gnarlscar', 'gorehorn', 'herdgoad', 'mangler', 'shaman', 'toxhorn', 'vandal', 'fgWarriorB', 'fgWarriorC'];
+const KS_PICKS = ['ksMedic', 'ksDemo', 'ksFlamer', 'ksGL', 'ksVolley', 'ksMelta', 'ksPlasma', 'ksRecon', 'ksSharpshooter', 'ksVox', 'ksTrooper'];
+const LG_PICKS = ['lgAnointed', 'lgBalefire', 'lgButcher', 'lgGunner', 'lgHeavy', 'lgIcon', 'lgShrivetalon', 'lgWarrior'];
+const NV_PICKS = ['nvCondemnor', 'nvDialogus', 'nvDuellist', 'nvExactor', 'nvHospitaller', 'nvPenitent', 'nvPreceptor', 'nvPronatus', 'nvPurgatus', 'nvReliquarius', 'nvMilitantB', 'nvMilitantG'];
+const BC_PICKS = ['bcProxy', 'bcBreacher', 'bcMedic', 'bcGunBolter', 'bcGunArc', 'bcMelta', 'bcIgniter', 'bcPhosphor'];
 // Vicious Blows: Ceaseless when fighting (not when retaliating).
 const mancrusher = W('mancrusher', '碎人錘', 'Mancrusher', 'melee', 4, 4, 5, 5, { brutal: true, viciousBlows: true });
 
@@ -583,6 +587,12 @@ const plasmaGunKS = W('plasmaGunKS', '電漿槍（超載）', 'Plasma gun (super
 const hsMarksmanC = W('hsMarksmanC', '熱射神射步槍（隱蔽）', 'Hot-shot marksman rifle (concealed)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true, silent: true, firstShotOnly: true }, 'hsMarksman');
 const hsMarksmanM = W('hsMarksmanM', '熱射神射步槍（機動）', 'Hot-shot marksman rifle (mobile)', 'ranged', 4, 3, 3, 4, {}, 'hsMarksman');
 const hsMarksmanS = W('hsMarksmanS', '熱射神射步槍（定點）', 'Hot-shot marksman rifle (stationary)', 'ranged', 4, 2, 3, 3, { devastating: 3, heavy: true }, 'hsMarksman');
+const ksGunButtSgt = W('ksGunButtSgt', '槍托', 'Gun butt', 'melee', 3, 3, 2, 3);
+const ksGLFrag = W('ksGLFrag', '榴彈發射器（破片）', 'Grenade launcher (frag)', 'ranged', 4, 3, 2, 4, { blast: 2 }, 'ksGL');
+const ksGLKrak = W('ksGLKrak', '榴彈發射器（穿甲）', 'Grenade launcher (krak)', 'ranged', 4, 3, 4, 5, { piercing: 1 }, 'ksGL');
+const ksVolleyF = W('ksVolleyF', '熱射齊射槍（集中）', 'Hot-shot volley gun (focused)', 'ranged', 5, 3, 3, 4, { piercingCrits: 1 }, 'ksVolley');
+const ksVolleyS = W('ksVolleyS', '熱射齊射槍（掃射）', 'Hot-shot volley gun (sweeping)', 'ranged', 4, 3, 3, 4, { piercingCrits: 1, torrent: 1 }, 'ksVolley');
+const ksSgtLoadouts = { 'hsPistol+power': [hsLaspistol, powerWeaponK], 'bolt+power': [boltPistol, powerWeaponK], 'hsLasgun+butt': [hsLasgun, ksGunButtSgt], 'plasma+chain': [plasmaPistolStd, plasmaPistolSup, chainswordSgt] };
 
 // ---- Legionaries ----
 const plasmaPistolL = W('plasmaPistolL', '電漿手槍（標準）', 'Plasma pistol (standard)', 'ranged', 4, 3, 3, 5, { range: 8, piercing: 1 }, 'plasmaPistolL');
@@ -596,6 +606,26 @@ const chainaxe = W('chainaxe', '雙手鏈鋸斧', 'Double-handed chainaxe', 'mel
 const fistsL = W('fistsL', '拳頭', 'Fists', 'melee', 4, 3, 3, 4);
 const reaperFocused = W('reaperFocused', '收割者鏈砲（集中）', 'Reaper chaincannon (focused)', 'ranged', 5, 3, 3, 4, { ceaseless: true, heavy: 'reposition', punishing: true }, 'reaper');
 const reaperSweeping = W('reaperSweeping', '收割者鏈砲（掃射）', 'Reaper chaincannon (sweeping)', 'ranged', 4, 3, 3, 4, { ceaseless: true, heavy: 'reposition', punishing: true, torrent: 2 }, 'reaper');
+const taintedBoltPistol = W('taintedBoltPistol', '污染爆彈手槍', 'Tainted bolt pistol', 'ranged', 4, 3, 3, 5, { range: 8, rending: true });
+const powerFistL = W('powerFistL', '動力拳', 'Power fist', 'melee', 5, 4, 5, 7, { brutal: true });
+const powerMaulL = W('powerMaulL', '動力錘', 'Power maul', 'melee', 5, 3, 4, 6, { shock: true });
+const powerWeaponL = W('powerWeaponL', '動力武器', 'Power weapon', 'melee', 5, 3, 4, 6, { lethal: 5 });
+const taintedChainsword = W('taintedChainsword', '污染鏈鋸劍', 'Tainted chainsword', 'melee', 5, 3, 4, 5, { rending: true });
+const boltgunL = W('boltgunL', '爆彈槍', 'Boltgun', 'ranged', 4, 3, 3, 4);
+const chainswordL = W('chainswordL', '鏈鋸劍', 'Chainsword', 'melee', 5, 3, 4, 5);
+const flamerL = W('flamerL', '噴火器', 'Flamer', 'ranged', 4, 2, 3, 3, { range: 8, saturate: true, torrent: 2 });
+const meltaL = W('meltaL', '熱熔槍', 'Meltagun', 'ranged', 4, 3, 6, 3, { range: 6, devastating: 4, piercing: 2 });
+const plasmaGunL = W('plasmaGunL', '電漿槍（標準）', 'Plasma gun (standard)', 'ranged', 4, 3, 4, 6, { piercing: 1 }, 'plasmaGunL');
+const plasmaGunLS = W('plasmaGunLS', '電漿槍（超載）', 'Plasma gun (supercharge)', 'ranged', 4, 3, 5, 6, { hot: true, lethal: 5, piercing: 1 }, 'plasmaGunL');
+const heavyBolterLF = W('heavyBolterLF', '重型爆彈槍（集中）', 'Heavy bolter (focused)', 'ranged', 5, 3, 4, 5, { heavy: 'reposition', piercingCrits: 1 }, 'heavyBolterL');
+const heavyBolterLS = W('heavyBolterLS', '重型爆彈槍（掃射）', 'Heavy bolter (sweeping)', 'ranged', 4, 3, 4, 5, { heavy: 'reposition', piercingCrits: 1, torrent: 1 }, 'heavyBolterL');
+const missileLF = W('missileLF', '飛彈發射器（破片）', 'Missile launcher (frag)', 'ranged', 4, 3, 3, 5, { blast: 2, heavy: 'reposition' }, 'missileL');
+const missileLK = W('missileLK', '飛彈發射器（穿甲）', 'Missile launcher (krak)', 'ranged', 4, 3, 5, 7, { heavy: 'reposition', piercing: 1 }, 'missileL');
+const lgChampLoadouts = Object.fromEntries([['plasma', [plasmaPistolL, plasmaPistolLS]], ['tainted', [taintedBoltPistol]]].flatMap(([pk, pw]) => [['fist', powerFistL], ['maul', powerMaulL], ['power', powerWeaponL], ['chain', taintedChainsword]].map(([mk, mw]) => [`${pk}+${mk}`, [...pw, mw]])));
+const lgChosenLoadouts = { plasma: [plasmaPistolL, plasmaPistolLS, daemonBlade], tainted: [taintedBoltPistol, daemonBlade] };
+const lgGunnerLoadouts = { flamer: [boltPistolL, flamerL, fistsL], melta: [boltPistolL, meltaL, fistsL], plasma: [boltPistolL, plasmaGunL, plasmaGunLS, fistsL] };
+const lgHeavyLoadouts = { reaper: [boltPistolL, reaperFocused, reaperSweeping, fistsL], bolter: [boltPistolL, heavyBolterLF, heavyBolterLS, fistsL], missile: [boltPistolL, missileLF, missileLK, fistsL] };
+const lgWarriorLoadouts = { boltgun: [boltgunL, fistsL], chain: [boltPistolL, chainswordL] };
 const flensingBlades = W('flensingBlades', '剝皮刃', 'Flensing blades', 'melee', 5, 3, 3, 5, { lethal: 5 });
 const daemonicClaw = W('daemonicClaw', '惡魔爪', 'Daemonic claw', 'melee', 5, 3, 4, 5, { rending: true });
 
@@ -614,6 +644,12 @@ const surgicalSaw = W('surgicalSaw', '手術鋸', 'Surgical saw', 'melee', 4, 4,
 const eviscerator = W('eviscerator', '懺悔者開膛鋸', 'Penitent eviscerator', 'melee', 4, 4, 5, 6, { brutal: true, zealousRage: true });
 const maceRighteous = W('maceRighteous', '正義之錘', 'Mace of the Righteous', 'melee', 4, 4, 5, 5, { brutal: true, severe: true });
 const ministorumFlamer = W('ministorumFlamer', '國教噴火器', 'Ministorum flamer', 'ranged', 4, 2, 4, 4, { range: 8, saturate: true, torrent: 2 });
+const relicBoltPistolN = W('relicBoltPistolN', '聖物爆彈手槍', 'Relic bolt pistol', 'ranged', 4, 3, 3, 5, { range: 8, lethal: 5 });
+const relicBoltgunN = W('relicBoltgunN', '聖物爆彈槍', 'Relic boltgun', 'ranged', 4, 3, 3, 5, { lethal: 5 });
+const gunButtNS = W('gunButtNS', '槍托', 'Gun butt', 'melee', 3, 3, 2, 3);
+const autogunN = W('autogunN', '自動步槍', 'Autogun', 'ranged', 4, 4, 2, 3);
+const novitiateBlade = W('novitiateBlade', '見習修女之刃', 'Novitiate blade', 'melee', 4, 4, 4, 5);
+const nvSupLoadouts = { plasma: [plasmaPistolN, plasmaPistolNS, powerWeaponN], boltgun: [relicBoltgunN, gunButtNS], boltPistol: [relicBoltPistolN, powerWeaponN] };
 
 // ---- Battleclade ----
 const taserGoadBC = W('taserGoadBC', '電擊刺棒', 'Taser goad', 'melee', 4, 4, 3, 4, { lethal: 5, shock: true });
@@ -1857,15 +1893,22 @@ export const TEAMS = [
         desc: { zh: '在最前線的敵人處放清掃標記：本回合標記 5" 內的友方射擊同樣在 5" 內的特工時，武器「無休」。', en: 'A Clearance Sweep marker by the frontmost enemy: this TP, friendlies within 5" of it shooting operatives within 5" of it have Ceaseless.' } },
       { id: 'eliminationPattern', cp: 1, name: { zh: '殲滅模式', en: 'Elimination Pattern' },
         desc: { zh: '本回合用熱射武器射擊沒有掩護豁免、或被偵察兵掃描中的敵人：「暴擊穿甲 1」。', en: 'This TP, hot-shot weapons shooting an enemy that can\'t retain cover saves, or is being scanned, have Piercing Crits 1.' } },
+      { id: 'ksRelocate', cp: 1, notTP1: true, name: { zh: '轉移陣地', en: 'Relocate' },
+        desc: { zh: '選一名離敵人超過 3" 的友方：它和它 3" 內、同樣離敵人超過 3" 的友方各免費衝刺一次（順序自選）。第一回合不能用。', en: 'Pick a friendly more than 3" from enemies: it and each friendly within 3" of it that is also more than 3" from enemies make a free Dash, in any order. Not in the first turning point.' } },
     ],
+    // The Sergeant and nine picks, one per copy (each once except Troopers, at most four Gunners).
+    perCopyRoster: true,
+    replacements: Object.fromEntries(['ksMedic', 'ksDemo', 'ksRecon', 'ksFlamer', 'ksMelta', 'ksPlasma', 'ksSharpshooter', 'ksVox', 'ksTrooper'].map((s) => [s, KS_PICKS])),
     ops: [
-      op('ksSergeant', '士官', 'Kasrkin Sergeant', { apl: 3, move: 6, save: 4, wounds: 9, base: 28, veteranLeadership: true, tacticalCommand: true }, [hsLaspistol, powerWeaponK]),
+      op('ksSergeant', '士官', 'Kasrkin Sergeant', { apl: 3, move: 6, save: 4, wounds: 9, base: 28, veteranLeadership: true, tacticalCommand: true, loadouts: ksSgtLoadouts }, ksSgtLoadouts['hsPistol+power']),
       op('ksMedic', '戰地醫護兵', 'Kasrkin Combat Medic', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, medic: true, medikit: true, medikit0: true }, [hsLasgun, gunButt]),
       op('ksDemo', '爆破兵', 'Kasrkin Demo-trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, blastPadding: true, meltaMine: true }, [hsLaspistol, gunButt]),
       op('ksRecon', '偵察兵', 'Kasrkin Recon-trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, auspex: true }, [hsLasgun, gunButt]),
       op('ksFlamer', '槍手（噴火器）', 'Kasrkin Gunner (flamer)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [flamerK, gunButt]),
       op('ksMelta', '槍手（熱熔槍）', 'Kasrkin Gunner (meltagun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [meltaK, gunButt]),
       op('ksPlasma', '槍手（電漿槍）', 'Kasrkin Gunner (plasma gun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [plasmaGunK, plasmaGunKS, gunButt]),
+      op('ksGL', '槍手（榴彈發射器）', 'Kasrkin Gunner (grenade launcher)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [ksGLFrag, ksGLKrak, gunButt], 0),
+      op('ksVolley', '槍手（熱射齊射槍）', 'Kasrkin Gunner (hot-shot volley gun)', { apl: 2, move: 6, save: 4, wounds: 8, base: 28 }, [ksVolleyF, ksVolleyS, gunButt], 0),
       op('ksSharpshooter', '神射手', 'Kasrkin Sharpshooter', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, camoCloak: true }, [hsMarksmanC, hsMarksmanM, hsMarksmanS, gunButt]),
       op('ksVox', '通訊兵', 'Kasrkin Vox-trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, battleComms: true }, [hsLasgun, gunButt]),
       op('ksTrooper', '士兵', 'Kasrkin Trooper', { apl: 2, move: 6, save: 4, wounds: 8, base: 28, adaptive: true }, [hsLasgun, gunButt]),
@@ -1908,13 +1951,20 @@ export const TEAMS = [
       { id: 'fickleFates', cp: 1, name: { zh: '無常命運', en: 'Fickle Fates' },
         desc: { zh: '本回合射擊尚未行動的敵人時遠程「平衡」（已有則「毫不留情」）；尚未行動的奸奇友方被射擊時，保留暴擊豁免的話可把一顆失敗算成普通豁免。', en: 'This TP, shooting a ready enemy: Balanced (Relentless if it already has it); a ready Tzeentch friendly being shot that retains a critical save retains one fail as a normal save.' } },
     ],
+    // A leader (Chosen or Aspiring Champion) and five picks, each once except Warriors; each picks a Mark of Chaos (roster key mark_<slot>).
+    perCopyRoster: true,
+    replacements: { lgChosen: ['lgChosen', 'lgChampion'], ...Object.fromEntries(['lgBalefire', 'lgButcher', 'lgShrivetalon', 'lgHeavy', 'lgAnointed'].map((s) => [s, LG_PICKS])) },
     ops: [
-      op('lgChosen', '被選者', 'Legionary Chosen', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, mark: 'khorne', daemonicAura: true, soulGorge: true }, [plasmaPistolL, plasmaPistolLS, daemonBlade]),
+      op('lgChosen', '被選者', 'Legionary Chosen', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, mark: 'khorne', daemonicAura: true, soulGorge: true, loadouts: lgChosenLoadouts }, lgChosenLoadouts.plasma),
       op('lgBalefire', '狂焰侍僧', 'Legionary Balefire Acolyte', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'tzeentch' }, [boltPistolL, fireblast, lifeSiphon, fellDagger]),
       op('lgButcher', '屠夫', 'Legionary Butcher', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'undivided', noAssistVs: true }, [boltPistolL, chainaxe]),
       op('lgShrivetalon', '剝皮者', 'Legionary Shrivetalon', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'slaanesh', viciousReflexes: true, dismember: true, grisly: true }, [boltPistolL, flensingBlades]),
-      op('lgHeavy', '重火力兵', 'Legionary Heavy Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'nurgle' }, [boltPistolL, reaperFocused, reaperSweeping, fistsL]),
+      op('lgHeavy', '重火力兵', 'Legionary Heavy Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'nurgle', loadouts: lgHeavyLoadouts }, lgHeavyLoadouts.reaper),
       op('lgAnointed', '受膏者', 'Legionary Anointed', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'khorne', unleashDaemon: true }, [boltPistolL, daemonicClaw]),
+      op('lgChampion', '有志冠軍', 'Legionary Aspiring Champion', { apl: 3, move: 6, save: 3, wounds: 15, base: 32, mark: 'undivided', eyesOfGods: true, loadouts: lgChampLoadouts }, lgChampLoadouts['plasma+power'], 0),
+      op('lgGunner', '槍手', 'Legionary Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'tzeentch', loadouts: lgGunnerLoadouts }, lgGunnerLoadouts.plasma, 0),
+      op('lgIcon', '聖像旗手', 'Legionary Icon Bearer', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'undivided', iconBearer: true, favouredGods: true, loadouts: lgWarriorLoadouts }, lgWarriorLoadouts.boltgun, 0),
+      op('lgWarrior', '戰士', 'Legionary Warrior', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'undivided', infernalPact: true, loadouts: lgWarriorLoadouts }, lgWarriorLoadouts.boltgun, 0),
     ],
   },
   {
@@ -1950,9 +2000,14 @@ export const TEAMS = [
         desc: { zh: '本回合攻擊已行動過的敵人時，武器「懲罰」。', en: 'This TP, weapons have Punishing against an expended enemy.' } },
       { id: 'defendersFaith', cp: 1, name: { zh: '信仰守護者', en: 'Defenders of the Faith' },
         desc: { zh: '本回合在爭奪目標點的友方被攻擊時，一顆普通成功的傷害減半（無條件進位，最少 2）。', en: 'This TP, a friendly contesting an objective halves the damage of one normal success against it (rounding up, min 2).' } },
+      { id: 'righteousAdvance', cp: 1, notTP1: true, name: { zh: '正義推進', en: 'Righteous Advance' },
+        desc: { zh: '最多三分之一的友方（無條件捨去，至少 1 名）各免費衝刺一次，結束時要更接近最近的敵人、最近的目標點或對手的部署區。第一回合不能用。', en: 'Up to a third of your operatives (rounding down, at least 1) make a free Dash each, ending closer to their closest enemy, closest objective marker or the opponent\'s drop zone. Not in the first turning point.' } },
     ],
+    // The Superior and nine picks, one per copy (each once except Militants, up to two Purgatus).
+    perCopyRoster: true,
+    replacements: Object.fromEntries(['nvCondemnor', 'nvDialogus', 'nvDuellist', 'nvExactor', 'nvHospitaller', 'nvPenitent', 'nvPreceptor', 'nvPurgatus', 'nvReliquarius'].map((s) => [s, NV_PICKS])),
     ops: [
-      op('nvSuperior', '修女長', 'Novitiate Superior', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, inspirational: true }, [plasmaPistolN, plasmaPistolNS, powerWeaponN]),
+      op('nvSuperior', '修女長', 'Novitiate Superior', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, inspirational: true, loadouts: nvSupLoadouts }, nvSupLoadouts.plasma),
       op('nvCondemnor', '譴責者', 'Novitiate Condemnor', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, nullRodAura: true }, [stakethrower, nullRod]),
       op('nvDialogus', '宣講者', 'Novitiate Dialogus', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, broadcaster: true, rhetoric: true }, [autopistol, dialogusStave]),
       op('nvDuellist', '決鬥者', 'Novitiate Duellist', { apl: 2, move: 6, save: 4, wounds: 7, base: 28 }, [autopistol, duellingBlades]),
@@ -1962,6 +2017,9 @@ export const TEAMS = [
       op('nvPreceptor', '訓誡者', 'Novitiate Preceptor', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, hymnal: true, unflinching: true }, [maceRighteous]),
       op('nvPurgatus', '淨化者', 'Novitiate Purgatus', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, purgeFlame: true }, [ministorumFlamer, gunButt]),
       op('nvReliquarius', '聖物守護者', 'Novitiate Reliquarius', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, iconBearer: true, raiseIcon: true }, [autopistol, gunButt]),
+      op('nvPronatus', '尋聖者', 'Novitiate Pronatus', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, relicSeeker: true, divineAcq: true }, [autopistol, gunButt], 0),
+      op('nvMilitantB', '武裝修女（刃）', 'Novitiate Militant (blade)', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, militantFaith: true, nvMilitant: true }, [autopistol, novitiateBlade], 0),
+      op('nvMilitantG', '武裝修女（自動步槍）', 'Novitiate Militant (autogun)', { apl: 2, move: 6, save: 4, wounds: 7, base: 28, militantFaith: true, nvMilitant: true }, [autogunN, gunButt], 0),
     ],
   },
   {
@@ -1999,6 +2057,9 @@ export const TEAMS = [
       { id: 'prioritisedAcq', cp: 1, name: { zh: '優先取得', en: 'Prioritised Acquisition' },
         desc: { zh: '本回合選一個目標點：爭奪它時我方 APL 總和 +1；它 3" 內的友方近戰 Atk +1（最多 4）。', en: 'This TP, pick an objective marker: +1 to your total APL contesting it, and friendlies within 3" of it have +1 melee Atk (max 4).' } },
     ],
+    // The two Tech-Priests and eight picks, one per copy (each once except Combat Servitors: one meltagun, up to three incendine igniters).
+    perCopyRoster: true,
+    replacements: Object.fromEntries(BC_PICKS.map((s) => [s, BC_PICKS])),
     ops: [
       op('bcArcheo', '技術考古學家', 'Technoarcheologist', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, techPriest: true, omniscanner: true }, [eradPistol, servoArcClaw]),
       op('bcUnderseer', '僕從監督者', 'Servitor Underseer', { apl: 3, move: 6, save: 3, wounds: 9, base: 32, techPriest: true, underseer: true, datacoronal: true, networkOverride: true }, [radiumPistolMC, dataspikes]),
@@ -2769,16 +2830,26 @@ const FIREFIGHT = {
   ],
   kasrkin: [
     ff('neutraliseTarget', '消滅目標', 'Neutralise Target', '射擊沒有掩護豁免、或被偵察兵掃描中的敵人：可重擲任意攻擊骰（毫不留情）。', 'Shooting an enemy that can\'t retain cover saves, or is being scanned: re-roll any attack dice (Relentless).'),
+    ff('coverRetreat', '掩護撤退', 'Cover Retreat', '友方撤退後：6" 內看得到它、不在敵人控制範圍內的另一名友方立刻免費射擊一次（可改為交戰指令），之後撤退的特工繼續啟動。', 'After a friendly Falls Back: another friendly that is visible to it within 6" and not in enemy control range makes a free Shoot at once (it can change to Engage), then the first carries on.'),
+    ff('seizeInitiative', '奪取先機', 'Seize the Initiative', '交戰階段開始時（沒有先攻的一方）：一名友方免費執行一個 1AP 動作，但不能移動。開始時會詢問，可略過。', 'At the start of the Firefight phase (the player without initiative): a friendly performs a free 1AP action, without moving. You are asked then, and can pass.'),
+    ff('giveNoGround', '寸土不讓', 'Give No Ground', '友方啟動中選一個目標：本次啟動（或交戰階段結束時用：直到下回合開始），爭奪它的友方 APL 總和至少 2 且與敵人相同時，由卡舍津控制。', 'During a friendly activation, pick a marker: this activation (or, used at the end of the Firefight phase, until the next turning point) a tie with friendly contesting APL of 2+ goes to the Kasrkin.'),
   ],
   legionaries: [
     ff('mutability', '變化無常', 'Mutability and Change', '奸奇印記的友方啟動時：本次 APL +1。', 'When a Tzeentch operative is activated: +1 APL this activation.'),
     ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
     ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
   ],
+  novitiates: [
+    ff('blindingAura', '炫目光環', 'Blinding Aura', '自動：敵人射擊時選了一名友方為目標：本次啟動中，它離那名敵人超過 2" 時不能被選為目標（沒有其他目標的話，那次射擊直接結束）。', 'Auto: when an enemy selects a friendly as the target to shoot, for the rest of that activation it can\'t be selected while more than 2" from that enemy (if there\'s no other target, that Shoot action ends).'),
+    ff('guidedFaith', '信仰引導', 'Guided by Faith', '友方射擊選武器時：射擊 6" 內的特工時，武器「追光」。', 'When a friendly shoots and selects a ranged weapon: against operatives within 6", it has Seek Light.'),
+    ff('gloriousMartyrdom', '光榮殉道', 'Glorious Martyrdom', '自動：友方殘廢時，2" 內看得到它的每名敵人：獲得 1 信仰點並對它造成 D3 傷害。', 'Auto: when a friendly is incapacitated, for each enemy visible to and within 2" of it, gain 1 Faith and inflict D3 damage on that enemy.'),
+    ff('blazingInferno', '熊熊烈焰', 'Blazing Inferno', '自動：國教噴火器的暴擊造成傷害時，目標獲得燃燒標記：它啟動時受到 D3 傷害，並可以 APL -1 撲滅。', 'Auto: when a Ministorum flamer inflicts damage with critical successes, the target gains a Blaze token: when it activates it takes D3 damage, and can take -1 APL to remove it.'),
+  ],
   exoditeDragonMasters: [
     ff('leap', '躍起', 'Leap', '騎乘者疾馳時改為直接放到 1" 內的位置（算移動 3"，速度變 3-）。', 'A rider Sprinting is set up within 1" instead (counts as 3" moved; SPEED 3-).'),
     ff('feralHunger', '野性飢渴', 'Feral Hunger', '用（龍駒）尖牙利爪近戰已受傷的敵人：可重擲任意攻擊骰。', 'Fighting a wounded enemy with (drakesteed) fangs & talons: re-roll any attack dice.'),
-    ff('survivalistSpirit', '生存者之魂', 'Survivalist Spirit', '騎乘者啟動或反擊中：直到它下次啟動，武器不受重傷影響。', 'During a rider\'s activation or counteraction: until its next activation, its weapons ignore being injured.'),
+    ff('ridingMastery', '騎術精湛', 'Riding Mastery', '騎乘者剛疾馳後：可以先撿起／放下標記或做一個任務動作，再用剩下的距離繼續疾馳。', 'Straight after a rider Sprints: it can Pick Up / Place a marker or do a mission action, then Sprint on with the distance left.'),
+    ff('survivalistSpirit','生存者之魂', 'Survivalist Spirit', '騎乘者啟動或反擊中：直到它下次啟動，武器不受重傷影響。', 'During a rider\'s activation or counteraction: until its next activation, its weapons ignore being injured.'),
   ],
   goremongers: [
     ff('destructiveDemise', '毀滅性死亡', 'Destructive Demise', '自動：友方殘廢時，對它控制範圍內一名敵人造成傷害：血槽空 D3、半 D3+1、滿 D3+2。', 'Auto: when a friendly is incapacitated, damage to an enemy in its control range: D3 with an empty GORE TANK, D3+1 half, D3+2 full.'),
@@ -2799,6 +2870,7 @@ const FIREFIGHT = {
     ff('wellDrilled', '訓練有素', 'Well-Drilled', '艦隊員啟動時：3" 內看得到的另一名準備中艦隊員可以接著啟動。', 'When a Navis operative is activated: another ready Navis operative visible within 3" may activate right after it.'),
   ],
   chaosCult: [
+    ff('abhorrentMutation', '可憎突變', 'Abhorrent Mutation', '黑暗聖會以外的友方啟動時：它額外獲得一個受詛咒的恩賜（每名整場一次，突變後仍保留）。', 'When a friendly cultist (not Dark Commune) activates: it gains an extra Accursed Gift (once per operative per battle; kept when it mutates).'),
     ff('faithfulFollower', '忠實追隨者', 'Faithful Follower', '自動：黑暗聖會成員被選為射擊或近戰目標時，改由它 3" 內看得到的另一名友方（非聖會）承受（爆炸、洪流無效）。', 'Auto: when a Dark Commune operative is picked as a Shoot or Fight target, another friendly (not Dark Commune) visible within 3" becomes the target instead (not vs Blast/Torrent).'),
     ff('frenziedDemise', '狂亂之死', 'Frenzied Demise', '自動：突變者或折磨者殘廢時，對 2" 內看得到的一名敵人造成 D3 傷害（折磨者 D6）。', 'Auto: when a Mutant or Torment is incapacitated, D3 damage (D6 for a Torment) to an enemy visible within 2".'),
     ff('unleashDaemonCC', '釋放惡魔', 'Unleash the Daemon', '突變者或折磨者啟動中：本次可以近戰兩次，其中一次免費。', 'During a Mutant\'s or Torment\'s activation: it can perform two Fight actions, one of them free.'),
@@ -2816,6 +2888,8 @@ const FIREFIGHT = {
     ff('animateNodes', '驅動方尖碑節點', 'Animate Obelisk Nodes', '輪到你啟動或反應時，改為移動任意數量方尖碑節點，合計最多 6"（每段距離進位到整吋）。之後對手照常行動。', 'When it is your turn to activate or counteract: move any number of obelisk nodes up to 6" combined instead (each distance rounded up), then your opponent activates as normal.'),
   ],
   broodBrothers: [
+    ff('ruthlessCoord', '無情協調', 'Ruthless Coordination', '友方射擊選目標時：若另一名看得到目標、不在敵人控制範圍內的友方看目標時沒有掩護，目標不能保留掩護豁免。', 'When a friendly selects a target to shoot: if another friendly (not in enemy control range) sees the target with no cover, the target cannot retain cover saves.'),
+    ff('insidious', '陰險', 'Insidious', '自動（第一回合以外）：一次啟動結束後，一名敵人無法瞄準的友方免費衝刺，結束時敵人也無法瞄準它（電腦會往目標點移動）。', 'Auto (not in TP1): after an activation, a friendly no enemy can target makes a free Dash, ending where no enemy can target it (towards an objective).'),
     ff('unquestioningLoyalty', '無條件忠誠', 'Unquestioning Loyalty', '自動：友方領袖被選為射擊或近戰目標時，改由它 3" 內看得到的另一名友方兵員（非領袖）承受（爆炸、洪流無效；老兵時 0CP）。', 'Auto: when a friendly Leader is picked as a Shoot or Fight target, another friendly Broodguard (not a Leader) visible within 3" of it becomes the target instead (not vs Blast/Torrent; 0CP for the Veteran).'),
     ff('idolisation', '偶像崇拜', 'Idolisation', '友方（非領袖）在領袖或聖像守衛 6" 內攻擊時：一顆失敗當成普通成功，或一顆普通成功當成暴擊。', 'A friendly (not a Leader) within 6" of a Leader or the Iconward attacking: retain one fail as a normal success, or one normal as a critical.'),
   ],
@@ -2826,6 +2900,9 @@ const FIREFIGHT = {
     ff('contempt', '輕蔑', 'Contempt', '自動：敵人射擊友方時（已擲攻擊骰、重擲之前），這次攻擊不能重擲攻擊骰。', 'Auto: when an enemy shoots a friendly (after rolling, before re-rolls), it can\'t re-roll its attack dice that sequence.'),
   ],
   battleclade: [
+    ff('remoteAccess', '遠端存取', 'Remote Access', '技術神甫啟動中（每次一次）：下一個任務動作可以用 4" 內、沒有敵人爭奪的標記（其他友方控制範圍內的敵人不算）；或開關 4" 內的門。', 'During a Tech-Priest\'s activation (once): its next mission action can use a marker within 4" that no enemy contests (ignoring enemies in control range of other friendlies), or Operate Hatch on an access point within 4".'),
+    ff('systemExorcism', '系統驅魔', 'System Exorcism', '友方啟動時：移除一個對手施加在它身上的效果（APL 減少、中毒、燃燒標記或標記光），不能回復生命。', 'When a friendly activates: remove one effect your opponent applied to it (an APL loss, Poison, a Blaze token or Markerlights); no lost wounds come back.'),
+    ff('servileSurrogacy', '奴僕代受', 'Servile Surrogacy', '自動：友方技術神甫被選為射擊或近戰目標時，3" 內看得到的一名僕從代替它（爆炸、洪流除外）。', 'Auto: when a friendly Tech-Priest is picked as the target to shoot or fight, a servitor visible within 3" of it takes its place (not against Blast or Torrent).'),
     ff('autoFerric', '自動鐵之祈求', 'Auto-Ferric Supplication', '自動：敵人射擊友方技術神甫時，這次攻擊忽略「穿甲」。', 'Auto: when an enemy shoots a friendly Tech-Priest, ignore Piercing for that attack.'),
   ],
   warpcoven: [
