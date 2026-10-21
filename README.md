@@ -205,6 +205,8 @@ This remains a flat-board approximation: model centres/silhouettes stand in for 
 
 開門與關門各固定花費 1AP，新對戰門預設關閉；門號、狀態、阻擋地形與回放同步更新。驗證：`node tests/tombworld-hatches.mjs`。
 
+依官方 Operate Hatch 規則，移動（Reposition）或衝刺（Dash）途中也能開門：在門前設一個折點（或在起點），按「🚪 在折點開門」（另花 1AP），再點門另一邊的落點，剩下的移動距離可以穿過門繼續走。驗證：`node tests/tombworld-midmove-hatch.mjs`。
+
 墓穴世界的牆（含端柱與關閉的艙門）視為無限往上延伸：無法攀爬、飛越，也看不過去（噴射背包、閃爍背包同樣要繞路或走開啟的門與洞口）；墓穴世界的輕掩體 C1–C5 和一般地圖的地形一樣可以攀爬或飛越。驗證：`node tests/tombworld-flying.mjs`。
 
 所有隊伍的陣營裝備與通用裝備合計最多四項；選隊介面、開局資料與 AI 使用同一上限。死亡守望及萊特林亦依此設定為四項。切換隊伍時保留適用的通用裝備，移除原隊伍限定裝備；重複項目不重複計數。驗證：`node tests/equipment.mjs`。

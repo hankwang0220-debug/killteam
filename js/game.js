@@ -566,6 +566,32 @@ export function doMissionAction(g, op, id) {
   dwAfterAction(g, op);
 }
 
+// Operate Hatch during a Dash or Reposition (Killzone: Tomb World): the hatchway opens at a point on the route and the rest of the move carries on through it.
+export const hatchOpenView = (g, id) => ({ ...g, hatches: { ...g.hatches, [id]: 'open' }, terrain: g.terrain.filter((t) => t.hatchId !== id) });
+/** The closed hatchways the operative could open with its base at p, part-way through a Dash or Reposition (enough AP for both). */
+export function midMoveHatches(g, op, kind, p) {
+  if (!['reposition', 'dash'].includes(kind) || !p) return [];
+  const { x, y } = op;
+  op.x = p.x; op.y = p.y;
+  try {
+    return availableActions(g, op).filter((a) => a.ok && a.id.startsWith('twOpen_') && op.ap >= actionCost(g, op, kind) + a.ap).map((a) => ({ id: a.id.slice(7), name: a.name, ap: a.ap }));
+  } finally { op.x = x; op.y = y; }
+}
+/** path.hatch = { id, at }: open hatchway id with the base at path.pts[at]. The route up to there must be clear with it closed, the whole route with it open. */
+function hatchMidMove(g, op, kind, path) {
+  const { id, at } = path.hatch, p = path.pts[at], end = path.pts.at(-1);
+  if (!p || !midMoveHatches(g, op, kind, p).some((h) => h.id === id)) return false;
+  const shut = moveCtx(g, op, kind), open = moveCtx(hatchOpenView(g, id), op, kind);
+  if (!path.pts.slice(1, at + 1).every((q, i) => shut.segFree(path.pts[i], q))) return false;
+  const checked = wholeInchPath(open, path, moveAllowance(g, op, kind), (q) => !open.inEnemyER(q));
+  if (!checked || Math.hypot(checked.pts.at(-1).x - end.x, checked.pts.at(-1).y - end.y) > 1e-6) return false;
+  const { x, y } = op;
+  op.x = p.x; op.y = p.y;
+  doMissionAction(g, op, `twOpen_${id}`);
+  op.x = x; op.y = y;
+  return true;
+}
+
 export function deployOk(g, op, p) {
   if (tpl(op).spBeacon) return spBeaconOk(g, op, p); // Pre-Deploy (Spectre Vox-relay Beacon): anywhere in the territory
   const z = deployZones(g)[op.side], r = radius(op);
@@ -2981,6 +3007,7 @@ export function spend(g, op, id, ap = actionCost(g, op, id)) {
 /** Apply a validated movement path. */
 export function doMove(g, op, kind, path) {
   if (isMurderwing(op) && (!path?.pts?.length || path.len > moveAllowance(g, op, kind) + 0.01)) return false;
+  if (path?.hatch && !hatchMidMove(g, op, kind, path)) return false; // (Operate Hatch part-way through the move)
   const ctx = moveCtx(g, op, kind);
   feActionStart(g,op);
   path = wholeInchPath(op.breachMove && !g.map?.startsWith('tombworld-') ? { ...ctx, segFree: () => true, extra: () => 0 } : ctx, path, moveAllowance(g, op, kind), kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));

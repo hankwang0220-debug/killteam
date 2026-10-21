@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v85';
+const CACHE = 'killteam-v86';
 const ASSETS = [
   'js/rules/battleclade.js', 'js/rules/blades.js', 'js/rules/blooded.js', 'js/rules/brood.js', 'js/rules/canoptek.js', 'js/rules/chaoscult.js', 'js/rules/exaction.js', 'js/rules/exodite.js', 'js/rules/fellgor.js', 'js/rules/gellerpox.js', 'js/rules/goremongers.js', 'js/rules/hearthkyn.js', 'js/rules/hierotek.js', 'js/rules/hunterclade.js', 'js/rules/inquisition.js', 'js/rules/insidiants.js', 'js/rules/kasrkin.js', 'js/rules/legionaries.js', 'js/rules/navy.js', 'js/rules/phobos.js', 'js/rules/starstriders.js', 'js/rules/warpcoven.js', 'js/rules/wyrmblade.js', 'js/rules/yaegirs.js',
   'js/battle3d.js',

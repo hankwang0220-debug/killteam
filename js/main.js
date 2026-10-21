@@ -54,7 +54,7 @@ import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation
 import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
-  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, buyPloy, deployOk, doMove, endActivation,
+  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, midMoveHatches, hatchOpenView, buyPloy, deployOk, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName, makeTerrain, OBJECTIVES, DEPLOY,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
@@ -2026,8 +2026,12 @@ function modeView(op) {
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
     const canPin = !!(p && m.dest && !p.unreachable && !p.breach && (p.exactLen ?? p.len) < max - 0.05);
-    const wpRow = ['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length ? `<button data-act="popwp">↶ ${L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
-    return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}
+    const wpRow = ['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length || m.hatch ? `<button data-act="popwp">↶ ${m.hatch ? L('取消途中開門', 'Undo the hatchway') : L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
+    // Operate Hatch during the move (Tomb World): from the last waypoint, or where the move starts.
+    const hatches = m.hatch ? [] : midMoveHatches(g, op, m.action, wps.at(-1) || op);
+    const hatchRow = m.hatch ? `<p class="ok">🚪 ${L(`途中開門（另花 ${m.hatch.ap}AP），之後繼續移動`, `Opens the hatchway on the way (+${m.hatch.ap}AP), then carries on`)}</p>`
+      : hatches.length ? `<div class="row">${hatches.map((h) => `<button data-act="midhatch" data-id="${h.id}">🚪 ${L(`${wps.length ? '在折點' : '先'}${tx(h.name)}（+${h.ap}AP）`, `${tx(h.name)} ${wps.length ? 'at the waypoint' : 'first'} (+${h.ap}AP)`)}</button>`).join('')}</div>` : '';
+    return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}${hatchRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
   if ((m.kind === 'shoot' || m.kind === 'fight') && !m.weapon) {
@@ -3096,16 +3100,19 @@ function moveLeg(ctx, from, to) {
   return findPath({ ...ctx, op: { ...ctx.op, x: from.x, y: from.y } }, to);
 }
 /** The route through the player's waypoints (ui.mode.wps), then on to p (or ending at the last waypoint). */
-function routeThrough(ctx, op, p) {
-  const stops = [...(ui.mode?.wps || []), ...(p ? [p] : [])];
-  let pts = [{ x: op.x, y: op.y }], len = 0;
-  for (const s of stops) {
-    const leg = moveLeg(ctx, pts[pts.length - 1], s);
+// With a hatchway opened part-way (ui.mode.hatch, at waypoint `at`; -1 = the start), the legs after it use `after` (the hatchway open).
+function routeThrough(ctx, op, p, after = ctx) {
+  const stops = [...(ui.mode?.wps || []), ...(p ? [p] : [])], h = ui.mode?.hatch;
+  let pts = [{ x: op.x, y: op.y }], len = 0, at = h?.at === -1 ? 0 : null;
+  for (const [i, s] of stops.entries()) {
+    const leg = moveLeg(h && i > h.at ? after : ctx, pts[pts.length - 1], s);
     if (!leg) return null;
     pts = [...pts, ...leg.pts.slice(1)]; len += leg.len;
+    if (h && i === h.at) at = pts.length - 1;
   }
-  return { pts, len };
+  return { pts, len, ...(at != null && { hatch: { id: h.id, at } }) };
 }
+const routeCtxs = (op, action) => { const ctx = moveCtx(g, op, action), h = ui.mode?.hatch; return [ctx, h ? moveCtx(hatchOpenView(g, h.id), op, action) : ctx]; };
 
 function previewMove(op, action, p) {
   const ctx = moveCtx(g, op, action);
@@ -3167,7 +3174,8 @@ function previewMove(op, action, p) {
     ui.path = { pts: [{ x: op.x, y: op.y }, p], len, ok: !why, why, r, breach: true };
     return render();
   }
-  const full = routeThrough(ctx, op, p);
+  const octx = ui.mode?.hatch ? moveCtx(hatchOpenView(g, ui.mode.hatch.id), op, action) : ctx;
+  const full = routeThrough(ctx, op, p, octx);
   if (!full) {
     const from = ui.mode?.wps?.at(-1) || { x: op.x, y: op.y };
     ui.path = { pts: [{ x: op.x, y: op.y }, ...(ui.mode?.wps || []), p], len: Math.ceil(Math.hypot(p.x - from.x, p.y - from.y)), ok: false, r, unreachable: true,
@@ -3177,12 +3185,13 @@ function previewMove(op, action, p) {
   if (ui.mode) ui.mode.dest = p;
   // Too far: stop at the furthest legal point along the route.
   const endOk = action === 'charge' ? ctx.inEnemyER : (q) => !ctx.inEnemyER(q);
-  const snapped = wholeInchPath(ctx, full, max, endOk);
-  const path = snapped || { ...full, len: Math.ceil(full.len - 1e-6) };
+  const snapped = wholeInchPath(octx, full, max, endOk);
+  const path = snapped ? { ...snapped, ...(full.hatch && { hatch: full.hatch }) } : { ...full, len: Math.ceil(full.len - 1e-6) };
   const end = path.pts[path.pts.length - 1];
   let why = null;
   if (path.len > max + 0.01) why = L(`距離 ${path.len}" 超過 ${max}"`, `${path.len}" exceeds ${max}"`);
   else if (!snapped) why = L('沒有符合距離與放置條件的落點，請重新選擇', 'No legal endpoint within the movement allowance; choose another location');
+  else if (full.hatch && snapped.pts.length <= full.hatch.at) why = L('移動距離不夠走到開門的位置', 'Not enough movement to reach the hatchway');
   else if (action === 'charge' && !ctx.inEnemyER(end)) why = L(`衝鋒必須結束於敵人 1" 內（需要 ${Math.ceil(full.len)}"）`, `Charge must end within 1" of an enemy (needs ${Math.ceil(full.len)}")`);
   else if (action === 'fallBack' && ctx.inEnemyER(end)) why = L('撤退必須離開交戰範圍', 'Fall Back must end outside engagement range');
   else if (action === 'charge' && op.order === 'conceal' && isMandrake(op) && !withinShadow(g, op) && !withinShadow(g, { ...op, ...end })) why = L('隱蔽衝鋒起點或終點必須在暗影', 'Concealed Charge must start or end in shadow');
@@ -3703,14 +3712,28 @@ function handle(act, d) {
       const m = ui.mode;
       if (m?.kind !== 'move' || !m.dest || !ui.path || ui.path.unreachable || (ui.path.exactLen ?? ui.path.len) >= moveAllowance(g, op, m.action) - 0.05) return render();
       m.wps = [...(m.wps || []), ui.path.pts.at(-1)]; m.dest = null; // (where the route really gets to)
-      ui.path = { ...routeThrough(moveCtx(g, op, m.action), op, null), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') };
+      const [ctx, octx] = routeCtxs(op, m.action);
+      ui.path = { ...routeThrough(ctx, op, null, octx), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') };
       return render();
     }
     case 'popwp': {
       const m = ui.mode;
-      if (m?.kind !== 'move' || !m.wps?.length) return render();
-      m.wps = m.wps.slice(0, -1); m.dest = null;
-      ui.path = m.wps.length ? { ...routeThrough(moveCtx(g, op, m.action), op, null), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') } : null;
+      if (m?.kind !== 'move' || !m.wps?.length && !m.hatch) return render();
+      if (m.hatch && m.hatch.at >= (m.wps?.length || 0) - 1) delete m.hatch; // (the hatchway goes first, then the waypoint it was opened at)
+      else m.wps = m.wps.slice(0, -1);
+      m.dest = null;
+      const [ctx, octx] = routeCtxs(op, m.action);
+      ui.path = m.wps.length || m.hatch ? { ...routeThrough(ctx, op, null, octx), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') } : null;
+      return render();
+    }
+    case 'midhatch': {
+      // Operate Hatch part-way through a Dash or Reposition: at the last waypoint (or where the move starts).
+      const m = ui.mode, at = (m?.wps?.length || 0) - 1, p = at >= 0 ? m.wps[at] : op;
+      const h = m?.kind === 'move' && !m.hatch && midMoveHatches(g, op, m.action, p).find((x) => x.id === d.id);
+      if (!h) return render();
+      m.hatch = { id: h.id, at, ap: h.ap }; m.dest = null;
+      const [ctx, octx] = routeCtxs(op, m.action);
+      ui.path = { ...routeThrough(ctx, op, null, octx), ok: false, r: radius(op), why: L('再點門另一邊要走到的位置', 'Tap where to go through the hatchway') };
       return render();
     }
     case 'confirmmove':
