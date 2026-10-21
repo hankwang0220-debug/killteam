@@ -1,6 +1,6 @@
 // Wrecka Krew (破壞專隊) rules engine: Wrecka points, Tanked Up, Bomb Squigs, Detonate, Smash, Pulsa rokkit,
 // Break Stuff and the faction equipment. game.js calls these hooks; the team data is in data/wrecka.js.
-import { abilityArmed, ACTIONS, applyDamage, d3, d6, edgeDist, forcedShot, getOp, hasPloy, isEngaged, isInjured, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
+import { abilityArmed, ACTIONS, aplNow, applyDamage, d3, d6, edgeDist, forcedShot, getOp, hasPloy, isEngaged, isInjured, living, log, opName, radius, spend, team, tpl, visibility } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { moveCtx } from './path.js';
 import { WRECKA_TEAM, wreckaRosterError } from './data/wrecka.js';
@@ -35,8 +35,9 @@ export function wkActionStart(g, op, kind) {
   if (!isWK(op) || op.dead) return;
   // Tanked Up: the first Charge, Shoot or Fight of an Engage-order operative in each activation / counteraction.
   if (!isSquig(op) && op.order === 'engage' && !op.acted.wkTanked) {
+    const before = aplNow(g, op);
     op.acted.wkTanked = true; op.wkTanked = true;
-    if (!op.counter) op.ap += 1;
+    if (!op.counter) op.ap += Math.max(0, aplNow(g, op) - before);
     note(g, op.side, `${opName(op, 'zh')} 猛灌加油：APL +1（直到下次啟動）`, `${opName(op, 'en')} Tanked Up: +1 APL until its next activation`);
   }
   if (tpl(op).wreckaBoss && kind !== 'charge') gain(g, op.side, 1, { zh: '破壞頭目', en: 'Wrecka Boss' });

@@ -203,16 +203,22 @@ export function moveStat(g, op) {
   if (wcBoon(op, 'timeWalk')) m += 1; // Time-Walk (Warpcoven boon)
   if (hcNanoNear(g, op)) m -= 2; // Countertemporal Nanomine (Hierotek Chronomancer)
   m += wcHorn(g, op); // Brayhorn (Tzaangor Horn Bearer)
-  return m;
+  return Math.max(Math.min(base, 4), m);
 }
 
 /** APL for this activation: changes last until the end of the operative's next activation (Resolute ignores them). */
 // The APL stat can't be changed by more than 1 in total.
 // NEMESIS NPOs use the APL from their activation card and ignore all changes (Bulky).
 // Viral Vox-static (Gellerpox Techno-curse): an infected operative's APL can't be increased.
-export const aplNow = (g, op) => hasEquip(g,op.side,'feVisor') ? tpl(op).apl : Math.max(0, sfNullApl(g, op, matrixApl(g, op, tpl(op).nemesis && op.cardApl ? op.cardApl
-  : Math.max(0, tpl(op).apl + (hasTactic(g, op, 'resolute') || tpl(op).chemEnhanced || tpl(op).toxicBlessings || tpl(op).engenderedFocus || op.shakeTP === g.tp || nbRebreathe(g, op) ? 0 // Chem-enhanced / Toxic Blessings / Engendered Focus ignore APL changes
-    : Math.max(-1, Math.min((op.aplNext || 0) > 0 && (cursed(g, op, 'voxStatic') || ncJammed(g, op)) ? 0 : 1, op.aplNext || 0)))))) - dkGasApl(g, op));
+export function aplNow(g, op) {
+  const t = tpl(op), base = t.apl;
+  if (t.nemesis) return op.cardApl ?? base;
+  if (hasEquip(g, op.side, 'feVisor') || hasTactic(g, op, 'resolute') || t.chemEnhanced || t.toxicBlessings || t.engenderedFocus || op.shakeTP === g.tp || nbRebreathe(g, op)) return base;
+  let value = matrixApl(g, op, base + (op.aplNext || 0)) - dkGasApl(g, op);
+  if (cursed(g, op, 'voxStatic') || ncJammed(g, op)) value = Math.min(base, value);
+  value = sfNullApl(g, op, value);
+  return Math.max(0, Math.min(base + 1, Math.max(base - 1, value)));
+}
 /** Obelisk Node Matrix (Canoptek Circle): +1 APL within it, to a maximum of 3. */
 // (Ardour, a Celestian Insidiant Benediction: +1 APL for the rest of the battle.)
 // (Mania, a Goremonger Sanguavitae: +1 APL until its next activation.)
@@ -4702,7 +4708,12 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
   const dice = Array.from({ length: n - auto }, () => ({ v: d6(), rr: false }));
   const fail = (v) => rules.soulstrikeDef ? v !== 1 && (v === 6 || v > success) : v < success || (rules.no3 && v === 3); // Soulstrike reverses defence thresholds
   if (rules.reroll6) for (const d of dice) if (d.v === 6) { d.v = d6(); d.rr = true; } // Ravage Destiny (forced)
-  if (rules.ceaseless && !rules.noReroll1 && !rules.ceaselessManual) for (const d of dice) if (!d.rr && d.v === 1) { d.v = d6(); d.rr = true; } // (Flayed Skin: results of 1 can't be re-rolled)
+  if (rules.ceaseless && !rules.ceaselessManual) {
+    const counts = new Map();
+    for (const d of dice) if (!d.rr && fail(d.v) && !(rules.noReroll1 && d.v === 1)) counts.set(d.v, (counts.get(d.v) || 0) + 1);
+    const value = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+    for (const d of dice) if (!d.rr && d.v === value) { d.v = d6(); d.rr = true; }
+  }
   if (rules.digIn && !(rules.relentless && !rules.relentlessManual) && !rules.digInManual) {
     // Dig In!: re-roll every die showing one result — the failed result that came up most.
     const tally_ = {};
@@ -4726,7 +4737,7 @@ function rollPool(n, success, critOn, rules = {}, post = null) {
     dice, success, critOn, post, crits: 0, norms: 0, balancedLeft: rules.balanced && rules.balancedManual ? 1 : 0, noReroll1: !!rules.noReroll1,
     digInLeft: rules.digIn && !(rules.relentless && !rules.relentlessManual) && rules.digInManual ? 1 : 0,
     ceaselessLeft: rules.ceaseless && rules.ceaselessManual ? 1 : 0, relentlessLeft: rules.relentless && rules.relentlessManual ? 1 : 0, rerollLeft: rules.rerollFails && rules.rerollManual ? rules.rerollFails : 0,
-    rules: { soulstrikeDef: !!rules.soulstrikeDef, severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze, promote: rules.promote || 0 },
+    rules: { obscured: !!rules.obscured, soulstrikeDef: !!rules.soulstrikeDef, severe: !!rules.severe, rending: !!rules.rending, punishing: !!rules.punishing, no3: !!rules.no3, grudge: rules.grudge || 0, closeAssault: !!rules.closeAssault, gaze: !!rules.gaze, promote: rules.promote || 0 },
   };
   return tally(pool);
 }
@@ -4743,11 +4754,11 @@ function tally(pool) {
   }
   let crits = dice.filter((d) => d.res === 'crit').length;
   let norms = dice.filter((d) => d.res === 'norm').length;
-  if (rules.severe && crits === 0 && norms > 0) {
+  if (!rules.obscured && rules.severe && crits === 0 && norms > 0) {
     // Severe: no critical success retained, so one normal success becomes critical (Rending and Punishing then don't apply).
     const d = dice.find((x) => x.res === 'norm'); d.res = 'crit'; d.sev = true;
     crits++; norms--;
-  } else if (crits > 0) {
+  } else if (!rules.obscured && crits > 0) {
     if (rules.rending && norms > 0) {
       const d = dice.find((x) => x.res === 'norm'); d.res = 'crit'; d.rend = true;
       crits++; norms--;
@@ -4778,24 +4789,20 @@ function tally(pool) {
 }
 
 /** Obscured: the attacker's critical successes become normal successes, then one success is discarded. */
-function obscure(pool) {
+function obscure(pool, noDiscard = false) {
   for (const d of pool.dice) if (d.res === 'crit') { d.res = 'norm'; d.obsc = true; }
   const drop = pool.dice.filter((d) => d.res === 'norm').sort((x, y) => (x.auto ? 1 : 0) - (y.auto ? 1 : 0))[0];
-  if (drop) { drop.res = 'miss'; drop.obscDrop = true; }
+  if (drop && !noDiscard) { drop.res = 'miss'; drop.obscDrop = true; }
   pool.crits = 0;
   pool.norms = pool.dice.filter((d) => d.res === 'norm').length;
 }
 
-/** Expected damage of ac/an unblocked attack successes against n defence dice (save+, crit on critOn) plus retained saves. */
-function expectedDamage(ac, an, n, save, critOn, cN, cC, dn, dc) {
-  const pc = Math.max(0, 7 - Math.max(critOn, save)) / 6, ps = Math.max(0, 7 - save) / 6, pn = ps - pc, pm = 1 - ps;
-  const fact = (k) => (k <= 1 ? 1 : k * fact(k - 1));
-  let e = 0;
-  for (let i = 0; i <= n; i++) for (let j = 0; i + j <= n; j++) {
-    const p = fact(n) / (fact(i) * fact(j) * fact(n - i - j)) * pc ** i * pn ** j * pm ** (n - i - j);
-    if (p) e += p * bestBlock(ac, an, i + cC, j + cN, dn, dc).dmg;
-  }
-  return e;
+/** Holowave resolves after the attacker's other retained-dice effects. */
+function holowave(pool) {
+  const d = pool.dice.find((x) => x.res === 'norm') || pool.dice.find((x) => x.res === 'crit');
+  if (d) { d.res = 'miss'; d.obscDrop = true; }
+  pool.crits = pool.dice.filter((x) => x.res === 'crit').length;
+  pool.norms = pool.dice.filter((x) => x.res === 'norm').length;
 }
 
 // ---------- Command Re-roll (firefight ploy, 1CP) ----------
@@ -5201,14 +5208,63 @@ function stunOnCrit(g, rules, crits, target) {
   return true;
 }
 
-/**
- * One shooting sequence (attack dice, defence dice, damage) against one target, as a generator so the
- * caller can stop after the attack dice and after the defence dice (Command Re-roll) before damage is
- * dealt. It yields {stage: 'attack' | 'defence', seq}; `seq` holds the dice pools and who can re-roll.
- */
-function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAtStart = null) {
+/** Optional pre-roll choices; synchronous callers use the supplied default. */
+function* attackChoice(g, interactive, side, title, options, fallback) {
+  if (!interactive || !playerPicks(g, side) || options.length < 2) return fallback;
+  const picked = yield { stage: 'choice', side, title, options };
+  return options.some((o) => o.id === picked) ? picked : fallback;
+}
+
+/** Compare pre-defence damage expectation, including retained-success weapon rules, without rolling. */
+function automaticAccurate(n, hit, weapon, rules) {
+  const max = Math.min(n, rules.accurate || 0), critOn = rules.lethal || 6;
+  const faces = [1, 2, 3, 4, 5, 6], succeeds = (v) => v >= hit && !(rules.no3 && v === 3);
+  const critical = faces.filter((v) => succeeds(v) && v >= critOn), normal = faces.filter((v) => succeeds(v) && v < critOn);
+  const pc = critical.length / 6, pn = normal.length / 6, pf = 1 - pc - pn;
+  const fact = (v) => v < 2 ? 1 : v * fact(v - 1);
+  let best = max, bestScore = -Infinity;
+  for (let retained = max; retained >= 0; retained--) {
+    const rolled = n - retained; let score = 0;
+    for (let c = 0; c <= rolled; c++) for (let h = 0; h <= rolled - c; h++) {
+      const f = rolled - c - h;
+      const probability = fact(rolled) / (fact(c) * fact(h) * fact(f)) * pc ** c * pn ** h * pf ** f;
+      if (!probability) continue;
+      const dice = [...Array.from({ length: c }, () => ({ v: critical[0] })), ...Array.from({ length: h }, () => ({ v: normal[0] })), ...Array.from({ length: f }, () => ({ v: 1 })), ...Array.from({ length: retained }, () => ({ v: '✓', auto: true }))];
+      const pool = tally({ dice, success: hit, critOn, rules });
+      if (rules.obscured) obscure(pool, rules.blacksun);
+      score += probability * (pool.norms * weapon.dmg[0] + pool.crits * (weapon.dmg[1] + (rules.devastating || 0)));
+    }
+    if (score > bestScore + 1e-9) { best = retained; bestScore = score; }
+  }
+  return best;
+}
+
+function* chooseAccurate(g, interactive, op, weapon, rules, n, hit = weapon.hit) {
+  const max = Math.min(n, rules.accurate || 0);
+  if (!max) return;
+  const count = yield* attackChoice(g, interactive, op.side, {
+    zh: `${opName(op, 'zh')}：精準，選擇不擲骰的普通成功數量`,
+    en: `${opName(op, 'en')}: Accurate — choose normal successes retained without rolling`,
+  }, Array.from({ length: max + 1 }, (_, i) => ({ id: String(i), label: { zh: `${i} 顆`, en: `${i} dice` } })), String(automaticAccurate(n, hit, weapon, rules)));
+  rules.accurate = Number(count);
+}
+
+/** A shooting sequence yields pre-roll choices, then attack and defence reroll windows. */
+function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAtStart = null, interactive = false) {
+  const sourceVis = vis;
   vis = ncObscure(g, op, target, vis); // In Midnight Clad (Nemesis Claw): obscured in the dark by Heavy terrain
   const rules = effectiveRules(g, op, weapon, target);
+  const coverChoice = !sourceVis.selectedDefence && vis.cover && !rules.ignoreCover && vis.obscured && !!vis.defenceOptions?.length && !vis.defenceOptions.some((o) => o.cover && o.obscured);
+  let protection = sourceVis.selectedDefence;
+  if (coverChoice) {
+    const choice = yield* attackChoice(g, interactive, target.side, {
+      zh: `${opName(target, 'zh')}：同一地形的掩護或遮蔽（擲骰前決定）`,
+      en: `${opName(target, 'en')}: choose cover or obscured from the same terrain before rolling`,
+    }, [{ id: 'cover', label: { zh: '掩護', en: 'Cover' } }, { id: 'obscured', label: { zh: '遮蔽', en: 'Obscured' } }], 'obscured');
+    protection = { cover: choice === 'cover', obscured: choice === 'obscured' };
+  }
+  if (protection) vis = { ...vis, ...protection };
+  sourceVis.selectedDefence = { cover: !!vis.cover, obscured: !!vis.obscured };
   if (rules.earthenWrath && vis.cover) rules.lethal = Math.min(rules.lethal || 6, 5); // Earthen Wrath (Stonesinger): Lethal 5+ against a target in cover
   // Contempt (Blades of Khaine firefight ploy): the shooter can't re-roll its attack dice this sequence.
   if (!noReroll && target.side < 2 && isBlade(target) && (rules.balanced || rules.ceaseless || rules.relentless) && autoFF(g, target.side, 'contempt')) noReroll = true;
@@ -5227,8 +5283,13 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   }
   hit = clampHit(hit);
   const atk = Math.max(1, weapon.atk + (rules.atkPlus || 0) - (rules.atkMinus || 0) - (cursed(g, op, 'barrelwarp') ? 1 : 0)); // (atkMinus: Sanctification) // Barrelwarp (Gellerpox)
+  const useObscured = !!vis.obscured, useCover = !!vis.cover && !rules.ignoreCover;
+  const blacksun = isXV(op) && op.side < 2 && g.equip?.[op.side]?.includes('xvBlacksun');
+  rules.obscured = useObscured; rules.blacksun = blacksun;
+  yield* chooseAccurate(g, interactive, op, weapon, rules, atk, hit);
   if (playerPicks(g, op.side)) { rules.balancedManual = true; rules.ceaselessManual = true; rules.relentlessManual = true; } // (a player uses Balanced, Ceaseless and Relentless itself)
-  const a = rollPool(atk, hit, rules.lethal || 6, rules, chainPost(kinPost(g, op), scryPost(g, op, 'guide'))); // (No Kin Left Behind, Scry: Guidance)
+  const protectionPost = useObscured ? (pool) => obscure(pool, blacksun) : xvHolowave(g, op, target) ? holowave : null;
+  const a = rollPool(atk, hit, rules.lethal || 6, rules, chainPost(chainPost(kinPost(g, op), scryPost(g, op, 'guide')), protectionPost));
   if (rules.slugs) nbSlugsUsed(g, op); // (Slugs: counted once the attack dice are rolled)
   archonPrey(g, op, target, a);
   ncPrey(g, op, target, a); // Death to the False Emperor (Nemesis Claw)
@@ -5252,7 +5313,6 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   yield { stage: 'attack', seq };
   if (callous) blCallousHits(g, op, target, seq.a); // (each attack dice discarded as a fail hurts a friend in the fight)
   if(seq.feSanctified && /^(autogun|autopistol|relic bolt pistol|relic boltgun)$/i.test(weapon.name.en))rules.piercingCrits=Math.max(1,rules.piercingCrits||0);
-  const inCover = vis.cover && !rules.ignoreCover;
   // Toxic: +1 to both Dmg against an enemy that was poisoned at the start of the action.
   // Close Assault (Navy Breachers): Navis shotguns +1 to both Dmg (counted with Toxic's bonus).
   // (Anti-PSYKER, Novitiate Condemnor: +1 to both Dmg against a psyker.)
@@ -5324,20 +5384,6 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     const save = Math.min(6, Math.max(2, (g.feWarded?.[target.side]?.tp===g.tp && g.feWarded[target.side].uid===target.uid ? 2 : tpl(target).save) - (isMandrake(target) && withinShadow(g, target) ? 1 : 0) - (base && hasPloy(g, target.side, 'takeCover') ? 1 : 0) - (target.gongOn ? 1 : 0) - (exPattern(target, 'defensive') ? 1 : 0) - (hasGift(g, target, 'chitinous') ? 1 : 0) - wkSaveBonus(g, target) - sfConversion(g, op, target) - (coverN + coverC > 0 ? protectiveBonus(g, target) : 0)) + (deprecated(g, target, 'aggressor') ? 1 : 0)); // (Extra Armour: Wrecka Krew)
     return { pierce, defDice, base, coverN, coverC, skulk, save };
   };
-  // Only a shared terrain feature forces a cover/obscuring choice. Independent features stack.
-  let useObscured = !!vis.obscured, useCover = inCover;
-  const coverChoice = useObscured && useCover && !!vis.defenceOptions?.length && !vis.defenceOptions.some(o => o.cover && o.obscured);
-  if (coverChoice) {
-    const critOn = hasTactic(g, target, 'hardy') || rtArmour(g, target) ? 5 : 6, devD = rules.devastating || 0;
-    const ex = (ac, an, o) => expectedDamage(ac, an, o.defDice - o.coverN - o.coverC, o.save, critOn, o.coverN, o.coverC, dn, dc) + devD * ac;
-    const att = a.crits + a.norms;
-    const withCover = ex(a.crits, a.norms, defence(true, a.crits));
-    const withObsc = ex(0, Math.max(0, att - 1), defence(false, 0));
-    if (withCover < withObsc) useObscured = false; else useCover = false;
-  }
-  const blacksun = isXV(op) && op.side < 2 && g.equip?.[op.side]?.includes('xvBlacksun'); // Advanced Blacksun Filters: no success discarded for obscured
-  if (useObscured) { a.post = blacksun ? (pool) => { for (const d of pool.dice) if (d.res === 'crit') { d.res = 'norm'; d.obsc = true; } pool.crits = 0; pool.norms = pool.dice.filter((d) => d.res === 'norm').length; } : obscure; tally(a); }
-  else if (xvHolowave(g, op, target)) { a.post = (pool) => { const x = pool.dice.find((d) => d.res === 'norm') || pool.dice.find((d) => d.res === 'crit'); if (x) { x.res = 'miss'; x.obscDrop = true; } pool.crits = pool.dice.filter((d) => d.res === 'crit').length; pool.norms = pool.dice.filter((d) => d.res === 'norm').length; }; tally(a); } // Holowave Countermeasures (XV26)
   // Devastating x: each retained critical success inflicts x damage straight away, before any defence dice.
   // (x" Devastating also hits each other operative visible to and within x" of the target.)
   const before = target.wounds;
@@ -5593,7 +5639,7 @@ export function forcedShot(g, op, weapon, targets, real = false) {
 }
 
 /** The Shoot action as a generator: yields after each dice roll (see shootSequence) and returns the result. */
-export function* shootFlow(g, op, weapon, target) {
+export function* shootFlow(g, op, weapon, target, interactive = false) {
   // Blinding Aura (Novitiates): picking that Novitiate from more than 2" — pick again, or the Shoot ends if there's no other target.
   { const s = bcSurrogate(g, op, target, weapon); if (s) target = s; } // Servile Surrogacy (Battleclade): a servitor is shot instead
   { op.nvFaithSpent = 0; const b = nvBlindingAura(g, op, weapon, target); if (b) { if (b === 'end') spend(g, op, 'shoot', shootWeapon(g, op, weapon).ap); return { kind: 'sfDeclaim', attacker: op.uid, target: target.uid, weapon, action: 'shoot', title: { zh: '炫目光環', en: 'Blinding Aura' }, text: b === 'end' ? { zh: '沒有其他可以射擊的目標：這次射擊結束（AP 已花費）。', en: 'No other target: this Shoot action ends (the AP is spent).' } : { zh: '從 2" 外不能選它為目標；請改選其他目標（AP 沒有花費）。', en: 'It cannot be targeted from more than 2"; pick another target (no AP spent).' } }; } }
@@ -5668,7 +5714,7 @@ export function* shootFlow(g, op, weapon, target) {
   g.shotTargets = [target.uid, ...others.map((t) => t.uid)];
   const poisonedAtStart = new Set(g.ops.filter((o) => o.poison).map((o) => o.uid));
   g.runesLost = {}; // Runes of Khorne (Goremongers): at most 8 wounds lost per Shoot action
-  const main = yield* shootSequence(g, op, weapon, target, vis, noReroll, poisonedAtStart);
+  const main = yield* shootSequence(g, op, weapon, target, vis, noReroll, poisonedAtStart, interactive);
   if (weapon.rules.banish) banish(g, op, target, main); // Dimensional Banishment (Tomb Crawler)
   // Inspirational Pyre (Cremator, once per TP): the hand flamer hurt an enemy without incapacitating it — inspire a friendly within 6".
   if (tpl(op).pyre && weapon.group === 'ciFlamer' && main?.dmg > 0 && !target.dead && op.pyreTP !== g.tp) {
@@ -5702,7 +5748,7 @@ export function* shootFlow(g, op, weapon, target) {
     if (t.dead) continue;
     // Torrent and Salvo targets use their own cover; Blast targets are in cover if the primary target was.
     const v = weapon.rules.blast ? vis : shotVisibility(g, op, t, weapon);
-    const s = yield* shootSequence(g, op, weapon, t, v, noReroll, poisonedAtStart);
+    const s = yield* shootSequence(g, op, weapon, t, v, noReroll, poisonedAtStart, interactive);
     logShot(t, s);
     extra.push(s);
   }
@@ -5785,6 +5831,13 @@ const other = (k) => (k === 'A' ? 'D' : 'A');
 const left = (p) => p.c + p.n;
 
 export function startFight(g, op, weapon, target) {
+  const it = fightFlow(g, op, weapon, target);
+  let result = it.next();
+  while (!result.done) result = it.next();
+  return result.value;
+}
+
+export function* fightFlow(g, op, weapon, target, interactive = false) {
   { const s = bcSurrogate(g, op, target, weapon); if (s) target = s; } // Servile Surrogacy (Battleclade): a servitor is fought instead
   op.nvFaithSpent = 0; target.nvFaithSpent = 0; // (Militant Faith counts this sequence only)
   if(weapon.rules.feEquip && !feAvailable(g,op.side,weapon.rules.feEquip,feWeaponLimit(weapon.rules.feEquip),feWeaponBattle(weapon.rules.feEquip)))return false;
@@ -5818,6 +5871,12 @@ export function startFight(g, op, weapon, target) {
   let dWeapon = weaponsFor(g,target).filter(w=>w.type==='melee').sort((a,b)=>avgDmg(b)-avgDmg(a))[0] || bestMelee(target);
   const pbWeapon = pfPointBlank(g, op, target, dWeapon, avgDmg); // Point-Blank Fusillade (Pathfinders): retaliating with a ranged weapon
   if (pbWeapon) dWeapon = pbWeapon;
+  const defensiveWeapons = weaponsFor(g, target).filter((w) => w.type === 'melee' && !(w.rules.limited && (target.used?.[w.id] || 0) >= w.rules.limited));
+  if (pbWeapon && !defensiveWeapons.some((w) => w.id === pbWeapon.id)) defensiveWeapons.push(pbWeapon);
+  const selectedWeapon = yield* attackChoice(g, interactive, target.side, {
+    zh: `${opName(target, 'zh')}：選擇反擊武器`, en: `${opName(target, 'en')}: choose a weapon to retaliate`,
+  }, defensiveWeapons.map((w) => ({ id: w.id, label: w.name })), dWeapon.id);
+  dWeapon = defensiveWeapons.find((w) => w.id === selectedWeapon) || dWeapon;
   if(dWeapon.rules.feEquip)feCommitWeapon(g,target,dWeapon);
   ffCommit(g, op, 'fight', weapon, target); // firefight ploys chosen for this Fight are paid now
   // Mandiblasters (Striking Scorpions): at the start of the Roll Attack Dice step, 2 damage to the enemy.
@@ -5871,6 +5930,8 @@ export function startFight(g, op, weapon, target) {
   };
   const aPost = ambush ? (bless(op) ? (p) => { bless(op)(p); ambushPost(p); } : ambushPost) : bless(op);
   const kinA = chainPost(chainPost(aPost, kinPost(g, op)), scryPost(g, op, 'guide')), kinD = chainPost(chainPost(bless(target), kinPost(g, target)), scryPost(g, target, 'guide')); // (Scry: Guidance) // (No Kin Left Behind)
+  yield* chooseAccurate(g, interactive, op, weapon, ar, whip(op, atk(weapon, ar)), aHit);
+  yield* chooseAccurate(g, interactive, target, dWeapon, dr, whip(target, atk(dWeapon, dr)), dHit);
   for (const [o, r] of [[op, ar], [target, dr]]) if (playerPicks(g, o.side)) { r.balancedManual = true; r.ceaselessManual = true; r.relentlessManual = true; } // (a player uses Balanced, Ceaseless and Relentless itself)
   let aRoll = rollPool(whip(op, atk(weapon, ar)), aHit, ar.lethal || 6, ar, kinA);
   let dRoll = rollPool(whip(target, atk(dWeapon, dr)), dHit, dr.lethal || 6, dr, kinD);
@@ -6127,9 +6188,6 @@ export function fightOptions(g) {
   if (me.c && foe.n) opts.push({ id: 'parry-c-n', act: 'parry', die: 'c', target: 'n' });
   if (me.n && foe.n && !foe.brutal) opts.push({ id: 'parry-n-n', act: 'parry', die: 'n', target: 'n' });
   if (me.n && foe.c && (me.dueller || me.si) && !foe.brutal) opts.push({ id: 'parry-n-c', act: 'parry', die: 'n', target: 'c' }); // (si: Survival Instincts)
-  // A success doesn't have to be used: discard it without striking.
-  if (me.n) opts.push({ id: 'decline-n', act: 'decline', die: 'n' });
-  else if (me.c) opts.push({ id: 'decline-c', act: 'decline', die: 'c' });
   return me.noBlock ? opts.filter((o) => o.act !== 'parry') : opts; // (Point-Blank Fusillade: no blocking)
 }
 
@@ -6297,9 +6355,6 @@ export function fightApply(g, optId) {
         f.steps.push({ side: other(k), act: 'strike', crit: die === 'c', dmg: r2.dmg, killed: k2, lastBlow: true });
       }
     }
-  } else if (opt.act === 'decline') {
-    f.steps.push({ side: k, act: 'decline', crit: opt.die === 'c' });
-    f.turn = other(k);
   } else {
     foe[opt.target]--;
     // Survival Instincts (Ratlings firefight ploy): paid the first time it matters — a normal block stopping a critical success, or a
@@ -6319,7 +6374,7 @@ export function fightApply(g, optId) {
   }
   // Counterattack (Brood Brother Knife Fighter): each normal success its opponent resolves inflicts 1 damage on that opponent.
   const resolver = fightOp(g, k), knife = fightOp(g, other(k));
-  if (opt.die === 'n' && opt.act !== 'decline' && tpl(knife).counterattack && !knife.dead && !resolver.dead) {
+  if (opt.die === 'n' && tpl(knife).counterattack && !knife.dead && !resolver.dead) {
     log(g, { zh: `${opName(knife, 'zh')} 反擊刀法：${opName(resolver, 'zh')} 受到 1 傷害`, en: `${opName(knife, 'en')} Counterattack: ${opName(resolver, 'en')} takes 1 damage` }, `side${knife.side}`);
     applyDamage(g, knife, resolver, 1);
   }

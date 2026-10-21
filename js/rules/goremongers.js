@@ -1,6 +1,6 @@
 // goremongers: team rules moved out of game.js (the engine hooks that call these stay in game.js).
 import { TEAM_MAP } from '../data/teams.js';
-import { CONTROL, carriables, checkMines, d3, edgeDist, foes, hasPloy, isEngaged, living, log, opName, radius, tpl } from '../game.js';
+import { CONTROL, aplNow, carriables, checkMines, d3, edgeDist, foes, hasPloy, isEngaged, living, log, opName, radius, tpl } from '../game.js';
 import { dist } from '../geometry.js';
 import { findPath, moveCtx, wholeInchPath } from '../path.js';
 
@@ -44,7 +44,7 @@ export function useSang(g, op, id) {
   goreDown(op);
   (op.acted.sang ||= []).push(id);
   let extra = { zh: '', en: '' };
-  if (id === 'mania') { op.mania = true; op.ap += 1; }
+  if (id === 'mania') { const before = aplNow(g, op); op.mania = true; op.ap += Math.max(0, aplNow(g, op) - before); }
   if (id === 'fury') { op.acted.fightsAllowed = Math.max(2, op.acted.fightsAllowed || 1); op.acted.fury = true; }
   if (id === 'rejuvenate') { const b = op.wounds; op.wounds = Math.min(op.maxW, op.wounds + d3() + 1); extra = { zh: `，回復 ${op.wounds - b}`, en: `, regains ${op.wounds - b}` }; }
   if (['rage', 'rake', 'surge'].includes(id)) (op.acted.sangArm ||= {})[id] = true;

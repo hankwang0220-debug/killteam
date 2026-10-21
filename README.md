@@ -2,7 +2,7 @@
 
 A browser-based (PWA) Kill Team–style skirmish game. Two players can play on one device, or one player can play against the computer. The interface is available in Traditional Chinese and English.
 
-> This is an unofficial fan project. The rules are a simplified version of Kill Team. The teams, names, and ability wording are original archetypes.
+> This is an unofficial fan project. The rules are a simplified version of Kill Team. Team statistics and weapon profiles follow the linked official online datacards; ability wording is summarised and implementation simplifications are documented below.
 
 ## 3D 對戰
 
@@ -30,6 +30,8 @@ Run `node tests/mandrakes.mjs` to check official stats, roster replacements, Sou
 
 ## Running it
 
+Run all regression tests with `node scripts/test.mjs`. GitHub Actions runs the same command for pushes and pull requests.
+
 You don't need to install Node.js. Start the static server with PowerShell:
 
 ```bash
@@ -45,9 +47,11 @@ Then open http://localhost:4100/. On a phone, use the browser's "Add to Home Scr
 - Room to make mistakes: a player's automatic firefight ploys start switched off (tick them, or "All on", in the Strategy phase; a setup option turns them all on from the start), and automatic "you can" equipment (every team's once-per-TP / once-per-battle faction equipment, e.g. Purity Seals, Lucky Round, Toxin Shot, Target Analysis Optic) and the XV26 / Wolf Scouts abilities start off too, each with its own tick box in the Strategy phase. The computer uses its own. Ploys and gambits that pick something are picked by the player: an operative, a marker, an option, a point (tap the board), or free moves (pick each operative and tap where it goes; "Done" when finished) — with a "let the computer pick" button. The turn passes once the pick is made. Balanced (from weapon rules, ploys or abilities, attack or defence dice) is the player's own free re-roll: the dice window shows "⚖ 可平衡" and the first die tapped is re-rolled for free (after that, taps are Command Re-rolls); the computer still uses it automatically. The same goes for the defence re-rolls "re-roll every die of one result" (Dig In!, Defence Order, The Emperor Protects, Forewarned, Hypershielding: pick the result) and Void Armour (tap up to its number of dice). Attacks resolved without a dice window (guard interrupts, Counterattack, forced shots) still use these automatically. Ceaseless (無休: pick a result, every die showing it is re-rolled) and Relentless (毫不留情: tick any dice, then re-roll them) work the same way in the shoot and fight dice windows.
 - Alternating activations, Engage/Conceal orders, and APL-based actions
 - Movement uses automatic pathfinding around obstacles and retains freely chosen legal endpoints while rounding up the total movement cost (moving 0.3 inches costs 1 inch; moving 1.3 inches costs 2). A move may pass through engagement range but cannot end inside it (except a Charge). Clicking too far stops at a legal endpoint within the allowance. An invalid landing shows the base outline, blocking terrain/operatives, and the clearance reason
-- Shooting: visibility to any part of the target, cover (terrain within 1" of the target), heavy terrain obscuring, defence dice equal to the DEF stat, and save allocation that is optimised automatically
-- Fighting: both sides roll, then players alternate choosing Strike or Parry for each die (the computer chooses for its own side)
-- Weapon rules: Piercing, Piercing Crits, Lethal, Balanced, Ceaseless, Rending, Brutal, Heavy, Range
+- Shooting: visibility to any part of the target, cover (terrain within 1" of the target), heavy terrain obscuring, three base defence dice, adjusted by applicable abilities and Piercing, and save allocation that is optimised automatically
+- Before attack dice are rolled, players choose Accurate retention, the defender chooses cover or obscured when the same terrain forces a choice, and both fighters choose their melee weapons. Automatic attacks decide these before rolling.
+- Automatic Ceaseless re-rolls the most common eligible failed result. Automatic Accurate compares retained-dice damage expectations before defence; it is a heuristic and does not optimise the subsequent re-roll or defence decisions.
+- Fighting: both sides roll, then players alternate choosing Strike or Parry for each die (the computer chooses for its own side); there is no generic discard-success option.
+- Weapon rules include Accurate, Piercing, Piercing Crits, Lethal, Balanced, Ceaseless, Relentless, Rending, Brutal, Heavy, Range, Severe, Punishing, Devastating, Saturate, Shock and Stun
 - Injured state, objective control (by total APL), objective VP, and kill VP
 - Simple AI opponent, autosave, and a quick rules reference
 - Replays: every step is recorded and can be reviewed step by step (log, dice, movement trails); the last 10 finished games are kept

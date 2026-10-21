@@ -61,7 +61,7 @@ import {
   ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, LG_MARKS, midMoveHatches, hatchOpenView, buyPloy, deployOk, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName, makeTerrain, OBJECTIVES, DEPLOY,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
-  counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, startFight,
+  counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, fightFlow,
   radius, resolveShoot, setOrder, shootCheck, visibility, hasPloy, startBattle, team, totalVP, tpl, MAX_TP, ployChooser, finishPloys,
   giftsOf, CULT_GIFTS, ployCost, ployTaken, shootWeapon, doOptics, injuredPenalty, effectiveRules, statPenalty, doFlail, doDakkaDash, freePending, rollCount,
   shootFlow, endProxy, reanimMarkers, setDoctrina, primaryLeft,
@@ -515,7 +515,7 @@ function setupView() {
     <input class="teamsearch" type="search" data-act="teamSearch" data-side="${side}" value="${esc(s.search?.[side] || '')}" placeholder="${L('搜尋隊伍名稱或風格…', 'Search team name or style…')}">
     <div class="picklist">${TEAMS.map((tm) => { const key = `${tm.name.zh} ${tm.name.en} ${tx(tm.style)}`.toLowerCase(); const q = (s.search?.[side] || '').trim().toLowerCase();
       return `<button class="teampick ${s.teams[side] === tm.id ? 'on' : ''}" style="--tc:${tm.color}${q && !key.includes(q) ? ';display:none' : ''}" data-act="pick" data-side="${side}" data-team="${tm.id}" data-search="${esc(key)}">
-      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.id === 'warpcoven' ? warpcovenIds(tm).length : tm.id === 'wyrmblade' ? wyrmbladeIds(tm).length : tm.id === 'blooded' ? bloodedIds(tm).length : tm.ops.reduce((n, o) => n + o.count, 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
+      <b>${esc(bi(tm.name))}</b><span>${esc(tx(tm.style))} · ${tm.id === 'warpcoven' ? warpcovenIds(tm).length : tm.id === 'wyrmblade' ? wyrmbladeIds(tm).length : tm.id === 'blooded' ? bloodedIds(tm).length : tm.ops.reduce((n, o) => n + (o.none ? 0 : o.count), 0)} ${L('人', 'ops')}</span></button>`; }).join('')}</div>
     <article class="teamcard chosen" style="--tc:${t.color}"><h3>${esc(bi(t.name))}</h3><div class="tag">${esc(tx(t.style))}</div>
       <p>${esc(tx(t.blurb))}</p><p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>${teamInfo(t)}</article>
   </div>`; };
@@ -611,7 +611,8 @@ const setupTactics = (side) => ui.setup.tactics[side] || TEAM_MAP[ui.setup.teams
 
 /** Step 1 after choosing a team: which operatives take the field and with which weapons (before tactics and equipment). */
 function unitPick(side) {
-  const body = rosterPick(side) + loadoutPick(side);
+  const picks = rosterPick(side), loadouts = loadoutPick(side);
+  const body = `${picks ? `<h5>${L('選擇特工', 'Operative selections')}</h5>${picks}` : ''}${loadouts ? `<h5>${L('武器配置（不增加人數）', 'Weapon loadouts (no extra operatives)')}</h5>${loadouts}` : ''}`;
   return body ? `<div class="unitpick"><h4>${L('① 選擇上場單位與武器', '① Choose your operatives and weapons')}</h4>
     <p class="hint small">${L('先選好上場的特工和武器，再選戰術與裝備。', 'Pick who takes the field and their weapons first, then tactics and equipment.')}</p>${body}</div>` : '';
 }
@@ -850,13 +851,13 @@ function tacticsPick(side) {
 }
 
 /** Collector notes (archetypes, box, availability) for a team, if any. */
-function teamInfo(t) {
+function teamInfo(t, selectedCount) {
   const i = t.info;
   if (!i) return '';
   return `<dl class="teaminfo">
     <dt>${L('戰術行動', 'Archetypes')}</dt><dd>${i.archetypes.map((a) => esc(bi(a))).join(' + ')}</dd>
     <dt>${L('戰鬥類型', 'Play style')}</dt><dd>${esc(tx(i.kind))}</dd>
-    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${t.id === 'warpcoven' ? warpcovenIds(t).length : t.id === 'wyrmblade' ? wyrmbladeIds(t).length : t.id === 'blooded' ? bloodedIds(t).length : t.ops.reduce((n, o) => n + o.count, 0)}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
+    <dt>${L('隊伍人數', 'Operatives')}</dt><dd>${selectedCount ?? (t.id === 'warpcoven' ? warpcovenIds(t).length : t.id === 'wyrmblade' ? wyrmbladeIds(t).length : t.id === 'blooded' ? bloodedIds(t).length : t.ops.reduce((n, o) => n + (o.none ? 0 : o.count), 0))}${i.size ? `（${esc(tx(i.size))}）` : ''}</dd>
     <dt>${L('一盒成軍', 'One box')}</dt><dd>${esc(tx(i.oneBox))}</dd>
     <dt>${L('目前可購買', 'Available')}</dt><dd>${esc(tx(i.buyable))}</dd>
     ${t.rulesUrl ? `<dt>${L('官方規則', 'Official rules')}</dt><dd><a href="${esc(t.rulesUrl)}" target="_blank" rel="noopener">PDF</a></dd>` : ''}
@@ -891,11 +892,11 @@ function roster(t, side) {
   const loadouts = ui.setup.loadouts?.[side] || {};
   const weaponsOf = (o) => (o.loadouts ? o.loadouts[loadouts[o.id]] || Object.values(o.loadouts)[0] : o.weapons) || [];
   return `<div class="roster">
-    ${teamInfo(t)}
+    ${teamInfo(t, selected.filter((o) => !o.none).reduce((n, o) => n + o.count, 0))}
     <p class="rule"><b>${esc(bi(t.rule.name))}</b>：${esc(tx(t.rule.desc))}</p>
     ${t.firefight?.length ? `<p class="rule small"><b>${L('交戰計謀', 'Firefight ploys')}</b>：${t.firefight.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
     ${t.techniques?.length ? `<p class="rule small"><b>${L('方陣技法', 'Aspect Techniques')}</b>：${t.techniques.map((p) => esc(tx(p.name))).join('、')}</p>` : ''}
-    ${selected.map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
+    ${selected.filter((o) => !o.none).map((o) => `<div class="rrow"><span>${o.count > 1 ? `${o.count}× ` : ''}${esc(bi(o.name))}</span>
       <span class="stats">APL ${o.apl} · M ${o.move}" · SV ${o.save}+ · W ${o.wounds}</span></div>
       <div class="wlist">${weaponsOf(o).map((w) => esc(tx(w.name))).join(' · ')}</div>`).join('')}
   </div>`;
@@ -1232,7 +1233,7 @@ function boardUi() {
   // The attack in progress — declared, being rolled, its result, or a fight: who attacks whom, with a line.
   let atk = null;
   if (ui.pending && op) atk = { a: ui.pending.by || op.uid, t: ui.pending.target, kind: ui.pending.kind };
-  else if (ui.flow?.step) atk = { a: ui.flow.step.seq.op, t: ui.flow.step.seq.target, kind: 'shoot' };
+  else if (ui.flow?.step?.seq) atk = { a: ui.flow.step.seq.op, t: ui.flow.step.seq.target, kind: 'shoot' };
   else if (ui.result?.attacker) atk = { a: ui.result.attacker, t: ui.result.target, kind: ui.result.kind || 'shoot' };
   else if (g.fight) atk = { a: g.fight.A.uid, t: g.fight.D.uid, kind: 'fight' };
   const A = atk && getOp(g, atk.a), Tg = atk && getOp(g, atk.t);
@@ -1771,11 +1772,13 @@ function pendingView() {
  * Run the shooting generator until a human player has a decision (Command Re-roll of an attack or
  * defence die) or it finishes. The computer's side decides on its own.
  */
-function advanceFlow() {
+function advanceFlow(choice) {
   const F = ui.flow;
   for (;;) {
-    const r = F.it.next();
-    if (r.done) { ui.result = r.value; ui.flow = null; return afterChange(); }
+    const r = F.it.next(choice);
+    choice = undefined;
+    if (r.done) { if (F.kind !== 'fight') ui.result = r.value; ui.flow = null; return afterChange(); }
+    if (r.value.stage === 'choice') { F.step = r.value; return render(); }
     const { stage, seq } = r.value;
     const which = stage === 'attack' ? 'a' : 'd';
     const side = getOp(g, stage === 'attack' ? seq.op : seq.target).side;
@@ -1805,6 +1808,10 @@ function rerollRows(pool, where, k) {
 }
 /** The dice a human can Command Re-roll (1CP), shown before the action continues. */
 function flowView() {
+  if (ui.flow.step.stage === 'choice') {
+    const { side, title, options } = ui.flow.step;
+    return `<h2>${esc(tx(title))}</h2><p style="color:${team(g, side).color}">${esc(tx(team(g, side).name))}</p><div class="row">${options.map((o) => `<button data-act="attackchoice" data-id="${esc(o.id)}">${esc(tx(o.label))}</button>`).join('')}</div>`;
+  }
   const { stage, seq, side } = ui.flow.step;
   const a = getOp(g, seq.op), t = getOp(g, seq.target), which = stage === 'attack' ? 'a' : 'd';
   const pool = which === 'a' ? seq.a : seq.d, tm = team(g, side);
@@ -2068,7 +2075,9 @@ function modeView(op) {
     const aim = ffToggles(shooter(op), 'shoot', m.weapon, null, true);
     const area = m.weapon.rules.torrent ? L(`洪流：也會射擊主要目標 ${m.weapon.rules.torrent}" 內其他有效目標。`, ` Torrent: also shoots other valid targets within ${m.weapon.rules.torrent}" of the first.`)
       : m.weapon.rules.blast ? L(`爆炸：也會射擊主要目標 ${m.weapon.rules.blast}" 內所有可見的特工（包括己方）。`, ` Blast: also shoots every operative visible within ${m.weapon.rules.blast}" of the first — friends included.`) : '';
-    return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).')}${area}</p>${aim}<div class="row">${cancel}</div></div>`;
+    const attacker = shooter(op), candidates = m.weapon.rules.detonate ? living(g, attacker.side).filter((o) => tpl(o).gheistskull) : m.weapon.rules.wkExplosive ? [attacker] : foes(g, attacker);
+    const hasTarget = candidates.some((t) => shootCheck(g, attacker, t, m.weapon).ok);
+    return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${hasTarget ? L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).') : L('沒有可攻擊的目標。請更換武器或取消射擊。', 'No valid targets. Choose another weapon or cancel the shot.')}${area}</p>${aim}<div class="row">${cancel}</div></div>`;
   }
   if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人，或門另一側的合法門間近戰目標（底座接觸門口，目標距門口 2 吋內）。', 'Tap an engaged enemy, or a legal Hatchway Fight target across an access point you touch, within 2 inches of it.')}</p><div class="row">${cancel}</div></div>`;
   if (m.kind === 'target') {
@@ -2767,7 +2776,7 @@ function fightView(readonly = false) {
       return L('格擋：用普通擋掉對方一個普通', 'Parry: normal cancels an enemy normal');
     };
     action = `<p>${L('輪到', 'Your choice,')} ${who(f.turn)} ${L('選擇：', '')}</p>
-      <div class="fopts">${fightOptions(g).map((o) => `<button class="${o.act === 'strike' ? 'primary' : o.act === 'decline' ? 'ghost' : ''}" data-act="fightopt" data-id="${o.id}">${label(o)}</button>`).join('')}</div>`;
+      <div class="fopts">${fightOptions(g).map((o) => `<button class="${o.act === 'strike' ? 'primary' : ''}" data-act="fightopt" data-id="${o.id}">${label(o)}</button>`).join('')}</div>`;
   }
   return `<h2>⚔ ${L('近戰', 'Fight')}</h2>
     <div class="fsides">${pool('A')}${pool('D')}</div>
@@ -3655,6 +3664,7 @@ function handle(act, d) {
       if (s) commandReroll(g, s.side, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.i);
       return render();
     }
+    case 'attackchoice': return advanceFlow(d.id);
     case 'flowgo': ui.flow.step = null; return advanceFlow();
     case 'fightrr': fightCommandReroll(g, d.k, +d.i); return render();
     case 'fightrrdone': fightRerollDone(g); return afterChange();
@@ -3673,9 +3683,8 @@ function handle(act, d) {
       const t = getOp(g, p.target);
       ui.undo = []; // dice are rolled: this action can't be undone
       ui.relSel = [];
-      if (p.kind === 'shoot') { ui.flow = { it: shootFlow(g, p.by ? getOp(g, p.by) : op, p.weapon, t), step: null }; return advanceFlow(); }
-      startFight(g, op, p.weapon, t);
-      return afterChange();
+      ui.flow = { kind: p.kind, it: p.kind === 'shoot' ? shootFlow(g, p.by ? getOp(g, p.by) : op, p.weapon, t, true) : fightFlow(g, op, p.weapon, t, true), step: null };
+      return advanceFlow();
     }
     case 'unroll': ui.pending = null; ffClearPending(g); proxyMode(); return render();
     case 'animate': undoable(() => animateBegin(g, g.turn)); ui.animUid = null; return afterChange();

@@ -28,7 +28,7 @@ import { WOLF_TEAM } from './wolfscouts.js';
 //   lethal: n       critical hit on n+ instead of 6+
 //   balanced        re-roll one attack die
 //   relentless      re-roll all failed attack dice
-//   ceaseless       re-roll attack dice that rolled 1
+//   ceaseless       re-roll any attack dice showing one chosen result
 //   rending         if any crit, upgrade one normal hit to a crit
 //   brutal          (melee) opponent can only block with critical successes
 //   heavy           cannot shoot after moving in the same activation, nor move after shooting it

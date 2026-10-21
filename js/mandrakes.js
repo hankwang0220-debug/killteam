@@ -127,7 +127,7 @@ export function mdSelfAction(g, o, id) {
   if (!['mdSoulApl', 'mdSoulHeal'].includes(id)) return false;
   if (!availableActions(g, o).find((a) => a.id === id)?.ok) return false;
   g.mdSouls[o.side]--;
-  if (id === 'mdSoulApl') { o.mdSoulApl = true; o.ap++; } else o.wounds = Math.min(o.maxW, o.wounds + roll3() + roll3());
+  if (id === 'mdSoulApl') { const before = aplNow(g, o); o.mdSoulApl = true; o.ap += Math.max(0, aplNow(g, o) - before); } else o.wounds = Math.min(o.maxW, o.wounds + roll3() + roll3());
   o.acted[id] = true; o.orderSet = true;
   return true;
 }
