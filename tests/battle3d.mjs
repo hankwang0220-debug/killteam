@@ -5,6 +5,7 @@ import * as THREE from '../js/vendor/three.module.min.js';
 import { createModelKit } from '../js/models3d.js';
 import { createTerrainKit } from '../js/terrain3d.js';
 import { TEAMS } from '../js/data/teams.js';
+import { visibleModelHit } from '../js/viewer3d.js';
 
 const kit=createModelKit(THREE), terrain=createTerrainKit(THREE);
 for(const map of ['default','tombworld-01']) {
@@ -36,4 +37,26 @@ for(const team of TEAMS)for(const template of team.ops.filter(o=>o.name?.en&&!o.
   assert(Number.isFinite(box.min.x)&&box.max.y>0,`${team.id}/${template.id} builds`);
 }
 assert.match(battle3dMarkup('<svg id="board"></svg>'),/battle3d-source/);
+// The prototype is opt-in: previews keep the same base, roster and loadout without changing battle defaults.
+for(const team of TEAMS) {
+  const op=team.ops[0],normal=kit.buildOperative(team,op),preview=kit.buildOperative(team,op,undefined,{style:'refined'});
+  assert.equal(!!normal.userData.look.refined,false);
+  assert.equal(!!preview.userData.look.refined,team.id==='angels');
+}
+const angels=TEAMS.find(t=>t.id==='angels');
+const hiddenGroup = new THREE.Group(), nestedGroup = new THREE.Group();
+const hiddenModel = kit.buildOperative(angels, angels.ops[0]);
+hiddenGroup.add(nestedGroup); nestedGroup.add(hiddenModel);
+assert.equal(visibleModelHit(hiddenModel.children[0]), true);
+hiddenGroup.visible = false;
+assert.equal(visibleModelHit(hiddenModel.children[0]), false, 'hidden comparison groups cannot intercept picks');
+hiddenGroup.visible = true;
+hiddenModel.children[0].visible = false;
+assert.equal(visibleModelHit(hiddenModel.children[0]), false, 'hidden labels cannot intercept picks');
+for(const op of angels.ops)for(const loadout of Object.keys(op.loadouts||{default:[]})) {
+  const model=kit.buildOperative(angels,op,loadout==='default'?undefined:loadout,{style:'refined'});
+  const box=new THREE.Box3().setFromObject(model);
+  assert(Number.isFinite(box.max.y)&&box.max.y>1,`${op.id}/${loadout} prototype builds`);
+  assert.equal(model.userData.opId,op.id);
+}
 console.log('3D board mapping, non-mutating state, model picking and all roster models passed.');

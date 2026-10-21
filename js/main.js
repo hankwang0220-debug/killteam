@@ -83,12 +83,14 @@ import { HELP } from './help.js';
 import { modelsView, mountModels, unmountModels } from './viewer3d.js';
 import { battle3dMarkup, mountBattle3d, unmountBattle3d, battle3dControl } from './battle3d.js';
 import { archiveGame, deleteHistory, loadHistory, recordStep, resetRecorder, rewindRecorder, stepNotes, trailsAt, viewAt } from './replay.js';
+import { createOnline } from './online.js';
 
 const app = document.getElementById('app');
 const modalRoot = document.getElementById('modal-root');
 const SAVE_KEY = 'kt.save';
 
 let g = null;
+let online = null;
 const ui = {
   screen: 'home',
   sel: null,          // inspected / selected operative uid
@@ -157,6 +159,7 @@ const nm = (op) => esc(opName(op, lang()));
 
 // ---------- render root ----------
 function render() {
+  if (online?.guest) return;
   document.getElementById('terrain-hover')?.remove();
   if (ui.screen !== 'game' && ui.screen !== 'replay') { measure.pts = []; measure.cursor = null; measure.mode = false; angle.pts = []; angle.cursor = null; angle.mode = false; }
   if (ui.screen === 'game') noteTurn();
@@ -179,6 +182,7 @@ function render() {
     });
   }else unmountBattle3d();
   scheduleAI();
+  online?.publish();
 }
 
 /** Feed WebGL picks through the same DOM interaction path as 2D, including measuring and replay-safe selection. */
@@ -459,6 +463,7 @@ function topBar(extra = '', status = '') {
   const replayBtn = ui.screen === 'game' && g?.replay?.snaps.length
     ? `<button class="ghost" data-act="replay">📜 ${L('複盤', 'Replay')}</button>` : '';
   const tools = `<button class="ghost" data-act="help">${L('規則', 'Rules')}</button>
+      ${ui.screen === 'game' ? `<button class="ghost" data-act="online">${L('連線對戰', 'Online table')}</button>` : ''}
       <button class="ghost" data-act="models" title="${L('3D 模型', '3D Models')}">${L('3D 模型', '3D Models')}</button>
       <button class="ghost" data-act="lang">${L('EN', '中文')}</button>`;
   const settings = `<details class="game-settings" ${ui.settingsOpen ? 'open' : ''}>
@@ -493,6 +498,7 @@ function homeView() {
     'Command your team on a 30"×22" killzone. Alternate activations, roll dice, seize objectives — just like the tabletop.')}</p>
       <div class="herobtns">
         <button class="primary big" data-act="setup">${L('新戰役', 'New Campaign')}</button>
+        <button class="big" data-act="online">${L('連線對戰', 'Online table')}</button>
         ${saved && saved.phase !== 'gameover' ? `<button class="big" data-act="resume">${L('繼續上一場', 'Resume')}</button>` : ''}
         <button class="big ghost" data-act="help">${L('規則速查', 'Quick Rules')}</button>
       </div>
@@ -2874,6 +2880,7 @@ function shotView(s, t, t0 = 0) {
 // ---------- AI scheduling ----------
 function scheduleAI() {
   clearTimeout(aiTimer);
+  if (online?.guest || online?.paused) return;
   if (ui.screen !== 'game' || !g || ui.result || ui.help || ui.flow) return;
   if (g.fight) {
     // The computer picks its own strike/parry dice; humans click (after any Command Re-roll window).
@@ -3442,6 +3449,7 @@ function handle(act, d) {
   if (['home', 'help', 'lang', 'replay', 'models'].includes(act)) closeSettings();
   const op = g && activeOp(g);
   switch (act) {
+    case 'online': return online.open();
     case 'boardview': ui.boardView=d.view==='3d'?'3d':'2d';try{localStorage.setItem('kt.boardView',ui.boardView);}catch{}return render();
     case '3dreset': case '3dtop': case '3dcover': return battle3dControl(act);
     case 'home': history.replaceState(null, '', location.pathname + location.search); ui.screen = 'home'; return render();
@@ -3799,6 +3807,18 @@ if (location.hash === '#models') ui.screen = 'models';
 window.addEventListener('hashchange', () => {
   const screen = location.hash === '#tombworld' ? 'tombworld' : location.hash === '#models' ? 'models' : ui.screen === 'models' ? ui.modelsFrom || 'home' : ui.screen === 'tombworld' ? 'home' : null;
   if (screen && screen !== ui.screen) { if (screen === 'models') ui.modelsFrom = ui.screen; ui.screen = screen; render(); }
+});
+online = createOnline({
+  app, modal:modalRoot,
+  onHost() {
+    clearTimeout(aiTimer);
+    ui.boardView = '2d'; ui.setup.ai = null;
+    if (ui.screen === 'game' && g) g.ai = null;
+    else { ui.screen = 'setup'; ui.setup.step = 'mission'; }
+    render();
+  },
+  onGuest() { clearTimeout(aiTimer); unmountBattle3d(); unmountModels(); },
+  onLeave() { render(); },
 });
 render();
 

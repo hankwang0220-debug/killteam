@@ -13,13 +13,19 @@ const THREE_URL = './vendor/three.module.min.js'; // three.js r160
 let threeP = null;
 const loadThree = () => (threeP ||= import(THREE_URL));
 
-const st = { mode: 'ops', team: TEAMS[0].id, op: null, loadouts: {}, spin: true, map: 'default', hatchesOpen: false };
+const st = { mode: 'ops', team: TEAMS[0].id, op: null, loadouts: {}, spin: true, map: 'default', hatchesOpen: false, style:'compare' };
 let live = null; // the mounted viewer (renderer, scene, loop)
 let mountSeq = 0;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const teamOf = (id) => TEAMS.find((t) => t.id === id) || TEAMS[0];
 const opsOf = (t) => (t.ops || []).filter((o) => o.name?.en && !o.name.en.startsWith('('));
+
+/** Raycaster also hits invisible objects; reject hits hidden by any ancestor. */
+export function visibleModelHit(object) {
+  for (let node = object; node; node = node.parent) if (!node.visible) return false;
+  return true;
+}
 
 /** Every killzone: the default map, the mission packs' maps and the six Tomb World layouts. */
 const MAPS = [
@@ -141,9 +147,21 @@ export async function mountModels(root) {
     grid.visible = st.mode !== 'maps';
     if (st.mode === 'ops') {
       const t = teamOf(st.team), ops = opsOf(t);
-      const gap = Math.max(2.1, ...ops.map((o) => (o.oval ? Math.max(...o.oval) : o.base) / 25.4 + 0.7));
+      const compare=t.id==='angels'&&st.style==='compare';
+      if(compare){st.spin=false;cam.theta=0;cam.phi=1.15;}
+      const gap = Math.max(compare?4.8:2.1, ...ops.map((o) => (o.oval ? Math.max(...o.oval) : o.base) / 25.4 + 0.7));
       lineup(ops.flatMap((op) => {
-        try { return [{ id: op.id, model: kit.buildOperative(t, op, st.loadouts[op.id]), label: tx(op.name) }]; } catch (e) { console.error('model', op.id, e); return []; }
+        try {
+          let model;
+          if(compare){
+            model=new THREE.Group();
+            for(const [style,x,label]of [['original',-1.1,L('原版','Original')],['refined',1.1,L('改良試作','Refined prototype')]]){
+              const m=kit.buildOperative(t,op,st.loadouts[op.id],{style});addLabel(m,label,.23);m.position.x=x;model.add(m);
+              if(style==='original')model.userData.picks=m.userData.picks;
+            }
+          }else model=kit.buildOperative(t,op,st.loadouts[op.id],{style:t.id==='angels'?st.style:'original'});
+          return [{id:op.id,model,label:tx(op.name)}];
+        } catch (e) { console.error('model', op.id, e); return []; }
       }), gap);
     } else if (st.mode === 'equip') {
       lineup(tkit.EQUIPMENT_PIECES.map((p) => ({ id: p.id, model: p.build(), label: tx(p.name) })), 4.4, 0.45);
@@ -165,11 +183,15 @@ export async function mountModels(root) {
       const m = models.get(id), bb = new THREE.Box3().setFromObject(m), h = bb.max.y, w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
       cam.goal.set(m.position.x, Math.max(0.5, h * 0.45), m.position.z);
       cam.rGoal = Math.max(2, h * 2.3, w * 2);
+      if(st.mode==='ops'&&st.team==='angels'&&st.style==='compare')cam.rGoal=Math.max(cam.rGoal,h*3.2,w*2.8)/Math.min(1,camera.aspect||1)**.7;
     } else {
       cam.goal.copy(st.overview.center); cam.rGoal = st.overview.r / Math.min(1, camera.aspect || 1) ** 0.7;
     }
     if (snap) { cam.target.copy(cam.goal); cam.r = cam.rGoal; }
-    for (const m of models.values()) m.children.forEach((c) => { if (c.userData.label) c.visible = !id; });
+    for (const m of models.values()) {
+      m.visible=!(st.mode==='ops'&&st.team==='angels'&&st.style==='compare'&&id)||m.userData.opId===id;
+      m.children.forEach((c) => { if (c.userData.label) c.visible = !id; });
+    }
     root.querySelectorAll('.m3d-ops li').forEach((li) => li.classList.toggle('on', li.dataset.op === (st.mode === 'maps' ? st.map : id)));
     showInfo();
   }
@@ -181,6 +203,7 @@ export async function mountModels(root) {
       const t = teamOf(st.team);
       controls.innerHTML = `<label class="m3d-team">${L('隊伍', 'Team')}
         <select data-m3="team">${TEAMS.map((x) => `<option value="${x.id}" ${x.id === st.team ? 'selected' : ''}>${esc(tx(x.name))}</option>`).join('')}</select></label>
+        ${t.id==='angels'?`<label class="m3d-team">${L('模型版本','Model version')}<select data-m3="style"><option value="compare" ${st.style==='compare'?'selected':''}>${L('並排對照（左原版／右改良）','Compare (original left / refined right)')}</option><option value="original" ${st.style==='original'?'selected':''}>${L('原版','Original')}</option><option value="refined" ${st.style==='refined'?'selected':''}>${L('改良試作','Refined prototype')}</option></select></label><p class="hint">${L('僅供模型預覽；對戰仍使用原版。點選特工可近看對照。','Preview only; battles keep the original. Select an operative for a closer comparison.')}</p>`:''}
         <button class="ghost wide" data-m3="all">${L('全隊一覽', 'Whole team')}</button>`;
       list.innerHTML = opsOf(t).map((o) => `<li data-op="${o.id}" style="--tc:${t.color}">${esc(tx(o.name))}</li>`).join('');
     } else if (st.mode === 'equip') {
@@ -251,7 +274,8 @@ export async function mountModels(root) {
     const r = canvas.getBoundingClientRect();
     ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ptr, camera);
-    const hit = ray.intersectObjects([...models.values()], true).find((h) => !h.object.isSprite || h.object.visible);
+    const hit = ray.intersectObjects([...models.values()].filter((m) => m.visible), true)
+      .find((h) => visibleModelHit(h.object));
     if (!hit) return;
     let o = hit.object; while (o && !o.userData.opId) o = o.parent;
     if (o) focus(o.userData.opId === st.op ? null : o.userData.opId);
@@ -273,6 +297,7 @@ export async function mountModels(root) {
   const onChange = (e) => {
     const k = e.target.dataset.m3;
     if (k === 'team') { st.team = e.target.value; st.op = null; buildScene(); }
+    if (k === 'style') { st.style=e.target.value;buildScene(); }
     if (k === 'loadout') { st.loadouts[st.op] = e.target.value; buildScene(); }
   };
   root.addEventListener('click', onClick);

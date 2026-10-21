@@ -1,0 +1,12 @@
+.online-bar { position:sticky; top:0; z-index:150; display:flex; flex-wrap:wrap; align-items:center; gap:.7rem; padding:.65rem 1rem; background:#172535; border-bottom:1px solid #84b4db; }
+.online-bar[hidden] { display:none; }
+.online-bar span { flex:1; }
+.online-dialog { width:min(620px,94vw); max-height:90vh; overflow:auto; background:#171d25; color:#e8ecf2; border:1px solid #627386; border-radius:12px; padding:1.4rem; }
+.online-dialog::backdrop { background:#000b; }
+.online-dialog label { display:block; margin:1rem 0; }
+.online-dialog textarea,.online-dialog input { display:block; width:100%; box-sizing:border-box; margin-top:.3rem; padding:.6rem; color:inherit; background:#0c1118; border:1px solid #526171; border-radius:5px; }
+.online-dialog textarea { resize:vertical; overflow-wrap:anywhere; }
+.online-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+.online-board { display:block; width:100%; height:calc(100dvh - 72px); border:0; }
+body:has(.online-bar:not([hidden])) { display:flex; flex-direction:column; }
+.online-bar { order:-1; }

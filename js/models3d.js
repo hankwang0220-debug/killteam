@@ -335,6 +335,7 @@ export function createModelKit(THREE) {
 
   function humanoid(op, L, picks) {
     const B = { ...(BUILD[L.body] || BUILD.guard) };
+    if (L.refined) Object.assign(B, { leg: .53, legR: .082, tw: .37, th: .30, td: .235, head: .084, sx: .215, armR: .056, wk: 1.08 });
     const k = L.big * (L.grot ? 0.55 : 1) * (L.scout ? 0.92 : 1) * (L.sicarian ? 1.12 : 1);
     for (const key of Object.keys(B)) if (key !== 'wk') B[key] *= k;
     B.wk *= k;
@@ -342,7 +343,7 @@ export function createModelKit(THREE) {
     if (L.scout) { B.tw *= 0.85; B.td *= 0.8; B.armR *= 0.75; B.legR *= 0.8; }
     if (L.sicarian) { B.leg *= 1.25; }
     const fig = new THREE.Group();
-    const main = mat(L.main, { metal: ['marine', 'battlesuit', 'sister', 'necron'].includes(L.body) ? 0.35 : 0.05, rough: ['marine', 'battlesuit', 'necron'].includes(L.body) ? 0.45 : 0.8 });
+    const main = mat(L.main, { metal: L.refined ? .16 : ['marine', 'battlesuit', 'sister', 'necron'].includes(L.body) ? 0.35 : 0.05, rough: L.refined ? .62 : ['marine', 'battlesuit', 'necron'].includes(L.body) ? 0.45 : 0.8 });
     const trim = mat(L.trim, { metal: 0.7, rough: 0.35 });
     const cloth = mat(L.cloth, { rough: 0.95 });
     const skin = mat(L.skin || '#d8a888', { rough: 0.8 });
@@ -400,7 +401,7 @@ export function createModelKit(THREE) {
         ...[0, 1, 2, 3].map((i) => sph(0.009 * k, BRASS(), -0.03 * k, torsoY + B.th * (0.3 - i * 0.14), B.td * 0.555, 6, 4))); // coat closure with two rows of buttons
       // Neck.
       add(upper, cyl(B.head * 0.42, B.head * 0.5, B.head * 0.6, L.body === 'marine' || L.body === 'battlesuit' ? DARK() : skin, 0, hipY + B.th + B.head * 0.15, 0));
-      if (L.body === 'marine' || L.body === 'sister') add(upper, box(B.tw * 0.7, B.th * 0.35, 0.03, trim, 0, torsoY + B.th * 0.18, B.td / 2 + 0.01));
+      if ((L.body === 'marine' || L.body === 'sister') && !L.refined) add(upper, box(B.tw * 0.7, B.th * 0.35, 0.03, trim, 0, torsoY + B.th * 0.18, B.td / 2 + 0.01));
       if (L.body === 'marine' && !L.scout) add(upper, ...[-1, 1].map((s) => box(B.tw * 0.28, 0.025, 0.02, trim, s * B.tw * 0.18, torsoY + B.th * 0.28, B.td / 2 + 0.03)));
       if (L.carapace || L.body === 'tau' || L.body === 'votann') add(upper, box(B.tw * 1.04, B.th * 0.5, B.td * 1.1, main, 0, torsoY + B.th * 0.18, 0));
       if (L.body === 'guard' && !L.carapace) add(upper, box(B.tw * 1.02, B.th * 0.45, B.td * 1.08, mat(L.main, { rough: 0.7 }), 0, torsoY + B.th * 0.15, 0));
@@ -468,6 +469,20 @@ export function createModelKit(THREE) {
     const r = B.head;
     const lens = (x, y, z, rr = r * 0.18) => sph(rr, c.eye, x, y, z, 6, 4);
     const body = L.body;
+    if (L.refined) {
+      // A brow and recessed lenses give the helmet a face rather than two round eyes on a ball.
+      add(h, tbox(r*1.9,r*1.8,r*1.65,c.main,0,0,-r*.08,.87),
+        tbox(r*1.5,r*.7,r*.55,DARK(),0,-r*.05,r*.72,.9),
+        box(r*1.75,r*.22,r*.35,c.main,0,r*.27,r*.76),
+        tbox(r*.9,r*.75,r*.65,c.main,0,-r*.55,r*.65,.68));
+      for(const s of [-1,1]) {
+        const eye=box(r*.48,r*.14,r*.10,c.eye,s*r*.43,r*.02,r*1.01);eye.rotation.z=-s*.14;add(h,eye);
+        add(h,tbox(r*.35,r*.7,r*.65,c.main,s*r*.76,-r*.35,r*.42,.8));
+      }
+      for(const x of [-.22,0,.22])add(h,box(r*.09,r*.33,r*.07,DARK(),r*x,-r*.55,r*1.0));
+      if(L.leader)add(h,box(r*.28,r*.10,r*1.4,c.trim,0,r*.93,-r*.1));
+      return;
+    }
     if (body === 'marine' && !L.scout && !L.wolf) {
       if (L.rubric || L.batWings || L.chaos) {
         add(h, sph(r, c.main, 0, 0, 0, 10, 8), box(r * 1.2, r * 0.5, r * 0.8, c.main, 0, -r * 0.45, r * 0.35), lens(r * 0.4, r * 0.05, r * 0.85), lens(-r * 0.4, r * 0.05, r * 0.85));
@@ -588,7 +603,16 @@ export function createModelKit(THREE) {
 
   function addShoulders(p, L, B, sh, c) {
     const sx = B.sx, y = sh[0].y;
-    if (L.body === 'marine' && !L.scout) {
+    if (L.refined) {
+      sh.forEach((s,i)=>{
+        const side=i?1:-1,x=s.x+side*.018*c.k,r=B.armR;
+        // Overlapping shells create a curved armour edge instead of a flat mushroom brim.
+        add(p,tbox(r*4.25,r*3.25,r*4.35,c.trim,x,y-r*.12,s.z,.92),
+          tbox(r*4.05,r*3.05,r*4.55,c.main,x,y+r*.12,s.z,.91));
+        const edge=mat('#688ec1',{metal:.15,rough:.65});
+        add(p,box(r*2.7,r*.12,r*.14,edge,x,y+r*1.6,s.z+r*1.55));
+      });
+    } else if (L.body === 'marine' && !L.scout) {
       sh.forEach((s, i) => {
         const side = i ? 1 : -1, pm = L.silverArm && side === 1 ? mat('#c9ccd1', { metal: 0.8, rough: 0.3 }) : c.main;
         const pad = mesh(new THREE.SphereGeometry(B.armR * 2.3, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), pm, s.x + side * 0.02, y - 0.01, s.z);
@@ -1029,8 +1053,9 @@ export function createModelKit(THREE) {
     return env;
   }
   /** A complete miniature (model + base) for an operative of a team. */
-  function buildOperative(team, op, loadout) {
+  function buildOperative(team, op, loadout, options = {}) {
     const L = operativeLook(team, op);
+    if (team.id === 'angels' && options.style === 'refined') Object.assign(L, { refined:true, main:'#28589b', trim:'#ba9953' });
     const picks = pickWeapons(weaponsOf(op, loadout));
     let fig;
     switch (L.body) {
