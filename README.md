@@ -181,6 +181,8 @@ This flat-board implementation treats a whole Reposition, Fall Back or Charge du
 
 Add an object to `TEAMS` in `js/data/teams.js` with `ops`, `ploys`, and `rule`. Weapons support the rule keys listed at the top of that file. Special team abilities are handled by the `effectiveRules()` function in `js/game.js` (or by a dedicated function).
 
+Team rule code lives in its own files: `js/data/<team>.js` holds a team's equipment and roster check, and `js/rules/<team>.js` (24 teams so far, split out of `js/game.js` in October '26) or an older `js/<team>.js` module holds its engine rules. `js/game.js` keeps the core game and the hooks that call into those files; it re-exports everything it used to export, so `main.js`, `ai.js` and the tests import from `game.js` as before. A rule file imports what it needs from `../game.js` and must not run game code at load time (the two modules import each other).
+
 ## Eldar teams
 
 Hand of the Archon and Corsair Voidscarred (虛空之痕海盜) each field 9 operatives. Setup supports weapon choices, faction equipment, and Corsair warrior/heavy-gunner replacements. Official PDF links and the supplied purchase/rotation notes appear in team details; rotation does not prevent casual games in this simulator.
