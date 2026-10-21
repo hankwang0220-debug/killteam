@@ -6,6 +6,7 @@
 
 import { teamDetails } from './models3d-teams.js';
 import { createWeapons } from './models3d-weapons.js';
+import { createRefinements } from './models3d-refinements.js';
 
 const MM = 1 / 25.4;
 
@@ -294,6 +295,7 @@ export function createModelKit(THREE) {
   /** A point given in o's local space, in its parent's space. */
   const toParent = (o, p) => { o.updateMatrix(); return p.clone().applyMatrix4(o.matrix); };
   const details = teamDetails({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, aimY, aimZ, tz, METAL, DARK, BRASS });
+  const refinements = createRefinements({ THREE,V,mat,box,tbox,cyl,sph,cone,limb,add,tz,DARK,METAL });
 
   // ----- weapons (shaped after each faction's official designs: js/models3d-weapons.js); team add-ons run on ranged ones -----
   const weapons = createWeapons({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, tz, aimY, METAL, DARK, BRASS });
@@ -335,7 +337,7 @@ export function createModelKit(THREE) {
 
   function humanoid(op, L, picks) {
     const B = { ...(BUILD[L.body] || BUILD.guard) };
-    if (L.refined) Object.assign(B, { leg: .53, legR: .082, tw: .37, th: .30, td: .235, head: .084, sx: .215, armR: .056, wk: 1.08 });
+    refinements.proportions(B,L);
     const k = L.big * (L.grot ? 0.55 : 1) * (L.scout ? 0.92 : 1) * (L.sicarian ? 1.12 : 1);
     for (const key of Object.keys(B)) if (key !== 'wk') B[key] *= k;
     B.wk *= k;
@@ -343,8 +345,10 @@ export function createModelKit(THREE) {
     if (L.scout) { B.tw *= 0.85; B.td *= 0.8; B.armR *= 0.75; B.legR *= 0.8; }
     if (L.sicarian) { B.leg *= 1.25; }
     const fig = new THREE.Group();
-    const main = mat(L.main, { metal: L.refined ? .16 : ['marine', 'battlesuit', 'sister', 'necron'].includes(L.body) ? 0.35 : 0.05, rough: L.refined ? .62 : ['marine', 'battlesuit', 'necron'].includes(L.body) ? 0.45 : 0.8 });
-    const trim = mat(L.trim, { metal: 0.7, rough: 0.35 });
+    const refinedMetal=L.body==='necron' ? .65 : ['marine','battlesuit','sister'].includes(L.body) ? .16 : .05;
+    const refinedRough=L.body==='necron' ? .42 : ['marine','battlesuit','sister','tau','votann'].includes(L.body) ? .62 : .83;
+    const main = mat(L.main, { metal: L.refined ? refinedMetal : ['marine', 'battlesuit', 'sister', 'necron'].includes(L.body) ? 0.35 : 0.05, rough: L.refined ? refinedRough : ['marine', 'battlesuit', 'necron'].includes(L.body) ? 0.45 : 0.8 });
+    const trim = mat(L.trim, { metal: L.refined ? .55 : .7, rough: L.refined ? .48 : .35 });
     const cloth = mat(L.cloth, { rough: 0.95 });
     const skin = mat(L.skin || '#d8a888', { rough: 0.8 });
     const eye = glow(L.eye || '#e03a2a');
@@ -401,7 +405,7 @@ export function createModelKit(THREE) {
         ...[0, 1, 2, 3].map((i) => sph(0.009 * k, BRASS(), -0.03 * k, torsoY + B.th * (0.3 - i * 0.14), B.td * 0.555, 6, 4))); // coat closure with two rows of buttons
       // Neck.
       add(upper, cyl(B.head * 0.42, B.head * 0.5, B.head * 0.6, L.body === 'marine' || L.body === 'battlesuit' ? DARK() : skin, 0, hipY + B.th + B.head * 0.15, 0));
-      if ((L.body === 'marine' || L.body === 'sister') && !L.refined) add(upper, box(B.tw * 0.7, B.th * 0.35, 0.03, trim, 0, torsoY + B.th * 0.18, B.td / 2 + 0.01));
+      if ((L.body === 'marine' || L.body === 'sister') && !(L.refined && L.body==='marine' && !L.chaos)) add(upper, box(B.tw * 0.7, B.th * 0.35, 0.03, trim, 0, torsoY + B.th * 0.18, B.td / 2 + 0.01));
       if (L.body === 'marine' && !L.scout) add(upper, ...[-1, 1].map((s) => box(B.tw * 0.28, 0.025, 0.02, trim, s * B.tw * 0.18, torsoY + B.th * 0.28, B.td / 2 + 0.03)));
       if (L.carapace || L.body === 'tau' || L.body === 'votann') add(upper, box(B.tw * 1.04, B.th * 0.5, B.td * 1.1, main, 0, torsoY + B.th * 0.18, 0));
       if (L.body === 'guard' && !L.carapace) add(upper, box(B.tw * 1.02, B.th * 0.45, B.td * 1.08, mat(L.main, { rough: 0.7 }), 0, torsoY + B.th * 0.15, 0));
@@ -460,6 +464,7 @@ export function createModelKit(THREE) {
     }
     if (L.body === 'gor' && !L.bird) add(fig, limb(V(0, hipY, -B.td * 0.4), V(0, hipY * 0.6, -B.td * 1.2), 0.012, skin));
     details.body({ fig, upper, head, L, B, k, hipY, torsoY, shY, headY, hunch, front: B.td / 2, back: -B.td / 2, M: { main, trim, cloth, skin, eye }, op, picks });
+    refinements.body({fig,upper,head,L,B,k,hipY,torsoY,shY,M:{main,trim,cloth,skin,eye}});
     fig.userData.humanoid = true;
     fig.userData.headTop = (headY + B.head) / k; // stature (top of head) at size 1, for scaling to the miniatures' heights
     return fig;
@@ -467,9 +472,9 @@ export function createModelKit(THREE) {
 
   function buildHead(h, L, B, c) {
     const r = B.head;
-    const lens = (x, y, z, rr = r * 0.18) => sph(rr, c.eye, x, y, z, 6, 4);
+    const lens = (x, y, z, rr = r * 0.18) => {const eye=sph(rr,c.eye,x,y,z,6,4);if(L.refined)eye.scale.set(1,.60,.65);return eye;};
     const body = L.body;
-    if (L.refined) {
+    if (L.refined && body==='marine' && !L.scout && !L.chaos) {
       // A brow and recessed lenses give the helmet a face rather than two round eyes on a ball.
       add(h, tbox(r*1.9,r*1.8,r*1.65,c.main,0,0,-r*.08,.87),
         tbox(r*1.5,r*.7,r*.55,DARK(),0,-r*.05,r*.72,.9),
@@ -503,7 +508,7 @@ export function createModelKit(THREE) {
     }
     switch (body) {
       case 'guard': case 'sister': case 'skitarii': case 'ratling': case 'ogryn': case 'marine': {
-        const skull = sph(r, c.skin, 0, 0, 0, 10, 8); skull.scale.set(0.92, 1.05, 1);
+        const skull = L.refined ? tbox(r*1.78,r*1.95,r*1.65,c.skin,0,0,0,.84) : sph(r, c.skin, 0, 0, 0, 10, 8); if(!L.refined)skull.scale.set(0.92, 1.05, 1);
         add(h, skull, sph(r * 0.32, c.skin, 0, -r * 0.62, r * 0.55, 10, 8), box(r * 0.22, r * 0.34, r * 0.3, c.skin, 0, -r * 0.08, r * 0.92)); // skull, jaw, nose
         if (!L.gasmask && !L.visor && !L.mask && !L.hood && !L.servitor && body !== 'skitarii') add(h, ...[-1, 1].map((s) => sph(r * 0.11, mat('#1e1612', { rough: 0.3 }), s * r * 0.36, r * 0.1, r * 0.86, 8, 6)), ...[-1, 1].map((s) => box(r * 0.34, r * 0.08, r * 0.1, mat('#3a2a20'), s * r * 0.36, r * 0.3, r * 0.88)), ...[-1, 1].map((s) => sph(r * 0.18, c.skin, s * r * 0.92, 0, 0, 8, 6))); // eyes, brows, ears
         if (L.servitor) { add(h, sph(r * 1.02, METAL(), 0, r * 0.15, -r * 0.1, 8, 6), lens(r * 0.4, 0, r * 0.85, r * 0.25), cyl(r * 0.15, r * 0.15, r * 0.8, DARK(), 0, -r * 0.9, -r * 0.4)); return; }
@@ -518,8 +523,8 @@ export function createModelKit(THREE) {
         else if (L.void) add(h, sph(r * 1.3, mat('#a8d8f0', { opacity: 0.45, rough: 0.1 }), 0, 0, r * 0.1, 10, 8));
         else if (body === 'sister') add(h, sph(r * 1.08, mat(L.hair || '#e8e8e8'), 0, r * 0.1, -r * 0.15, 10, 8), box(r * 2, r * 0.5, r * 1.2, mat(L.hair || '#e8e8e8'), 0, -r * 0.55, -r * 0.4));
         else if (L.peakedCap) add(h, cyl(r * 1.05, r * 1.0, r * 0.45, c.main, 0, r * 0.75, 0, 12), cyl(r * 1.3, r * 1.3, r * 0.12, c.main, 0, r * 0.98, 0, 12), box(r * 1.2, r * 0.06, r * 0.6, DARK(), 0, r * 0.55, r * 0.8), box(r * 0.5, r * 0.15, r * 0.05, mat('#c9ccd1', { metal: 0.8 }), 0, r * 0.82, r * 1.05));
-        else if (L.coat && L.gasmask) add(h, sph(r * 1.15, c.main, 0, r * 0.25, 0, 10, 6), cone(r * 0.12, r * 0.6, METAL(), 0, r * 1.45, 0, 6), cyl(r * 1.6, r * 1.6, r * 0.08, c.main, 0, r * 0.1, 0, 12));
-        else if (L.carapace || L.helmet || body === 'ogryn' && !L.bare) add(h, sph(r * 1.12, c.main, 0, r * 0.25, -r * 0.05, 10, 6), cyl(r * 1.25, r * 1.25, r * 0.08, c.main, 0, r * 0.05, 0, 12));
+        else if (L.coat && L.gasmask) add(h, sph(r * 1.15, c.main, 0, r * 0.25, 0, 10, 6), cone(r * 0.12, r * 0.6, METAL(), 0, r * 1.45, 0, 6), cyl(r * (L.refined?1.22:1.6), r * (L.refined?1.22:1.6), r * 0.08, c.main, 0, r * 0.1, 0, 12));
+        else if (L.carapace || L.helmet || body === 'ogryn' && !L.bare) add(h, sph(r * 1.12, c.main, 0, r * 0.25, -r * 0.05, 10, 6), cyl(r * (L.refined?1.1:1.25), r * (L.refined?1.1:1.25), r * 0.08, c.main, 0, r * 0.05, 0, 12));
         else if (body === 'ratling') add(h, cyl(r * 0.9, r * 1.1, r * 0.5, c.cloth, 0, r * 0.8, 0, 10), cyl(r * 1.5, r * 1.5, r * 0.05, c.cloth, 0, r * 0.55, 0, 12));
         else if (L.rags) add(h, sph(r * 1.08, mat('#3a2a24'), 0, r * 0.25, -r * 0.1, 8, 6));
         else if (L.scout) add(h, sph(r * 1.03, mat('#3a2a20'), 0, r * 0.3, -r * 0.15, 8, 6));
@@ -540,6 +545,13 @@ export function createModelKit(THREE) {
         break;
       }
       case 'tau': {
+        if(L.refined){
+          add(h,tbox(r*1.95,r*1.65,r*1.8,c.main,0,0,-r*.08,.85),
+            tbox(r*1.55,r*.42,r*.3,DARK(),0,-r*.13,r*.88,.85),
+            lens(r*.28,-r*.1,r*1.08,r*.22),
+            box(r*.12,r*.8,r*.18,c.trim,-r*.90,r*.5,-r*.15));
+          break;
+        }
         add(h, sph(r, c.main, 0, 0, 0, 10, 8), box(r * 2.0, r * 0.35, r * 1.4, c.main, 0, -r * 0.2, -r * 0.1), box(r * 1.1, r * 0.4, r * 0.4, DARK(), 0, 0, r * 0.85),
           lens(r * 0.3, 0.0, r * 1.05), lens(-r * 0.3, 0.0, r * 1.05), cyl(r * 0.25, r * 0.25, r * 0.4, DARK(), r * 1.0, 0, r * 0.3));
         break;
@@ -603,14 +615,16 @@ export function createModelKit(THREE) {
 
   function addShoulders(p, L, B, sh, c) {
     const sx = B.sx, y = sh[0].y;
-    if (L.refined) {
+    if (L.refined && L.body==='marine' && !L.scout) {
       sh.forEach((s,i)=>{
         const side=i?1:-1,x=s.x+side*.018*c.k,r=B.armR;
+        const armour=L.silverArm&&side===1?mat('#c9ccd1',{metal:.75,rough:.4}):c.main;
         // Overlapping shells create a curved armour edge instead of a flat mushroom brim.
         add(p,tbox(r*4.25,r*3.25,r*4.35,c.trim,x,y-r*.12,s.z,.92),
-          tbox(r*4.05,r*3.05,r*4.55,c.main,x,y+r*.12,s.z,.91));
-        const edge=mat('#688ec1',{metal:.15,rough:.65});
+          tbox(r*4.05,r*3.05,r*4.55,armour,x,y+r*.12,s.z,.91));
+        const edge=mat(L.trim,{metal:.25,rough:.65});
         add(p,box(r*2.7,r*.12,r*.14,edge,x,y+r*1.6,s.z+r*1.55));
+        if(L.chaos&&!L.plague)for(const j of [-1,1])add(p,cone(.018*c.k,.09*c.k,c.trim,x,y+r*2,s.z+j*.03*c.k,5));
       });
     } else if (L.body === 'marine' && !L.scout) {
       sh.forEach((s, i) => {
@@ -1055,7 +1069,10 @@ export function createModelKit(THREE) {
   /** A complete miniature (model + base) for an operative of a team. */
   function buildOperative(team, op, loadout, options = {}) {
     const L = operativeLook(team, op);
-    if (team.id === 'angels' && options.style === 'refined') Object.assign(L, { refined:true, main:'#28589b', trim:'#ba9953' });
+    if(options.style==='refined'){
+      L.refined=true;
+      if(team.id==='angels')Object.assign(L,{main:'#28589b',trim:'#ba9953'});
+    }
     const picks = pickWeapons(weaponsOf(op, loadout));
     let fig;
     switch (L.body) {
@@ -1072,6 +1089,7 @@ export function createModelKit(THREE) {
       case 'ogryn': fig = humanoid(op, { ...L, skin: '#c89878', main: L.team === 'blooded' ? '#6e3a30' : '#6a6a4a', carapace: true }, picks); break;
       default: fig = humanoid(op, L, picks);
     }
+    refinements.finish(fig,L);
     const root = new THREE.Group();
     root.add(baseFor(op, L, team.color));
     fig.position.y += 0.0;

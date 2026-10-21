@@ -39,9 +39,16 @@ for(const team of TEAMS)for(const template of team.ops.filter(o=>o.name?.en&&!o.
 assert.match(battle3dMarkup('<svg id="board"></svg>'),/battle3d-source/);
 // The prototype is opt-in: previews keep the same base, roster and loadout without changing battle defaults.
 for(const team of TEAMS) {
-  const op=team.ops[0],normal=kit.buildOperative(team,op),preview=kit.buildOperative(team,op,undefined,{style:'refined'});
+  const op=team.ops[0],normal=kit.buildOperative(team,op);
+  const materials=m=>m.children.filter(o=>o.isMesh).map(o=>[o.material.color.getHex(),o.material.metalness,o.material.roughness]);
+  const before=materials(normal),beforeBounds=new THREE.Box3().setFromObject(normal).clone();
+  const preview=kit.buildOperative(team,op,undefined,{style:'refined'});
+  assert.deepEqual(materials(normal),before,'preview must not modify original shared materials');
+  assert(new THREE.Box3().setFromObject(normal).equals(beforeBounds),'preview must not modify original geometry');
+  const base=m=>m.children.find(o=>o.isMesh&&o.material.color.getHex()===0x2b2d31&&o.material.roughness===.9);
+  assert.deepEqual(base(preview).geometry.attributes.position.array,base(normal).geometry.attributes.position.array,'physical base is identical in both versions');
   assert.equal(!!normal.userData.look.refined,false);
-  assert.equal(!!preview.userData.look.refined,team.id==='angels');
+  assert.equal(!!preview.userData.look.refined,true);
 }
 const angels=TEAMS.find(t=>t.id==='angels');
 const hiddenGroup = new THREE.Group(), nestedGroup = new THREE.Group();
@@ -53,10 +60,14 @@ assert.equal(visibleModelHit(hiddenModel.children[0]), false, 'hidden comparison
 hiddenGroup.visible = true;
 hiddenModel.children[0].visible = false;
 assert.equal(visibleModelHit(hiddenModel.children[0]), false, 'hidden labels cannot intercept picks');
-for(const op of angels.ops)for(const loadout of Object.keys(op.loadouts||{default:[]})) {
-  const model=kit.buildOperative(angels,op,loadout==='default'?undefined:loadout,{style:'refined'});
+let previews=0;
+for(const team of TEAMS)for(const op of team.ops.filter(o=>o.name?.en&&!o.name.en.startsWith('(')))for(const loadout of Object.keys(op.loadouts||{default:[]})) {
+  const model=kit.buildOperative(team,op,loadout==='default'?undefined:loadout,{style:'refined'});
   const box=new THREE.Box3().setFromObject(model);
-  assert(Number.isFinite(box.max.y)&&box.max.y>1,`${op.id}/${loadout} prototype builds`);
+  assert(Number.isFinite(box.max.y)&&box.max.y>0,`${team.id}/${op.id}/${loadout} prototype builds`);
   assert.equal(model.userData.opId,op.id);
+  assert.equal(model.userData.look.body,kit.operativeLook(team,op).body,'prototype preserves species, allies and machine types');
+  previews++;
 }
+console.log(`${TEAMS.length} teams / ${previews} operative and loadout prototypes built.`);
 console.log('3D board mapping, non-mutating state, model picking and all roster models passed.');

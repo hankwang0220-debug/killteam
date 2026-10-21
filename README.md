@@ -16,6 +16,8 @@ A browser-based (PWA) Kill Team–style skirmish game. Two players can share one
 
 驗證：`node tests/battle3d.mjs`（座標、模型點選、所有隊伍模型及狀態一致性）。
 
+「3D 模型」展示頁的 48 支隊伍均提供「原版／改良試作／並排對照」。試作依特工體型調整甲片、面部、機械結構與材質，包含同隊的盟軍、寵物、無人機與坐騎；保留原本配色、武器配置及底盤尺寸。選取單一特工可近看比較。試作目前僅供展示，對戰沿用原版模型。
+
 ## Deathwatch
 
 Deathwatch is selectable as a playable five-operative team using the linked official online datacards. Choose any five of its eleven specialists, with no duplicates and at most one GRAVIS operative. A Watch Sergeant is optional; faction and universal equipment share a four-option cap in this simulator. Collector notes and Seek & Destroy / Security Tac Ops are included.
