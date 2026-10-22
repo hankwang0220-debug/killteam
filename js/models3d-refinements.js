@@ -1,7 +1,13 @@
 // Optional sculpt pass. Original meshes, faction colours, silhouettes and physical bases stay available.
 // Profiles follow the operative's body, including allies, pets and machines within mixed rosters.
+import { createKommandoRefinements } from './models3d-kommandos.js';
+import { createTeamSculpts } from './models3d-team-sculpts.js';
+import { createVoidTeamSculpts } from './models3d-void-sculpts.js';
 export function createRefinements(h) {
   const { THREE,V,mat,box,tbox,cyl,sph,cone,limb,add,tz,DARK,METAL }=h;
+  const kommandos=createKommandoRefinements(h);
+  const teams=createTeamSculpts(h);
+  const voids=createVoidTeamSculpts(h);
   const profiles={
     marine:{leg:1.06,legR:1.17,tw:1.09,th:.89,td:1.12,head:1.12,sx:1.075,armR:1.12,wk:.864},
     guard:{leg:1.04,legR:1.08,tw:1.04,th:.96,head:1.02,wk:.90},
@@ -25,10 +31,16 @@ export function createRefinements(h) {
     for(const [key,gain]of Object.entries(p))B[key]*=gain;
     if(L.scout||L.phobos){B.tw*=.95;B.armR*=.96;}
     if(L.servitor){B.td*=1.12;B.armR*=1.12;}
+    kommandos.proportions(B,L);
+    teams.proportions(B,L);
+    voids.proportions(B,L);
   }
   function body(c){
     const {L,B,k,upper,head,fig,hipY,torsoY,shY,M}=c;
     if(!L.refined)return;
+    kommandos.body(c);
+    teams.body(c);
+    voids.body(c);
     const front=B.td/2, r=B.head;
     const edge=mat(L.trim,{metal:.42,rough:.54}), shadow=mat('#24272c',{rough:.85});
     const plate=mat(L.main,{metal:.18,rough:.63});
@@ -45,7 +57,7 @@ export function createRefinements(h) {
         add(head,tbox(r*1.85,r*.20,r*.42,plate,0,r*.30,r*.72,.90));
         for(const s of [-1,1])add(head,tz(cyl(r*.22,r*.25,r*.22,edge,s*r*1.03,-r*.05,0)));
       }
-      if(L.gasmask)for(const s of [-1,1]){
+      if(L.gasmask&&L.team!=='deathKorps')for(const s of [-1,1]){
         add(head,tz(cyl(r*.25,r*.25,r*.10,shadow,s*r*.40,-r*.10,r*1.0)));
         const optic=sph(r*.18,M.eye,s*r*.40,-r*.10,r*1.07);optic.scale.set(1,.55,.3);add(head,optic);
         add(head,tz(cyl(r*.24,r*.28,r*.15,edge,s*r*.73,-r*.48,r*.64)));
@@ -90,7 +102,7 @@ export function createRefinements(h) {
         for(let i=-1;i<=1;i++)add(head,box(r*.08,r*.3,r*.06,shadow,i*r*.25,-r*.5,r*.76));
       }
     }
-    if(['ork','gor','kroot'].includes(L.body)){
+    if(['ork','gor','kroot'].includes(L.body)&&L.team!=='kommandos'){
       if(L.body==='ork'){
         for(const s of [-1,1]){
           add(head,tbox(r*.64,r*.22,r*.26,M.skin,s*r*.40,r*.36,r*.80,.75).rotateZ(-s*.18));
@@ -107,6 +119,9 @@ export function createRefinements(h) {
     }
   }
   function finish(fig,L){
+    kommandos.finish(fig,L);
+    teams.finish(fig,L);
+    voids.finish(fig,L);
     if(!L.refined||fig.userData.humanoid)return;
     const plate=mat(L.main,{metal:['drone','crawler','macrocyte','gadget'].includes(L.body)?.45:.08,rough:.58});
     const edge=mat(L.trim,{metal:.4,rough:.55}), dark=DARK(), bone=mat('#e4d8be',{rough:.75});
@@ -152,5 +167,11 @@ export function createRefinements(h) {
       }return copies.get(m);
     };o.material=Array.isArray(o.material)?o.material.map(refine):refine(o.material);});
   }
-  return {proportions,body,finish};
+  return {proportions,body,finish,
+    revision:L=>kommandos.active(L)?'kommandos-2':teams.revision(L)||voids.revision(L),
+    figure:voids.figure,
+    head:(...args)=>kommandos.head(...args)||teams.head(...args)||voids.head(...args),
+    hand:kommandos.hand,
+    weapon:(...args)=>{kommandos.weapon(...args);teams.weapon(...args);voids.weapon(...args);},
+  };
 }

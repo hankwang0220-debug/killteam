@@ -14,6 +14,17 @@ let threeP = null;
 const loadThree = () => (threeP ||= import(THREE_URL));
 
 const st = { mode: 'ops', team: TEAMS[0].id, op: null, loadouts: {}, spin: true, map: 'default', hatchesOpen: false, style:'compare' };
+const SCULPT_NOTES={
+  gellerpox:['蓋勒痘魔精修：變異體面容、拼接裝甲與三種獨立害蟲造型。','Gellerpox: mutant faces, salvaged armour and three distinct nuisance creatures.'],
+  hearthkyn:['爐心打撈者精修：矮壯重甲、鬍鬚頭盔與專家工具。','Hearthkyn: stocky armour, bearded helmets and specialist tools.'],
+  navyBreachers:['海軍跳幫者精修：密閉頭盔、分層艙戰護甲與支援機具。','Navy: sealed helmets, layered void armour and support machines.'],
+  phobos:['恐懼突襲小隊精修：輕型動力甲、感測頭盔、骷髏面罩與專家裝具。','Phobos: light power armour, sensor helmets, skull masks and specialist gear.'],
+  kommandos:['歐克專屬精修：寬下顎、深眼窩、肩背肌肉與粗製武器；格洛特與史奎格另有專屬配件。','Kommando sculpt: broad jaws, inset eyes, muscular shoulders and salvaged weapons; separate Grot and Squig details.'],
+  tauPathfinders:['探路者專屬精修：單眼感測頭盔、分層肩甲、專家儀器與無人機感測器。','Pathfinder sculpt: single-optic helmets, layered shoulder plates, specialist instruments and drone sensors.'],
+  plagueMarines:['瘟疫戰士專屬精修：重型鏽蝕甲片、呼吸面罩、護脛與專家攜行配件。','Plague Marine sculpt: heavy corroded plates, respirator helmets, greaves and specialist equipment.'],
+  farstalkers:['遠獵者專屬精修：分層鳥喙、後掠羽刺、皮革護具、獵手裝備與克魯特獵犬。','Farstalker sculpt: layered beaks, swept quills, leather armour, hunting equipment and Kroot Hounds.'],
+  deathKorps:['克里格專屬精修：防毒面罩、護頸鋼盔、分層大衣、胸前裝具與專家配件。','Death Korps sculpt: respirator masks, neck-guard helmets, layered coats, chest webbing and specialist gear.'],
+};
 let live = null; // the mounted viewer (renderer, scene, loop)
 let mountSeq = 0;
 
@@ -25,6 +36,15 @@ const opsOf = (t) => (t.ops || []).filter((o) => o.name?.en && !o.name.en.starts
 export function visibleModelHit(object) {
   for (let node = object; node; node = node.parent) if (!node.visible) return false;
   return true;
+}
+
+/** Fit the whole bounding sphere in both screen dimensions, including deep bodies and oval bases. */
+export function modelViewFrame(bounds,aspect,fov=35){
+  const {min,max}=bounds;
+  const target={x:(min.x+max.x)/2,y:(min.y+max.y)/2,z:(min.z+max.z)/2};
+  const radius=Math.hypot(max.x-min.x,max.y-min.y,max.z-min.z)/2;
+  const vertical=fov*Math.PI/360,horizontal=Math.atan(Math.tan(vertical)*(aspect>0?aspect:1));
+  return {target,distance:Math.max(2,radius/Math.sin(Math.min(vertical,horizontal))*1.12)};
 }
 
 /** Every killzone: the default map, the mission packs' maps and the six Tomb World layouts. */
@@ -186,16 +206,15 @@ export async function mountModels(root) {
   function focus(id, snap = false) {
     st.op = id;
     if (id && models.has(id)) {
-      const m = models.get(id), bb = new THREE.Box3().setFromObject(m), h = bb.max.y, w = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-      cam.goal.set(m.position.x, Math.max(0.5, h * 0.45), m.position.z);
-      cam.rGoal = Math.max(2, h * 2.3, w * 2);
-      if(st.mode==='ops'&&st.style==='compare')cam.rGoal=Math.max(cam.rGoal,h*3.2,w*2.8)/Math.min(1,camera.aspect||1)**.7;
+      const m=models.get(id),bb=new THREE.Box3().setFromObject(m);
+      const fit=modelViewFrame(bb,canvas.clientWidth/Math.max(1,canvas.clientHeight),camera.fov);
+      cam.goal.set(fit.target.x,fit.target.y,fit.target.z);cam.rGoal=fit.distance;
     } else {
       cam.goal.copy(st.overview.center); cam.rGoal = st.overview.r / Math.min(1, camera.aspect || 1) ** 0.7;
     }
     if (snap) { cam.target.copy(cam.goal); cam.r = cam.rGoal; }
     for (const m of models.values()) {
-      m.visible=!(st.mode==='ops'&&st.style==='compare'&&id)||m.userData.opId===id;
+      m.visible=st.mode!=='ops'||!id||m.userData.opId===id;
       m.children.forEach((c) => { if (c.userData.label) c.visible = !id; });
     }
     root.querySelectorAll('.m3d-ops li').forEach((li) => li.classList.toggle('on', li.dataset.op === (st.mode === 'maps' ? st.map : id)));
@@ -210,6 +229,7 @@ export async function mountModels(root) {
       controls.innerHTML = `<label class="m3d-team">${L('隊伍', 'Team')}
         <select data-m3="team">${TEAMS.map((x) => `<option value="${x.id}" ${x.id === st.team ? 'selected' : ''}>${esc(tx(x.name))}</option>`).join('')}</select></label>
         <label class="m3d-team">${L('模型版本','Model version')}<select data-m3="style"><option value="compare" ${st.style==='compare'?'selected':''}>${L('並排對照（左原版／右改良）','Compare (original left / refined right)')}</option><option value="original" ${st.style==='original'?'selected':''}>${L('原版','Original')}</option><option value="refined" ${st.style==='refined'?'selected':''}>${L('改良試作','Refined prototype')}</option></select></label><p class="hint">${L('僅供模型預覽；對戰仍使用原版。點選特工可近看對照。','Preview only; battles keep the original. Select an operative for a closer comparison.')}</p>
+        ${SCULPT_NOTES[t.id]&&st.style!=='original'?`<p class="hint">${L(...SCULPT_NOTES[t.id])}</p>`:''}
         <button class="ghost wide" data-m3="all">${L('全隊一覽', 'Whole team')}</button>`;
       list.innerHTML = opsOf(t).map((o) => `<li data-op="${o.id}" style="--tc:${t.color}">${esc(tx(o.name))}</li>`).join('');
     } else if (st.mode === 'equip') {

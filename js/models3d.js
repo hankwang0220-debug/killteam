@@ -127,7 +127,7 @@ const LOOKS = {
   goremongers: { body: 'guard', rags: true, mask: true, main: '#7a1e1a', trim: '#c9a227', cloth: '#b88878', skin: '#c9a08a' }, // official: bare pale flesh, red cloth, brass
   wyrmblade: { body: 'guard', helmet: true, goggles: true, main: '#c9a227', trim: '#5a4a3a', cloth: '#6a5a40', skin: '#b8a0c8' },
   gellerpox: { body: 'guard', bloated: true, rags: true, main: '#8a5a6a', trim: '#5a4a3a', cloth: '#a0607a', skin: '#c8b090' },
-  bladesOfKhaine: { body: 'eldar', aspect: true, main: '#2f8f5b', trim: '#e8d8a0', cloth: '#d8d0b0', eye: '#e03a2a' },
+  bladesOfKhaine: { body: 'eldar', aspect: true, main: '#244c32', trim: '#e8d8a0', cloth: '#d8d0b0', eye: '#e03a2a' },
   corsairVoidscarred: { body: 'eldar', cloak: true, main: '#24525e', trim: '#c9a227', cloth: '#6a1e24', eye: '#4af0ff' }, // official: deep teal armour, maroon cloaks, gold
   voidDancers: { body: 'eldar', harlequin: true, main: '#c2398f', trim: '#e8c040', cloth: '#2a2a2a', eye: '#ffffff' },
   handOfArchon: { body: 'eldar', drukhari: true, main: '#1e3a38', trim: '#b0b0b8', cloth: '#3a1e3a', eye: '#7fe03a' }, // official: dark teal-black Kabalite armour, silver blades
@@ -201,9 +201,9 @@ export function operativeLook(team, op) {
   if (team.id === 'bladesOfKhaine') L.aspectKind = /scorpion/i.test(n) ? 'scorpion' : /banshee/i.test(n) ? 'banshee' : 'avenger';
   if (team.id === 'deathKorps' && /watchmaster|confidant/i.test(n)) L.peakedCap = true;
   if (team.id === 'broodBrothers' && /magus|primus/i.test(n)) L.helmet = false; // bare, ridged hybrid heads
-  if (L.aspectKind === 'scorpion') { L.main = '#3f8a2f'; L.trim = '#e8c040'; }
-  if (L.aspectKind === 'banshee') { L.main = '#d8d0c0'; L.trim = '#a82a2a'; L.cloth = '#a82a2a'; }
-  if (L.aspectKind === 'avenger') { L.main = '#2a4fa8'; L.trim = '#e8e0d0'; }
+  if (L.aspectKind === 'scorpion') { L.main = '#244d2b'; L.trim = '#e8c040'; }
+  if (L.aspectKind === 'banshee') { L.main = '#2b5140'; L.trim = '#a82a2a'; L.cloth = '#a82a2a'; }
+  if (L.aspectKind === 'avenger') { L.main = '#1f4636'; L.trim = '#e8e0d0'; }
   if (/death cult|assassin|executioner/i.test(n) && /sanctifiers|elucidian/.test(team.id)) { L.hood = true; L.main = '#2a2a2e'; }
   return L;
 }
@@ -295,11 +295,11 @@ export function createModelKit(THREE) {
   /** A point given in o's local space, in its parent's space. */
   const toParent = (o, p) => { o.updateMatrix(); return p.clone().applyMatrix4(o.matrix); };
   const details = teamDetails({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, aimY, aimZ, tz, METAL, DARK, BRASS });
-  const refinements = createRefinements({ THREE,V,mat,box,tbox,cyl,sph,cone,limb,add,tz,DARK,METAL });
+  const refinements = createRefinements({ THREE,V,mat,box,tbox,cyl,sph,cone,limb,add,tz,aimY,DARK,METAL });
 
   // ----- weapons (shaped after each faction's official designs: js/models3d-weapons.js); team add-ons run on ranged ones -----
   const weapons = createWeapons({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, tz, aimY, METAL, DARK, BRASS });
-  function rangedModel(r, L) { const res = weapons.ranged(r, L); details.weapon(res.g, r, L); return res; }
+  function rangedModel(r, L) { const res = weapons.ranged(r, L); details.weapon(res.g, r, L); refinements.weapon(res.g,r,L);return res; }
   const meleeModel = (m, L) => weapons.melee(m, L);
 
   // ----- bases -----
@@ -471,6 +471,7 @@ export function createModelKit(THREE) {
   }
 
   function buildHead(h, L, B, c) {
+    if(refinements.head(h,L,B,c))return;
     const r = B.head;
     const lens = (x, y, z, rr = r * 0.18) => {const eye=sph(rr,c.eye,x,y,z,6,4);if(L.refined)eye.scale.set(1,.60,.65);return eye;};
     const body = L.body;
@@ -812,7 +813,7 @@ export function createModelKit(THREE) {
         const sm = seamMat(L.main);
         add(fig, band(s, elbow, 0.3, B.armR * 1.1, sm, c.k), band(elbow, h, 0.27, B.armR * 1.29, sm, c.k), band(elbow, h, 0.9, B.armR * 1.27, sm, c.k)); // upper-arm, vambrace and cuff seams
       }
-      add(fig, sph(B.armR * 0.95, L.body === 'marine' || L.body === 'necron' ? c.limbMat : L.body === 'battlesuit' ? c.main : mat(L.body === 'guard' || L.body === 'sister' ? '#2a2a2a' : L.skin || '#d8a888'), h.x, h.y, h.z, 6, 5));
+      if(!refinements.hand(fig,L,B,h,side))add(fig, sph(B.armR * 0.95, L.body === 'marine' || L.body === 'necron' ? c.limbMat : L.body === 'battlesuit' ? c.main : mat(L.body === 'guard' || L.body === 'sister' ? '#2a2a2a' : L.skin || '#d8a888'), h.x, h.y, h.z, 6, 5));
     }
   }
 
@@ -1071,11 +1072,12 @@ export function createModelKit(THREE) {
     const L = operativeLook(team, op);
     if(options.style==='refined'){
       L.refined=true;
+      const revision=refinements.revision(L);if(revision)L.refinementRevision=revision;
       if(team.id==='angels')Object.assign(L,{main:'#28589b',trim:'#ba9953'});
     }
     const picks = pickWeapons(weaponsOf(op, loadout));
-    let fig;
-    switch (L.body) {
+    let fig=refinements.figure(op,L,picks);
+    if(!fig)switch (L.body) {
       case 'beast': fig = beast(op, L); break;
       case 'drone': fig = drone(op, L); break;
       case 'squig': fig = squig(op, L); break;
@@ -1101,7 +1103,7 @@ export function createModelKit(THREE) {
       root.add(limb(v0, v1, 0.05, strut, 0.035), box(0.28, 0.08, 0.2, mat('#3a3c40', { rough: 0.9 }), 0.12, 0.04, 0.05), box(0.12, 0.06, 0.1, mat('#5a5448', { rough: 1 }), -0.12, 0.03, -0.1));
     }
     root.add(fig);
-    root.userData = { opId: op.id, look: L, picks };
+    root.userData = { opId: op.id, look: L, picks, sculptKind:fig.userData.sculptKind };
     return mergeByMaterial(root);
   }
 

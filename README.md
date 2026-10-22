@@ -18,6 +18,10 @@ A browser-based (PWA) Kill Team–style skirmish game. Two players can share one
 
 「3D 模型」展示頁的 48 支隊伍均提供「原版／改良試作／並排對照」。試作依特工體型調整甲片、面部、機械結構與材質，包含同隊的盟軍、寵物、無人機與坐騎；保留原本配色、武器配置及底盤尺寸。選取單一特工可近看比較。試作目前僅供展示，對戰沿用原版模型。
 
+歐克蠻人另有第二輪專屬精修：寬下顎、深眼窩、彎獠牙、肩背肌肉、手掌與粗製武器細節；各專家、格洛特與炸彈史奎格保留不同配件。於展示頁選「歐克蠻人 → 改良試作／並排對照」查看。
+
+第二輪專屬精修也涵蓋探路者（感測頭盔、護具及無人機）、瘟疫戰士（呼吸面罩、鏽蝕重甲及專家裝備）、遠獵者（鳥喙、羽刺、皮革裝具及獵犬）與克里格死亡兵團（防毒面罩、護頸鋼盔、大衣與專家配件）。同樣只在模型預覽中套用。
+
 ## Deathwatch
 
 Deathwatch is selectable as a playable five-operative team using the linked official online datacards. Choose any five of its eleven specialists, with no duplicates and at most one GRAVIS operative. A Watch Sergeant is optional; faction and universal equipment share a four-option cap in this simulator. Collector notes and Seek & Destroy / Security Tac Ops are included.
@@ -262,3 +266,5 @@ Model sizes follow the physical miniatures, not the background lore (top of head
 Rendering: parts are rounded boxes, smooth-shaded spheres and cylinders with more segments, and limbs are tapered with rounded joints (geometry is cached and shared between parts of the same size); the viewer uses ACES filmic tone mapping. Humanoids have a chest and a narrower abdomen, a neck, muscled tapering arms and legs, boots with rounded toes, and bare faces get eyes, brows, a jaw and ears.
 
 Weapons are built in `js/models3d-weapons.js`, shaped after each faction's official weapon designs (still without any logos): Primaris bolt rifles with curved magazines and shrouded barrels, classic boltguns with sickle magazines, bolt pistols, heavy bolters with ammo boxes and spade grips, lasguns with heat-sink rings (wooden furniture for Krieg and traitor guard), hot-shot lasguns with power-pack cables, plasma guns with glowing coils and cooling fins, twin-barrelled meltaguns, flamers with fuel tanks and pilot lights, grenade launchers with drums, scoped sniper rifles with bipods, crude riveted Ork shootas, sluggas and multi-barrelled big shootas, smooth T'au pulse weapons with blue emitters and rail rifles with glowing rails, disc-fed Aeldari shuriken catapults, bladed Drukhari splinter rifles with crystal vials, skeletal Necron gauss weapons with glowing cores, chunky Votann autoch-pattern weapons with ion cells, Kroot rifles with blades; and chainswords with teeth, power swords with power fields, Ork cleavers and crescent axes, thunder hammers and flanged maces, power fists with fingers and generators, power klaws, chainfists, lightning claws, force staves and serrated combat knives.
+
+模型預覽另加入蓋勒痘魔、爐心打撈者、帝國海軍跳幫者與恐懼突襲小隊的專屬精修（51 種單位）：變異體與三種獨立害蟲、矮壯重甲、艙戰裝具與輕型動力甲。可切換原版與並排對照。
