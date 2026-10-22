@@ -95,7 +95,7 @@ export function spActions(g, op, add) {
   if (tpl(op).spBeacon) add('spBeaconSignal', !eng && TARGET_ACTIONS.spBeaconSignal.targets(g, op).length > 0, { zh: '6" 內沒有友方魅影', en: 'No friendly SPECTRE within 6"' });
   if (tpl(op).spLoader) {
     const bad = eng || op.counter || op.acted.charge || op.acted.dash || op.acted.shoot;
-    add('spLoad', !bad && TARGET_ACTIONS.spLoad.targets(g, op).length > 0, eng ? ENG : op.counter ? { zh: '反擊時不能執行', en: 'Not while counteracting' } : bad ? { zh: '同一次啟動不能和衝鋒、衝刺或射擊並用', en: 'Not with Charge, Dash or Shoot' } : { zh: '沒有可選的友方', en: 'No valid friendly' });
+    add('spLoad', !bad && TARGET_ACTIONS.spLoad.targets(g, op).length > 0, eng ? ENG : op.counter ? { zh: '反應時不能執行', en: 'Not while counteracting' } : bad ? { zh: '同一次啟動不能和衝鋒、衝刺或射擊並用', en: 'Not with Charge, Dash or Shoot' } : { zh: '沒有可選的友方', en: 'No valid friendly' });
   }
   if (equip(g, op.side, 'spCamo') && real(op)) {
     const seen = foes(g, op).some((e) => e.side < 2 && e.x > -50 && edgeDist(e, op) <= 3 && visibility(g, e, op).visible);

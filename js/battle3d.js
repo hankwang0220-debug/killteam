@@ -8,6 +8,9 @@ import { handleRotation, rectCorners } from './geometry.js';
 import { L, getLang } from './i18n.js';
 import { TEAM_MAP } from './data/teams.js';
 
+/** Height of a model's base (inches): the model kit builds it below y = 0, so models stand this high to show it — cover is judged from the base. */
+const BASE_H = .12;
+
 let live=null, load=null, generation=0;
 let remembered=null;
 export function worldToBoard(g,p) {
@@ -110,7 +113,7 @@ function createView(T,initial) {
   }
   function ring(x,y,r,color,opacity=.9){
     const m=new T.Mesh(new T.RingGeometry(r,r+.10,40),new T.MeshBasicMaterial({color,transparent:true,opacity,side:T.DoubleSide,depthTest:false}));
-    m.rotation.x=-Math.PI/2;m.position.set(x-boardOf(g).w/2,.07,y-boardOf(g).h/2);m.renderOrder=5;rings.add(m);
+    m.rotation.x=-Math.PI/2;m.position.set(x-boardOf(g).w/2,BASE_H+.02,y-boardOf(g).h/2);m.renderOrder=5;rings.add(m);
   }
   function clearDynamic(group){group.traverse(o=>{o.geometry?.dispose();if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});group.clear();}
   function syncModels() {
@@ -122,7 +125,7 @@ function createView(T,initial) {
         if(!templates.has(spec.key)) {const model=kit.buildOperative(spec.team,spec.template,spec.loadout);templates.set(spec.key,model);collect(model);}
         o=templates.get(spec.key).clone(true);o.userData={uid:op.uid,modelKey:spec.key};units.add(o);models.set(op.uid,o);
       }
-      o.position.set(spec.x,0,spec.z);o.rotation.y=spec.rotation;
+      o.position.set(spec.x,BASE_H,spec.z);o.rotation.y=spec.rotation; // (raised so its base shows: cover is judged from the base)
       label(o,`${opName(op,getLang())}  ${op.wounds}/${op.maxW}  ${op.order==='conceal'?'◈':'◆'}${op.ready?' ●':' ○'}`);
     }
     for(const [uid,o]of models)if(!keep.has(uid)){disposeLabel(o);units.remove(o);models.delete(uid);}
@@ -193,7 +196,7 @@ function createView(T,initial) {
     if(!drag.moved && Math.hypot(e.clientX-drag.start.x,e.clientY-drag.start.y)<4)return;drag.moved=true;
     const dx=e.clientX-drag.last.x,dy=e.clientY-drag.last.y;drag.last={x:e.clientX,y:e.clientY};
     if(drag.mode==='rotate'){const p=point(e);if(p&&drag.p){drag.angleNow=handleRotation(ui.equipmentPreview.p,drag.p,p,drag.angle,e.shiftKey);syncPreview(drag.angleNow);}}
-    else if(drag.mode==='unit'){const p=point(e),o=g.ops.find(o=>o.uid===drag.hit.uid);if(p&&o){drag.dest=p;models.get(o.uid)?.position.set(p.x-boardOf(g).w/2,0,p.y-boardOf(g).h/2);clearDynamic(rings);ring(p.x,p.y,radius(o)+.1,deployOk(g,o,p)?'#37d995':'#ff6262');}}
+    else if(drag.mode==='unit'){const p=point(e),o=g.ops.find(o=>o.uid===drag.hit.uid);if(p&&o){drag.dest=p;models.get(o.uid)?.position.set(p.x-boardOf(g).w/2,BASE_H,p.y-boardOf(g).h/2);clearDynamic(rings);ring(p.x,p.y,radius(o)+.1,deployOk(g,o,p)?'#37d995':'#ff6262');}}
     else if(drag.mode==='pan')pan(dx,dy);
     else {const direction=drag.reverseOrbit?-1:1;pose.theta-=dx*.008*direction;pose.phi=Math.max(.06,Math.min(1.35,pose.phi+dy*.006*direction));}
     updateCamera();

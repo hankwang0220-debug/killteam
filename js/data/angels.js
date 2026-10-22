@@ -4,7 +4,7 @@ const B = (zh, en) => ({ zh, en });
 
 export const ANGELS_EQUIPMENT = {
   adSeals: { name: B('純潔印記', 'Purity Seals'), desc: B('每回合一次（自動）：友方死亡天使射擊、近戰或反擊時，若擲出兩個以上失敗，可捨棄一個失敗、把另一個失敗保留為普通成功。', 'Once per TP (automatic): when a friendly ANGEL OF DEATH shoots, fights or retaliates and rolls two or more fails, discard one to retain another as a normal success.') },
-  adAuspex: { name: B('偵測儀', 'Auspex'), desc: B('每回合一次（自動，有幫助時）：友方死亡天使射擊並選有效目標時，直到這次啟動／反擊結束，它 8" 內的敵人不能被遮蔽。', 'Once per TP (automatic, when it helps): when a friendly ANGEL OF DEATH shoots and selects a valid target, enemies within 8" of it cannot be obscured until the end of the activation/counteraction.') },
+  adAuspex: { name: B('偵測儀', 'Auspex'), desc: B('每回合一次（自動，有幫助時）：友方死亡天使射擊並選有效目標時，直到這次啟動／反應結束，它 8" 內的敵人不能被遮蔽。', 'Once per TP (automatic, when it helps): when a friendly ANGEL OF DEATH shoots and selects a valid target, enemies within 8" of it cannot be obscured until the end of the activation/counteraction.') },
   adReliquaries: { name: B('戰團聖物箱', 'Chapter Reliquaries'), desc: B('指定的友方特工是交戰指令時，「復仇之怒」交戰計謀 0CP。', 'The Wrath of Vengeance firefight ploy costs 0CP if the specified friendly operative has an Engage order.') },
   adTilting: { name: B('傾斜盾', 'Tilting Shields'), desc: B('每回合一次（自動）：友方死亡天使近戰或反擊時，對手擲攻擊骰後（重擲前）：這次對手不能把低於 6 的結果保留為暴擊（致命、撕裂、嚴厲等）。', 'Once per TP (automatic): when a friendly ANGEL OF DEATH fights or retaliates, the opponent cannot retain results below 6 as critical successes during that sequence (Lethal, Rending, Severe...).') },
 };

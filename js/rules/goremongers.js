@@ -34,7 +34,7 @@ export function sangOptions(g, op) {
       : used.length >= 2 ? { zh: '每次最多兩種', en: 'Two per activation at most' }
         : gore <= 0 ? { zh: '血槽是空的', en: 'GORE TANK is empty' }
           : (id === 'mania' && used.includes('fury')) || (id === 'fury' && used.includes('mania')) ? { zh: '狂躁與狂怒不能同時用', en: 'Not Mania and Fury together' }
-            : ['mania', 'fury', 'rake'].includes(id) && op.counter ? { zh: '反擊時不能用', en: 'Not while counteracting' }
+            : ['mania', 'fury', 'rake'].includes(id) && op.counter ? { zh: '反應時不能用', en: 'Not while counteracting' }
               : id === 'rejuvenate' && op.wounds >= op.maxW ? { zh: '沒有受傷', en: 'Not wounded' } : null;
     return { id, ok: !why, why };
   });

@@ -1445,7 +1445,7 @@ export function counterSwap(g, op) {
 
 /** Decline the chance to counteract. */
 export function passCounter(g) {
-  log(g, { zh: `${teamZh(g, g.turn)} 放棄反擊`, en: `${team(g, g.turn).name.en} does not counteract` }, `side${g.turn}`);
+  log(g, { zh: `${teamZh(g, g.turn)} 放棄反應`, en: `${team(g, g.turn).name.en} does not counteract` }, `side${g.turn}`);
   endActivation(g);
 }
 
@@ -1710,7 +1710,7 @@ export const ACTIONS = {
   transferPower: { ap: 1, name: { zh: '轉移能量', en: 'Transfer Power' } },
   omniscanner: { ap: 1, name: { zh: '全知掃描儀', en: 'Omniscanner' } },
   datacoronal: { ap: 1, name: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' } },
-  networkOverride: { ap: 1, name: { zh: '網路覆寫：反擊', en: 'Network Override: counteract' } },
+  networkOverride: { ap: 1, name: { zh: '網路覆寫：反應', en: 'Network Override: counteract' } },
   overrideDash: { ap: 1, name: { zh: '網路覆寫：衝刺', en: 'Network Override: Dash' } },
   explosives: { ap: 1, name: { zh: '爆破', en: 'Explosives' } },
   bbJam: { ap: 1, name: { zh: '干擾', en: 'Jam' } },
@@ -2384,7 +2384,7 @@ export const TARGET_ACTIONS = {
       (op.acted.overrode ||= []).push(t.uid);
       g.netcounter = { side: op.side, only: [t.uid], resume: op.uid, resumeCounter: !!g.counter };
       g.active = null; g.counter = true; g.turn = op.side;
-      return { zh: `網路覆寫：${opName(t, 'zh')} 立刻網路反擊（之後繼續本次啟動）`, en: `Network Override: ${opName(t, 'en')} network counteracts now (then this activation continues)` };
+      return { zh: `網路覆寫：${opName(t, 'zh')} 立刻網路反應（之後繼續本次啟動）`, en: `Network Override: ${opName(t, 'en')} network counteracts now (then this activation continues)` };
     },
   },
   // Network Override, the other option: that servitor makes a free Dash instead (then the Underseer's activation continues).
@@ -2733,7 +2733,7 @@ export function availableActions(g, op) {
   if (tpl(op).knux) add('knuxSmash', engaged && !count(op, 'knuxSmash'), !engaged ? { zh: '控制範圍內沒有敵人', en: 'No enemy in control range' } : DONE);
   if (tpl(op).systemJam) unique('systemJam', !conceal, CONC);
   if (tpl(op).medikit) unique('medikit');
-  if (tpl(op).droneController) add('remotePilot', !engaged && !op.counter && TARGET_ACTIONS.remotePilot.targets(g, op).length > 0, engaged ? ENG : op.counter ? { zh: '反擊時不能執行', en: 'Not while counteracting' } : NONE); // Remote Pilot (Pathfinder Drone Controller): repeatable
+  if (tpl(op).droneController) add('remotePilot', !engaged && !op.counter && TARGET_ACTIONS.remotePilot.targets(g, op).length > 0, engaged ? ENG : op.counter ? { zh: '反應時不能執行', en: 'Not while counteracting' } : NONE); // Remote Pilot (Pathfinder Drone Controller): repeatable
   if (tpl(op).veriscant) unique('veriscant');
   // Elucidian Starstriders.
   if (TEAM_MAP[op.team].starstriders) {
@@ -2742,7 +2742,7 @@ export function availableActions(g, op) {
   }
   // Chaos Cult.
   if (TEAM_MAP[op.team].chaosCult) {
-    if (tpl(op).inciteSlaughter) { unique('inciteSlaughter', !op.counter, { zh: '反擊時不能執行', en: 'Not while counteracting' }); unique('inciteUrgency', !op.counter, { zh: '反擊時不能執行', en: 'Not while counteracting' }); }
+    if (tpl(op).inciteSlaughter) { unique('inciteSlaughter', !op.counter, { zh: '反應時不能執行', en: 'Not while counteracting' }); unique('inciteUrgency', !op.counter, { zh: '反應時不能執行', en: 'Not while counteracting' }); }
     if (tpl(op).ruinousIcon) for (const id of ['ruinousInvig', 'ruinousDeter']) add(id, !engaged && !count(op, 'ruinousInvig') && !count(op, 'ruinousDeter'), engaged ? ENG : DONE);
     if (tpl(op).heinousDeluge) unique('heinousDeluge');
     if (tpl(op).maleficVortex) unique('maleficVortex');
@@ -2756,7 +2756,7 @@ export function availableActions(g, op) {
   // Canoptek Circle.
   if (TEAM_MAP[op.team].obeliskNodes) {
     if (tpl(op).geomantic) unique('geomantic', !conceal, CONC);
-    if (tpl(op).canoptekControl) unique('canoptekControl', !op.counter, { zh: '反擊時不能執行', en: 'Not while counteracting' });
+    if (tpl(op).canoptekControl) unique('canoptekControl', !op.counter, { zh: '反應時不能執行', en: 'Not while counteracting' });
     if (tpl(op).molecularBreach) unique('molecularBreach');
     if (tpl(op).overcharge) unique('overcharge');
     if (tpl(op).cranialOverload) unique('cranialOverload');
@@ -2778,7 +2778,7 @@ export function availableActions(g, op) {
   }
   // Battleclade: Noospheric Network and the Tech-Priests' actions.
   if (TEAM_MAP[op.team].noosphericNetwork) {
-    if (isServitor(op) && !op.counter) add('transferPower', !count(op, 'transferPower') && (aplNow(g, op) >= 2 || feAuto(g,op.side,'feCells')) && netCands(g, op.side).some((o) => o !== op), count(op, 'transferPower') ? DONE : aplNow(g, op) < 2 && !feAuto(g,op.side,'feCells') ? { zh: 'APL 低於 2', en: 'APL below 2' } : { zh: '沒有其他可網路反擊的僕從', en: 'No other servitor can network counteract' });
+    if (isServitor(op) && !op.counter) add('transferPower', !count(op, 'transferPower') && (aplNow(g, op) >= 2 || feAuto(g,op.side,'feCells')) && netCands(g, op.side).some((o) => o !== op), count(op, 'transferPower') ? DONE : aplNow(g, op) < 2 && !feAuto(g,op.side,'feCells') ? { zh: 'APL 低於 2', en: 'APL below 2' } : { zh: '沒有其他可網路反應的僕從', en: 'No other servitor can network counteract' });
     if (tpl(op).omniscanner) unique('omniscanner');
     if (tpl(op).datacoronal) add('datacoronal', !engaged && !count(op, 'datacoronal'), engaged ? ENG : DONE);
     if (tpl(op).networkOverride) { // (network counteract or a free Dash: twice per activation between them, a different servitor each time)
@@ -2803,7 +2803,7 @@ export function availableActions(g, op) {
   // Hierotek Circle: Cryptek actions (an Apprentek only one of them per turning point).
   const crypDone = tpl(op).apprentek && op.crypTP === g.tp;
   const CRYP = { zh: '本回合已用過一次技師動作', en: 'Already used a Cryptek action this turning point' };
-  if (tpl(op).interstitial) unique('interstitial', !op.counter && !crypDone, op.counter ? { zh: '反擊時不能執行', en: 'Not while counteracting' } : CRYP);
+  if (tpl(op).interstitial) unique('interstitial', !op.counter && !crypDone, op.counter ? { zh: '反應時不能執行', en: 'Not while counteracting' } : CRYP);
   for (const id of ['canoptekRepair', 'augment', 'reinforce', 'hcChronometron', 'hcNanomine', 'hcVision']) if (hcHas(g, op, id)) unique(id, !crypDone, CRYP); // (an Apprentek has its Cryptek's actions)
   if (hcHas(g, op, 'hcTimesplinter')) unique('hcTimesplinter', !crypDone && g.tp > 1 && g.hcSplinterTP?.[op.side] !== g.tp, g.tp <= 1 ? { zh: '第一回合不能用', en: 'Not in the first turning point' } : CRYP);
   for (const id of ['hcShroud', 'hcDespair']) if (hcHas(g, op, id)) add(id, !engaged && !crypDone && !count(op, id), engaged ? ENG : crypDone ? CRYP : DONE);
@@ -2815,7 +2815,7 @@ export function availableActions(g, op) {
     add('reanimate', ok, why); add('reanimateSure', ok, why);
   }
   if (tpl(op).apprehend) add('apprehend', engaged && !count(op, 'apprehend'), !engaged ? { zh: '控制範圍內沒有敵人', en: 'No enemy in control range' } : DONE);
-  if (tpl(op).support) unique(tpl(op).support, tpl(op).support !== 'getItDun' || !op.counter, { zh: '反擊時不能執行', en: 'Not while counteracting' });
+  if (tpl(op).support) unique(tpl(op).support, tpl(op).support !== 'getItDun' || !op.counter, { zh: '反應時不能執行', en: 'Not while counteracting' });
   if (tpl(op).wotNotz) unique('stunGrenade');
   if (tpl(op).dakkaDash) {
     // Dakka Dash: a free Dash and a free Shoot (dakka shoota only), in either order.
@@ -2872,7 +2872,7 @@ export function availableActions(g, op) {
     for (let i = list.length - 1; i >= 0; i--) if (['reposition', 'dash', 'charge', 'fallBack'].includes(list[i].id)) list.splice(i, 1);
     const left = Math.min(9 - (op.acted.sprintFwd || 0), 12 - (op.movedTP || 0));
     add('edSprint', sprintsLeft(op) > 0 && left > 0, sprintsLeft(op) <= 0 ? DONE : { zh: '本回合移動距離已用完', en: 'No movement left this turning point' }); // (Riding Mastery, Nomad Executioner, Moonsong Cull: Sprint on)
-    add('edTurn', !op.counter && !count(op, 'edTurn'), op.counter ? { zh: '反擊時不能轉向', en: 'Not while counteracting' } : DONE);
+    add('edTurn', !op.counter && !count(op, 'edTurn'), op.counter ? { zh: '反應時不能轉向', en: 'Not while counteracting' } : DONE);
     list.unshift(...list.splice(list.length - 2, 2)); // (movement first)
     if (tpl(op).songRenewal) { unique('songOne', op.songTP !== g.tp, DONE); add('songAll', !engaged && op.songTP !== g.tp, engaged ? ENG : DONE); }
     if (hasUp(op, 'sow')) add('edSow', edSowOk(g, op), op.sowTP === g.tp ? DONE : { zh: '要控制一個目標點', en: 'It must control an objective' }); // Sow the Seeds
@@ -2959,7 +2959,7 @@ export function doSelfAction(g, op, id) {
     ammoResupply: { zh: '補充彈藥：直到下回合，射擊時可重擲一顆攻擊骰', en: 'Ammo Resupply: until next TP, it re-rolls one attack die when shooting' },
     mdVision: { zh: '多維視覺：直到下次啟動，射擊時敵人不能被遮蔽', en: 'Multi-dimensional Vision: until its next activation, enemies cannot be obscured when it shoots' },
     guerrilla: { zh: `游擊戰：改為${op.order === 'conceal' ? '交戰' : '隱蔽'}指令`, en: `Guerrilla Warfare: switches to ${op.order === 'conceal' ? 'Engage' : 'Conceal'}` },
-    transferPower: { zh: '轉移能量：這次啟動結束後，另一名僕從可以網路反擊', en: 'Transfer Power: after this activation another servitor can network counteract' },
+    transferPower: { zh: '轉移能量：這次啟動結束後，另一名僕從可以網路反應', en: 'Transfer Power: after this activation another servitor can network counteract' },
     datacoronal: { zh: '數據冠累加器', en: 'Datacoronal Accumulator' },
     explosives: (op.explosivesUsed || 0) === 0 ? { zh: '爆破：放置炸藥標記（下次爆破時引爆）', en: 'Explosives: places the Explosives marker (the next one detonates it)' } : { zh: '爆破：引爆炸藥', en: 'Explosives: detonates the charge' },
     conspire: { zh: '密謀：獲得 1CP', en: 'Conspire: +1CP' },
@@ -4256,7 +4256,7 @@ const FF = {
   dwSufferAlien: { kind: 'auto' },
   dwTracking: { kind: 'button', start: true, cond: (g, o) => o.counter ? null : { zh: '僅反應開始時使用', en: 'Only at counteraction start' }, apply(g, o) { o.order = o.order === 'engage' ? 'conceal' : 'engage'; } },
   capriciousFlight: { kind: 'button', cond: (g, o) => !o.counter && isEngaged(g, o) ? null : { zh: '需要在啟動中且交戰', en: 'Must be engaged during an activation' }, apply(g, o) { o.acted.slip = true; } },
-  lightFingers: { kind: 'button', cond: (g, o) => !o.counter ? null : { zh: '反擊時不能使用', en: 'Not during counteraction' }, apply(g, o) { o.acted.lightFingers = true; } },
+  lightFingers: { kind: 'button', cond: (g, o) => !o.counter ? null : { zh: '反應時不能使用', en: 'Not during counteraction' }, apply(g, o) { o.acted.lightFingers = true; } },
   opportunisticFighters: { kind: 'auto' },
   contemptuousAdventurer: { kind: 'button', start: true, cond: (g, o) => (g.actCount?.[o.side] === 1 && living(g, o.side).every((t) => t === o || edgeDist(t, o) > 5)) ? null : { zh: '本回合首名啟動，且距離所有友方超過 5 吋', en: 'First activated this TP, more than 5 inches from all friendlies' }, apply(g, o) { o.acted.contemptuous = true; } },
   cruelDeception: { kind: 'button', cond: (g, o) => !o.counter && isEngaged(g, o) ? null : { zh: '需要在啟動中且交戰', en: 'Must be engaged during an activation' }, apply(g, o) { o.acted.slip = true; } },
@@ -4272,7 +4272,7 @@ const FF = {
       const nm = team(g, op.side).ploys.find((p) => p.id === next)?.name;
       return nm ? { zh: `改為${nm.zh}`, en: `now ${nm.en}` } : null;
     } },
-  wrathVengeance: { kind: 'button', cond: (g, op) => (op.counter && !op.acted.wrath ? null : { zh: '只能在反擊時', en: 'Only while counteracting' }), apply(g, op) { op.acted.wrath = true; op.ap += 1; } },
+  wrathVengeance: { kind: 'button', cond: (g, op) => (op.counter && !op.acted.wrath ? null : { zh: '只能在反應時', en: 'Only while counteracting' }), apply(g, op) { op.acted.wrath = true; op.ap += 1; } },
   transhuman: { kind: 'auto' },
   shockAssault: { kind: 'attack', fight: true, cond: (g, op) => (count(op, 'charge') ? null : { zh: '本次啟動沒有衝鋒', en: 'Didn\'t Charge this activation' }) },
   // ---- Blooded ----
@@ -4294,7 +4294,7 @@ const FF = {
     apply(g, op) { op.acted.free = { ...(op.acted.free || {}), charge: 'rampage' }; } },
   // ---- Farstalker Kinband ----
   slipAway: { kind: 'button', apply(g, op) { op.acted.slip = true; } },
-  poach: { kind: 'button', cond: (g, op) => (op.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, op) { op.kfPoach = true; } },
+  poach: { kind: 'button', cond: (g, op) => (op.counter ? { zh: '反應時不能使用', en: 'Not during counteraction' } : null), apply(g, op) { op.kfPoach = true; } },
   vengeanceKinband: { kind: 'auto' },
   savageAmbush: { kind: 'auto' },
   autoFerric: { kind: 'auto' }, // (Battleclade)
@@ -4368,13 +4368,13 @@ const FF = {
     ? null : { zh: '目標本回合要先被其他友方射擊過（艦砲除外）', en: 'The target must have been shot by another friendly this TP (not with a support asset)' }) },
   survivalist: { kind: 'button', start: true, cond: (g, o) => (o.survUsed ? { zh: '這名特工整場已用過', en: 'Already used for this operative' } : isEngaged(g, o) ? { zh: '在交戰中', en: 'Engaged' } : null),
     apply(g, o) { o.survUsed = true; const b = o.wounds; o.wounds = Math.min(o.maxW, o.wounds + d3() + 2); o.ap = Math.max(o.ap, tpl(o).apl); return { zh: `回復 ${o.wounds - b} 生命，本次 APL 不受影響`, en: `regains ${o.wounds - b} wounds; APL changes ignored this activation` }; } },
-  greatEndurance: { kind: 'button', cond: (g, o) => (tpl(o).navis && !o.counter ? null : { zh: '只有艦隊員（非反擊）', en: 'Navis operatives only (not counteracting)' }), apply(g, o) { o.ap += 1; } },
+  greatEndurance: { kind: 'button', cond: (g, o) => (tpl(o).navis && !o.counter ? null : { zh: '只有艦隊員（非反應）', en: 'Navis operatives only (not counteracting)' }), apply(g, o) { o.ap += 1; } },
   wellDrilled: { kind: 'button', start: true, cond: (g, o) => (tpl(o).navis && !o.counter && living(g, o.side).some((x) => x !== o && x.ready && tpl(x).navis && edgeDist(x, o) <= 3 && visibility(g, o, x).visible) ? null : { zh: '3" 內沒有準備中的艦隊員', en: 'No ready Navis operative within 3"' }),
     apply(g, o) { o.directive = living(g, o.side).filter((x) => x !== o && x.ready && tpl(x).navis && edgeDist(x, o) <= 3 && visibility(g, o, x).visible).map((x) => x.uid); } },
   // ---- Chaos Cult ----
   faithfulFollower: { kind: 'auto' },
   frenziedDemise: { kind: 'auto' },
-  unleashDaemonCC: { kind: 'button', cond: (g, o) => (isWarped(o) && !o.counter ? null : { zh: '只有突變者或折磨者（非反擊）', en: 'Mutants or Torments only (not counteracting)' }),
+  unleashDaemonCC: { kind: 'button', cond: (g, o) => (isWarped(o) && !o.counter ? null : { zh: '只有突變者或折磨者（非反應）', en: 'Mutants or Torments only (not counteracting)' }),
     apply(g, o) { o.acted.fightsAllowed = 2; o.acted.free = { ...(o.acted.free || {}), fight: 'any' }; } },
   // ---- Celestian Insidiants ----
   unshakeablePursuit: { kind: 'button', apply(g, o) { o.acted.pursuit = true; } },
@@ -4414,8 +4414,8 @@ const FF = {
   nodalResponse: { kind: 'button', cond: (g, o) => o.side < 2 && g.nodalOpen != null ? { zh: '已開啟', en: 'Already open' } : null, apply(g, o) { g.nodalOpen = o.side; } },
   animateNodes: { kind: 'node' },
   // ---- Blades of Khaine (firefight ploys, then Aspect Techniques) ----
-  bladewind: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.fightsAllowed = 2; } },
-  starfall: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反擊時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.starfall = true; } },
+  bladewind: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反應時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.fightsAllowed = 2; } },
+  starfall: { kind: 'button', cond: (g, o) => (o.counter ? { zh: '反應時不能使用', en: 'Not during counteraction' } : null), apply(g, o) { o.acted.starfall = true; } },
   fadingLight: { kind: 'button', apply(g, o) { o.acted.slip = true; } },
   contempt: { kind: 'auto' },
   avVigilance: { kind: 'attack', shoot: true, cond: (g, op, t, w) => (w && CATAPULTS.includes(w.id) ? null : { zh: '要用手裡劍彈射器', en: 'Needs a shuriken catapult' }) },

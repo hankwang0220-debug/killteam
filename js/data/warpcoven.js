@@ -6,7 +6,7 @@ const B = (zh, en) => ({ zh, en });
 export const WC_BOONS = {
   sight: { name: B('虛體視覺', 'Incorporeal Sight'), desc: B('遠程武器「飽和」；它射擊時敵人不會被遮擋。', 'Its ranged weapons have Saturate; enemies can\'t be obscured when it shoots.') },
   timeWalk: { name: B('時間行者', 'Time-Walk'), desc: B('移動 +1"。', '+1" Move.') },
-  echoes: { name: B('亞空間回聲', 'Echoes from the Warp'), desc: B('整場一次：反擊時可改變指令，並多做一個免費的 1AP 動作（兩個動作要不同）。', 'Once per battle, when it counteracts: change its order, and it can perform an additional free 1AP action (the two actions must be different).') },
+  echoes: { name: B('亞空間回聲', 'Echoes from the Warp'), desc: B('整場一次：反應時可改變指令，並多做一個免費的 1AP 動作（兩個動作要不同）。', 'Once per battle, when it counteracts: change its order, and it can perform an additional free 1AP action (the two actions must be different).') },
   warpSwell: { name: B('亞空間湧動', 'Warp Swell'), desc: B('近戰武器普通傷害 +1。', '+1 to the Normal Dmg of its melee weapons.') },
   appendage: { name: B('突變肢體', 'Mutant Appendage'), desc: B('在敵人控制範圍內也能撿起標記或做任務動作；每次啟動一次，撿起標記、放下標記或任務動作少 1AP。', 'Enemies within its control range don\'t stop it picking up markers or performing mission actions; once per activation, Pick Up Marker, Place Marker or a mission action costs 1 less AP.') },
   flight: { name: B('非物質飛行', 'Immaterial Flight'), desc: B('每回合一次：啟動中轉移或衝鋒時可飛行（無視地形，從原位在移動距離內重新放下；衝鋒不額外 +2"；墓穴世界不能飛越牆壁或穿過艙門）。', 'Once per turning point, when it Repositions or Charges during its activation, it can FLY (ignoring terrain, set back up within its Move of where it was; no extra distance for the Charge; on Tomb World not over walls or through hatchways).') },
@@ -20,7 +20,7 @@ export const WC_BOMBARD = { destiny: 'doombolt', tempyrion: 'fluxblast', warpfir
 
 export const WARPCOVEN_EQUIPMENT = {
   wcRounds: { name: B('咒術彈藥', 'Ensorcelled Rounds'), desc: B('友方的煉獄爆彈槍、煉獄爆彈手槍與自動手槍「毀滅 1」。', 'Friendly inferno boltguns, inferno bolt pistols and autopistols have Devastating 1.') },
-  wcScrolls: { name: B('巫術卷軸', 'Sorcerous Scrolls'), desc: B('整場一次：友方巫師啟動或反擊時，換一個其他友方沒有的奸奇恩賜，直到戰鬥結束。', 'Once per battle, when a friendly Sorcerer is activated or counteracts, select a different Boon of Tzeentch (one no other friendly has) for it until the end of the battle.') },
+  wcScrolls: { name: B('巫術卷軸', 'Sorcerous Scrolls'), desc: B('整場一次：友方巫師啟動或反應時，換一個其他友方沒有的奸奇恩賜，直到戰鬥結束。', 'Once per battle, when a friendly Sorcerer is activated or counteracts, select a different Boon of Tzeentch (one no other friendly has) for it until the end of the battle.') },
   wcMaws: { name: B('惡魔之喙武器', 'Daemonmaw Weapons'), desc: B('友方符文戰士近戰武器攻擊 +1；反擊時近戰武器「精準 1」。', '+1 Atk to friendly Rubric Marines\' melee weapons; Accurate 1 when they retaliate.') },
   wcRobes: { name: B('秘法長袍', 'Arcane Robes'), desc: B('每名巫師每回合一次：一顆對它造成暴擊傷害的攻擊骰改為普通傷害（可在策略階段的自動能力開關關閉）。', 'Once per turning point per Sorcerer: an attack dice that would inflict Critical Dmg on it inflicts Normal Dmg instead (switchable in the Strategy phase).') },
 };

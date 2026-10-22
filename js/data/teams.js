@@ -888,7 +888,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '阿斯塔特', en: 'Astartes' },
       desc: {
-        zh: '每次啟動可執行兩次「射擊」或兩次「近戰」。兩次射擊中至少一次要用爆彈武器；若兩次都用狙擊步槍或重型爆彈槍，第二次多花 1AP。不論指令為何都能反擊。開戰前選擇主要與次要戰團戰術。',
+        zh: '每次啟動可執行兩次「射擊」或兩次「近戰」。兩次射擊中至少一次要用爆彈武器；若兩次都用狙擊步槍或重型爆彈槍，第二次多花 1AP。不論指令為何都能反應。開戰前選擇主要與次要戰團戰術。',
         en: 'Each activation may perform two Shoot or two Fight actions. With two Shoots, at least one must use a bolt weapon, and the second costs +1AP if both use the bolt sniper rifle or heavy bolter. Can counteract regardless of order. Choose a primary and secondary Chapter Tactic before the battle.',
       },
     },
@@ -1079,7 +1079,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '中毒・令人作嘔的韌性・阿斯塔特', en: 'Poison · Disgustingly Resilient · Astartes' },
       desc: {
-        zh: '中毒：用有「中毒」的武器造成傷害時，敵人獲得中毒標記；有中毒標記的特工每次啟動時受到 1 傷害。劇毒：對行動開始時已中毒的敵人，武器兩個傷害值都 +1。令人作嘔的韌性：每顆攻擊骰造成 3 以上傷害時擲 D6，4+ 傷害 -1。阿斯塔特：每次啟動可兩次射擊（至少一次用爆彈手槍、爆彈槍或靈能武器，同一把靈能遠程武器不能用兩次）或兩次近戰；不論指令都能反擊。',
+        zh: '中毒：用有「中毒」的武器造成傷害時，敵人獲得中毒標記；有中毒標記的特工每次啟動時受到 1 傷害。劇毒：對行動開始時已中毒的敵人，武器兩個傷害值都 +1。令人作嘔的韌性：每顆攻擊骰造成 3 以上傷害時擲 D6，4+ 傷害 -1。阿斯塔特：每次啟動可兩次射擊（至少一次用爆彈手槍、爆彈槍或靈能武器，同一把靈能遠程武器不能用兩次）或兩次近戰；不論指令都能反應。',
         en: 'Poison: damaging an enemy with a Poison weapon gives it a Poison token; an operative with one takes 1 damage whenever it is activated. Toxic: +1 to both Dmg against an enemy poisoned at the start of the action. Disgustingly Resilient: whenever an attack die inflicts 3+ damage, roll a D6: on a 4+ it deals 1 less. Astartes: two Shoots (one with a bolt pistol, boltgun or Psychic weapon; not the same Psychic ranged weapon twice) or two Fights per activation; can counteract regardless of order.',
       },
     },
@@ -1111,7 +1111,7 @@ export const TEAMS = [
     color: '#b9772f',
     style: { zh: '射擊隊・狩獵・靈活', en: 'Shooting · Hunters · Agile' },
     blurb: {
-      zh: '12 名克魯特獵人與獵犬。可在策略階段與反擊時調整指令，用「呼喚獵殺」鎖定獵物，再以各式專家武器圍獵。',
+      zh: '12 名克魯特獵人與獵犬。可在策略階段與反應時調整指令，用「呼喚獵殺」鎖定獵物，再以各式專家武器圍獵。',
       en: '12 Kroot hunters and hounds. They switch orders in the Strategy phase and when counteracting, Call the Kill on their prey, then run it down with specialists.',
     },
     // Collector notes supplied by the player.
@@ -1126,7 +1126,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '遠獵者', en: 'Farstalker' },
       desc: {
-        zh: '策略階段輪到你選計謀時，可改變最多 3 名不在敵人控制範圍內的友方指令。輪到你反擊時，也可以改成變更 1 名友方的指令（仍算你的反擊，但不算該特工的反擊）。',
+        zh: '策略階段輪到你選計謀時，可改變最多 3 名不在敵人控制範圍內的友方指令。輪到你反應時，也可以改成變更 1 名友方的指令（仍算你的反應，但不算該特工的反應）。',
         en: 'When you choose ploys in the Strategy phase, change the order of up to three friendly operatives not within enemy control range. When it\'s your turn to counteract, you can instead change one friendly operative\'s order (it counts as your counteract, not that operative\'s).',
       },
     },
@@ -1421,7 +1421,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '阿斯塔特・全頻擾亂器・恐懼・多光譜陣列', en: 'Astartes · Omni-scrambler · Terror · Multi-spectrum Array' },
       desc: {
-        zh: '阿斯塔特：每次啟動可兩次射擊（至少一次用爆彈武器）或兩次近戰；不論指令都能反擊。全頻擾亂器（策略階段）：選一名被友方滲透者看到、或在干擾兵 6" 內的敵人，對手要先啟動等同場上滲透者數量的特工，它才能啟動（或它是最後一名）。恐懼：掠奪者 3" 內的敵人撿標記與任務動作多花 1AP，爭奪標記時 APL -1。多光譜陣列：突襲者射擊時敵人不會被遮擋。',
+        zh: '阿斯塔特：每次啟動可兩次射擊（至少一次用爆彈武器）或兩次近戰；不論指令都能反應。全頻擾亂器（策略階段）：選一名被友方滲透者看到、或在干擾兵 6" 內的敵人，對手要先啟動等同場上滲透者數量的特工，它才能啟動（或它是最後一名）。恐懼：掠奪者 3" 內的敵人撿標記與任務動作多花 1AP，爭奪標記時 APL -1。多光譜陣列：突襲者射擊時敵人不會被遮擋。',
         en: 'Astartes: two Shoots (one with a bolt weapon) or two Fights per activation; can counteract regardless of order. Omni-scrambler (Strategy phase): an enemy visible to a friendly Infiltrator or within 6" of the Voxbreaker can\'t activate until your opponent has activated as many operatives as you have Infiltrators (or it\'s the last). Terror: enemies within 3" of a Reiver pay +1AP for Pick Up and mission actions and count 1 lower when contesting markers. Multi-spectrum Array: enemies can\'t be obscured when an Incursor shoots.',
       },
     },
@@ -1476,7 +1476,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '阿斯塔特・奸奇的恩賜', en: 'Astartes · Boons of Tzeentch' },
       desc: {
-        zh: '阿斯塔特（巫師與符文戰士）：每次啟動可兩次射擊或兩次近戰（兩次都用奪魂砲或亞空間火焰噴射器時第二次多 1AP；同一把靈能遠程武器不能用兩次）；不論指令都能反擊。奸奇的恩賜：每名巫師選一個恩賜（每個恩賜只能選一次），在選隊時挑。符文戰士：附近 9" 沒有巫師時，啟動時 APL -1。',
+        zh: '阿斯塔特（巫師與符文戰士）：每次啟動可兩次射擊或兩次近戰（兩次都用奪魂砲或亞空間火焰噴射器時第二次多 1AP；同一把靈能遠程武器不能用兩次）；不論指令都能反應。奸奇的恩賜：每名巫師選一個恩賜（每個恩賜只能選一次），在選隊時挑。符文戰士：附近 9" 沒有巫師時，啟動時 APL -1。',
         en: 'Astartes (Sorcerers and Rubric Marines): two Shoots (+1AP for the second if both use the soulreaper cannon or warpflamer; not the same Psychic ranged weapon twice) or two Fights per activation; can counteract regardless of order. Boons of Tzeentch: each Sorcerer has one (each boon once), picked in team selection. Rubric Marines: -1 APL when activated unless a Sorcerer is within 9".',
       },
     },
@@ -1644,7 +1644,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '狂暴', en: 'Frenzy' },
       desc: {
-        zh: '沒有狂暴標記的友方將殘廢時，改為不殘廢並獲得狂暴標記（剩下的攻擊骰全部作廢；隱蔽改為交戰），對手此時就算它被擊殺。有狂暴標記時：視為重傷、不能隱蔽、不能撿標記與做獨特或任務動作、控制目標時 APL 視為 1。它在以下情況才真正殘廢：自己的啟動或反擊結束；近戰中被暴擊打中；近戰中第二次被普通成功打中；被射擊時受到暴擊傷害；被射擊時有 2 顆以上攻擊骰造成普通傷害；戰鬥結束。',
+        zh: '沒有狂暴標記的友方將殘廢時，改為不殘廢並獲得狂暴標記（剩下的攻擊骰全部作廢；隱蔽改為交戰），對手此時就算它被擊殺。有狂暴標記時：視為重傷、不能隱蔽、不能撿標記與做獨特或任務動作、控制目標時 APL 視為 1。它在以下情況才真正殘廢：自己的啟動或反應結束；近戰中被暴擊打中；近戰中第二次被普通成功打中；被射擊時受到暴擊傷害；被射擊時有 2 顆以上攻擊骰造成普通傷害；戰鬥結束。',
         en: 'A friendly without a Frenzy token that would be incapacitated isn\'t: it gains a Frenzy token (remaining attack dice are discarded; Conceal becomes Engage), and it counts as incapacitated for your opponent from then on. With the token it\'s injured, can\'t Conceal, can\'t Pick Up or perform unique or mission actions, and has APL 1 for control. It\'s incapacitated when its activation or counteraction ends; when struck by a critical success, or a second time by a normal success, in a fight; when Critical Dmg, or Normal Dmg from two or more dice, is inflicted on it by shooting; or when the battle ends.',
       },
     },
@@ -1709,7 +1709,7 @@ export const TEAMS = [
       { id: 'inviolate', cp: 1, name: { zh: '不可侵犯的轄區', en: 'Inviolate Jurisdiction' },
         desc: { zh: '本回合在目標點或敵人 2" 內的友方被射擊時，可重擲一顆防禦骰。', en: 'This TP, a friendly within 2" of an objective marker or an enemy re-rolls one defence die when shot.' } },
       { id: 'dispenseJustice', cp: 1, name: { zh: '執行正義', en: 'Dispense Justice' },
-        desc: { zh: '本回合友方近戰或反擊時，若本次啟動移動沒超過 Move（或反擊時），近戰武器「無休」。', en: 'This TP, a friendly fighting or retaliating that hasn\'t moved more than its Move this activation (or is counteracting) has Ceaseless.' } },
+        desc: { zh: '本回合友方近戰或反擊時，若本次啟動移動沒超過 Move（或反應時），近戰武器「無休」。', en: 'This TP, a friendly fighting or retaliating that hasn\'t moved more than its Move this activation (or is counteracting) has Ceaseless.' } },
       { id: 'terminalDecree', cp: 1, name: { zh: '終結令', en: 'Terminal Decree' },
         desc: { zh: '本回合友方射擊 6" 內的敵人時，遠程武器「平衡」。', en: 'This TP, a friendly shooting an enemy within 6" has Balanced.' } },
     ],
@@ -1937,7 +1937,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '星際戰士・混沌印記', en: 'Astartes · Marks of Chaos' },
       desc: {
-        zh: '星際戰士：每次啟動可射擊兩次（其中一次要用爆彈武器）或近戰兩次；任何指令都能反擊。混沌印記（每名隊員固定一種）：恐虐（近戰「重創」）、奸奇（遠程「重創」）、納垢（受到 3 以上普通傷害時 5+ -1）、色孽（Move +1"）、混沌不分（攻擊 6" 內的敵人時「無休」）。',
+        zh: '星際戰士：每次啟動可射擊兩次（其中一次要用爆彈武器）或近戰兩次；任何指令都能反應。混沌印記（每名隊員固定一種）：恐虐（近戰「重創」）、奸奇（遠程「重創」）、納垢（受到 3 以上普通傷害時 5+ -1）、色孽（Move +1"）、混沌不分（攻擊 6" 內的敵人時「無休」）。',
         en: 'Astartes: two Shoots (one with a bolt weapon) or two Fights per activation; can counteract on any order. Marks of Chaos (fixed per operative): Khorne (melee Severe), Tzeentch (ranged Severe), Nurgle (3+ Normal Dmg: 5+ = 1 less), Slaanesh (+1" Move), Undivided (Ceaseless against enemies within 6").',
       },
     },
@@ -2043,7 +2043,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '聖靈網路', en: 'Noospheric Network' },
       desc: {
-        zh: '僕從機每次啟動可花 1AP「轉移能量」：這次啟動結束後，可讓另一個僕從機「網路反擊」——先選指令，再免費做一個 1AP 動作（最多移動 2"），然後才輪到對手。網路反擊不需要已行動或交戰指令；還沒行動的僕從之後照樣能正常啟動。每個僕從每回合只能網路反擊一次，APL 低於 2 的不能轉移或反擊。',
+        zh: '僕從機每次啟動可花 1AP「轉移能量」：這次啟動結束後，可讓另一個僕從機「網路反應」——先選指令，再免費做一個 1AP 動作（最多移動 2"），然後才輪到對手。網路反應不需要已行動或交戰指令；還沒行動的僕從之後照樣能正常啟動。每個僕從每回合只能網路反應一次，APL 低於 2 的不能轉移或反擊。',
         en: 'Once per servitor activation, spend 1AP to TRANSFER POWER: after that activation, another servitor can NETWORK COUNTERACT — choose its order, then a free 1AP action (moving no more than 2") — before your opponent activates. It doesn\'t need to be expended or on Engage, and if it was ready it can still activate later. Once per TP per servitor; not with APL below 2.',
       },
     },
@@ -2511,7 +2511,7 @@ export const TEAMS = [
     rule: {
       name: { zh: '方陣技法', en: 'Aspect Techniques' },
       desc: {
-        zh: '每種技法只能給同方陣（狂怒復仇者／嚎叫女妖／突擊天蠍）的友方使用，不花 CP；每次啟動或反擊最多一種技法，每種技法每回合一次（全隊同一方陣時每回合兩次）。技法在交戰計謀的同一處選用。',
+        zh: '每種技法只能給同方陣（狂怒復仇者／嚎叫女妖／突擊天蠍）的友方使用，不花 CP；每次啟動或反應最多一種技法，每種技法每回合一次（全隊同一方陣時每回合兩次）。技法在交戰計謀的同一處選用。',
         en: 'Each Technique can only be used with a friendly of the matching Aspect (Dire Avenger / Howling Banshee / Striking Scorpion), for no CP; at most one per activation or counteraction, and each once per turning point (twice if the whole team shares one Aspect). They\'re picked where firefight ploys are.',
       },
     },
@@ -2735,7 +2735,7 @@ const ff = (id, zh, en, dzh, den) => ({ id, cp: 1, name: { zh, en }, desc: { zh:
 const FIREFIGHT = {
   angels: [
     ff('adjustDoctrine', '調整教條', 'Adjust Doctrine', '啟動中：把本回合的戰鬥教條換成下一種（突擊→毀滅→戰術）。', 'During an activation: switch this TP\'s Combat Doctrine to the next one (Assault → Devastator → Tactical).'),
-    ff('wrathVengeance', '復仇之怒', 'Wrath of Vengeance', '反擊時：多一個免費的 1AP 動作。', 'While counteracting: one more 1AP action for free.'),
+    ff('wrathVengeance', '復仇之怒', 'Wrath of Vengeance', '反應時：多一個免費的 1AP 動作。', 'While counteracting: one more 1AP action for free.'),
     ff('transhuman', '超人生理', 'Transhuman Physiology', '自動：被射擊時，一顆普通豁免當成暴擊豁免（能多擋暴擊時才用）。', 'Auto: when shot, one normal save is retained as a critical one (used when it blocks a crit).'),
     ff('shockAssault', '震撼突擊', 'Shock Assault', '本次啟動衝鋒過的近戰：武器「震撼」，第一次打擊 +1 傷害（最多 7）。', 'Fighting after a Charge this activation: Shock, and the first strike deals 1 more (max 7).'),
   ],
@@ -2772,7 +2772,7 @@ const FIREFIGHT = {
     ff('putrescentDemise', '腐爛之死', 'Putrescent Demise', '自動：友方殘廢時，2" 內看得到的每名敵人受 1 傷害（噩夢巨獸 D3）。', 'Auto: when a friendly falls, each enemy visible within 2" takes 1 damage (D3 for a Nightmare Hulk).'),
     ff('frighteningOnslaught', '駭人猛攻', 'Frightening Onslaught', '噩夢巨獸近戰後：再免費近戰一次。', 'After a Nightmare Hulk fights: a free Fight.'),
     ff('revoltingTech', '腐壞科技', 'Revolting Technology', '自動：敵人射擊友方時，它的武器獲得「過熱」。', 'Auto: an enemy shooting a friendly has Hot on its weapon.'),
-    ff('barge', '衝撞', 'Barge', '夢魘巨怪啟動或反擊中：直到結束，它可以穿過敵人、進入敵人控制範圍移動，也可以在敵人控制範圍內重新部署或衝鋒。', 'During a Nightmare Hulk\'s activation or counteraction: until it ends, it can move through enemies and within their control range, and can Reposition or Charge while within an enemy\'s control range.'),
+    ff('barge', '衝撞', 'Barge', '夢魘巨怪啟動或反應中：直到結束，它可以穿過敵人、進入敵人控制範圍移動，也可以在敵人控制範圍內重新部署或衝鋒。', 'During a Nightmare Hulk\'s activation or counteraction: until it ends, it can move through enemies and within their control range, and can Reposition or Charge while within an enemy\'s control range.'),
   ],
   hunterClade: [
     ff('commandOverride', '指令覆寫', 'Command Override', '啟動時：這名特工改用最適合它的指令（近戰型→征服者，射擊型→守護者）。', 'When activated: this operative switches to the Imperative that suits it (melee → Conqueror, shooting → Protector).'),
@@ -2849,13 +2849,13 @@ const FIREFIGHT = {
     ff('leap', '躍起', 'Leap', '騎乘者疾馳時改為直接放到 1" 內的位置（算移動 3"，速度變 3-）。', 'A rider Sprinting is set up within 1" instead (counts as 3" moved; SPEED 3-).'),
     ff('feralHunger', '野性飢渴', 'Feral Hunger', '用（龍駒）尖牙利爪近戰已受傷的敵人：可重擲任意攻擊骰。', 'Fighting a wounded enemy with (drakesteed) fangs & talons: re-roll any attack dice.'),
     ff('ridingMastery', '騎術精湛', 'Riding Mastery', '騎乘者剛疾馳後：可以先撿起／放下標記或做一個任務動作，再用剩下的距離繼續疾馳。', 'Straight after a rider Sprints: it can Pick Up / Place a marker or do a mission action, then Sprint on with the distance left.'),
-    ff('survivalistSpirit','生存者之魂', 'Survivalist Spirit', '騎乘者啟動或反擊中：直到它下次啟動，武器不受重傷影響。', 'During a rider\'s activation or counteraction: until its next activation, its weapons ignore being injured.'),
+    ff('survivalistSpirit','生存者之魂', 'Survivalist Spirit', '騎乘者啟動或反應中：直到它下次啟動，武器不受重傷影響。', 'During a rider\'s activation or counteraction: until its next activation, its weapons ignore being injured.'),
   ],
   goremongers: [
     ff('destructiveDemise', '毀滅性死亡', 'Destructive Demise', '自動：友方殘廢時，對它控制範圍內一名敵人造成傷害：血槽空 D3、半 D3+1、滿 D3+2。', 'Auto: when a friendly is incapacitated, damage to an enemy in its control range: D3 with an empty GORE TANK, D3+1 half, D3+2 full.'),
-    ff('lacerateFlesh', '割裂血肉', 'Lacerate Flesh', '血槽空的友方啟動或反擊時：血槽 +1；這次結束時再 -1（不能拿來發動血之精華），扣不了就受到 D3 傷害。', 'When a friendly with an empty GORE TANK activates or counteracts: increase it; at the end, decrease it (not to use a SANGUAVITAE) — if you can\'t, it takes D3 damage.'),
+    ff('lacerateFlesh', '割裂血肉', 'Lacerate Flesh', '血槽空的友方啟動或反應時：血槽 +1；這次結束時再 -1（不能拿來發動血之精華），扣不了就受到 D3 傷害。', 'When a friendly with an empty GORE TANK activates or counteracts: increase it; at the end, decrease it (not to use a SANGUAVITAE) — if you can\'t, it takes D3 damage.'),
     ff('unbridledAggression', '無拘侵略', 'Unbridled Aggression', '本次啟動衝鋒過的友方近戰：這次序列近戰武器「嚴厲」。', 'A friendly fighting in an activation it Charged: Severe on its melee weapons this sequence.'),
-    ff('gorethirst', '血渴', 'Gorethirst', '反擊時可以選一名隱蔽指令的友方：先改成交戰，這次反擊只能衝鋒、射擊或近戰。（選它反擊時自動使用）', 'When you counteract, you can pick a Concealed friendly: it changes to Engage first and can only Charge, Shoot or Fight during that counteraction. (Used automatically when you pick it.)'),
+    ff('gorethirst', '血渴', 'Gorethirst', '反應時可以選一名隱蔽指令的友方：先改成交戰，這次反應只能衝鋒、射擊或近戰。（選它反應時自動使用）', 'When you counteract, you can pick a Concealed friendly: it changes to Engage first and can only Charge, Shoot or Fight during that counteraction. (Used automatically when you pick it.)'),
   ],
   hernkynYaegirs: [
     ff('bondsThatBind', '同袍之誼', 'Bonds That Bind', '友方啟動時：它 3" 內看得到的另一名準備中友方，可以在它結束後接著啟動。', 'When a friendly is activated: another ready friendly visible within 3" of it can activate right after it.'),

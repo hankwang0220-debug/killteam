@@ -128,7 +128,7 @@ export function stepNotes(rep, i) {
     notes.push({ zh: `進入${n[0]}`, en: `${n[1]} begins` });
   }
   if (s.active && (!p || s.active !== p.active)) {
-    notes.push({ zh: `${nameOf(s.active, 'zh')} ${s.counter ? '反擊' : '開始啟動'}`, en: `${nameOf(s.active, 'en')} ${s.counter ? 'counteracts' : 'is activated'}` });
+    notes.push({ zh: `${nameOf(s.active, 'zh')} ${s.counter ? '反應' : '開始啟動'}`, en: `${nameOf(s.active, 'en')} ${s.counter ? 'counteracts' : 'is activated'}` });
   }
   if (p && p.active && !s.active && s.phase === p.phase) {
     notes.push({ zh: `${nameOf(p.active, 'zh')} 結束啟動`, en: `${nameOf(p.active, 'en')} ends its activation` });
@@ -145,7 +145,7 @@ export function stepNotes(rep, i) {
     }
   }
   if (s.counter && !s.active && (!p || !p.counter)) {
-    notes.push({ zh: `${team(view, s.turn).name.zh} 獲得反擊機會`, en: `${team(view, s.turn).name.en} may counteract` });
+    notes.push({ zh: `${team(view, s.turn).name.zh} 獲得反應機會`, en: `${team(view, s.turn).name.en} may counteract` });
   }
   return notes;
 }

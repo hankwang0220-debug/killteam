@@ -75,7 +75,7 @@ export const NIGHTLORDS_TEAM = {
   },
   rule: {
     name: B('阿斯塔特・午夜裝束', 'Astartes · In Midnight Clad'),
-    desc: B('阿斯塔特：每次啟動可射擊兩次或近戰兩次；射擊兩次時至少一次要用爆彈手槍、爆彈槍或瞄準爆彈手槍。任何指令都能反擊。午夜裝束：敵人射擊友方特工時，若它距離看得到它的敵人都超過 8"、且在不低於它的重型地形 1" 內，它視為被遮蔽。',
+    desc: B('阿斯塔特：每次啟動可射擊兩次或近戰兩次；射擊兩次時至少一次要用爆彈手槍、爆彈槍或瞄準爆彈手槍。任何指令都能反應。午夜裝束：敵人射擊友方特工時，若它距離看得到它的敵人都超過 8"、且在不低於它的重型地形 1" 內，它視為被遮蔽。',
       'Astartes: two Shoots or two Fights per activation; with two Shoots one must be a bolt pistol, boltgun or scoped bolt pistol. Counteract under either order. In Midnight Clad: when an enemy shoots a friendly operative that is more than 8" from the enemy operatives it\'s visible to and within 1" of Heavy terrain, it is obscured.'),
   },
   replacements: Object.fromEntries(SLOTS.map((id) => [id, PICKS])),

@@ -39,7 +39,7 @@ export function sprintCheck(g, op, p) {
   if (!leap && !back && (op.acted.sprintFwd || 0) + inches > 9) return no(`向前最多 9"（已用 ${op.acted.sprintFwd || 0}"）`, `Forwards 9" at most (${op.acted.sprintFwd || 0}" used)`);
   if (back && (op.acted.sprintBack || 0) + inches > 3) return no('向後最多 3"', 'Backwards 3" at most');
   if ((op.movedTP || 0) + inches > 12) return no(`每回合最多 12"（已用 ${op.movedTP || 0}"）`, `12" per TP at most (${op.movedTP || 0}" used)`);
-  if (op.counter && inches > 2) return no('反擊時最多移動 2"', 'Counteracting: 2" at most');
+  if (op.counter && inches > 2) return no('反應時最多移動 2"', 'Counteracting: 2" at most');
   if (op.acted.aimedUsed && (op.acted.movedDist || 0) + inches > 3) return no('用過定點長步槍後不能移動超過 3"', 'After the stationary long rifle, no more than 3" of movement');
   const ctx = moveCtx(g, op), r = radius(op);
   // (It moves through operatives and low terrain; tall — Heavy — terrain blocks it.)

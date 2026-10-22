@@ -970,7 +970,7 @@ function turnBanner() {
   if (side === NPO) { title = L('NPO 的回合', 'NPOs\' turn'); kind = 'npo'; }
   else if (g.ai != null) { const mine = side !== g.ai; title = mine ? L('你的回合', 'YOUR TURN') : L('對方的回合', 'OPPONENT\'S TURN'); kind = mine ? 'mine' : 'theirs'; }
   else { title = L(`玩家 ${side + 1} 的回合`, `PLAYER ${side + 1}'S TURN`); kind = 'mine'; }
-  const sub = `${esc(bi(tm.name))}${b.counter ? ` · ${L('反擊機會', 'Counteract')}` : ''}${g.ai === side ? ' 🤖' : ''}`;
+  const sub = `${esc(bi(tm.name))}${b.counter ? ` · ${L('反應機會', 'Counteract')}` : ''}${g.ai === side ? ' 🤖' : ''}`;
   return `<div class="turnanim ${kind}" style="--tc:${tm.color};animation-delay:-${elapsed}ms"><div><b style="animation-delay:-${elapsed}ms">${title}</b><span>${sub}</span></div></div>`;
 }
 
@@ -1158,9 +1158,9 @@ function turnStatus() {
       const act = ui.mode?.action && ACTIONS[ui.mode.action] ? tx(ACTIONS[ui.mode.action].name)
         : ui.mode?.kind === 'shoot' ? L('射擊：選擇目標', 'Shoot: choosing a target')
           : ui.mode?.kind === 'fight' ? L('近戰：選擇目標', 'Fight: choosing a target') : '';
-      doing = `${nm(op)} ${op.counter ? L('反擊中', 'is counteracting') : L('啟動中', 'is activated')}${act ? ` · ${esc(act)}` : ''}`;
+      doing = `${nm(op)} ${op.counter ? L('反應中', 'is counteracting') : L('啟動中', 'is activated')}${act ? ` · ${esc(act)}` : ''}`;
     } else if (g.counter) {
-      doing = L('反擊機會：選一名特工或略過', 'May counteract: pick an operative or pass');
+      doing = L('反應機會：選一名特工或略過', 'May counteract: pick an operative or pass');
     } else {
       doing = isAI(side) ? L('電腦思考中…', 'Computer is thinking…') : L('選擇一名特工啟動', 'Choose an operative to activate');
     }
@@ -1173,7 +1173,7 @@ function turnStatus() {
       : g.phase === 'strategy' ? ['🧭', L('策略', 'Strategy')]
         : g.phase === 'gameover' ? ['🏁', L('結束', 'Game over')]
           : fighting ? ['🗡', L('近戰', 'Fight')]
-            : g.counter ? ['↩', L('反擊', 'Counteract')] : ['⚔', L('交火', 'Firefight')];
+            : g.counter ? ['↩', L('反應', 'Counteract')] : ['⚔', L('交火', 'Firefight')];
   return statusBox({
     color: t ? t.color : null,
     icon: badge[0], phase: badge[1], tp: g.phase === 'deploy' || g.phase === 'gameover' ? '' : `TP ${g.tp}/${MAX_TP}`,
@@ -1900,22 +1900,22 @@ function firefightPanel() {
       : g.netcounter?.kind === 'control' ? `<p><b>${L('冥工控制', 'Canoptek Control')}</b></p>
       <p class="hint">${L('選定的冥工機械免費執行一個 1AP 動作（移動不超過 2"），之後地占術士繼續啟動；也可以略過。', 'The chosen Canoptek performs a free 1AP action (moving no more than 2"), then the Geomancer\'s activation continues; or pass.')}</p>
       <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
-      : g.netcounter ? `<p><b>${L('網路反擊', 'Network Counteract')}</b></p>
-      <p class="hint">${L('噪聲網路：選一名 APL 2 以上、本回合還沒反擊過的僕從（準備中的也可以，之後仍能正常啟動），先選指令，再免費執行一個 1AP 動作（移動不超過 2"），或略過。',
+      : g.netcounter ? `<p><b>${L('網路反應', 'Network Counteract')}</b></p>
+      <p class="hint">${L('噪聲網路：選一名 APL 2 以上、本回合還沒反應過的僕從（準備中的也可以，之後仍能正常啟動），先選指令，再免費執行一個 1AP 動作（移動不超過 2"），或略過。',
     'Noospheric Network: pick a servitor with APL 2+ that hasn\'t counteracted this TP (a ready one too — it can still activate later); select its order, then it performs one free 1AP action (moving no more than 2"), or pass.')}</p>
       <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`
-      : `<p><b>${L('反擊機會', 'Counteract')}</b></p>
-      <p class="hint">${L('你已沒有準備中的特工。可選一名已行動、交戰指令且本回合未反擊過的特工，免費執行一個 1AP 動作（移動不超過 2"），或略過。',
+      : `<p><b>${L('反應機會', 'Counteract')}</b></p>
+      <p class="hint">${L('你已沒有準備中的特工。可選一名已行動、交戰指令且本回合未反應過的特工，免費執行一個 1AP 動作（移動不超過 2"），或略過。',
     'You have no ready operatives. Pick an expended Engage-order operative that has not counteracted this TP to perform one free 1AP action (moving no more than 2"), or pass.')}</p>
       <div class="readylist">${cands.map((o) => `<button data-act="pickop" data-uid="${o.uid}">${nm(o)} <small>${o.wounds}/${o.maxW}</small></button>`).join('')}</div>`;
     const sel = ui.sel && getOp(g, ui.sel);
-    if (sel && cands.includes(sel)) html += `<button class="primary wide" data-act="activate" data-uid="${sel.uid}">${L('反擊', 'Counteract with')} ${nm(sel)}</button>`;
+    if (sel && cands.includes(sel)) html += `<button class="primary wide" data-act="activate" data-uid="${sel.uid}">${L('反應', 'Counteract with')} ${nm(sel)}</button>`;
     const swaps = orderSwapCands(g, g.turn);
     if (swaps.length) {
-      html += `<p class="hint small">${L('遠獵者：也可以改成變更一名特工的指令（算你的反擊，不算該特工的）。', 'Farstalker: or change one operative\'s order instead (counts as your counteract, not the operative\'s).')}</p>
+      html += `<p class="hint small">${L('遠獵者：也可以改成變更一名特工的指令（算你的反應，不算該特工的）。', 'Farstalker: or change one operative\'s order instead (counts as your counteract, not the operative\'s).')}</p>
         <div class="readylist">${swaps.map((o) => `<button data-act="counterswap" data-uid="${o.uid}">${nm(o)} <small>${o.order === 'conceal' ? L('◐→⚔', '◐ → Engage') : L('⚔→◐', '⚔ → Conceal')}</small></button>`).join('')}</div>`;
     }
-    html += `<button class="wide" data-act="passcounter">${L('略過反擊', 'Pass')}</button>${undoBtn}</section>`;
+    html += `<button class="wide" data-act="passcounter">${L('略過反應', 'Pass')}</button>${undoBtn}</section>`;
     return html;
   }
   if (!op) {
@@ -1946,7 +1946,7 @@ function firefightPanel() {
 
   // Active operative
   const apMax = op.counter ? 1 : aplNow(g, op);
-  html += `<div class="activehead"><b>${nm(op)}${op.counter ? ` <small>${L('（反擊）', '(counteract)')}</small>` : ''}</b><span class="ap">${'●'.repeat(Math.max(0, op.ap))}${'○'.repeat(Math.max(0, apMax - op.ap))} AP</span></div>`;
+  html += `<div class="activehead"><b>${nm(op)}${op.counter ? ` <small>${L('（反應）', '(counteract)')}</small>` : ''}</b><span class="ap">${'●'.repeat(Math.max(0, op.ap))}${'○'.repeat(Math.max(0, apMax - op.ap))} AP</span></div>`;
   if (ui.notice) html += `<p class="bad small">${esc(ui.notice)}</p>`;
   else if (canSwitchActive(g)) html += `<p class="hint small">${L('執行第一個動作前，點其他己方特工可以改啟動它。', 'Until the first action, tap another of your operatives to activate it instead.')}</p>`;
   // The order is decided right after the operative is picked: no actions until Engage or Conceal is chosen.
@@ -1955,14 +1955,14 @@ function firefightPanel() {
       <div class="orders">
       <button class="primary" data-act="order" data-order="engage">⚔ ${L('交戰 Engage', 'Engage')}</button>
       <button class="primary" data-act="order" data-order="conceal" ${op.frenzy || tpl(op).stoopid ? 'disabled' : ''}>◐ ${L('隱蔽 Conceal', 'Conceal')}</button>
-    </div><p class="hint small">${L(`目前是${op.order === 'engage' ? '交戰' : '隱蔽'}指令。交戰：可以射擊、衝鋒、反擊；隱蔽：在掩體中時敵人無法選為目標，只能用「無聲」武器射擊，不能衝鋒。選完後、執行第一個動作前都還能改。`, `Currently ${op.order === 'engage' ? 'Engage' : 'Conceal'}. Engage: shoot, charge, counteract. Conceal: can't be targeted while in cover, Silent weapons only, no Charge. You can still change it until the first action.`)}</p>${undoBtn}</section>${datacard(op)}`;
+    </div><p class="hint small">${L(`目前是${op.order === 'engage' ? '交戰' : '隱蔽'}指令。交戰：可以射擊、衝鋒、反應；隱蔽：在掩體中時敵人無法選為目標，只能用「無聲」武器射擊，不能衝鋒。選完後、執行第一個動作前都還能改。`, `Currently ${op.order === 'engage' ? 'Engage' : 'Conceal'}. Engage: shoot, charge, counteract. Conceal: can't be targeted while in cover, Silent weapons only, no Charge. You can still change it until the first action.`)}</p>${undoBtn}</section>${datacard(op)}`;
     return html;
   }
   if (!op.orderSet) {
     html += `<div class="orders">
       <button class="${op.order === 'engage' ? 'on' : ''}" data-act="order" data-order="engage">⚔ ${L('交戰 Engage', 'Engage')}</button>
       <button class="${op.order === 'conceal' ? 'on' : ''}" data-act="order" data-order="conceal">◐ ${L('隱蔽 Conceal', 'Conceal')}</button>
-    </div><p class="hint small">${L('隱蔽：在掩體中時敵人無法選為目標；可用「無聲（Silent）」武器射擊，其他武器不能。不能衝鋒，反擊依特工能力。執行第一個動作後鎖定。', 'Conceal: protected while in cover; can Shoot with Silent weapons only. Cannot Charge; counteraction depends on operative abilities. Locks after the first action.')}</p>`;
+    </div><p class="hint small">${L('隱蔽：在掩體中時敵人無法選為目標；可用「無聲（Silent）」武器射擊，其他武器不能。不能衝鋒，反應依特工能力。執行第一個動作後鎖定。', 'Conceal: protected while in cover; can Shoot with Silent weapons only. Cannot Charge; counteraction depends on operative abilities. Locks after the first action.')}</p>`;
   } else {
     html += `<p class="hint">${L('指令', 'Order')}：${op.order === 'engage' ? L('⚔ 交戰', '⚔ Engage') : L('◐ 隱蔽', '◐ Conceal')}</p>`;
   }
@@ -2110,7 +2110,7 @@ function modeView(op) {
       telepathicOverload: L('點擊一名可以當目標的敵人：APL -1，直到它的啟動結束。', 'Tap an enemy that\'s a valid target: -1 APL until the end of its activation.'),
       mentalOnslaught: L('點擊一名可以當目標的敵人：2 傷害（6" 內 4），再擲 D6 大於它的 APL 就繼續，最多 8。', 'Tap an enemy that\'s a valid target: 2 damage (4 within 6"), then keep rolling a D6 above its APL for more, up to 8.'),
       omniscanner: L('點擊一個可見或 8" 內的敵人，讓它獲得掃描標記（戰鬥支隊對它攻擊時「無休」）。', 'Tap an enemy visible or within 8" to give it an Omniscanner token (Battleclade weapons have Ceaseless against it).'),
-      networkOverride: L('點擊它或自動代理僕從 6" 內的一名僕從，讓它立刻網路反擊。', 'Tap a servitor within 6" of it or the Auto-proxy to network counteract right away.'),
+      networkOverride: L('點擊它或自動代理僕從 6" 內的一名僕從，讓它立刻網路反應。', 'Tap a servitor within 6" of it or the Auto-proxy to network counteract right away.'),
       overrideDash: L('點擊它或自動代理僕從 6" 內的一名僕從，讓它立刻免費衝刺一次。', 'Tap a servitor within 6" of it or the Auto-proxy to make a free Dash right away.'),
       miasma: L('點擊 7" 內可見（或可射擊）的敵人：未中毒則中毒，已中毒則受到 3 傷害。', 'Tap an enemy visible within 7" (or a valid target): it is poisoned, or takes 3 damage if it already was.'),
       getItDun: L('點擊 6" 內可見的另一名友方，它下次啟動 APL +1。', 'Tap another visible friendly within 6": +1 APL for its next activation.'),
@@ -2345,7 +2345,7 @@ const ABILITIES = {
   tacticalCommand: () => ['戰術指揮', 'Tactical Command', '0AP：一名友方直到下回合多一種戰技。', '0AP: a friendly gains one more Skill at Arms until next TP.'],
   medikit0: () => ['快速急救', 'Quick Medikit', '醫療包只要 0AP。', 'Its Medikit costs 0AP.'],
   // ---- Scout Squad ----
-  scSergeant: () => ['引導與經驗', 'Guidance and Experience', '每次啟動一次（自動）：另一名友方偵察小隊特工到它下次啟動結束 APL +1。有阿斯塔特規則：射擊兩次（至少一次用霰彈槍、爆彈手槍或爆彈槍）或近戰兩次，任何指令都能反擊。', 'Once per activation (automatic): another friendly Scout Squad operative gets +1 APL until the end of its next activation. Astartes: two Shoots (an Astartes shotgun, bolt pistol or boltgun for at least one) or two Fights, and it can counteract under either order.'],
+  scSergeant: () => ['引導與經驗', 'Guidance and Experience', '每次啟動一次（自動）：另一名友方偵察小隊特工到它下次啟動結束 APL +1。有阿斯塔特規則：射擊兩次（至少一次用霰彈槍、爆彈手槍或爆彈槍）或近戰兩次，任何指令都能反應。', 'Once per activation (automatic): another friendly Scout Squad operative gets +1 APL until the end of its next activation. Astartes: two Shoots (an Astartes shotgun, bolt pistol or boltgun for at least one) or two Fights, and it can counteract under either order.'],
   scGrapnel: () => ['鉤爪發射器・鉤爪突襲', 'Grapnel Launcher · Grapnel Assault', '向上攀爬時垂直距離視為 2"。衝鋒中若攀爬、落下、跳躍或底盤移到高處地形下，本次啟動近戰武器「致命 3+」。', 'Climbing up counts as 2". A Charge that climbs, drops, jumps or goes under Vantage terrain gives its melee weapons Lethal 3+ for the activation.'],
   rtFixer: () => ['固定者・指定目標＋軍需門路', 'Fixer · Target Designation, Munitorum Contacts', '策略階段可指定一名敵人：本回合友方萊特林步槍射擊它「致命 5+」。陣營與通用裝備合計最多 4 項。', 'In the Strategy phase designate an enemy: friendly RATLING rifles shooting it have Lethal 5+ this TP. Faction and universal equipment share a four-option cap.'],
   rtMutt: () => ['戰犬・預警＋野獸', 'Battlemutt · Early Warning, Beast', '只能做移動、撤退、衝刺、拾取、任務行動；敵人在其視線內行動後，可自動免費衝刺 2"。', 'Only Reposition, Fall Back, Dash, Pick Up, mission actions; after an enemy acts in its sight it may take a free 2" Dash (automatic).'],
@@ -2402,10 +2402,10 @@ const ABILITIES = {
   unleashDaemon: () => ['釋放惡魔', 'Unleash Daemon', '啟動時（整場一次）：之後 4 以上的傷害 -1，惡魔爪「無休」＋「致命 5+」，但不能撿標記或做任務動作。', 'When activated (once): from then on 4+ damage deals 1 less and its claw has Ceaseless and Lethal 5+, but it can\'t pick up markers or do mission actions.'],
   wastelandStalker: () => ['荒地潛行者', 'Wasteland Stalker', '被射擊時若能保留掩護豁免，可多保留 1 顆，或把 1 顆當暴擊保留。', 'When shot, if it can retain cover saves, it retains one more, or one as a critical success.'],
   canticleDestruction: () => ['毀滅頌歌', 'Canticle of Destruction', '3" 內的友方潛行者（包括自己）近戰時，第一次用暴擊打擊多造成 1 傷害。', 'A friendly Ruststalker within 3" (itself included) fighting: its first critical strike of the sequence deals 1 more damage.'],
-  targetingProtocol: () => ['瞄準協議', 'Targeting Protocol', '本次啟動還沒移動（或反擊時）射擊，遠程武器「致命 5+」；射擊後仍可移動。', 'Shooting before it has moved this activation (or counteracting): ranged weapons have Lethal 5+; it can still move afterwards.'],
+  targetingProtocol: () => ['瞄準協議', 'Targeting Protocol', '本次啟動還沒移動（或反應時）射擊，遠程武器「致命 5+」；射擊後仍可移動。', 'Shooting before it has moved this activation (or counteracting): ranged weapons have Lethal 5+; it can still move afterwards.'],
   radSat: () => ['輻射飽和', 'Rad-Saturation', '友方先鋒軍 2" 內的敵人命中變差 1（不與重傷疊加）。', 'Enemies within 2" of friendly Vanguard have their Hit worsened by 1 (not cumulative with injured).'],
   magnifyRelay: () => ['放大節點', 'Magnify node', '交戰指令且不在敵人控制範圍內時，友方技師／學徒的「放大」武器可借它的位置射擊。', 'With an Engage order and not in an enemy\'s control range, friendly Cryptek / Apprentek Magnify weapons can shoot through it.'],
-  interstitial: () => ['間隙指令', 'Interstitial Command', '1AP（支援，非反擊）：6" 內可見的另一名友方（技師、學徒除外；技師也可選不朽者指揮官 6" 內的）立刻免費射擊一次。本版只能用來射擊；本回合已射擊或已被指揮過的不能選。', '1AP (Support, not counteracting): another visible friendly within 6" (not a Cryptek or Apprentek; for a Cryptek, also within 6" of a visible Despotek) shoots for free right away. Here it can only Shoot; not one that already shot or was commanded this TP.'],
+  interstitial: () => ['間隙指令', 'Interstitial Command', '1AP（支援，非反應）：6" 內可見的另一名友方（技師、學徒除外；技師也可選不朽者指揮官 6" 內的）立刻免費射擊一次。本版只能用來射擊；本回合已射擊或已被指揮過的不能選。', '1AP (Support, not counteracting): another visible friendly within 6" (not a Cryptek or Apprentek; for a Cryptek, also within 6" of a visible Despotek) shoots for free right away. Here it can only Shoot; not one that already shot or was commanded this TP.'],
   canoptekRepair: () => ['聖甲蟲修復', 'Canoptek Repair', '1AP（支援，每回合全隊一次）：6" 內可見的友方回復 2D3 生命。', '1AP (Support, once per TP for the team): a visible friendly within 6" regains 2D3 wounds.'],
   augment: () => ['強化武器', 'Augment Weapon', '1AP（支援）：直到它下次啟動，6" 內可見友方的一把武器獲得兩條規則（自動選：致命 5+、撕裂；已有就改選重創、飽和）。', '1AP (Support): until its next activation, one weapon of a visible friendly within 6" gains two rules (picked for you: Lethal 5+ and Rending, or Severe / Saturate if it already has them).'],
   reinforce: () => ['強化金屬', 'Reinforce Metal', '1AP（支援）：直到它下次啟動，6" 內可見的一名友方受到 3 以上的傷害時 -1。', '1AP (Support): until its next activation, attack dice inflicting 3+ damage on a visible friendly within 6" deal 1 less.'],
@@ -2423,7 +2423,7 @@ const ABILITIES = {
   veriscant: () => ['真相鑑定', 'Veriscant', '1AP（敏銳專注時 0AP）：一名可見敵人，直到它下次啟動，友方攻擊它時武器「致命 5+」＋「重創」。', '1AP (0AP with Acute Focus): a visible enemy — until its next activation, friendly weapons have Lethal 5+ and Severe against it.'],
   acuteFocus: () => ['敏銳專注', 'Acute Focus', '每次啟動一次：撿起標記、真相鑑定或任務動作少花 1AP。', 'Once per activation: Pick Up Marker, Veriscant or a mission action costs 1 less AP.'],
   stubbornSubjugator: () => ['頑強鎮壓者', 'Stubborn Subjugator', '近戰武器的命中值不受任何變化影響。', 'Changes to the Hit stat of its melee weapons are ignored.'],
-  vigilance: () => ['近距警戒', 'Close Quarters Vigilance', '交戰中也能射擊（本次啟動沒衝鋒過，或是反擊時）。', 'Can Shoot while engaged, unless it Charged this activation (fine when counteracting).'],
+  vigilance: () => ['近距警戒', 'Close Quarters Vigilance', '交戰中也能射擊（本次啟動沒衝鋒過，或是反應時）。', 'Can Shoot while engaged, unless it Charged this activation (fine when counteracting).'],
   doctrineWarfare: () => ['教條戰', 'Doctrine Warfare', '毀滅與戰術教條整場各一次 0CP。', 'Devastator and Tactical doctrines cost 0CP once per battle each.'],
   blessing: () => ['祖父的祝福', "Grandfather's Blessing", '7" 內中毒的敵人失去生命時，回復同等生命（每回合最多 3）。', 'When a poisoned enemy within 7" loses wounds, regains as many (max 3 per TP).'],
   flail: () => ['連枷', 'Flail', '1AP（視為近戰，非隱蔽）：2" 內可見的其他特工（包括己方）各受 D3+2 傷害；敵人 D3 擲出 3 時中毒。', '1AP (counts as Fight, not Concealed): every other operative visible within 2" (friends too) takes D3+2; an enemy rolling a 3 on the D3 is poisoned.'],
@@ -2454,11 +2454,11 @@ const ABILITIES = {
   twoShoots: () => ['神槍手', 'Expert Gunslinger', '每次啟動可執行兩次射擊。', 'Can perform two Shoot actions per activation.'],
   heroic: () => ['英雄的鼓舞', 'Heroic Inspiration', '本回合使敵人殘廢過後，3" 內可見的友方新信徒武器「嚴厲」。', 'Once it has incapacitated an enemy this TP, friendly Neophytes visible within 3" of it have Severe.'],
   twoFights: () => ['劍術大師', 'Expert Swordsman', '每次啟動可執行兩次近戰。（之後的 3" 免費衝鋒、閃電突擊、刃之架勢未實作）', 'Can perform two Fight actions per activation. (The free 3" Charge, Quicksilver Strike and Bladed Stance aren\'t modelled.)'],
-  bipod: () => ['重武器腳架', 'Heavy Weapon Bipod', '本次啟動沒移動（或反擊時）射擊：武器「無休」，已有無休則改為「毫不留情」。', 'Shooting without having moved this activation (or when counteracting): Ceaseless, or Relentless if it already has it.'],
+  bipod: () => ['重武器腳架', 'Heavy Weapon Bipod', '本次啟動沒移動（或反應時）射擊：武器「無休」，已有無休則改為「毫不留情」。', 'Shooting without having moved this activation (or when counteracting): Ceaseless, or Relentless if it already has it.'],
   miasma: () => ['毒瘴', 'Poisonous Miasma', '1AP（靈能）：7" 內可見的敵人中毒；已中毒則受到 3 傷害。', '1AP (Psychic): an enemy visible within 7" is poisoned, or takes 3 damage if it already was.'],
   krumpin: () => ["揍人時間", "Krumpin' Time", '每次啟動可執行兩次近戰。', 'Can perform two Fight actions per activation.'],
   support: (v) => (v === 'getItDun'
-    ? ['快去做！', 'Get It Dun!', '1AP（支援，不能在反擊時）：6" 內可見的另一名友方下次啟動 APL +1。', '1AP (Support, not while counteracting): another visible friendly within 6" gets +1 APL next activation.']
+    ? ['快去做！', 'Get It Dun!', '1AP（支援，不能在反應時）：6" 內可見的另一名友方下次啟動 APL +1。', '1AP (Support, not while counteracting): another visible friendly within 6" gets +1 APL next activation.']
     : v === 'wayfind' ? ['尋路', 'Wayfind', '1AP（支援）：它或偵察車 6" 內可見的另一名友方（機械除外）下次啟動 APL +1。', '1AP (Support): another friendly (not a machine) visible within 6" of it or of the C.A.T. unit gets +1 APL next activation.']
     : v === 'spot' ? ['觀測', 'Spot', '1AP（支援）：選一名可見的敵人；本回合觀測手 3" 內的友方射擊它時「搜尋（輕型）」，且它不會被遮擋。', '1AP (Support): pick a visible enemy; this TP, friendlies within 3" of the Spotter shooting it have Seek Light and it can\'t be obscured.']
     : v === 'sfIncentivise' ? ['激勵', 'Incentivise', '1AP（不在交戰中）：選 2" 內看得到的另一名友方淨化者（懺悔師、刺客、奇蹟使、佈道者除外），到它下次啟動結束 APL +1。', '1AP (not engaged): another friendly SANCTIFIER visible within 2" (not Confessor, Assassin, Miraculist or orator) gets +1 APL until the end of its next activation.']
@@ -2515,7 +2515,7 @@ const ABILITIES = {
   alight: () => ['點燃', 'Alight', '1AP（靈能）：可見的敵人被點燃，友方攻擊它時武器「無休」，直到它下次啟動。', '1AP (Psychic): a visible enemy is set alight — friendly weapons have Ceaseless against it until its next activation.'],
   incorporealSight: () => ['虛體視覺（恩賜）', 'Incorporeal Sight (Boon)', '遠程武器「飽和」；射擊時敵人不會被遮擋。', 'Ranged weapons have Saturate; enemies can\'t be obscured when it shoots.'],
   automata: () => ['巫術自動機', 'Sorcerous Automata', '啟動時若 9" 內沒有友方巫師，本次啟動 APL -1。', 'When activated, -1 APL that activation unless a friendly Sorcerer is within 9".'],
-  slowPurposeful: () => ['緩慢而堅定', 'Slow and Purposeful', '本次啟動沒有衝鋒或轉移（或反擊時）射擊，遠程武器「無休」。', 'Shooting without having Charged or Repositioned this activation (or when counteracting): Ceaseless.'],
+  slowPurposeful: () => ['緩慢而堅定', 'Slow and Purposeful', '本次啟動沒有衝鋒或轉移（或反應時）射擊，遠程武器「無休」。', 'Shooting without having Charged or Repositioned this activation (or when counteracting): Ceaseless.'],
   savageBrutality: () => ['野蠻暴行', 'Savage Brutality', '每次啟動第一次近戰後，若還站著可再免費近戰一次（可換對象）。', 'After its first Fight each activation, if still standing, a free Fight (any enemy).'],
   notAstartes: () => ['奸奇獸人', 'Tzaangor', '不適用阿斯塔特規則。', 'The Astartes rule doesn\'t apply to it.'],
   infiltrator: () => ['滲透者', 'Infiltrator', '全頻擾亂器：看得到的敵人可被選為擾亂目標；滲透者人數決定對手要先啟動幾名。', 'Omni-scrambler: enemies it can see can be scrambled; the number of Infiltrators sets how many the opponent must activate first.'],
@@ -2653,7 +2653,7 @@ const ABILITIES = {
   canoptek: () => ['冥工機械', 'Canoptek', '在方尖碑節點矩陣內：武器「精準 1」、APL +1（最多 3）。（全隊特工都適用）', 'Within the Obelisk Node Matrix: Accurate 1 and +1 APL (max 3). (Every friendly gets this.)'],
   ccLeader: () => ['地占術士', 'Geomancer', '在矩陣內同樣獲得精準 1、APL +1（最多 3）。（以節點代替自己做任務動作未實作）', 'Within the matrix it also has Accurate 1 and +1 APL (max 3). (Obelisk Node Control isn\'t modelled.)'],
   geomantic: () => ['地占擾動', 'Geomantic Disturbance', '1AP（非隱蔽、不在交戰中）：8" 內地形上的一點，2" 內每名特工擲 2D6，超過剩餘生命的部分就是傷害（點一名靠近地形的敵人來選點）。', '1AP (not Concealed, not engaged): a point on terrain within 8" — every operative within 2" of it rolls 2D6, the excess over its remaining wounds is damage (tap an enemy near terrain to pick the point).'],
-  canoptekControl: () => ['冥工控制', 'Canoptek Control', '1AP（支援，非反擊）：6" 內看得到（或在矩陣內看得到）的冥工機械立刻免費執行一個 1AP 動作（移動不超過 2"），之後繼續本次啟動。', '1AP (Support, not counteracting): a Canoptek visible within 6" (or visible within the matrix) performs a free 1AP action (moving no more than 2"), then this activation continues.'],
+  canoptekControl: () => ['冥工控制', 'Canoptek Control', '1AP（支援，非反應）：6" 內看得到（或在矩陣內看得到）的冥工機械立刻免費執行一個 1AP 動作（移動不超過 2"），之後繼續本次啟動。', '1AP (Support, not counteracting): a Canoptek visible within 6" (or visible within the matrix) performs a free 1AP action (moving no more than 2"), then this activation continues.'],
   molecularBreach: () => ['分子穿越', 'Molecular Breach', '1AP（支援）：6" 內（或矩陣內）的友方下次移動改為傳送，直接放到移動力（衝刺 3"）範圍內的位置。', '1AP (Support): a friendly within 6" (or within the matrix) teleports on its next move — set up within its Move (3" for a Dash).'],
   overcharge: () => ['超載', 'Overcharge', '1AP：3" 內看得到（或雙方都在矩陣內）的另一名冥工機械下次啟動 APL +1。', '1AP: another Canoptek visible within 3" (or both within the matrix) gets +1 APL next activation.'],
   cranialOverload: () => ['顱腦過載', 'Cranial Overload', '1AP：3" 內看得到（或雙方都在矩陣內）的敵人下次啟動 APL -1。', '1AP: an enemy visible within 3" (or both within the matrix) gets -1 APL next activation.'],
@@ -2689,10 +2689,10 @@ const ABILITIES = {
   mandiblasters: () => ['下顎爆能器', 'Mandiblasters', '近戰動作擲攻擊骰前，對敵人造成 2 傷害（自動）。', 'Fight action, before the attack dice: 2 damage to the enemy (automatic).'],
   shimmershield: () => ['微光盾', 'Shimmershield', '選了微光盾的配置時：它 2" 內看得到的友方（含自己）被射擊時忽略穿甲。', 'With the shimmershield option: friendlies visible within 2" of it (itself too) ignore Piercing when shot.'],
   // Battleclade
-  servitor: () => ['噪聲網路', 'Noospheric Network', '每次啟動一次，可花 1AP「轉移能量」（APL 要 2 以上）；這次啟動結束後，另一名僕從可以「網路反擊」：先選指令，再免費執行一個 1AP 動作（移動不超過 2"），準備中的僕從之後仍可正常啟動。網路反擊過的僕從本回合不能再反擊。', 'Once per activation, spend 1AP to Transfer Power (APL 2+); after that activation another servitor can Network Counteract: select its order, then one free 1AP action (moving no more than 2"). A ready servitor can still activate later. One that network counteracted can\'t counteract again this TP.'],
+  servitor: () => ['噪聲網路', 'Noospheric Network', '每次啟動一次，可花 1AP「轉移能量」（APL 要 2 以上）；這次啟動結束後，另一名僕從可以「網路反應」：先選指令，再免費執行一個 1AP 動作（移動不超過 2"），準備中的僕從之後仍可正常啟動。網路反應過的僕從本回合不能再反應。', 'Once per activation, spend 1AP to Transfer Power (APL 2+); after that activation another servitor can Network Counteract: select its order, then one free 1AP action (moving no more than 2"). A ready servitor can still activate later. One that network counteracted can\'t counteract again this TP.'],
   omniscanner: () => ['全知掃描儀', 'Omniscanner', '1AP（不在交戰中）：一名可見或 8" 內的敵人獲得掃描標記；戰鬥支隊對它射擊、近戰或反擊時，武器「無休」。', '1AP (not engaged): an enemy visible or within 8" gains an Omniscanner token; Battleclade weapons have Ceaseless against it.'],
   datacoronal: () => ['數據冠累加器', 'Datacoronal Accumulator', '1AP（支援，不在交戰中）：數一數它或自動代理僕從 6" 內的友方爭奪的目標點數，擲 D3 不大於該數就得 1CP。', '1AP (Support, not engaged): count the objectives contested by friendlies within 6" of it or the Auto-proxy; roll a D3 — equal or less = +1CP.'],
-  networkOverride: () => ['網路覆寫', 'Network Override', '1AP（支援，不在交戰中，每次啟動最多兩次、各選不同特工）：它或自動代理僕從 6" 內的一名僕從立刻網路反擊（不用轉移能量），或免費衝刺一次；之後繼續本次啟動。', '1AP (Support, not engaged, twice per activation on different operatives): a servitor within 6" of it or the Auto-proxy network counteracts right away (no Transfer Power needed) or makes a free Dash; then this activation continues.'],
+  networkOverride: () => ['網路覆寫', 'Network Override', '1AP（支援，不在交戰中，每次啟動最多兩次、各選不同特工）：它或自動代理僕從 6" 內的一名僕從立刻網路反應（不用轉移能量），或免費衝刺一次；之後繼續本次啟動。', '1AP (Support, not engaged, twice per activation on different operatives): a servitor within 6" of it or the Auto-proxy network counteracts right away (no Transfer Power needed) or makes a free Dash; then this activation continues.'],
   achillanEye: () => ['阿基蘭之眼', 'Achillan Eye', '友方射擊它看得到的敵人時武器「飽和」（它在敵人控制範圍內時無效）。', 'Friendlies shooting an enemy it can see have Saturate (not while it\'s within an enemy\'s control range).'],
   spotAll: () => ['歐姆尼賽亞的凝視', 'Gaze of the Omnissiah', '它的觀測對全隊有效（不限 3" 內）。', 'Its Spot works for the whole team (not just within 3").'],
   medicNoApl: () => ['機械縫合陣列', 'Mechanosuture Array', '用「醫療兵！」救人時雙方都不會 APL -1。', 'Medic! doesn\'t cost either operative -1 APL.'],
@@ -2914,7 +2914,7 @@ function scheduleAI() {
   aiTimer = setTimeout(() => {
     const res = aiStep(g);
     const op = activeOp(g);
-    if (op) ui.sel = op.uid;
+    if (op) ui.sel = ui.aiSel = op.uid; // (selected automatically: cleared when its activation ends)
     if (res) ui.pending = { ...res, target: res.target.uid, ai: true };
     afterChange();
   }, delay);
@@ -2931,6 +2931,8 @@ function proxyMode() {
 
 function afterChange() {
   ui.notice = null;
+  // The computer's operative was only selected while it acted: no info card once its activation is over.
+  if (ui.aiSel && g?.active !== ui.aiSel) { if (ui.sel === ui.aiSel) ui.sel = null; ui.aiSel = null; }
   if (g.proxy && !ui.mode) proxyMode();
   // Undo only covers the current player's own actions.
   if (g.phase !== 'firefight' || isAI(g.turn) || ui.undo[0]?.turn !== g.turn) ui.undo = [];

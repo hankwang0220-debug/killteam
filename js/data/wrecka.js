@@ -55,7 +55,7 @@ export const WRECKA_TEAM = {
   },
   rule: {
     name: B('破壞狂暴・猛灌加油', 'Wrecka Rampage · Tanked Up'),
-    desc: B('破壞狂暴：友方射擊、近戰或反擊時，每保留一顆 6 得 1 破壞點數（最多 6 點；行動開始時已有 6 點則只能花）；每次可花最多 2 點，各把一顆失敗改成普通成功（炸彈史奎格不能花）。猛灌加油：交戰指令的友方（炸彈史奎格除外）每次啟動／反擊第一次衝鋒、射擊或近戰時，APL +1 直到它下次啟動。',
+    desc: B('破壞狂暴：友方射擊、近戰或反擊時，每保留一顆 6 得 1 破壞點數（最多 6 點；行動開始時已有 6 點則只能花）；每次可花最多 2 點，各把一顆失敗改成普通成功（炸彈史奎格不能花）。猛灌加油：交戰指令的友方（炸彈史奎格除外）每次啟動／反應第一次衝鋒、射擊或近戰時，APL +1 直到它下次啟動。',
       'Wrecka Rampage: shooting, fighting or retaliating, each retained 6 gains a Wrecka point (max 6; starting the action at 6 you can only spend); spend up to 2 to retain fails as normal successes (not Bomb Squigs). Tanked Up: the first Charge, Shoot or Fight of an Engage-order friendly (not Bomb Squigs) in each activation/counteraction adds 1 to its APL until its next activation.'),
   },
   // Five from the list: each once, except Fighters and Gunners.
