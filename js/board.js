@@ -174,10 +174,14 @@ export function renderBoard(g, ui) {
     s.push(wedge(facing, fwd), wedge(facing + Math.PI, back));
   }
 
+  // ui.anchor: the point of the base a move starts from (the route is drawn from it; the whole base moves alike).
+  const off = ui.anchor?.off || { x: 0, y: 0 };
+  if (ui.anchor) s.push(`<circle cx="${f(ui.anchor.x)}" cy="${f(ui.anchor.y)}" r=".14" class="move-anchor" pointer-events="none"/>`);
   if (ui.path) {
-    const d = ui.path.pts.map((p, i) => `${i ? 'L' : 'M'}${f(p.x)} ${f(p.y)}`).join('');
+    const d = ui.path.pts.map((p, i) => `${i ? 'L' : 'M'}${f(p.x + off.x)} ${f(p.y + off.y)}`).join('');
     const end = ui.path.pts[ui.path.pts.length - 1];
     s.push(`<path d="${d}" class="path ${ui.path.ok ? 'ok' : 'bad'}" pointer-events="none"/>`);
+    if (ui.anchor) s.push(`<circle cx="${f(end.x + off.x)}" cy="${f(end.y + off.y)}" r=".14" class="move-anchor" pointer-events="none"/>`);
     s.push(`<circle cx="${f(end.x)}" cy="${f(end.y)}" r="${f(ui.path.r)}" class="ghost ${ui.path.ok ? 'ok' : 'bad'}" pointer-events="none"/>`);
     if (ui.path.placement) {
       const { terrain, operatives, outside } = ui.path.placement;

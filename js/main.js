@@ -1210,6 +1210,7 @@ function boardUi() {
     b.equipmentPreview = { entry: equipmentPlacement(g, ui.eqPoint, ui.eqAngle || 0), source: e, p: ui.eqPoint, angle: ui.eqAngle || 0 };
   }
   const op = activeOp(g);
+  if (op && ui.mode?.kind === 'move' && ui.mode.anchor && BASE_MOVES.includes(ui.mode.action)) b.anchor = { x: op.x + ui.mode.anchor.x, y: op.y + ui.mode.anchor.y, off: ui.mode.anchor }; // (the point of the base the move starts from)
   if (op && ui.mode?.kind === 'move' && !['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(ui.mode.action)) b.ring = { x: op.x, y: op.y, r: moveAllowance(g, op, ui.mode.action) + radius(op) };
   // Exodite riders: where a Sprint can go (or the turn arc).
   if (op && ui.mode?.kind === 'sprint') {
@@ -2045,6 +2046,7 @@ function modeView(op) {
     if (m.action === 'charge') info += L('必須結束於敵人交戰範圍 1" 內。', ' Must end within 1" of an enemy.');
     if (m.action === 'fallBack') info += L('必須離開所有敵人的交戰範圍。', ' Must end outside all enemy engagement ranges.');
     if (m.action !== 'charge' && m.action !== 'fallBack' && m.action !== 'rtSlingshot' && m.action !== 'kmGrapple' && m.action !== 'rvBurrow' && m.action !== 'aqLand' && m.action !== 'vsSkytorch') info += L('結束時不能在敵人 1" 交戰範圍內。', ' Cannot end within 1" of an enemy.');
+    if (BASE_MOVES.includes(m.action)) info += m.anchor ? L(' 出發點：底盤上的黃點，之後點的位置就是這一點要去的地方。', ' Start point: the yellow dot on the base; taps now place that point.') : L(' 可以先點自己底盤上的任一點當出發點（預設為中心）。', ' You can first tap any point of your base to move from it (the centre by default).');
     if (m.action === 'mdPass') info = L('點擊暗影落點：不限距離，不能成為敵人的有效目標。本回合不能射擊／近戰。', 'Tap a shadow destination at any distance, outside valid enemy targeting. No Shoot/Fight this TP.');
     if (m.action === 'rtSlingshot') info = L('點擊彈弓落點：看得到、6" 內的地形點，且落點完全在其 6" 內並看得到它。', 'Tap a slingshot destination: a terrain point visible within 6", the destination wholly within 6" of it and seeing it.');
     if (m.action === 'vsSkytorch') info = L('點擊落點（飛行，最多 Move +2"）：火焰會掃過出發點和落點之間的所有特工（敵我皆然，無掩護）。', 'Tap the landing spot (flying, up to Move +2"): the flames sweep over every operative between the start and the landing spot (friend or foe, no cover).');
@@ -2056,12 +2058,13 @@ function modeView(op) {
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
     const canPin = !!(p && m.dest && !p.unreachable && !p.breach && (p.exactLen ?? p.len) < max - 0.05);
+    const anchorRow = m.anchor && !wps.length && !m.hatch ? `<div class="row"><button data-act="anchorreset">⊙ ${L('出發點改回中心', 'Start from the centre')}</button></div>` : '';
     const wpRow = ['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length || m.hatch ? `<button data-act="popwp">↶ ${m.hatch ? L('取消途中開門', 'Undo the hatchway') : L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
     // Operate Hatch during the move (Tomb World): from the last waypoint, or where the move starts.
     const hatches = m.hatch ? [] : midMoveHatches(g, op, m.action, wps.at(-1) || op);
     const hatchRow = m.hatch ? `<p class="ok">🚪 ${L(`途中開門（另花 ${m.hatch.ap}AP），之後繼續移動`, `Opens the hatchway on the way (+${m.hatch.ap}AP), then carries on`)}</p>`
       : hatches.length ? `<div class="row">${hatches.map((h) => `<button data-act="midhatch" data-id="${h.id}">🚪 ${L(`${wps.length ? '在折點' : '先'}${tx(h.name)}（+${h.ap}AP）`, `${tx(h.name)} ${wps.length ? 'at the waypoint' : 'first'} (+${h.ap}AP)`)}</button>`).join('')}</div>` : '';
-    return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${wpRow}${hatchRow}
+    return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${anchorRow}${wpRow}${hatchRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
   if ((m.kind === 'shoot' || m.kind === 'fight') && !m.weapon) {
@@ -3071,7 +3074,16 @@ function onBoardClick(evt) {
   if (op && op.reserve && myTurn && (op.orderSet || op.orderPicked) && op.ap > 0) { undoable(() => enterFromReserve(g, op, p)); return afterChange(); }
   if (op && ui.mode && myTurn) {
     const m = ui.mode;
-    if (m.kind === 'move') return previewMove(op, m.action, p);
+    if (m.kind === 'move') {
+      // A move can start from any point of the base: a tap on the base picks that point (the centre until then),
+      // and later taps place that point — the whole base moves the same distance.
+      if (BASE_MOVES.includes(m.action) && !m.wps?.length && !m.hatch && Math.hypot(p.x - op.x, p.y - op.y) <= radius(op)) {
+        m.anchor = { x: p.x - op.x, y: p.y - op.y }; m.dest = null; ui.path = null;
+        return render();
+      }
+      const a = BASE_MOVES.includes(m.action) ? m.anchor : null;
+      return previewMove(op, m.action, a ? { x: p.x - a.x, y: p.y - a.y } : p);
+    }
     if (m.kind === 'wsStorm') { undoable(() => wsCallStormAt(g, op, p)); ui.mode = null; return afterChange(); } // Call the Storm (Wolf Scouts)
     if (m.kind === 'sprint') {
       const c = sprintCheck(g, op, p);
@@ -3107,6 +3119,8 @@ function onBoardClick(evt) {
  * panel always follows the operative you picked. Switching is only allowed before the
  * current operative's first action. Returns true if the click was handled.
  */
+/** Moves that follow a route (not set-ups like Shadow Passage): they can start from any point of the base. */
+const BASE_MOVES = ['reposition', 'dash', 'charge', 'fallBack'];
 function trySelectOwn(clicked) {
   if (g.phase !== 'firefight' || isAI(g.turn) || clicked.side !== g.turn || g.fight) return false;
   const op = activeOp(g);
@@ -3747,6 +3761,7 @@ function handle(act, d) {
       if (p) undoable(() => doTurn(g, op, p));
       ui.mode = null; ui.path = null; return afterChange();
     }
+    case 'anchorreset': if (ui.mode?.kind === 'move') { ui.mode.anchor = null; ui.mode.dest = null; ui.path = null; } return render();
     case 'addwp': {
       // Pin the current destination as a corner of the route (it must be reachable within the move).
       const m = ui.mode;

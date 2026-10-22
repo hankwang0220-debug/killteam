@@ -301,6 +301,7 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .path.ok, #board .ghost.ok { stroke: var(--ok); }
 #board .path.bad, #board .ghost.bad { stroke: var(--bad); }
 #board .ghost { fill: rgba(255,255,255,.12); stroke-width: .07; }
+#board .move-anchor { fill: #ffe08a; stroke: #1b1f27; stroke-width: .05; } /* the point of the base a move starts from */
 #board .pathlen { font-size: .5px; text-anchor: middle; fill: #fff; font-weight: 700; paint-order: stroke; stroke: #000; stroke-width: .08px; }
 #board .placement-block, #board .placement-edge { fill: rgba(255, 80, 80, .12); stroke: #ff6969; stroke-width: .12; stroke-dasharray: .2 .1; }
 #board .placement-edge { fill: none; }
