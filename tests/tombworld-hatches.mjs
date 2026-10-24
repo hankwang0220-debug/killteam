@@ -12,7 +12,7 @@ for(const map of TOMB_WORLD_MAPS) {
   const access=accessPointsOf(g), doors=access.filter(d=>d.kind==='hatchway');
   assert(doors.length);assert(doors.every(d=>d.state==='closed'));
   assert(access.filter(d=>d.kind==='breach').every(d=>d.state==='open'));
-  assert.equal(g.terrain.filter(t=>t.hatchId).length,doors.length);
+  assert.equal(g.terrain.filter(t=>t.hatchId && t.role==='hatch').length,doors.length); // (A1 breach walls are leaves too: role 'breachWall')
 }
 const g=G.newGame({teams:['angels','kommandos'],ai:null,equip:[[],[]],map:'tombworld-1'});
 const a=g.ops[0],b=g.ops.find(o=>o.side===1),d=accessPointsOf(g).find(d=>d.component==='A3' && d.x===12);

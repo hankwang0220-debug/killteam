@@ -55,8 +55,9 @@ export const TOMB_WORLD_MAPS = layouts.map((m, i) => ({
  */
 export function tombWorldAccessPoints(map) {
   return map.runs.flatMap((r,i) => {
-    const opening = PARTS[r.id].opening;
-    return opening ? [{id:`access-${i}`,component:r.id,kind:opening.type === 'door' ? 'hatchway':'breach',
+    // A1 breach points: a breach wall fills the opening until a Breach action opens it for good.
+    const c = PARTS[r.id], opening = c.opening || c.breach?.openingAfterBreach;
+    return opening ? [{id:`access-${i}`,component:r.id,kind:c.breach ? 'breachPoint' : opening.type === 'door' ? 'hatchway':'breach',
       x:(r.x+r.x1)/2,y:(r.y+r.y1)/2,axis:r.y === r.y1 ? 'y':'x',width:opening.width,moveCost:1}] : [];
   });
 }
@@ -64,14 +65,15 @@ export function tombWorldAccessPoints(map) {
 export function tombWorldAccessSvg(access, zh = true) {
   return access.map(d => {
     const horizontal = d.axis === 'y';
-    const closed = d.kind === 'hatchway' && d.state !== 'open';
-    const label = d.kind === 'hatchway' ? `${zh ? '門':'Door'}${Number(d.id.split('-')[1])+1} ${closed ? zh ? '關':'closed' : zh ? '開 +1″':'open +1″'}` : `${zh ? '洞':'Breach'} +1″`;
-    return `<g class="tw-access ${closed ? 'tw-access-closed':'tw-access-open'}" pointer-events="none"><title>${d.component} · ${label}${d.kind === 'hatchway' ? ' · 1AP' : ''}</title><rect x="${d.x-(horizontal ? d.width/2:.16)}" y="${d.y-(horizontal ? .16:d.width/2)}" width="${horizontal ? d.width:.32}" height="${horizontal ? .32:d.width}"/><text x="${d.x+(horizontal ? 0:.45)}" y="${d.y+(horizontal ? -.4:.18)}" text-anchor="${horizontal ? 'middle':'start'}">${label}</text></g>`;
+    const closed = (d.kind === 'hatchway' || d.kind === 'breachPoint') && d.state !== 'open';
+    const label = d.kind === 'hatchway' ? `${zh ? '門':'Door'}${Number(d.id.split('-')[1])+1} ${closed ? zh ? '關':'closed' : zh ? '開 +1″':'open +1″'}`
+      : d.kind === 'breachPoint' ? `${zh ? '破口':'Breach point'}${Number(d.id.split('-')[1])+1} ${closed ? zh ? '未破':'intact' : zh ? '已破 +1″':'open +1″'}` : `${zh ? '洞':'Breach'} +1″`;
+    return `<g class="tw-access ${closed ? 'tw-access-closed':'tw-access-open'}" pointer-events="none"><title>${d.component} · ${label}${d.kind === 'hatchway' ? ' · 1AP' : d.kind === 'breachPoint' && closed ? ' · 2AP' : ''}</title><rect x="${d.x-(horizontal ? d.width/2:.16)}" y="${d.y-(horizontal ? .16:d.width/2)}" width="${horizontal ? d.width:.32}" height="${horizontal ? .32:d.width}"/><text x="${d.x+(horizontal ? 0:.45)}" y="${d.y+(horizontal ? -.4:.18)}" text-anchor="${horizontal ? 'middle':'start'}">${label}</text></g>`;
   }).join('');
 }
 
-export const initialHatches = (map) => Object.fromEntries(tombWorldAccessPoints(map).filter(d=>d.kind === 'hatchway').map(d=>[d.id,'closed']));
-export const hatchLeaf = (d) => ({kind:'heavy',twWall:true,role:'hatch',hatchId:d.id,component:d.component,height:2,
+export const initialHatches = (map) => Object.fromEntries(tombWorldAccessPoints(map).filter(d=>d.kind === 'hatchway' || d.kind === 'breachPoint').map(d=>[d.id,'closed']));
+export const hatchLeaf = (d) => ({kind:'heavy',twWall:true,role:d.kind === 'breachPoint' ? 'breachWall':'hatch',hatchId:d.id,component:d.component,height:2,
   x:d.x-(d.axis === 'x' ? .125:d.width/2),y:d.y-(d.axis === 'x' ? d.width/2:.125),
   w:d.axis === 'x' ? .25:d.width,h:d.axis === 'x' ? d.width:.25});
 
@@ -86,7 +88,7 @@ export function tombWorldTerrain(map, hatches = initialHatches(map)) {
         x:horizontal ? start : Math.max(0,Math.min(28-depth,cross-depth/2)),y:horizontal ? Math.max(0,Math.min(24-depth,cross-depth/2)) : start,
         w:horizontal ? span : depth,h:horizontal ? depth : span});
     };
-    const opening = c.opening;
+    const opening = c.opening || c.breach?.openingAfterBreach;
     if (opening) {
       const wing = (length-opening.width)/2;
       rect(a,wing); rect(a+wing+opening.width,wing);
@@ -102,7 +104,7 @@ export function tombWorldTerrain(map, hatches = initialHatches(map)) {
     const c=PARTS[p.id], w=p.rotation ? c.width:c.length,h=p.rotation ? c.length:c.width;
     terrain.push({kind:'light',component:p.id,height:c.height,x:p.x-w/2,y:p.y-h/2,w,h});
   }
-  for(const d of tombWorldAccessPoints(map)) if(d.kind === 'hatchway' && hatches[d.id] !== 'open') terrain.push(hatchLeaf(d));
+  for(const d of tombWorldAccessPoints(map)) if((d.kind === 'hatchway' || d.kind === 'breachPoint') && hatches[d.id] !== 'open') terrain.push(hatchLeaf(d));
   return terrain;
 }
 

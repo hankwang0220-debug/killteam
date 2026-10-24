@@ -3298,7 +3298,7 @@ app.addEventListener('pointermove', (e) => {
   const names = [...new Set(near.map(t => t.kind === 'heavy' ? L('重型地形', 'Heavy terrain') : t.kind === 'wire' ? L('鐵絲網', 'Razor wire') : L('輕型地形', 'Light terrain')))];
   const lines = [];
   if (names.length) lines.push(`${names.join('、')}（${L('底座距地形 1 吋內', 'within 1 inch of base')}）`);
-  if (near.some(t => t.kind === 'wire')) lines.push(L('鐵絲網（穿越時額外消耗 1 吋移動距離）', 'Razor wire (crossing costs 1 extra inch of movement)'));
+  if (near.some(t => t.kind === 'wire')) lines.push(L('鐵絲網（穿越時額外消耗 2 吋移動距離）', 'Razor wire (crossing costs 2 extra inches of movement)'));
   if (ui.mode.kind === 'fight') {
     lines.push(L('近戰（地形不提供射擊掩護豁免）', 'Fight (terrain grants no shooting cover save)'));
     if (!fightTargets(g, op).includes(target)) lines.push(L('目前不是合法近戰目標', 'Not a valid fight target'));

@@ -3,7 +3,7 @@
 // strongholds and ruins are Heavy terrain, rubble is Heavy or Light, upper floors are left out.
 import {
   boardOf, CONTROL, NPO, OBJ_R, addVP, aplNow, applyDamage, contests, controller, d6, deployZones, edgeDist, getOp, isEngaged, missionEngaged, living, log, opName, radius,
-  spawnNpo, team, territoryOf, tpl, visibility,
+  spawnNpo, team, territoryOf, tpl, twBreachCost, visibility,
 } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { moveCtx } from './path.js';
@@ -320,6 +320,34 @@ export const MISSION_ACTIONS = {
       if(!d) return;
       const opening=id.startsWith('twOpen_');setHatchState(g,d.id,opening ? 'open':'closed');
       return {zh:`花費 1AP ${opening ? '開啟':'關閉'} ${d.component} 門 ${Number(d.id.split('-')[1])+1}`,en:`spends 1AP to ${opening ? 'open':'close'} ${d.component} hatch ${Number(d.id.split('-')[1])+1}`};
+    },
+  }])),
+  // Breach (Tomb World, 2AP; 1AP for breachers, see twBreachCost): opens a closed breach point for good. Each operative on the other side
+  // with the access point within its control range rolls a D6 — on a 4+, -1 APL until the end of its next activation and damage equal to half the roll (rounding up).
+  ...Object.fromEntries([...new Set(TOMB_WORLD_MAPS.flatMap(m=>tombWorldAccessPoints(m).filter(d=>d.kind === 'breachPoint').map(d=>`twBreach_${d.id}`)))].map(id=>[id,{
+    ap:2,name:{zh:'破拆',en:'Breach'},
+    cond(g,op) {
+      const d=accessPointsOf(g).find(d=>d.kind === 'breachPoint' && `twBreach_${d.id}` === id);
+      if(!d || d.state === 'open') return {zh:'破口已經打開',en:'The breach point is already open'};
+      if(!nearHatch(g,op,d,radius(op))) return {zh:'破口須在底座 1 吋內',en:'The access point must be within 1 inch of the base'};
+      if(isEngaged(g,op)) return {zh:'交戰中不能破拆',en:'Cannot breach while engaged'};
+      return null;
+    },
+    apply(g,op) {
+      const d=accessPointsOf(g).find(d=>d.kind === 'breachPoint' && `twBreach_${d.id}` === id);
+      if(!d) return;
+      if(twBreachCost(g,op) < 2) op.acted.twBreachCheap = true; // (then no Shoot or Charge this activation)
+      const mine=Math.sign(op[d.axis]-d[d.axis]);
+      const across=living(g).filter(o=>o.uid !== op.uid && o.x > -50 && Math.sign(o[d.axis]-d[d.axis]) === -mine && distPointRect(o,accessRect(d))-radius(o) <= CONTROL+.001);
+      setHatchState(g,d.id,'open');
+      for(const o of across) {
+        const roll=d6();
+        if(roll < 4) { log(g,{zh:`破拆：${opName(o,'zh')} 擲 ${roll}，沒事`,en:`Breach: ${opName(o,'en')} rolls ${roll}, unharmed`},`side${op.side}`); continue; }
+        const dmg=Math.ceil(roll/2); o.aplNext=(o.aplNext || 0)-1;
+        log(g,{zh:`破拆：${opName(o,'zh')} 擲 ${roll}，受到 ${dmg} 傷害，下次啟動結束前 APL -1`,en:`Breach: ${opName(o,'en')} rolls ${roll} — ${dmg} damage and -1 APL until the end of its next activation`},`side${op.side}`);
+        applyDamage(g,op,o,dmg);
+      }
+      return {zh:`破拆 ${d.component} 破口 ${Number(d.id.split('-')[1])+1}（之後不能再關上）`,en:`breaches ${d.component} breach point ${Number(d.id.split('-')[1])+1} (it can't be closed again)`};
     },
   }])),
   twTeleport: {

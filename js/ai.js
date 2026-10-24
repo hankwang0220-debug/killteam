@@ -558,7 +558,9 @@ export function aiStep(g) {
   if (can.dwThrallUse && engagedEnemies(g, op).length && missionActionsFor(g, op.side).some((id) => !can[id])) { doSelfAction(g, op, 'dwThrallUse'); return null; }
   for (const id of ['soulHeal', 'soulChannel', 'wardingShield', 'tormentGrenade', 'drugHeal']) if (can[id]) { const t = TARGET_ACTIONS[id].targets(g, op)[0]; if (t) { doTargetAction(g, op, id, t); return null; } }
   // Mission actions and markers first: they score.
-  for (const id of missionActionsFor(g, op.side)) if (can[id] && !id.startsWith('twClose_')) { doMissionAction(g, op, id); return null; }
+  // (a Breach hurts whoever is just beyond it: not with a friend near the access point)
+  const breachSafe = (id) => { const d = id.startsWith('twBreach_') && accessPointsOf(g).find((x) => `twBreach_${x.id}` === id); return !d || !living(g, op.side).some((o) => o !== op && dist(o, d) <= 2.5); };
+  for (const id of missionActionsFor(g, op.side)) if (can[id] && !id.startsWith('twClose_') && breachSafe(id)) { doMissionAction(g, op, id); return null; }
   if (can.pickUp && pickUpTargets(g, op).some((m) => !(m.kind === 'banner' && m.owner === op.side))) { doPickUp(g, op); return null; } // (never its own planted Banner)
   if (can.dakkaDash && shootOptions(g, op).length) { doDakkaDash(g, op); return null; }
   if (can.spot) {

@@ -166,7 +166,7 @@ export function moveCtx(g, op, kind = 'reposition') {
     return cost;
   }
   function extra(pts) {
-    const wire = !wires.length || fly || op.acted?.mdNowhere ? 0 : wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length;
+    const wire = !wires.length || fly || op.acted?.mdNowhere ? 0 : 2 * wires.filter((w) => pts.some((p, i) => i > 0 && segRect(pts[i - 1], p, w))).length; // (2" for each crossing)
     return wire + (entersMatrix(pts) ? 1 : 0) + climbs(pts) + crossingCost(pts) + gravCost(pts);
   }
   // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).

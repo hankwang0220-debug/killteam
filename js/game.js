@@ -543,7 +543,7 @@ export function tacOpsFor(teamId) {
 }
 const randomTacOp = (teamId) => { const ids = tacOpsFor(teamId); return ids[Math.floor(Math.random() * ids.length)]; };
 /** Mission actions this side can perform: the mission's, plus its Tac Op's (Clear, Retrieve). */
-export const missionActionsFor = (g, side) => [...accessPointsOf(g).filter(d=>d.kind === 'hatchway').map(hatchActionId), ...(g.pads?.length ? ['twTeleport'] : []), ...(mission(g).actions || []), ...(side < 2 ? TAC_OPS[g.tacOps?.[side]?.id]?.actions || [] : [])];
+export const missionActionsFor = (g, side) => [...accessPointsOf(g).filter(d=>d.kind === 'hatchway' || (d.kind === 'breachPoint' && d.state !== 'open')).map(hatchActionId), ...(g.pads?.length ? ['twTeleport'] : []), ...(mission(g).actions || []), ...(side < 2 ? TAC_OPS[g.tacOps?.[side]?.id]?.actions || [] : [])];
 /** Is any operative of this side contesting the marker (within control range of it)? */
 export const contests = (g, side, m) => living(g, side).some((o) => inMarkerRange(o, m));
 /** Score VP from a mission source ('crit' / 'tac'), with a log line. */
@@ -571,7 +571,7 @@ function dropMarkers(g, op) {
   for (const m of carriables(g)) if (m.carriedBy === op.uid) { m.carriedBy = null; m.x = op.x; m.y = op.y; }
 }
 export function doMissionAction(g, op, id) {
-  if (/^tw(Open|Close)_/.test(id) && (g.phase !== 'firefight' || g.active !== op.uid || op.dead || !availableActions(g,op).some(a=>a.id === id && a.ok))) return false;
+  if (/^tw(Open|Close|Breach)_/.test(id) && (g.phase !== 'firefight' || g.active !== op.uid || op.dead || !availableActions(g,op).some(a=>a.id === id && a.ok))) return false;
   vsMissionSpend(g, op, id); // Communion: a point for a mission action (Vespid Stingwings)
   spend(g, op, id);
   nbHatchUsed(g, op, id); // (Deck Hand / System Override Device used)
@@ -1764,9 +1764,15 @@ Object.assign(ACTIONS, {
   drugHypex: { ap: 1, name: { zh: '施用藥劑：亢奮劑', en: 'Administer Drug: Hypex' } },
 });
 
+/** Breach (Tomb World): 2AP, or 1AP for an operative with 'breach marker', 'grenadier' or 'mine' on its datacard, or a Piercing 2 /
+ * Piercing Crits 2 weapon without Blast or Torrent — but not in an activation in which it Charged or Shot. */
+const twBreacher = (g, op) => /grenadier/i.test(tpl(op).name.en) || Object.keys(tpl(op)).some((k) => /mine|breach/i.test(k) && tpl(op)[k])
+  || weaponsFor(g, op).some((w) => (w.rules.piercing >= 2 || w.rules.piercingCrits >= 2) && !w.rules.blast && !w.rules.torrent);
+export const twBreachCost = (g, op) => (twBreacher(g, op) && !count(op, 'shoot') && !count(op, 'charge') ? 1 : 2);
 export function actionCost(g, op, id) {
   if(id==='transferPower' && feAuto(g,op.side,'feCells')) return 0;
   if ((id === 'pickUp' || MISSION_ACTIONS[id] || id === 'placeMarker') && nvRelicSeeker(g, op, id, true)) return Math.max(0, actionCost(g, { ...op, acted: { ...op.acted, nvRelic: 1 } }, id) - 1); // Relic Seeker (Novitiate Pronatus)
+  if (/^twBreach_/.test(id)) return twBreachCost(g, op); // Breach (Tomb World): 2AP, or 1AP for breachers
   if (/^tw(Open|Close)_/.test(id)) return Math.max(0, 1 + nbWeldExtra(g, op, id) - nbHatchDiscount(g, op, id)); // (Weld Shut, System Override Device, Deck Hand: Navy Breachers)
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
@@ -2841,11 +2847,12 @@ export function availableActions(g, op) {
   // Mission actions and Pick Up Marker (player operatives only).
   if (op.side !== NPO && op.homeSide == null && !op.unleashed && op.brutalDisplayTP !== g.tp && op.ncFlayTP !== g.tp) { // (Unleash Daemon: no Pick Up or mission actions)
     for (const id of missionActionsFor(g, op.side)) {
-      const hatch=/^tw(Open|Close)_/.test(id) && accessPointsOf(g).find(d=>hatchActionId(d) === id);
+      const hatch=/^tw(Open|Close|Breach)_/.test(id) && accessPointsOf(g).find(d=>hatchActionId(d) === id);
       if(hatch && !nearHatch(g,op,hatch,radius(op),op.acted?.bcRemote ? 4 : 1)) continue;
       const why = MISSION_ACTIONS[id].cond(g, op);
       add(id, !why && !count(op, id), why || DONE);
-      if(hatch) list.at(-1).name={zh:`${hatch.state === 'open' ? '關門':'開門'} ${hatch.component}（${Number(hatch.id.split('-')[1])+1}）`,en:`${hatch.state === 'open' ? 'Close':'Open'} ${hatch.component} door ${Number(hatch.id.split('-')[1])+1}`};
+      if(hatch?.kind === 'breachPoint') list.at(-1).name={zh:`破拆 ${hatch.component}（破口 ${Number(hatch.id.split('-')[1])+1}）`,en:`Breach ${hatch.component} (breach point ${Number(hatch.id.split('-')[1])+1})`};
+      else if(hatch) list.at(-1).name={zh:`${hatch.state === 'open' ? '關門':'開門'} ${hatch.component}（${Number(hatch.id.split('-')[1])+1}）`,en:`${hatch.state === 'open' ? 'Close':'Open'} ${hatch.component} door ${Number(hatch.id.split('-')[1])+1}`};
     }
     if (carriables(g).some((m) => canPickUpMarker(g, op, m))) {
       const n = pickUpTargets(g, op).length;
@@ -2892,6 +2899,7 @@ export function availableActions(g, op) {
   if (op.vsNoAtkTP === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Darting Flight (Vespid Stingwings)
   if (op.aqNoAtk === g.tp) for (let i = list.length - 1; i >= 0; i--) if (['dash', 'shoot', 'fight'].includes(list[i].id)) list.splice(i, 1); // Adjust Coordinates (Aquilons)
   if (op.ctlNoMove) for (let i = list.length - 1; i >= 0; i--) if (['reposition', 'dash', 'fallBack', 'charge'].includes(list[i].id)) list.splice(i, 1); // Seize the Initiative (Kasrkin): an action without moving
+  if (op.acted.twBreachCheap) for (const a of list) if (['shoot', 'charge'].includes(a.id)) { a.ok = false; a.why = { zh: '本次啟動以 1AP 破拆過，不能射擊或衝鋒', en: 'It breached for 1AP this activation: no Shoot or Charge' }; } // (Breach, Tomb World)
   if (op.counter && op.acted.wcEchoes) for (const a of list) if (a.ok && count(op, a.id)) { a.ok = false; a.why = { zh: '亞空間回聲：兩個動作要不同', en: 'Echoes from the Warp: the two actions must be different' }; }
   const nulled = nullRodded(g, op) || witchHunted(g, op) ? list.filter((a) => !PSYCHIC_ACTIONS.includes(a.id)) : list; // Null Rod (Condemnor) / Weapons of the Witch Hunters
   return allowed ? nulled.filter((a) => allowed.includes(a.id)) : nulled;
@@ -3868,7 +3876,7 @@ export const EQUIPMENT = {
   explosive: { name: { zh: '爆裂手榴彈', en: 'Explosive Grenades' }, desc: { zh: '1 顆破片＋1 顆穿甲手榴彈（全隊共用次數），任何特工都能投擲。破片 4/4+/2/4，射程 6"、爆炸 2"、飽和；穿甲 4/4+/4/5，射程 6"、穿甲 1、飽和。', en: '1 frag + 1 krak grenade (uses shared by the team), any operative can throw them. Frag 4/4+/2/4, Range 6", Blast 2", Saturate; krak 4/4+/4/5, Range 6", Piercing 1, Saturate.' } },
   lightBarricades: { name: { zh: '輕掩體 ×2', en: 'Light Barricades ×2' }, desc: { zh: '兩道輕型地形，放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Two pieces of Light terrain wholly within your half (more than 2" from other equipment terrain and access points).' } },
   heavyBarricade: { name: { zh: '重掩體', en: 'Heavy Barricade' }, desc: { zh: '一道重型地形，只能放在距離降落區 4" 內（離其他裝備地形與訪問點 2" 以外）。', en: 'A piece of Heavy terrain wholly within 4" of your drop zone (more than 2" from other equipment terrain and access points).' } },
-  razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 1"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 1" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
+  razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 2"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 2" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
   portableBarricade: { name: { zh: '可攜式路障', en: 'Portable Barricade' }, desc: { zh: '一道輕型、防護、可攜式地形（腳是微小且暴露）：放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。防護：處於它的掩護中時，防禦者的 Save 屬性 -1（最低 2+）。連著它的特工可執行「隨路障移動」（1AP）：免費重新定位，但最多 Move -2"，路障隨之移動。', en: 'A Light, Protective, Portable terrain feature, set up wholly within your territory (more than 2" from other equipment terrain and access points). Protective: an operative in cover from it improves its Save by 1 (to 2+). A connected operative can perform Move With Barricade (1AP): a free Reposition of up to its Move -2", the barricade moving with it.' } },
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
 };
@@ -3966,6 +3974,7 @@ export function clearSpot(g, p, r = 0.5) {
   return p;
 }
 /** Place one equipment item, then hand deployment to the other player. */
+const EQUIP_MARKERS = ['mine', 'tripwire', 'ammo', 'comms'];
 export function equipmentPlacement(g, p, rotated = false) {
   const d = g.eqDeploy, entry = d && !d.done && d.queues[d.turn][0];
   if (!entry || g.phase !== 'deploy') return null;
@@ -3981,14 +3990,16 @@ export function equipmentPlacement(g, p, rotated = false) {
     if (t.kind === 'heavy' ? corners.some(c => distPointRect(c, {x:z.x0,y:z.y0 ?? 0,w:z.x1-z.x0,h:(z.y1 ?? boardOf(g).h)-(z.y0 ?? 0)}) > 4)
       : corners.some(c => territoryOf(g,c) !== side)) return null;
     if (g.terrain.some(o => rotatedRectGap(t,o) <= (o.equip != null ? 2 : 0))) return null;
-    if ((g.accessPoints || []).some(a => distPointRect(a,t) <= 2)) return null;
-    if ([...g.objectives,...g.markers].some(m => distPointRect(m,t) < .4)) return null;
+    if (accessPointsOf(g).some(a => distPointRect(a,t) <= 2)) return null;
+    if ([...g.objectives,...g.markers.filter(m => !EQUIP_MARKERS.includes(m.kind))].some(m => distPointRect(m,t) < .4)) return null; // (equipment markers can end up on equipment terrain)
     return { type:'terrain', item:t };
   }
   if (p.x < .4 || p.y < .4 || p.x > boardOf(g).w-.4 || p.y > boardOf(g).h-.4 || territoryOf(g,p) !== side) return null;
   const goreMarker=['goryTotem','bloodyCadaver'].includes(source.kind);
-  if (g.terrain.some(t => distPointRect(p,t) < .4) || [...g.objectives,...g.markers].some(m => goreMarker && m.owner===side && ['goryTotem','bloodyCadaver'].includes(m.kind) && m.kind!==source.kind ? false : source.kind === 'tripwire' || goreMarker ? dist(p,m) <= 2 : dist(p,m) < .8)) return null; // Special markers require more than 2 inches of spacing.
-  if (source.kind === 'tripwire' && (g.accessPoints || []).some(a => dist(a,p) <= 2)) return null;
+  // A marker can sit on equipment terrain (barricades, razor wire, either side's), not on the killzone's own terrain.
+  if (g.terrain.some(t => t.equip == null && distPointRect(p,t) < .4) || [...g.objectives,...g.markers].some(m => goreMarker && m.owner===side && ['goryTotem','bloodyCadaver'].includes(m.kind) && m.kind!==source.kind ? false : source.kind === 'tripwire' || goreMarker ? dist(p,m) <= 2 : dist(p,m) < .8)) return null; // Special markers require more than 2 inches of spacing.
+  if (source.kind === 'tripwire' && accessPointsOf(g).some(a => dist(a,p) <= 2)) return null; // (Tripwire: more than 2" from access points)
+  if (source.kind === 'tripwire' && [[.4,0],[-.4,0],[0,.4],[0,-.4]].some(([dx,dy]) => territoryOf(g,{x:p.x+dx,y:p.y+dy}) !== side)) return null; // (and wholly within your territory)
   return { type:'marker', item:{ ...source, x:p.x,y:p.y,angle: typeof rotated === 'number' && Number.isFinite(rotated) ? rotated : 0,id:g.markers.reduce((max,m)=>Math.max(max,typeof m.id === 'number' ? m.id : -1),-1)+1 } };
 }
 
@@ -4039,7 +4050,7 @@ function setupEquipment(g, side, ids) {
         const t = along === 'x' ? { kind, x: q.x - thick / 2, y: q.y - len / 2, w: thick, h: len } : { kind, x: q.x - len / 2, y: q.y - thick / 2, w: len, h: thick };
         if (t.x < 0 || t.y < 0 || t.x + t.w > boardOf(g).w || t.y + t.h > boardOf(g).h || !area(t)) continue;
         if (g.terrain.some((o) => rectGap(t, o) < (o.equip != null ? 2.01 : 0.4))) continue; // 2" from other equipment terrain
-        if ((g.accessPoints || []).some((a) => distPointRect(a, t) <= 2)) continue; // and from access points
+        if (accessPointsOf(g).some((a) => distPointRect(a, t) <= 2)) continue; // and from access points
         if ([...g.objectives, ...g.markers].some((m) => distPointRect(m, t) < 1.5)) continue;
         g.terrain.push({ ...t, equip: side });
         return;

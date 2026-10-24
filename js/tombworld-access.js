@@ -4,17 +4,17 @@ import { distPointRect, segRect } from './geometry.js';
 const EPS = 1e-6;
 const ACCESS = new Map(TOMB_WORLD_MAPS.map(m => [m.id,tombWorldAccessPoints(m)]));
 // Games/replays predating hatch state retain their previous open doors.
-export const accessPointsOf = (g) => (ACCESS.get(g.map) || []).map(d=>({...d,state:d.kind === 'hatchway' ? g.hatches?.[d.id] || 'open':'open'}));
-export const hatchActionId = (d) => `${d.state === 'open' ? 'twClose_':'twOpen_'}${d.id}`;
+export const accessPointsOf = (g) => (ACCESS.get(g.map) || []).map(d=>({...d,state:d.kind === 'hatchway' ? g.hatches?.[d.id] || 'open' : d.kind === 'breachPoint' ? g.hatches?.[d.id] || 'closed' : 'open'}));
+export const hatchActionId = (d) => `${d.kind === 'breachPoint' ? 'twBreach_' : d.state === 'open' ? 'twClose_':'twOpen_'}${d.id}`; // (a breach point only opens, for good)
 export const accessRect = (d) => hatchLeaf(d);
 export function nearHatch(g, op, d, r, range = 1) {
   const p={x:d.x,y:d.y,[d.axis]:d[d.axis]+Math.sign(op[d.axis]-d[d.axis])*.126};
   return distPointRect(op,accessRect(d))-r <= range+.001 && wallAllowsControl(g,op,p);
 }
 export function setHatchState(g, id, state) {
-  const d=accessPointsOf(g).find(d=>d.id === id && d.kind === 'hatchway');
+  const d=accessPointsOf(g).find(d=>d.id === id && (d.kind === 'hatchway' || d.kind === 'breachPoint'));
   if(!d || !['open','closed'].includes(state)) return false;
-  g.hatches ||= Object.fromEntries(accessPointsOf(g).filter(d=>d.kind === 'hatchway').map(d=>[d.id,d.state]));
+  g.hatches ||= Object.fromEntries(accessPointsOf(g).filter(d=>d.kind === 'hatchway' || d.kind === 'breachPoint').map(d=>[d.id,d.state]));
   g.hatches[id]=state;
   g.terrain=g.terrain.filter(t=>t.hatchId !== id);
   if(state === 'closed') g.terrain.push(hatchLeaf(d));

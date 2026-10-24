@@ -150,9 +150,9 @@ for (const [distance, expected] of [[.3, 1], [1.3, 2], [1.8, 2], [3.00000000001,
   assert.equal(shortTurns.len, 1, 'round the complete 0.6-inch route once, rather than each leg');
   const basic = G.living(g, 1)[0]; basic.x = 3; basic.y = 5; basic.counter = true;
   g.terrain = [{ kind: 'wire', x: 4.5, y: 4, w: .1, h: 2 }];
-  const wire = wholeInchPath(moveCtx(g, basic), { pts: [basic, { x: 6, y: 5 }] }, 3);
-  assert.equal(wire.len, 3); assert.equal(pathLength(wire.pts), 2);
-  assert.deepEqual(wholeInchPath(moveCtx(g, basic), wire, 3), wire, 'wire costs are not added twice on confirmation');
+  const wire = wholeInchPath(moveCtx(g, basic), { pts: [basic, { x: 6, y: 5 }] }, 4); // (razor wire: 2" more)
+  assert.equal(wire.len, 4); assert.equal(pathLength(wire.pts), 2);
+  assert.deepEqual(wholeInchPath(moveCtx(g, basic), wire, 4), wire, 'wire costs are not added twice on confirmation');
 }
 // Zero-length and invalid placements cost no AP; fractional endpoints need not fit a full inch.
 {
