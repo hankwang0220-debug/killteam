@@ -10,6 +10,8 @@ import { TEAM_MAP } from './data/teams.js';
 
 /** Height of a model's base (inches): the model kit builds it below y = 0, so models stand this high to show it — cover is judged from the base. */
 const BASE_H = .12;
+/** 2D board parts left off the 3D floor (the 3D terrain shows them): footprints, 重／輕／網 badges, the 1" cover ranges, door labels, pads. */
+const FLOOR_DROP = 'rect.heavy,rect.light,rect.wire,.tlabel,.cover-ranges,.tw-access,.tw-pad';
 
 let live=null, load=null, generation=0;
 let remembered=null;
@@ -65,9 +67,10 @@ function createView(T,initial) {
   const preview=new T.Group();scene.add(preview);
   const overlay=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1}));
   overlay.rotation.x=-Math.PI/2;overlay.position.y=.025;overlay.renderOrder=1;scene.add(overlay);
-  let terrain=null,terrainKey='',root=null,g=initial,ui={},callbacks={},raf=0,stopped=false,textureSeq=0,refreshTimer=null;
+  let hoverUid=null,terrain=null,terrainKey='',root=null,g=initial,ui={},callbacks={},raf=0,stopped=false,textureSeq=0,refreshTimer=null;
   const pose=remembered?{...remembered,target:remembered.target.clone()}:{theta:0,phi:.7,distance:45,target:new T.Vector3()};
-  let faded=false,drag=null;
+  let faded=false,drag=null,pieceMats=[],hidden=new Set(),lastFade=0;
+  const fadeRay=new T.Raycaster();
   const pointers=new Map();
   const keys=new Set(),keyDirections={KeyW:[0,-1],ArrowUp:[0,-1],KeyS:[0,1],ArrowDown:[0,1],KeyA:[-1,0],ArrowLeft:[-1,0],KeyD:[1,0],ArrowRight:[1,0]};
   const keyAliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'};
@@ -101,15 +104,17 @@ function createView(T,initial) {
   const collect=o=>o.traverse(n=>{for(const m of (Array.isArray(n.material)?n.material:[n.material]))if(m)materials.add(m);});
   function disposeGeometry(o){o?.traverse(n=>n.geometry?.dispose());}
   function disposeLabel(o){for(const n of [...o.children])if(n.userData.battleLabel){n.material.map?.dispose();n.material.dispose();o.remove(n);}}
-  function label(o,text) {
-    if(o.userData.labelText===text)return;disposeLabel(o);o.userData.labelText=text;
+  // A label over the model: compact (number and marks) unless it's selected, active or under the pointer; a team-coloured edge.
+  function label(o,text,color='#8aa',full=true) {
+    const key=`${text}|${color}|${full}`;if(o.userData.labelText===key)return;disposeLabel(o);o.userData.labelText=key;
     const c=document.createElement('canvas'),ctx=c.getContext('2d');ctx.font='600 25px system-ui';
-    c.width=Math.ceil(ctx.measureText(text).width)+24;c.height=44;ctx.font='600 25px system-ui';
-    ctx.fillStyle='rgba(10,14,20,.9)';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='#f0f5ff';ctx.textBaseline='middle';ctx.fillText(text,12,22);
+    c.width=Math.ceil(ctx.measureText(text).width)+30;c.height=44;ctx.font='600 25px system-ui';
+    ctx.fillStyle='rgba(10,14,20,.9)';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle=color;ctx.fillRect(0,0,8,c.height);
+    ctx.fillStyle='#f0f5ff';ctx.textBaseline='middle';ctx.fillText(text,18,22);
     const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;
     const s=new T.Sprite(new T.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
     const box=new T.Box3().setFromObject(o);s.position.y=Math.max(1.8,box.max.y-o.position.y+.35);
-    s.scale.set(c.width/c.height*.55,.55,1);s.renderOrder=20;s.userData.battleLabel=true;o.add(s);
+    const h=full?.55:.4;s.scale.set(c.width/c.height*h,h,1);s.renderOrder=20;s.userData.battleLabel=true;o.add(s);
   }
   function ring(x,y,r,color,opacity=.9){
     const m=new T.Mesh(new T.RingGeometry(r,r+.10,40),new T.MeshBasicMaterial({color,transparent:true,opacity,side:T.DoubleSide,depthTest:false}));
@@ -126,7 +131,8 @@ function createView(T,initial) {
         o=templates.get(spec.key).clone(true);o.userData={uid:op.uid,modelKey:spec.key};units.add(o);models.set(op.uid,o);
       }
       o.position.set(spec.x,BASE_H,spec.z);o.rotation.y=spec.rotation; // (raised so its base shows: cover is judged from the base)
-      label(o,`${opName(op,getLang())}  ${op.wounds}/${op.maxW}  ${op.order==='conceal'?'◈':'◆'}${op.ready?' ●':' ○'}`);
+      const full=ui.sel===op.uid||hoverUid===op.uid||g.active===op.uid,marks=`${op.order==='conceal'?'◈':'◆'}${op.ready?'●':'○'}`;
+      label(o,full?`${op.num} ${tpl(op).name[getLang()]||opName(op,getLang())}  ${op.wounds}/${op.maxW}  ${marks}`:`${op.num} ${marks}${op.wounds<op.maxW?` ${op.wounds}`:''}`,spec.team.color,full);
     }
     for(const [uid,o]of models)if(!keep.has(uid)){disposeLabel(o);units.remove(o);models.delete(uid);}
     clearDynamic(rings);
@@ -137,10 +143,29 @@ function createView(T,initial) {
   function syncTerrain() {
     const key=JSON.stringify(battleBoardData(g));if(key===terrainKey)return;terrainKey=key;
     if(terrain){scene.remove(terrain);disposeGeometry(terrain);}
-    terrain=tkit.buildBoard(battleBoardData(g));collect(terrain);scene.add(terrain);fadeTerrain();
+    terrain=tkit.buildBoard(battleBoardData(g));collect(terrain);scene.add(terrain);
+    // Tall parts get their own materials, so a single piece can be faded when it hides a model (see autoFade).
+    for(const m of pieceMats)m.dispose();pieceMats=[];hidden=new Set();
+    terrain.traverse(o=>{if(o.isMesh && o.position.y>.12){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();pieceMats.push(...[o.material].flat());o.userData.fadeable=true;}});
+    fadeTerrain();
     const b=boardOf(g);overlay.scale.set(b.w,b.h,1);
   }
-  function fadeTerrain(){terrain?.traverse(o=>{if(o.isMesh && o.position.y>.12){for(const m of (Array.isArray(o.material)?o.material:[o.material])){m.transparent=faded;m.opacity=faded?.28:1;m.depthWrite=!faded;}}});}
+  const setFade=(o,on)=>{for(const m of [o.material].flat()){m.transparent=on;m.opacity=on?.28:1;m.depthWrite=!on;}};
+  function fadeTerrain(){terrain?.traverse(o=>{if(o.userData.fadeable)setFade(o,faded||hidden.has(pieceOf(o)));});}
+  /** The terrain piece (a direct child of the board) a mesh belongs to. */
+  function pieceOf(o){while(o.parent && o.parent!==terrain)o=o.parent;return o;}
+  // Terrain between the camera and a model fades on its own (the "Fade terrain" button still fades all of it).
+  function autoFade(now){
+    if(!terrain || now-lastFade<120)return;lastFade=now;
+    const next=new Set(),eye=camera.position,to=new T.Vector3();
+    for(const o of models.values()){
+      to.set(o.position.x,o.position.y+.9,o.position.z);const d=eye.distanceTo(to);
+      fadeRay.set(eye,to.clone().sub(eye).normalize());fadeRay.far=d-.2;
+      for(const hit of fadeRay.intersectObject(terrain,true))if(hit.object.userData.fadeable)next.add(pieceOf(hit.object));
+    }
+    if(next.size===hidden.size && [...next].every(p=>hidden.has(p)))return;
+    hidden=next;fadeTerrain();
+  }
   // Rasterise the existing SVG overlays so ranges, paths, objectives and markers stay identical in both views.
   function refreshOverlay() {
     if(stopped||!root?.isConnected)return;
@@ -149,6 +174,8 @@ function createView(T,initial) {
     const props=['fill','fill-opacity','stroke','stroke-width','stroke-opacity','stroke-dasharray','opacity','font-family','font-size','font-weight','text-anchor','paint-order','stroke-linecap','stroke-linejoin'];
     src.forEach((node,i)=>{const style=getComputedStyle(node);for(const k of props){const v=style.getPropertyValue(k);if(v)dst[i].style.setProperty(k,v);}});
     clone.querySelectorAll('.op,.equipment-preview,.equipment-rotation-handles').forEach(n=>n.remove());
+    // The 3D scene shows the terrain, hatchways and teleport pads itself: the floor keeps only zones, grid, objectives, markers and the live overlays.
+    clone.querySelectorAll(FLOOR_DROP).forEach(n=>n.remove());
     const b=boardOf(g);clone.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);clone.setAttribute('width',String(b.w*48));clone.setAttribute('height',String(b.h*48));
     clone.removeAttribute('id');clone.style.width=`${b.w*48}px`;clone.style.height=`${b.h*48}px`;clone.style.maxHeight='none';clone.style.display='block';
     const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();
@@ -189,7 +216,7 @@ function createView(T,initial) {
     drag={id:e.pointerId,start:{x:e.clientX,y:e.clientY},last:{x:e.clientX,y:e.clientY},hit,p,mode:e.button===0&&!callbacks.measuring()&&hit.handle!=null?'rotate':canDrag?'unit':e.button===1||e.shiftKey?'pan':'orbit',reverseOrbit:e.button===0&&e.pointerType!=='touch',moved:false,angle:ui.equipmentPreview?.angle||0};
   }
   function gesture(){const ps=[...pointers.values()];return {span:Math.hypot(ps[1].x-ps[0].x,ps[1].y-ps[0].y),mid:{x:(ps[0].x+ps[1].x)/2,y:(ps[0].y+ps[1].y)/2}};}
-  function move(e){if(!pointers.has(e.pointerId)){const p=point(e);if(p){callbacks.hover?.(p,pick(e).uid,e);if(callbacks.measuring())scheduleOverlay();}return;}
+  function move(e){if(!pointers.has(e.pointerId)){const p=point(e);if(p){const uid=pick(e).uid;if((uid||null)!==hoverUid){hoverUid=uid||null;syncModels();}callbacks.hover?.(p,uid,e);if(callbacks.measuring())scheduleOverlay();}return;}
     pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(!drag)return;e.preventDefault();
     if(pointers.size===2){const v=gesture();if(drag.span)pose.distance=Math.max(8,Math.min(95,pose.distance*drag.span/Math.max(5,v.span)));if(drag.mid)pan(v.mid.x-drag.mid.x,v.mid.y-drag.mid.y);drag={mode:'gesture',moved:true,span:v.span,mid:v.mid};updateCamera();return;}
     if(drag.id!==e.pointerId)return;
@@ -214,11 +241,11 @@ function createView(T,initial) {
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
   canvas.addEventListener('wheel',e=>{e.preventDefault();pose.distance=Math.max(8,Math.min(95,pose.distance*Math.exp(e.deltaY*.001)));updateCamera();},{passive:false});
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();status(L('3D 顯示暫停，請切回 2D 繼續。','3D display paused; switch to 2D to continue.'));});
-  function frame(now){if(stopped)return;const dt=previousFrame?Math.min(.05,(now-previousFrame)/1000):0;previousFrame=now;const w=canvas.clientWidth,h=canvas.clientHeight;if(w&&h){keyboardPan(dt);const ratio=renderer.getPixelRatio();if(canvas.width!==Math.floor(w*ratio)||canvas.height!==Math.floor(h*ratio)){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}updateCamera();renderer.render(scene,camera);}raf=requestAnimationFrame(frame);}
+  function frame(now){if(stopped)return;const dt=previousFrame?Math.min(.05,(now-previousFrame)/1000):0;previousFrame=now;const w=canvas.clientWidth,h=canvas.clientHeight;if(w&&h){keyboardPan(dt);const ratio=renderer.getPixelRatio();if(canvas.width!==Math.floor(w*ratio)||canvas.height!==Math.floor(h*ratio)){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}updateCamera();autoFade(now);renderer.render(scene,camera);}raf=requestAnimationFrame(frame);}
   raf=requestAnimationFrame(frame);
   return {pose,
     attach(el,state,bui,cb){measureObserver.disconnect();root=el;g=state;ui=bui;callbacks=cb;root.querySelector('.battle3d-host').append(canvas);const measurement=root.querySelector('#measure');if(measurement)measureObserver.observe(measurement,{childList:true,subtree:true});status();syncTerrain();syncModels();syncPreview();refreshOverlay();updateCamera();},
     control(action){if(action==='3dcover'){faded=!faded;fadeTerrain();root?.querySelector('[data-act="3dcover"]')?.classList.toggle('on',faded);return;}pose.target.set(0,0,0);pose.theta=0;pose.phi=action==='3dtop'?.06:.7;pose.distance=Math.max(boardOf(g).w,boardOf(g).h)*1.5;updateCamera();},
-    stop(){stopped=true;textureSeq++;clearKeys();document.removeEventListener('keydown',keyDown);document.removeEventListener('keyup',keyUp);document.removeEventListener('focusin',focusChanged);document.removeEventListener('visibilitychange',clearKeys);window.removeEventListener('blur',clearKeys);measureObserver.disconnect();clearTimeout(refreshTimer);cancelAnimationFrame(raf);for(const o of models.values())disposeLabel(o);for(const o of templates.values())disposeGeometry(o);disposeGeometry(terrain);clearDynamic(rings);clearDynamic(preview);overlay.material.map?.dispose();overlay.geometry.dispose();overlay.material.dispose();materials.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();canvas.remove();},
+    stop(){stopped=true;textureSeq++;clearKeys();document.removeEventListener('keydown',keyDown);document.removeEventListener('keyup',keyUp);document.removeEventListener('focusin',focusChanged);document.removeEventListener('visibilitychange',clearKeys);window.removeEventListener('blur',clearKeys);measureObserver.disconnect();clearTimeout(refreshTimer);cancelAnimationFrame(raf);for(const o of models.values())disposeLabel(o);for(const o of templates.values())disposeGeometry(o);disposeGeometry(terrain);clearDynamic(rings);clearDynamic(preview);overlay.material.map?.dispose();overlay.geometry.dispose();overlay.material.dispose();materials.forEach(m=>m.dispose());pieceMats.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();canvas.remove();},
   };
 }
