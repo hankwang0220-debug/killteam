@@ -11,6 +11,8 @@ import { TEAM_MAP } from './data/teams.js';
 /** Height of a model's base (inches): the model kit builds it below y = 0, so models stand this high to show it — cover is judged from the base. */
 const BASE_H = .12;
 /** 2D board parts left off the 3D floor (the 3D terrain shows them): footprints, 重／輕／網 badges, the 1" cover ranges, door labels, pads. */
+/** Live hints, drawn on their own glowing layer above the bases: move range, route, ghost base, start point, sprint cone, attack line, placement warnings, measuring. */
+const HINTS = '.ring,.path,.ghost,.pathlen,.move-anchor,.los,.placement-block,.placement-edge,.placement-base,.placement-cross,.placement-label,#measure,[class^="sprint"]';
 const FLOOR_DROP = 'rect.heavy,rect.light,rect.wire,.tlabel,.cover-ranges,.tw-access,.tw-pad';
 
 let live=null, load=null, generation=0;
@@ -67,6 +69,10 @@ function createView(T,initial) {
   const preview=new T.Group();scene.add(preview);
   const overlay=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1}));
   overlay.rotation.x=-Math.PI/2;overlay.position.y=.025;overlay.renderOrder=1;scene.add(overlay);
+  // Live hints (move range, route, attack line, measuring…) above the bases, always visible; the floor under them is dimmed.
+  overlay.material.color.setScalar(.82);
+  const hintLayer=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({transparent:true,depthWrite:false,depthTest:false}));
+  hintLayer.rotation.x=-Math.PI/2;hintLayer.position.y=BASE_H+.03;hintLayer.renderOrder=6;hintLayer.visible=false;scene.add(hintLayer);
   let hoverUid=null,terrain=null,terrainKey='',root=null,g=initial,ui={},callbacks={},raf=0,stopped=false,textureSeq=0,refreshTimer=null;
   const pose=remembered?{...remembered,target:remembered.target.clone()}:{theta:0,phi:.7,distance:45,target:new T.Vector3()};
   let faded=false,drag=null,pieceMats=[],hidden=new Set(),lastFade=0;
@@ -148,7 +154,7 @@ function createView(T,initial) {
     for(const m of pieceMats)m.dispose();pieceMats=[];hidden=new Set();
     terrain.traverse(o=>{if(o.isMesh && o.position.y>.12){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();pieceMats.push(...[o.material].flat());o.userData.fadeable=true;}});
     fadeTerrain();
-    const b=boardOf(g);overlay.scale.set(b.w,b.h,1);
+    const b=boardOf(g);overlay.scale.set(b.w,b.h,1);hintLayer.scale.set(b.w,b.h,1);
   }
   const setFade=(o,on)=>{for(const m of [o.material].flat()){m.transparent=on;m.opacity=on?.28:1;m.depthWrite=!on;}};
   function fadeTerrain(){terrain?.traverse(o=>{if(o.userData.fadeable)setFade(o,faded||hidden.has(pieceOf(o)));});}
@@ -178,9 +184,26 @@ function createView(T,initial) {
     clone.querySelectorAll(FLOOR_DROP).forEach(n=>n.remove());
     const b=boardOf(g);clone.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);clone.setAttribute('width',String(b.w*48));clone.setAttribute('height',String(b.h*48));
     clone.removeAttribute('id');clone.style.width=`${b.w*48}px`;clone.style.height=`${b.h*48}px`;clone.style.maxHeight='none';clone.style.display='block';
-    const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();
-    img.onload=()=>{URL.revokeObjectURL(url);if(stopped||seq!==textureSeq)return;const tex=new T.Texture(img);tex.needsUpdate=true;tex.colorSpace=T.SRGBColorSpace;tex.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());overlay.material.map?.dispose();overlay.material.map=tex;overlay.material.needsUpdate=true;};
-    img.onerror=()=>URL.revokeObjectURL(url);img.src=url;
+    // Two layers: the floor (decorations dimmed, old move trails faint) and the live hints, drawn glowing above the bases.
+    const floor=clone.cloneNode(true),hints=clone;
+    floor.querySelectorAll(HINTS).forEach(n=>n.remove());
+    floor.querySelectorAll('.trailg,.trailghost,.trail').forEach(n=>n.style.setProperty('opacity','.35'));
+    const keep=new Set();
+    hints.querySelectorAll(HINTS).forEach(n=>{for(let p=n;p&&p!==hints;p=p.parentNode)keep.add(p);n.querySelectorAll('*').forEach(c=>keep.add(c));});
+    [...hints.querySelectorAll('*')].forEach(n=>{if(!keep.has(n)&&!n.closest('defs'))n.remove();});
+    const any=keep.size>0;
+    if(any){
+      const ns='http://www.w3.org/2000/svg',defs=hints.querySelector('defs')||hints.insertBefore(document.createElementNS(ns,'defs'),hints.firstChild),glow=document.createElementNS(ns,'g');
+      defs.insertAdjacentHTML('beforeend','<filter id="hintGlow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".07" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>');
+      glow.setAttribute('filter','url(#hintGlow)');for(const n of [...hints.childNodes])if(n!==defs)glow.appendChild(n);hints.appendChild(glow);
+    }
+    const paint=(svg,mesh)=>{
+      const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();
+      img.onload=()=>{URL.revokeObjectURL(url);if(stopped||seq!==textureSeq)return;const tex=new T.Texture(img);tex.needsUpdate=true;tex.colorSpace=T.SRGBColorSpace;tex.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());mesh.material.map?.dispose();mesh.material.map=tex;mesh.material.needsUpdate=true;mesh.visible=true;};
+      img.onerror=()=>URL.revokeObjectURL(url);img.src=url;
+    };
+    paint(floor,overlay);
+    if(any)paint(hints,hintLayer);else hintLayer.visible=false;
   }
   function scheduleOverlay(){if(refreshTimer==null)refreshTimer=setTimeout(()=>{refreshTimer=null;refreshOverlay();},80);}
   // Measurements can change without a full application render (touch taps and Esc included).
@@ -246,6 +269,6 @@ function createView(T,initial) {
   return {pose,
     attach(el,state,bui,cb){measureObserver.disconnect();root=el;g=state;ui=bui;callbacks=cb;root.querySelector('.battle3d-host').append(canvas);const measurement=root.querySelector('#measure');if(measurement)measureObserver.observe(measurement,{childList:true,subtree:true});status();syncTerrain();syncModels();syncPreview();refreshOverlay();updateCamera();},
     control(action){if(action==='3dcover'){faded=!faded;fadeTerrain();root?.querySelector('[data-act="3dcover"]')?.classList.toggle('on',faded);return;}pose.target.set(0,0,0);pose.theta=0;pose.phi=action==='3dtop'?.06:.7;pose.distance=Math.max(boardOf(g).w,boardOf(g).h)*1.5;updateCamera();},
-    stop(){stopped=true;textureSeq++;clearKeys();document.removeEventListener('keydown',keyDown);document.removeEventListener('keyup',keyUp);document.removeEventListener('focusin',focusChanged);document.removeEventListener('visibilitychange',clearKeys);window.removeEventListener('blur',clearKeys);measureObserver.disconnect();clearTimeout(refreshTimer);cancelAnimationFrame(raf);for(const o of models.values())disposeLabel(o);for(const o of templates.values())disposeGeometry(o);disposeGeometry(terrain);clearDynamic(rings);clearDynamic(preview);overlay.material.map?.dispose();overlay.geometry.dispose();overlay.material.dispose();materials.forEach(m=>m.dispose());pieceMats.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();canvas.remove();},
+    stop(){stopped=true;textureSeq++;clearKeys();document.removeEventListener('keydown',keyDown);document.removeEventListener('keyup',keyUp);document.removeEventListener('focusin',focusChanged);document.removeEventListener('visibilitychange',clearKeys);window.removeEventListener('blur',clearKeys);measureObserver.disconnect();clearTimeout(refreshTimer);cancelAnimationFrame(raf);for(const o of models.values())disposeLabel(o);for(const o of templates.values())disposeGeometry(o);disposeGeometry(terrain);clearDynamic(rings);clearDynamic(preview);overlay.material.map?.dispose();overlay.geometry.dispose();overlay.material.dispose();hintLayer.material.map?.dispose();hintLayer.geometry.dispose();hintLayer.material.dispose();materials.forEach(m=>m.dispose());pieceMats.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();canvas.remove();},
   };
 }
