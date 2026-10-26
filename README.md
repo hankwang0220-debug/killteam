@@ -268,3 +268,27 @@ Rendering: parts are rounded boxes, smooth-shaded spheres and cylinders with mor
 Weapons are built in `js/models3d-weapons.js`, shaped after each faction's official weapon designs (still without any logos): Primaris bolt rifles with curved magazines and shrouded barrels, classic boltguns with sickle magazines, bolt pistols, heavy bolters with ammo boxes and spade grips, lasguns with heat-sink rings (wooden furniture for Krieg and traitor guard), hot-shot lasguns with power-pack cables, plasma guns with glowing coils and cooling fins, twin-barrelled meltaguns, flamers with fuel tanks and pilot lights, grenade launchers with drums, scoped sniper rifles with bipods, crude riveted Ork shootas, sluggas and multi-barrelled big shootas, smooth T'au pulse weapons with blue emitters and rail rifles with glowing rails, disc-fed Aeldari shuriken catapults, bladed Drukhari splinter rifles with crystal vials, skeletal Necron gauss weapons with glowing cores, chunky Votann autoch-pattern weapons with ion cells, Kroot rifles with blades; and chainswords with teeth, power swords with power fields, Ork cleavers and crescent axes, thunder hammers and flanged maces, power fists with fingers and generators, power klaws, chainfists, lightning claws, force staves and serrated combat knives.
 
 模型預覽另加入蓋勒痘魔、爐心打撈者、帝國海軍跳幫者與恐懼突襲小隊的專屬精修（51 種單位）：變異體與三種獨立害蟲、矮壯重甲、艙戰裝具與輕型動力甲。可切換原版與並排對照。
+
+第三批專屬模型精修涵蓋千子次元秘教、蟲刃、混沌叛軍與惡角獸掠奪者（54 種單位）：條紋冠盔、奸角獸鳥喙、礦工頭燈、叛軍面罩與惡角獸長吻彎角。僅供模型預覽，可與原版並排比較。
+
+第四批專屬模型精修涵蓋強徵小隊、技師環、獵手之爪與卡舍津（55 種單位）：執法頭盔與機械獵犬、金屬顱骨與分節肋甲、機械呼吸器與義肢、卡舍津重甲與能源背包。僅供模型預覽，原版與並排對照仍可使用。
+
+第五批專屬模型精修涵蓋軍團、見習修女、戰鬥支隊與流亡馭龍師（37 種單位）：彎角金邊重甲、頭巾與修會裝具、不對稱機械面罩及義肢、骨色面甲與龍獸鱗甲。仍僅在模型預覽套用。
+
+流亡馭龍師的改良版龍獸另有第三輪解剖精修：窄軀幹、前傾頭頸、分離上下顎、鼻孔、眼窩與細齒、重疊鱗片、三趾足爪及分節彎尾。小龍保留四足，坐騎保留雙足，原版仍可對照。
+
+第六批專屬模型精修涵蓋灑血狂、遠行者獵手、行商浪人與混沌邪教（30 種單位）：黃銅面罩、鬍鬚與厚外套、金邊翻領與肩章、變異體顎骨和不對稱肢體，並細修獵犬裝具。仍僅在模型預覽套用。
+
+遠行者獵手改良版另採短腿、寬肩與低肩線比例；頭頂高度的美術目標為 24mm（普通人類為 31mm）。這是專案展示用比例，並非官方公布的身高數值。底盤與原版模型不變。
+
+第七批專屬模型精修涵蓋潔天使隱伏者、冥工之環、族群裔兵與凱恩之刃（40 種單位）：銀邊重甲、機械護殼與活塞、混種額骨與族長顎骨，以及三種神殿武士頭盔。凱恩之刃保留深綠配色。仍僅在模型預覽套用。
+
+第八批專屬模型精修一次涵蓋八隊、74 種單位：執政官之手、虛空之痕海盜、死亡守望、曼德拉、屠戮之翼、破壞專隊、復仇之爪與偵察小隊。包含分型頭部、分層護甲、機械護顎、蝠翼頭盔、裸頭耳機、各專家裝具與炸彈史奎格配件。仍僅在模型預覽套用。
+
+第九批專屬模型精修涵蓋死亡天使、萊特林、淨化者與蛇蟲（45 種單位）：分型動力甲、矮小偵察兵與歐格林、兜帽聖物裝具、蛇蟲分節甲殼與六肢口器細節。萊特林與歐格林展示頭頂高度分別以 21mm、44mm 為美術目標，並非官方測量值；底盤與對戰原版不變。
+
+第十批專屬模型精修涵蓋魅影小隊、風暴天鷹、虛空舞者劇團與胡蜂尖翼（68 種單位）：偽裝條與通訊信標、空降護甲與哨戒機具、分型劇場面具與菱格紋、昆蟲複眼口器與翅脈。仍僅在模型預覽套用。
+
+最後一批補齊 XV26 隱形戰鬥服、狼偵查小隊與異端審判庭特務：感測面板與機甲外殼、鬍鬚毛皮與芬里斯狼、分型特務與寂靜修女。異端審判庭徵召盟軍沿用各自陣營精修。48 隊現均具專屬模型精修，原版／改良試作／並排對照仍可切換，對戰仍沿用原版。
+
+XV26 改良版依 Warhammer Community 2025-10-03 官方模型照片重建輪廓：一體式蛋形頭胸甲、紅框單眼、下垂肩甲、黑色機械四肢、小型腿甲、分趾腳掌與前臂掛載武器。專家裝備安置於手臂或腰側，底盤及武器選擇不變。參考：https://www.warhammer-community.com/en-gb/articles/zhqmtpi6/wolf-scouts-and-stealth-battlesuits-fight-as-quietly-as-possible-in-kill-team-dead-silence/

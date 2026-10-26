@@ -295,7 +295,7 @@ export function createModelKit(THREE) {
   /** A point given in o's local space, in its parent's space. */
   const toParent = (o, p) => { o.updateMatrix(); return p.clone().applyMatrix4(o.matrix); };
   const details = teamDetails({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, aimY, aimZ, tz, METAL, DARK, BRASS });
-  const refinements = createRefinements({ THREE,V,mat,box,tbox,cyl,sph,cone,limb,add,tz,aimY,DARK,METAL });
+  const refinements = createRefinements({ THREE,V,mat,box,tbox,cyl,sph,cone,limb,add,tz,aimY,aimZ,DARK,METAL });
 
   // ----- weapons (shaped after each faction's official designs: js/models3d-weapons.js); team add-ons run on ranged ones -----
   const weapons = createWeapons({ THREE, V, mat, glow, box, cyl, sph, cone, limb, add, tz, aimY, METAL, DARK, BRASS });
@@ -971,7 +971,8 @@ export function createModelKit(THREE) {
 
   function rider(op, L, picks) {
     // Exodite Dragon Master on a drakesteed: a two-legged raptor with the rider on top.
-    const g = new THREE.Group(), scale = mat('#5a8a3a', { rough: 0.7 }), belly = mat('#d8c890');
+    const sculpt = refinements.mount(L), g = sculpt || new THREE.Group(), scale = mat('#5a8a3a', { rough: 0.7 }), belly = mat('#d8c890');
+    if(!sculpt){
     const body = sph(0.25, scale, 0, 0.7, 0, 10, 8); body.scale.set(0.8, 0.8, 1.6);
     add(g, body, sph(0.2, belly, 0, 0.62, 0.08, 8, 6));
     for (const s of [-1, 1]) {
@@ -981,6 +982,7 @@ export function createModelKit(THREE) {
     add(g, limb(V(0, 0.75, 0.3), V(0, 1.0, 0.6), 0.09, scale), sph(0.1, scale, 0, 1.05, 0.68, 8, 6), tz(cyl(0.05, 0.08, 0.22, scale, 0, 1.02, 0.82)),
       ...[-1, 1].map((s) => sph(0.02, glow('#ffd040'), s * 0.07, 1.08, 0.72, 6, 4)), limb(V(0, 0.7, -0.35), V(0, 0.45, -1.0), 0.07, scale, 0.015));
     for (let i = 0; i < 5; i++) add(g, cone(0.03, 0.1, mat('#d8b04a'), 0, 0.92 - (i > 2 ? 0.1 : 0), 0.15 - i * 0.12));
+    }
     // The rider sits in the saddle, legs astride.
     const fig = humanoid(op, { ...L, body: 'eldar', float: false, seated: true, cloak: true }, picks);
     fig.position.set(0, 0.5, -0.1); fig.scale.setScalar(0.85);
@@ -988,8 +990,8 @@ export function createModelKit(THREE) {
     const gold = mat('#d8b04a', { metal: 0.8, rough: 0.3 }), stripe = mat('#3a5a26', { rough: 0.7 }), claw = mat('#e8dcc0', { rough: 0.5 });
     add(g, ...[-1, 1].map((s) => box(0.012, 0.012, 0.36, gold, s * 0.15, 0.925, -0.1)), box(0.31, 0.012, 0.012, gold, 0, 0.925, 0.075), // gilded saddle rim
       ...[-1, 1].map((s) => limb(V(s * 0.05, 1.0, 0.78), V(s * 0.1, 1.05, 0.15), 0.006, mat('#5a3a22', { rough: 0.8 }))), // reins from the muzzle
-      ...[0, 1, 2, 3].map((i) => { const st = box(0.42 - i * 0.04, 0.02, 0.05, stripe, 0, 0.88 - i * 0.02, -0.25 - i * 0.12); st.rotation.x = -0.25; return st; }), // dark stripes down the back
-      ...[-1, 1].flatMap((s) => [-1, 0, 1].map((j) => cone(0.012, 0.05, claw, s * 0.2 + j * 0.03, 0.02, 0.15, 4).rotateX(Math.PI / 2)))); // claws
+      ...(sculpt ? [] : [0, 1, 2, 3]).map((i) => { const st = box(0.42 - i * 0.04, 0.02, 0.05, stripe, 0, 0.88 - i * 0.02, -0.25 - i * 0.12); st.rotation.x = -0.25; return st; }), // dark stripes down the back
+      ...(sculpt ? [] : [-1, 1]).flatMap((s) => [-1, 0, 1].map((j) => cone(0.012, 0.05, claw, s * 0.2 + j * 0.03, 0.02, 0.15, 4).rotateX(Math.PI / 2)))); // claws
     return g;
   }
 
@@ -1008,6 +1010,13 @@ export function createModelKit(THREE) {
   const humanRef = BUILD.guard.leg + BUILD.guard.th + BUILD.guard.head * 1.85 + 0.015; // a guardsman's head top at size 1
   const HUMAN_GAIN = STATURE.human / 25.4 / humanRef;
   function statureScale(L, headTop) {
+    // Gallery art target, not a published GW measurement: Kin should read clearly shorter than humans.
+    if(L.refined&&L.team==='hernkynYaegirs'&&L.body==='votann'&&headTop)return 24/25.4/headTop;
+    // Display proportions for small Ratlings and their towering Ogryn allies, not official measurements.
+    if(L.refined&&L.team==='ratlings'&&headTop){
+      if(L.body==='ratling')return 21/25.4/headTop;
+      if(L.body==='ogryn')return 44/25.4/headTop;
+    }
     const kind = L.body === 'marine' ? (L.scout ? 'scout' : L.chaos ? 'firstborn' : 'primaris')
       : L.body === 'guard' || L.body === 'tau' ? 'human' : L.body === 'sister' ? 'sister' : L.body === 'ork' ? 'ork' : null;
     return kind && headTop ? STATURE[kind] / 25.4 / headTop : HUMAN_GAIN;
@@ -1025,6 +1034,7 @@ export function createModelKit(THREE) {
       let count = 0;
       for (const o of meshes) { const g = o.geometry; count += g.index ? g.index.count : g.attributes.position.count; }
       const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3);
+      const uv = material.map ? new Float32Array(count * 2) : null;
       let k = 0;
       for (const o of meshes) {
         const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, I = g.index;
@@ -1034,11 +1044,13 @@ export function createModelKit(THREE) {
           const s = t + (flip ? 2 - c : c), idx = I ? I.getX(s) : s;
           _v.fromBufferAttribute(P, idx).applyMatrix4(_m); pos.set([_v.x, _v.y, _v.z], k * 3);
           if (N) { _v.fromBufferAttribute(N, idx).applyMatrix3(_n).normalize(); nor.set([_v.x, _v.y, _v.z], k * 3); }
+          if (uv && g.attributes.uv) uv.set([g.attributes.uv.getX(idx), g.attributes.uv.getY(idx)], k * 2);
           k++;
         }
       }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      if (uv) geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, material);
       mesh.castShadow = meshes.some((o) => o.castShadow); mesh.receiveShadow = meshes.some((o) => o.receiveShadow);
@@ -1073,6 +1085,7 @@ export function createModelKit(THREE) {
     if(options.style==='refined'){
       L.refined=true;
       const revision=refinements.revision(L);if(revision)L.refinementRevision=revision;
+      if(team.id==='broodBrothers'&&/patriarch/i.test(L.name))Object.assign(L,{bloated:false,helmet:false,armoured:true,main:'#474056',skin:'#a089ad'});
       if(team.id==='angels')Object.assign(L,{main:'#28589b',trim:'#ba9953'});
     }
     const picks = pickWeapons(weaponsOf(op, loadout));

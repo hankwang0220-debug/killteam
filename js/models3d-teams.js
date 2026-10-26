@@ -418,7 +418,7 @@ export function teamDetails(h) {
       belt(c, LEATHER(), BRASS(), 4);
       if (/ironbraek/i.test(L.name)) add(upper, box(B.tw * 1.1, B.th * 0.6, B.td * 1.2, mat('#4a4a4e', { metal: 0.6 }), 0, torsoY + B.th * 0.15, 0));
       if (/tracker/i.test(L.name)) add(head, tz(cyl(B.head * 0.25, B.head * 0.3, B.head * 0.7, DARK(), -B.head * 0.75, B.head * 0.25, B.head * 0.6)), sph(B.head * 0.2, glow('#ff3a2a'), -B.head * 0.75, B.head * 0.25, B.head * 0.98, 6, 4));
-      if (L.leader) add(head, sph(B.head * 1.12, mat('#8a6a3a', { metal: 0.6 }), 0, B.head * 0.3, -B.head * 0.05, 8, 6));
+      if (L.leader && !L.refined) add(head, sph(B.head * 1.12, mat('#8a6a3a', { metal: 0.6 }), 0, B.head * 0.3, -B.head * 0.05, 8, 6));
     },
 
     elucidianStarstriders(c) {
@@ -655,7 +655,7 @@ export function teamDetails(h) {
       belt(c, mat('#2f362a'), METAL(), 5);
       for (let i = 0; i < 3; i++) add(upper, box(0.04 * k, 0.05 * k, 0.025 * k, mat('#2f362a'), (i - 1) * 0.05 * k, torsoY - B.th * 0.2, front + 0.035)); // chest pouches
       add(upper, box(0.08 * k, 0.12 * k, 0.05 * k, DARK(), B.tw * 0.25, torsoY + B.th * 0.15, back - 0.04 * k), cyl(0.003, 0.003, 0.4 * k, METAL(), B.tw * 0.3, torsoY + B.th * 0.55, back - 0.05 * k, 4)); // vox pack and its whip aerial
-      add(head, hood(B.head * 1.08, mat('#3f4a34', { rough: 1, side: 'double' }))); // camo hood over the helmet
+      if (!L.refined) add(head, hood(B.head * 1.08, mat('#3f4a34', { rough: 1, side: 'double' }))); // camo hood over the helmet
       if (L.leader) add(head, cyl(0.004, 0.004, B.head * 2.4, METAL(), B.head * 0.8, B.head * 1.2, -B.head * 0.3, 4));
     },
 
@@ -680,10 +680,10 @@ export function teamDetails(h) {
       add(upper, ...[-1, 1].map((s) => box(0.01 * k, B.th * 0.9, 0.01, mat('#e8c040', { metal: 0.7 }), s * B.tw * 0.38, torsoY, front + 0.006)), ...[0, 1, 2].map((i) => sph(0.012 * k, glow(['#3af0ff', '#ff4a8a', '#e8c040'][i]), 0, torsoY + B.th * (0.3 - i * 0.2), front + 0.012, 6, 4))); // gilt edges and gem buttons
       for (let i = 0; i < 3; i++) add(upper, limb(V(B.tw * 0.4, c.hipY + 0.02, 0), V(B.tw * (0.6 + i * 0.1), c.hipY * (0.5 - i * 0.1), (i - 1) * 0.08 * k), 0.006, mat(['#e8c040', '#3af0ff', '#ff4a8a'][i]))); // ribbons
       if (/death jester/i.test(L.name)) {
-        add(head, sph(B.head * 0.85, BONE(), 0, 0, B.head * 0.35, 8, 6), ...[-1, 1].map((s) => sph(B.head * 0.2, mat('#111'), s * B.head * 0.3, B.head * 0.05, B.head * 1.08, 6, 4)));
+        if (!L.refined) add(head, sph(B.head * 0.85, BONE(), 0, 0, B.head * 0.35, 8, 6), ...[-1, 1].map((s) => sph(B.head * 0.2, mat('#111'), s * B.head * 0.3, B.head * 0.05, B.head * 1.08, 6, 4)));
         for (let i = 0; i < 6; i++) add(upper, box(0.015 * k, 0.07 * k, 0.015 * k, BONE(), (i - 2.5) * B.tw * 0.16, c.hipY - 0.02, back - 0.02)); // bone trophies
       }
-      if (/shadowseer/i.test(L.name)) add(head, hood(B.head * 1.1, mat('#2a2a3a', { rough: 1, side: 'double' })), box(B.head * 1.1, B.head * 0.9, B.head * 0.06, mat('#d8e8f0', { metal: 0.9, rough: 0.05 }), 0, -B.head * 0.05, B.head * 1.02)); // hood and mirror mask
+      if (/shadowseer/i.test(L.name) && !L.refined) add(head, hood(B.head * 1.1, mat('#2a2a3a', { rough: 1, side: 'double' })), box(B.head * 1.1, B.head * 0.9, B.head * 0.06, mat('#d8e8f0', { metal: 0.9, rough: 0.05 }), 0, -B.head * 0.05, B.head * 1.02)); // hood and mirror mask
       if (L.leader) add(head, limb(V(0, B.head * 1.0, -B.head * 0.2), V(B.head * 0.3, B.head * 2.4, -B.head * 1.2), B.head * 0.2, mat(L.trim), B.head * 0.05));
     },
 
@@ -727,8 +727,8 @@ export function teamDetails(h) {
       belt(c, LEATHER(), BRASS(), 4);
       for (let i = 0; i < 9; i++) { const a = (i / 8 - 0.5) * 2.8; add(upper, cone(0.02 * k, 0.06 * k, mat(i % 2 ? '#8a8c88' : '#6e706c', { rough: 1 }), Math.sin(a) * B.tw * 0.62, c.shY - 0.04 * k, Math.cos(a) * B.td * 0.62, 4).rotateX(Math.PI)); } // fur fringe on the pelt mantle
       for (let i = 0; i < 3; i++) add(upper, limb(V(B.tw * (0.1 + i * 0.08), c.hipY + 0.03, front * 0.95), V(B.tw * (0.1 + i * 0.08), c.hipY - 0.05 * k, front), 0.003, LEATHER()), cone(0.008 * k, 0.03 * k, BONE(), B.tw * (0.1 + i * 0.08), c.hipY - 0.07 * k, front, 4).rotateX(Math.PI)); // fang charms on the belt
-      if (L.leader) add(head, sph(B.head * 1.2, mat('#8a8c88', { rough: 1 }), 0, B.head * 0.4, -B.head * 0.2, 8, 6), box(B.head * 0.7, B.head * 0.5, B.head * 0.9, mat('#8a8c88', { rough: 1 }), 0, B.head * 0.6, B.head * 0.55), ...[-1, 1].map((s) => cone(B.head * 0.2, B.head * 0.5, mat('#8a8c88', { rough: 1 }), s * B.head * 0.55, B.head * 1.3, 0, 4))); // wolf-head pelt
-      if (/skjald/i.test(L.name)) add(head, hood(B.head * 1.05, mat('#6d8aa3', { rough: 0.6, side: 'double' })), sph(B.head * 0.15, glow('#6ac8ff'), 0, B.head * 0.6, B.head * 1.0, 6, 4));
+      if (L.leader && !L.refined) add(head, sph(B.head * 1.2, mat('#8a8c88', { rough: 1 }), 0, B.head * 0.4, -B.head * 0.2, 8, 6), box(B.head * 0.7, B.head * 0.5, B.head * 0.9, mat('#8a8c88', { rough: 1 }), 0, B.head * 0.6, B.head * 0.55), ...[-1, 1].map((s) => cone(B.head * 0.2, B.head * 0.5, mat('#8a8c88', { rough: 1 }), s * B.head * 0.55, B.head * 1.3, 0, 4))); // wolf-head pelt
+      if (/skjald/i.test(L.name) && !L.refined) add(head, hood(B.head * 1.05, mat('#6d8aa3', { rough: 0.6, side: 'double' })), sph(B.head * 0.15, glow('#6ac8ff'), 0, B.head * 0.6, B.head * 1.0, 6, 4));
       if (/trapmaster/i.test(L.name)) for (let i = 0; i < 2; i++) add(upper, cyl(0.05 * k, 0.05 * k, 0.025 * k, mat('#3a3c30', { metal: 0.5 }), (i - 0.5) * 0.12 * k, torsoY - 0.05, back - 0.04 * k, 10).rotateX(Math.PI / 2)); // mines
     },
 
@@ -739,7 +739,7 @@ export function teamDetails(h) {
       belt(c, mat('#2a2a2a'), GOLD(), 3);
       if (L.coat) { for (const s of [-1, 1]) add(upper, box(B.armR * 1.6, 0.014 * k, B.armR * 1.3, GOLD(), s * B.sx * 0.95, c.shY + B.armR * 0.95, 0), ...[0, 1, 2].map((i) => box(0.006, 0.03 * k, 0.006, GOLD(), s * B.sx * 0.95 + (i - 1) * 0.012 * k, c.shY + B.armR * 0.8, B.armR * 0.6))); // gilt epaulettes with fringes
         add(upper, cyl(B.head * 0.75, B.head * 0.85, B.head * 0.35, mat(L.main, { rough: 0.9 }), 0, c.shY + B.head * 0.1, 0.0, 16), cyl(B.head * 0.86, B.head * 0.86, 0.01 * k, GOLD(), 0, c.shY - B.head * 0.06, 0.0, 16)); } // high collar with a gilt edge
-      if (/sister of silence/i.test(L.name)) add(head, sph(B.head * 1.15, GOLD(), 0, B.head * 0.15, 0, 10, 8), box(B.head * 0.9, B.head * 0.25, B.head * 0.1, mat('#111'), 0, 0, B.head * 1.1), limb(V(0, B.head * 1.2, 0), V(0, -B.head * 1.0, -B.head * 1.8), B.head * 0.25, mat('#a82a24'), B.head * 0.08)); // gold helm with a red plume
+      if (/sister of silence/i.test(L.name) && !L.refined) add(head, sph(B.head * 1.15, GOLD(), 0, B.head * 0.15, 0, 10, 8), box(B.head * 0.9, B.head * 0.25, B.head * 0.1, mat('#111'), 0, 0, B.head * 1.1), limb(V(0, B.head * 1.2, 0), V(0, -B.head * 1.0, -B.head * 1.8), B.head * 0.25, mat('#a82a24'), B.head * 0.08)); // gold helm with a red plume
       if (/interrogator/i.test(L.name)) add(upper, mesh(new THREE.CylinderGeometry(B.tw * 0.55, B.tw * 0.85, B.th + c.hipY * 0.85, 10, 1, true, Math.PI * 0.6, Math.PI * 0.8), mat('#2a1a1a', { rough: 1, side: 'double' }), 0, c.hipY * 0.15 + (B.th + c.hipY * 0.85) / 2, back * 0.3));
       if (/mystic|hexorcist|enlightener/i.test(L.name)) add(head, sph(B.head * 0.15, glow(/mystic/i.test(L.name) ? '#d04aff' : '#ffd040'), 0, B.head * 0.45, B.head * 0.95, 6, 4));
       if (/penal/i.test(L.name)) add(head, mesh(new THREE.TorusGeometry(B.head * 1.0, B.head * 0.12, 4, 12), METAL(), 0, -B.head * 0.9, 0).rotateX(Math.PI / 2), sph(B.head * 0.12, glow('#ff3a2a'), B.head * 0.5, -B.head * 0.9, B.head * 0.8, 4, 3)); // explosive collar

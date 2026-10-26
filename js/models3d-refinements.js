@@ -1,3 +1,15 @@
+import { createXV26Sculpts } from './models3d-xv26.js';
+import { createFinalSculpts } from './models3d-final-sculpts.js';
+import { createAerialSculpts } from './models3d-aerial-sculpts.js';
+import { createPilgrimSculpts } from './models3d-pilgrim-sculpts.js';
+import { createRaiderSculpts } from './models3d-raider-sculpts.js';
+import { createVeteranSculpts } from './models3d-veteran-sculpts.js';
+import { createShrineSculpts } from './models3d-shrine-sculpts.js';
+import { createFrontierSculpts } from './models3d-frontier-sculpts.js';
+import { createDrakeSculpts } from './models3d-drakes.js';
+import { createRelicSculpts } from './models3d-relic-sculpts.js';
+import { createSpecialistSculpts } from './models3d-specialist-sculpts.js';
+import { createCultSculpts } from './models3d-cult-sculpts.js';
 // Optional sculpt pass. Original meshes, faction colours, silhouettes and physical bases stay available.
 // Profiles follow the operative's body, including allies, pets and machines within mixed rosters.
 import { createKommandoRefinements } from './models3d-kommandos.js';
@@ -8,6 +20,17 @@ export function createRefinements(h) {
   const kommandos=createKommandoRefinements(h);
   const teams=createTeamSculpts(h);
   const voids=createVoidTeamSculpts(h);
+  const cults=createCultSculpts(h);
+  const specialists=createSpecialistSculpts(h);
+  const relics=createRelicSculpts(h);
+  const drakes=createDrakeSculpts(h);
+  const frontier=createFrontierSculpts(h);
+  const shrines=createShrineSculpts(h);
+  const raiders=createRaiderSculpts(h),veterans=createVeteranSculpts(h);
+  const pilgrims=createPilgrimSculpts(h);
+  const aerials=createAerialSculpts(h);
+  const finals=createFinalSculpts(h);
+  const xv26=createXV26Sculpts(h);
   const profiles={
     marine:{leg:1.06,legR:1.17,tw:1.09,th:.89,td:1.12,head:1.12,sx:1.075,armR:1.12,wk:.864},
     guard:{leg:1.04,legR:1.08,tw:1.04,th:.96,head:1.02,wk:.90},
@@ -34,6 +57,12 @@ export function createRefinements(h) {
     kommandos.proportions(B,L);
     teams.proportions(B,L);
     voids.proportions(B,L);
+    cults.proportions(B,L);
+    specialists.proportions(B,L);
+    relics.proportions(B,L);
+    frontier.proportions(B,L);
+    shrines.proportions(B,L);
+    raiders.proportions(B,L);veterans.proportions(B,L);pilgrims.proportions(B,L);aerials.proportions(B,L);finals.proportions(B,L);
   }
   function body(c){
     const {L,B,k,upper,head,fig,hipY,torsoY,shY,M}=c;
@@ -41,6 +70,12 @@ export function createRefinements(h) {
     kommandos.body(c);
     teams.body(c);
     voids.body(c);
+    cults.body(c);
+    specialists.body(c);
+    relics.body(c);
+    frontier.body(c);
+    shrines.body(c);
+    raiders.body(c);veterans.body(c);pilgrims.body(c);aerials.body(c);finals.body(c);
     const front=B.td/2, r=B.head;
     const edge=mat(L.trim,{metal:.42,rough:.54}), shadow=mat('#24272c',{rough:.85});
     const plate=mat(L.main,{metal:.18,rough:.63});
@@ -57,7 +92,7 @@ export function createRefinements(h) {
         add(head,tbox(r*1.85,r*.20,r*.42,plate,0,r*.30,r*.72,.90));
         for(const s of [-1,1])add(head,tz(cyl(r*.22,r*.25,r*.22,edge,s*r*1.03,-r*.05,0)));
       }
-      if(L.gasmask&&L.team!=='deathKorps')for(const s of [-1,1]){
+      if(L.gasmask&&!['deathKorps','blooded'].includes(L.team))for(const s of [-1,1]){
         add(head,tz(cyl(r*.25,r*.25,r*.10,shadow,s*r*.40,-r*.10,r*1.0)));
         const optic=sph(r*.18,M.eye,s*r*.40,-r*.10,r*1.07);optic.scale.set(1,.55,.3);add(head,optic);
         add(head,tz(cyl(r*.24,r*.28,r*.15,edge,s*r*.73,-r*.48,r*.64)));
@@ -77,8 +112,10 @@ export function createRefinements(h) {
     }
     if(L.body==='eldar'){
       if(!L.mandrake){
+        if(!['bladesOfKhaine','handOfArchon','corsairVoidscarred','voidDancers'].includes(L.team)){
         add(head,tbox(r*.56,r*.9,r*.20,shadow,0,-r*.10,r*.98,.55));
         for(const s of [-1,1])add(head,box(r*.48,r*.11,r*.12,M.eye,s*r*.38,r*.13,r*.98).rotateZ(-s*.25));
+        }
         for(const s of [-1,1])add(upper,tbox(B.tw*.32,B.th*.52,.025*k,plate,s*B.tw*.22,torsoY,front+.008*k,.5));
       }else{
         for(const s of [-1,1])for(let i=0;i<3;i++)add(upper,box(.035*k,.009*k,.009*k,M.eye,s*B.tw*.25,torsoY+(.07-i*.045)*k,front+.012*k).rotateZ(s*.3));
@@ -122,6 +159,11 @@ export function createRefinements(h) {
     kommandos.finish(fig,L);
     teams.finish(fig,L);
     voids.finish(fig,L);
+    specialists.finish(fig,L);
+    relics.finish(fig,L);
+    frontier.finish(fig,L);
+    shrines.finish(fig,L);
+    raiders.finish(fig,L);pilgrims.finish(fig,L);aerials.finish(fig,L);finals.finish(fig,L);
     if(!L.refined||fig.userData.humanoid)return;
     const plate=mat(L.main,{metal:['drone','crawler','macrocyte','gadget'].includes(L.body)?.45:.08,rough:.58});
     const edge=mat(L.trim,{metal:.4,rough:.55}), dark=DARK(), bone=mat('#e4d8be',{rough:.75});
@@ -132,6 +174,7 @@ export function createRefinements(h) {
           for(let i=0;i<3;i++)add(fig,box(.07,.008,.008,dark,s*.21,.823,-.06+i*.045));
         }break;
       case 'beast':{
+        if(fig.userData.sculptKind==='drakolithe')break;
         const k=/wolf/i.test(L.name)?1.6:/drakolithe/i.test(L.name)?1.3:1;
         for(const s of [-1,1])add(fig,limb(V(s*.09*k,.44*k,.21*k),V(s*.12*k,.36*k,.07*k),.014*k,edge));
         for(let i=0;i<4;i++)add(fig,cone(.018*k,.06*k,plate,0,.49*k,.12*k-i*.09*k));
@@ -168,10 +211,11 @@ export function createRefinements(h) {
     };o.material=Array.isArray(o.material)?o.material.map(refine):refine(o.material);});
   }
   return {proportions,body,finish,
-    revision:L=>kommandos.active(L)?'kommandos-2':teams.revision(L)||voids.revision(L),
-    figure:voids.figure,
-    head:(...args)=>kommandos.head(...args)||teams.head(...args)||voids.head(...args),
-    hand:kommandos.hand,
-    weapon:(...args)=>{kommandos.weapon(...args);teams.weapon(...args);voids.weapon(...args);},
+    revision:L=>kommandos.active(L)?'kommandos-2':teams.revision(L)||voids.revision(L)||cults.revision(L)||specialists.revision(L)||relics.revision(L)||frontier.revision(L)||shrines.revision(L)||raiders.revision(L)||veterans.revision(L)||pilgrims.revision(L)||aerials.revision(L)||finals.revision(L),
+    mount:drakes.mount,
+    figure:(...args)=>xv26.figure(...args)||drakes.figure(...args)||voids.figure(...args),
+    head:(...args)=>kommandos.head(...args)||teams.head(...args)||voids.head(...args)||cults.head(...args)||specialists.head(...args)||relics.head(...args)||frontier.head(...args)||shrines.head(...args)||raiders.head(...args)||veterans.head(...args)||pilgrims.head(...args)||aerials.head(...args)||finals.head(...args),
+    hand:(...args)=>kommandos.hand(...args)||raiders.hand(...args),
+    weapon:(...args)=>{kommandos.weapon(...args);teams.weapon(...args);voids.weapon(...args);cults.weapon(...args);specialists.weapon(...args);relics.weapon(...args);frontier.weapon(...args);shrines.weapon(...args);raiders.weapon(...args);veterans.weapon(...args);pilgrims.weapon(...args);aerials.weapon(...args);finals.weapon(...args);},
   };
 }

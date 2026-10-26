@@ -1,10 +1,21 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v95';
+const CACHE = 'killteam-v109';
 const ASSETS = [
   'js/models3d-refinements.js',
   'js/models3d-kommandos.js',
   'js/models3d-team-sculpts.js',
   'js/models3d-void-sculpts.js',
+  'js/models3d-cult-sculpts.js',
+  'js/models3d-specialist-sculpts.js',
+  'js/models3d-relic-sculpts.js',
+  'js/models3d-drakes.js',
+  'js/models3d-frontier-sculpts.js',
+  'js/models3d-shrine-sculpts.js',
+  'js/models3d-raider-sculpts.js', 'js/models3d-veteran-sculpts.js',
+  'js/models3d-pilgrim-sculpts.js',
+  'js/models3d-aerial-sculpts.js',
+  'js/models3d-final-sculpts.js',
+  'js/models3d-xv26.js',
   'js/online.js', 'js/online-peer.js', 'js/online-board.js', 'online-board.html', 'css/online.css',
   'js/rules/battleclade.js', 'js/rules/blades.js', 'js/rules/blooded.js', 'js/rules/brood.js', 'js/rules/canoptek.js', 'js/rules/chaoscult.js', 'js/rules/exaction.js', 'js/rules/exodite.js', 'js/rules/fellgor.js', 'js/rules/gellerpox.js', 'js/rules/goremongers.js', 'js/rules/hearthkyn.js', 'js/rules/hierotek.js', 'js/rules/hunterclade.js', 'js/rules/inquisition.js', 'js/rules/insidiants.js', 'js/rules/kasrkin.js', 'js/rules/legionaries.js', 'js/rules/novitiates.js', 'js/rules/navy.js', 'js/rules/phobos.js', 'js/rules/starstriders.js', 'js/rules/warpcoven.js', 'js/rules/wyrmblade.js', 'js/rules/yaegirs.js',
   'js/battle3d.js',
