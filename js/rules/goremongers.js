@@ -23,7 +23,7 @@ export const SANGUAVITAE = {
   rejuvenate: { name: { zh: '再生', en: 'Rejuvenate' }, desc: { zh: '回復 D3+1 生命', en: 'Regain D3+1 wounds' } },
   rage: { name: { zh: '狂暴', en: 'Rage' }, desc: { zh: '這次啟動下一次近戰：近戰武器 Atk +1', en: 'Its next Fight this activation: +1 Atk on melee weapons' } },
   rake: { name: { zh: '撕扯', en: 'Rake' }, desc: { zh: '這次啟動下一次衝鋒移動完：對控制範圍內一名敵人造成 D3', en: 'Its next Charge this activation: D3 to an enemy in its control range when it finishes moving' } },
-  surge: { name: { zh: '湧動', en: 'Surge' }, desc: { zh: '這次啟動下一次衝鋒或移動：Move +1"', en: 'Its next Charge or Reposition this activation: +1" Move' } },
+  surge: { name: { zh: '湧動', en: 'Surge' }, desc: { zh: '這次啟動下一次衝鋒或轉移：Move +1"', en: 'Its next Charge or Reposition this activation: +1" Move' } },
 };
 /** The Sanguavitae this operative could use now (it's activating or counteracting): [{id, ok, why}]. */
 export function sangOptions(g, op) {

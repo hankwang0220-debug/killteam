@@ -900,7 +900,7 @@ export const TEAMS = [
       { id: 'stealthy', name: { zh: '隱匿', en: 'Stealthy' }, desc: { zh: '被射擊時若能保留掩護豁免，可多保留 1 顆，或把其中 1 顆當成暴擊豁免。', en: 'When shot, if it can retain cover saves: retain one more, or retain one as a critical success.' } },
       { id: 'mobile', name: { zh: '機動', en: 'Mobile' }, desc: { zh: '「撤退」少 1AP；在敵人控制範圍內也能「衝鋒」。', en: 'Fall Back costs 1 less AP; can Charge while within control range of an enemy.' } },
       { id: 'hardy', name: { zh: '頑強', en: 'Hardy' }, desc: { zh: '被射擊時，防禦骰 5+ 為暴擊成功。', en: 'When shot, defence dice results of 5+ are critical successes.' } },
-      { id: 'sharpshooter', name: { zh: '神射手', en: 'Sharpshooter' }, desc: { zh: '本次啟動未移動、衝鋒或撤退時，爆彈武器獲得「精準 1」與「嚴厲」。', en: 'If it hasn\'t Repositioned, Charged or Fallen Back this activation, its bolt weapons have Accurate 1 and Severe.' } },
+      { id: 'sharpshooter', name: { zh: '神射手', en: 'Sharpshooter' }, desc: { zh: '本次啟動未轉移、衝鋒或撤退時，爆彈武器獲得「精準 1」與「嚴厲」。', en: 'If it hasn\'t Repositioned, Charged or Fallen Back this activation, its bolt weapons have Accurate 1 and Severe.' } },
       { id: 'siege', name: { zh: '攻城專家', en: 'Siege Specialist' }, desc: { zh: '遠程武器獲得「飽和」。', en: 'Ranged weapons have Saturate.' } },
     ],
     defaultTactics: ['sharpshooter', 'hardy'],
@@ -1132,7 +1132,7 @@ export const TEAMS = [
     },
     ploys: [
       { id: 'prey', cp: 1, name: { zh: '獵物', en: 'Prey' },
-        desc: { zh: '本回合友方在本次啟動未移動、衝鋒或撤退時射擊，遠程武器獲得「平衡」與「嚴厲」（已有平衡則改為「無休」與「嚴厲」）。', en: 'This TP, a friendly operative shooting in an activation without Reposition, Charge or Fall Back has Balanced and Severe (Ceaseless and Severe if already Balanced).' } },
+        desc: { zh: '本回合友方在本次啟動未轉移、衝鋒或撤退時射擊，遠程武器獲得「平衡」與「嚴厲」（已有平衡則改為「無休」與「嚴厲」）。', en: 'This TP, a friendly operative shooting in an activation without Reposition, Charge or Fall Back has Balanced and Severe (Ceaseless and Severe if already Balanced).' } },
       { id: 'cutThroats', cp: 1, name: { zh: '割喉', en: 'Cut-throats' },
         desc: { zh: '本回合友方近戰武器 ATK +1（最多 5）。', en: 'This TP, friendly melee weapons get +1 Atk (max 5).' } },
       { id: 'bound', cp: 1, name: { zh: '飛躍', en: 'Bound' },

@@ -377,7 +377,7 @@ export function wsPounce(g, side, kind, path) {
   if (ok === false) return false;
   g.ws.used[side].pounce = true; w.wsPounceBlock = true; w.wsPounceTP = g.tp;
   changeApl(g, w, -1);
-  note(g, side, `撲擊：${opName(w, 'zh')} 免費${{ charge: '衝鋒', fallBack: '撤退', reposition: '移動' }[kind]}；到下次啟動結束 APL -1，不能衝鋒、撤退或移動`, `Pounce: ${opName(w, 'en')} makes a free ${kind}; until the end of its next activation -1 APL and no Charge, Fall Back or Reposition`);
+  note(g, side, `撲擊：${opName(w, 'zh')} 免費${{ charge: '衝鋒', fallBack: '撤退', reposition: '轉移' }[kind]}；到下次啟動結束 APL -1，不能衝鋒、撤退或轉移`, `Pounce: ${opName(w, 'en')} makes a free ${kind}; until the end of its next activation -1 APL and no Charge, Fall Back or Reposition`);
   return true;
 }
 

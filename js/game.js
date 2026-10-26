@@ -1610,7 +1610,7 @@ function attackAllowed(op, kind) {
 }
 
 export const ACTIONS = {
-  reposition: { ap: 1, name: { zh: '移動', en: 'Reposition' } },
+  reposition: { ap: 1, name: { zh: '轉移', en: 'Reposition' } },
   dash: { ap: 1, name: { zh: '衝刺', en: 'Dash' } },
   charge: { ap: 1, name: { zh: '衝鋒', en: 'Charge' } },
   fallBack: { ap: 2, name: { zh: '撤退', en: 'Fall Back' } },

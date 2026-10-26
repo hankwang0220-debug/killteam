@@ -8,7 +8,7 @@ import { dist } from '../geometry.js';
 export const SKILLS = {
   lightEmUp: { name: { zh: '點燃他們', en: 'Light \'Em Up' }, desc: { zh: '遠程武器「重創」。', en: 'Ranged weapons have Severe.' } },
   forCadia: { name: { zh: '為了卡迪亞！', en: 'For Cadia!' }, desc: { zh: '近戰武器 Atk +1（最多 4）；近戰時第一次打擊 +1 傷害。', en: 'Melee weapons +1 Atk (max 4); the first strike when fighting deals 1 more.' } },
-  strikeFast: { name: { zh: '快速打擊', en: 'Strike Fast' }, desc: { zh: '移動（Reposition）時 Move +1"。', en: '+1" Move when repositioning.' } },
+  strikeFast: { name: { zh: '快速打擊', en: 'Strike Fast' }, desc: { zh: '轉移（Reposition）時 Move +1"。', en: '+1" Move when repositioning.' } },
   iceInVeins: { name: { zh: '冷血', en: 'Ice In Your Veins' }, desc: { zh: '近戰、反擊或被射擊時，每次第一顆 3 以上的普通傷害 -1。', en: 'Fighting, retaliating or being shot: the first attack die inflicting 3+ Normal Dmg each sequence deals 1 less.' } },
 };
 /** Skill at Arms in effect for this operative (the team's, plus one from Tactical Command). */
