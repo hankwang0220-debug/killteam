@@ -1,4 +1,4 @@
-import { boardOf, ER, radius, tpl, hasPloy, inMatrix, living, visibility } from './game.js';
+import { boardOf, ER, radius, tpl, hasPloy, inMatrix, living, territoryOf, visibility } from './game.js';
 import { dist, distPointRect, distPointSegment, distSegmentRect, pathLength, segRect, truncatePath } from './geometry.js';
 import { accessPointsOf, accessCrossingCost, accessEdgeCost, wallAllowsControl } from './tombworld-access.js';
 
@@ -90,10 +90,22 @@ export function moveCtx(g, op, kind = 'reposition') {
   // (Grapnel Launcher, Scout Hunter: climbing up counts as 2", whatever the height.)
   // (Climbing Rigs, Hearthkyn equipment: climbing up counts as 2" or a drop is ignored — in this 2D model both come to the higher of 2" and the height.)
   const rigs = op.side < 2 && op.team === 'hearthkyn' && !!g.equip?.[op.side]?.includes('hkRigs');
-  const climbCost = (i) => { const h = climbHeight(cover[i]); if (op.acted?.xvJet) return 0; if (rigs) return Math.round(Math.max(2, h) * 10) / 10; return Math.round(((tpl(op).scGrapnel || tpl(op).grapple ? 2 : Math.max(2, h)) + Math.max(0, h - 2)) * 10) / 10; };
+  // Ladders (universal equipment): climbing the terrain a ladder leans against, with the ladder within control range (at the start of the climb), the climb up counts as 1".
+  const ladders = (g.markers || []).filter((m) => m.kind === 'ladder');
+  const ladderAt = (i, p) => !!p && ladders.some((m) => distPointRect(m, cover[i]) <= 0.6 && dist(m, p) - r <= 1 + EPS);
+  // Scout Terrain (Spectre Guide): once per activation, the first 2" of one climb up is ignored on terrain in your territory or within 3" of the Guide.
+  const guides = op.side < 2 && op.team === 'spectres' && !op.acted?.spScoutUsed ? g.ops.filter((o) => !o.dead && o.side === op.side && o.x > -50 && tpl(o).spGuide) : [];
+  const scouted = (i) => guides.length > 0 && (territoryOf(g, { x: cover[i].x + cover[i].w / 2, y: cover[i].y + cover[i].h / 2 }) === op.side || guides.some((o) => distPointRect(o, cover[i]) - radius(o) <= 3 + EPS));
+  const climbCost = (i, p, st) => {
+    const h = climbHeight(cover[i]); if (op.acted?.xvJet) return 0;
+    let up = ladderAt(i, p) ? 1 : rigs ? Math.max(2, h) : tpl(op).scGrapnel || tpl(op).grapple ? 2 : Math.max(2, h);
+    const drop = rigs ? 0 : Math.max(0, h - 2);
+    if (st && !st.scout && scouted(i)) { st.scout = true; up = Math.max(0, up - 2); }
+    return Math.round((up + drop) * 10) / 10;
+  };
   /** Follow a polyline: the climbing cost of the terrain it gets onto, and whether every landing after a climb is legal. */
   function climbWalk(pts) {
-    let cost = 0, ok = true, prev = coverAt(pts[0]);
+    let cost = 0, ok = true, prev = coverAt(pts[0]); const st = {};
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
       // Only the pieces this segment's base sweeps over matter (plus any it starts on).
@@ -104,12 +116,12 @@ export function moveCtx(g, op, kind = 'reposition') {
       for (let k = 1; k <= n; k++) {
         const p = { x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n };
         const cur = near.filter((t) => distPointRect(p, cover[t]) < r - EPS && !accessible(t, p) && !accessOverlap(cover[t],p));
-        for (const t of cur) if (!prev.includes(t)) cost += climbCost(t);
+        for (const t of cur) if (!prev.includes(t)) cost += climbCost(t, pts[i - 1], st);
         if (prev.length && !cur.length && inEnemyER(p)) ok = false;
         prev = cur;
       }
     }
-    return { cost: Math.round(cost * 10) / 10, ok };
+    return { cost: Math.round(cost * 10) / 10, ok, scout: !!st.scout };
   }
   function segFree(a, b) {
     const walls = hardWalls.filter(t => distSegmentRect(a,b,t) < r-EPS);
@@ -171,7 +183,8 @@ export function moveCtx(g, op, kind = 'reposition') {
   }
   // pass: a spot a moving base can go through (over terrain by climbing, through friendly operatives), as opposed to free (where it can stop).
   const pass = (p) => !(p.x < r || p.y < r || p.x > boardOf(g).w - r || p.y > boardOf(g).h - r) && !hardWalls.some(t => distPointRect(p,t) < r-EPS && !accessOverlap(t,p)) && !others.some((o) => blocker(o) && dist(p, o) < r + o.r - EPS);
-  return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, crossingCost, crossingEdgeCost, climbs, climbRaw, coverAt, climbCost, noClimb };
+  const scoutUsed = (pts) => !noClimb && climbWalk(pts).scout;
+  return { board: boardOf(g), op, r, free, pass, placement, segFree, inEnemyER, extra, crossingCost, crossingEdgeCost, climbs, climbRaw, coverAt, climbCost, scoutUsed, noClimb };
 }
 
 /** Shorten a path to maxLen, backing off until the end point is a legal place to stand. */

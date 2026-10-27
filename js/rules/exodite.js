@@ -166,6 +166,16 @@ export function edPhantasm(g) {
   for (const op of g.ops.filter((o) => !o.dead && o.x > -50 && hasUp(o, 'phantasm') && !engagedEnemies(g, o).length)) {
     const e = g.ops.filter((x) => !x.dead && x.side !== op.side && x.side < 2 && x.x > -50).sort((a, b) => dist(a, op) - dist(b, op))[0];
     if (!e) continue;
+    // A free Sprint of up to 3" (SPEED unchanged) when it brings it closer to an objective and out of enemy control range; otherwise a Turn.
+    const obj = (g.objectives || []).slice().sort((a, b) => dist(a, op) - dist(b, op))[0];
+    if (obj && dist(obj, op) > 1.5) {
+      const keep = { speed: op.speed, acted: op.acted, movedTP: op.movedTP }, ang = Math.atan2(obj.y - op.y, obj.x - op.x);
+      op.acted = {}; op.movedTP = 0;
+      let to = null;
+      for (const d of [3, 2, 1]) { const p = { x: op.x + Math.cos(ang) * d, y: op.y + Math.sin(ang) * d }; const c = sprintCheck(g, op, p); if (c.ok && !c.back && !engagedEnemies(g, { ...op, ...p }).length) { to = p; break; } }
+      if (to && doSprint(g, op, to)) { op.speed = keep.speed; op.acted = keep.acted; op.movedTP = keep.movedTP; log(g, { zh: `${opName(op, 'zh')} 難以捉摸的幻影：免費疾馳（速度不變）`, en: `${opName(op, 'en')} Elusive Phantasm: a free Sprint (SPEED unchanged)` }, `side${op.side}`); continue; }
+      Object.assign(op, keep);
+    }
     const want = normAng(Math.atan2(e.y - op.y, e.x - op.x) - (op.facing || 0));
     op.facing = normAng((op.facing || 0) + Math.max(-DEG45, Math.min(DEG45, want)));
     log(g, { zh: `${opName(op, 'zh')} 難以捉摸的幻影：免費轉向`, en: `${opName(op, 'en')} Elusive Phantasm: a free Turn` }, `side${op.side}`);

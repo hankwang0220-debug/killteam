@@ -58,7 +58,7 @@ import { archonReroll, archonFightReroll, archonAutoReroll, skipArchonActivation
 import { TEAMS, TEAM_MAP, RULE_LABELS, IA_GROUPS } from './data/teams.js';
 import { L, bi, tx, getLang, setLang } from './i18n.js';
 import {
-  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, LG_MARKS, midMoveHatches, hatchOpenView, buyPloy, deployOk, doMove, endActivation,
+  ACTIONS, activate, activeOp, seekerOptions, useSeeker, seekerMoveCheck, canPlace, placeOp, placeEquipment, equipmentPlacement, findEquipmentPlacement, autoPlaceEquipment, autoDeployStep, finishDeployStep, availableActions, LG_MARKS, midMoveHatches, midMoveBreach, hatchOpenView, buyPloy, deployOk, doMove, endActivation,
   engagedEnemies, getOp, isInjured, killGrade, killOpVP, living, moveAllowance, moveStat, newGame, opName, makeTerrain, OBJECTIVES, DEPLOY,
   TARGET_ACTIONS, doTargetAction, aplNow, mlLevel,
   counterCandidates, passCounter, canSwitchActive, deactivate, endFight, fightApply, fightAutoChoice, fightChooser, fightOp, fightOptions, fightWeapon, fightFlow,
@@ -1345,7 +1345,7 @@ function deployPanel() {
   }
   if (g.eqDeploy && !g.eqDeploy.done) {
     const d = g.eqDeploy, e = d.queues[d.turn][0], kind = e.item.kind;
-    const name = e.item.portable ? L('可攜式路障','Portable barricade') : {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache'),goryTotem:L('血腥圖騰','Gory Totem'),bloodyCadaver:L('血屍','Bloody Cadaver'),tripwire:L('絆線','Tripwire')}[kind] || kind;
+    const name = e.item.portable ? L('可攜式路障','Portable barricade') : {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache'),goryTotem:L('血腥圖騰','Gory Totem'),bloodyCadaver:L('血屍','Bloody Cadaver'),ladder:L('梯子（靠在至少 2" 高的地形旁）','Ladder (against terrain 2" tall or more)'),tripwire:L('絆線','Tripwire')}[kind] || kind;
     const valid = ui.eqPoint && equipmentPlacement(g, ui.eqPoint, ui.eqAngle || 0);
     return `<section class="card"><h2>${L('通用裝備部署', 'Equipment deployment')}</h2><h3>${esc(bi(team(g,d.turn).name))} · ${name}</h3>
       <p><b>${L('正在部署：','Deploying: ')}${name}</b></p>
@@ -2058,13 +2058,16 @@ function modeView(op) {
     // Waypoints: the current destination can be pinned as a corner, and the route goes on from there.
     const wps = m.wps || [];
     const canPin = !!(p && m.dest && !p.unreachable && !p.breach && (p.exactLen ?? p.len) < max - 0.05);
-    const anchorRow = m.anchor && !wps.length && !m.hatch ? `<div class="row"><button data-act="anchorreset">⊙ ${L('出發點改回中心', 'Start from the centre')}</button></div>` : '';
+    const anchorRow = m.anchor && !wps.length && !m.hatch && !m.breach ? `<div class="row"><button data-act="anchorreset">⊙ ${L('出發點改回中心', 'Start from the centre')}</button></div>` : '';
     const wpRow = ['mdPass', 'rtSlingshot', 'kmGrapple', 'rvBurrow', 'aqLand', 'vsSkytorch'].includes(m.action) ? '' : `<div class="row"><button data-act="addwp" ${canPin ? '' : 'disabled'}>📍 ${L('設為折點', 'Set waypoint')}</button>${wps.length || m.hatch ? `<button data-act="popwp">↶ ${m.hatch ? L('取消途中開門', 'Undo the hatchway') : L(`移除折點（${wps.length}）`, `Remove waypoint (${wps.length})`)}</button>` : ''}</div>`;
     // Operate Hatch during the move (Tomb World): from the last waypoint, or where the move starts.
-    const hatches = m.hatch ? [] : midMoveHatches(g, op, m.action, wps.at(-1) || op);
+    // Breach during the move (Breacha Boy, 1 less AP): from the last waypoint, or where the move starts.
+    const breachRow = m.breach ? `<p class="ok">💥 ${L('途中破門（0AP），之後繼續移動', 'Breaches on the way (0AP), then carries on')}</p>`
+      : !m.hatch && midMoveBreach(g, op, m.action, wps.at(-1) || op) ? `<div class="row"><button data-act="midbreach">💥 ${L(`${wps.length ? '在折點' : '先'}破門（0AP）`, `Breach ${wps.length ? 'at the waypoint' : 'first'} (0AP)`)}</button></div>` : '';
+    const hatches = m.hatch || m.breach ? [] : midMoveHatches(g, op, m.action, wps.at(-1) || op);
     const hatchRow = m.hatch ? `<p class="ok">🚪 ${L(`途中開門（另花 ${m.hatch.ap}AP），之後繼續移動`, `Opens the hatchway on the way (+${m.hatch.ap}AP), then carries on`)}</p>`
       : hatches.length ? `<div class="row">${hatches.map((h) => `<button data-act="midhatch" data-id="${h.id}">🚪 ${L(`${wps.length ? '在折點' : '先'}${tx(h.name)}（+${h.ap}AP）`, `${tx(h.name)} ${wps.length ? 'at the waypoint' : 'first'} (+${h.ap}AP)`)}</button>`).join('')}</div>` : '';
-    return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${anchorRow}${wpRow}${hatchRow}
+    return `<div class="mode"><h3>${esc(tx(ACTIONS[m.action].name))}</h3><p class="hint">${info}</p>${status}${anchorRow}${wpRow}${hatchRow}${breachRow}
       <div class="row">${cancel}<button class="primary" data-act="confirmmove" ${p?.ok ? '' : 'disabled'}>${L('確認移動', 'Confirm')}</button></div></div>`;
   }
   if ((m.kind === 'shoot' || m.kind === 'fight') && !m.weapon) {
@@ -2235,7 +2238,8 @@ function datacard(op, extra = '') {
   if (op.energised === g.tp) flags.push(`<span class="flag">${L('充能', 'Energised')}</span>`);
   if (op.longSightOn) flags.push(`<span class="flag">${L('遠視', 'Long-sight')}</span>`);
   if (op.optics) flags.push(`<span class="flag mk">${L('光學瞄準', 'Optics')}</span>`);
-  if (op.dwGuard) flags.push(`<span class="flag mk">${L('警戒：自動攔截', 'On guard: automatic interruption')}</span>`);
+  if (op.dwGuard) flags.push(`<span class="flag mk">${L(isAI(op.side) ? '警戒：敵人行動後會打斷' : '警戒：敵人行動後可選擇打斷', isAI(op.side) ? 'On guard: interrupts after an enemy action' : 'On guard: you may interrupt after an enemy action')}</span>`);
+  if (op.noCounterTP === g.tp) flags.push(`<span class="flag">${L('本回合不能反應', 'Cannot counteract this TP')}</span>`);
   if (op.acted?.dwAmmoPick) flags.push(`<span class="flag mk">${L('已選特殊彈藥', 'Special ammo selected')}：${esc(tx(ACTIONS[`dwAmmo_${op.acted.dwAmmoPick}`].name))}</span>`);
   if (op.acted?.dwAuspex) flags.push(`<span class="flag mk">${L('進階鳥卜儀掃描', 'Advanced Auspex Scan')}</span>`);
   if (op.ml) flags.push(`<span class="flag mk">${L(`標記光 ×${op.ml}`, `Markerlight ×${op.ml}`)}</span>`);
@@ -3077,7 +3081,7 @@ function onBoardClick(evt) {
     if (m.kind === 'move') {
       // A move can start from any point of the base: a tap on the base picks that point (the centre until then),
       // and later taps place that point — the whole base moves the same distance.
-      if (BASE_MOVES.includes(m.action) && !m.wps?.length && !m.hatch && Math.hypot(p.x - op.x, p.y - op.y) <= radius(op)) {
+      if (BASE_MOVES.includes(m.action) && !m.wps?.length && !m.hatch && !m.breach && Math.hypot(p.x - op.x, p.y - op.y) <= radius(op)) {
         m.anchor = { x: p.x - op.x, y: p.y - op.y }; m.dest = null; ui.path = null;
         return render();
       }
@@ -3151,7 +3155,7 @@ function moveLeg(ctx, from, to) {
 /** The route through the player's waypoints (ui.mode.wps), then on to p (or ending at the last waypoint). */
 // With a hatchway opened part-way (ui.mode.hatch, at waypoint `at`; -1 = the start), the legs after it use `after` (the hatchway open).
 function routeThrough(ctx, op, p, after = ctx) {
-  const stops = [...(ui.mode?.wps || []), ...(p ? [p] : [])], h = ui.mode?.hatch;
+  const stops = [...(ui.mode?.wps || []), ...(p ? [p] : [])], h = ui.mode?.hatch || ui.mode?.breach;
   let pts = [{ x: op.x, y: op.y }], len = 0, at = h?.at === -1 ? 0 : null;
   for (const [i, s] of stops.entries()) {
     const leg = moveLeg(h && i > h.at ? after : ctx, pts[pts.length - 1], s);
@@ -3159,9 +3163,22 @@ function routeThrough(ctx, op, p, after = ctx) {
     pts = [...pts, ...leg.pts.slice(1)]; len += leg.len;
     if (h && i === h.at) at = pts.length - 1;
   }
-  return { pts, len, ...(at != null && { hatch: { id: h.id, at } }) };
+  return { pts, len, ...(at != null && (ui.mode.hatch ? { hatch: { id: h.id, at } } : { breach: { at } })) };
 }
-const routeCtxs = (op, action) => { const ctx = moveCtx(g, op, action), h = ui.mode?.hatch; return [ctx, h ? moveCtx(hatchOpenView(g, h.id), op, action) : ctx]; };
+/** The game as it will be once the hatchway opens / the Breach marker goes down part-way: the rest of the route is planned on it. */
+function midView(op) {
+  const m = ui.mode;
+  if (m?.hatch) return hatchOpenView(g, m.hatch.id);
+  if (m?.breach) {
+    if (!m.breachG) {
+      const c = JSON.parse(JSON.stringify({ ...g, replay: null })), o = getOp(c, op.uid), p = m.breach.at >= 0 ? m.wps[m.breach.at] : op;
+      o.x = p.x; o.y = p.y; o.acted.kmMidBreach = true; doSelfAction(c, o, 'kmBreach'); m.breachG = c;
+    }
+    return m.breachG;
+  }
+  return g;
+}
+const routeCtxs = (op, action) => { const ctx = moveCtx(g, op, action), v = midView(op); return [ctx, v !== g ? moveCtx(v, op, action) : ctx]; };
 
 function previewMove(op, action, p) {
   const ctx = moveCtx(g, op, action);
@@ -3223,7 +3240,7 @@ function previewMove(op, action, p) {
     ui.path = { pts: [{ x: op.x, y: op.y }, p], len, ok: !why, why, r, breach: true };
     return render();
   }
-  const octx = ui.mode?.hatch ? moveCtx(hatchOpenView(g, ui.mode.hatch.id), op, action) : ctx;
+  const octx = ui.mode?.hatch || ui.mode?.breach ? moveCtx(midView(op), op, action) : ctx;
   const full = routeThrough(ctx, op, p, octx);
   if (!full) {
     const from = ui.mode?.wps?.at(-1) || { x: op.x, y: op.y };
@@ -3235,12 +3252,13 @@ function previewMove(op, action, p) {
   // Too far: stop at the furthest legal point along the route.
   const endOk = action === 'charge' ? ctx.inEnemyER : (q) => !ctx.inEnemyER(q);
   const snapped = wholeInchPath(octx, full, max, endOk);
-  const path = snapped ? { ...snapped, ...(full.hatch && { hatch: full.hatch }) } : { ...full, len: Math.ceil(full.len - 1e-6) };
+  const path = snapped ? { ...snapped, ...(full.hatch && { hatch: full.hatch }), ...(full.breach && { breach: full.breach }) } : { ...full, len: Math.ceil(full.len - 1e-6) };
   const end = path.pts[path.pts.length - 1];
   let why = null;
   if (path.len > max + 0.01) why = L(`距離 ${path.len}" 超過 ${max}"`, `${path.len}" exceeds ${max}"`);
   else if (!snapped) why = L('沒有符合距離與放置條件的落點，請重新選擇', 'No legal endpoint within the movement allowance; choose another location');
   else if (full.hatch && snapped.pts.length <= full.hatch.at) why = L('移動距離不夠走到開門的位置', 'Not enough movement to reach the hatchway');
+  else if (full.breach && snapped.pts.length <= full.breach.at) why = L('移動距離不夠走到破門的位置', 'Not enough movement to reach the breach point');
   else if (action === 'charge' && !ctx.inEnemyER(end)) why = L(`衝鋒必須結束於敵人 1" 內（需要 ${Math.ceil(full.len)}"）`, `Charge must end within 1" of an enemy (needs ${Math.ceil(full.len)}")`);
   else if (action === 'fallBack' && ctx.inEnemyER(end)) why = L('撤退必須離開交戰範圍', 'Fall Back must end outside engagement range');
   else if (action === 'charge' && op.order === 'conceal' && isMandrake(op) && !withinShadow(g, op) && !withinShadow(g, { ...op, ...end })) why = L('隱蔽衝鋒起點或終點必須在暗影', 'Concealed Charge must start or end in shadow');
@@ -3739,7 +3757,7 @@ function handle(act, d) {
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
       else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate' || d.id.startsWith('wc') || d.id.startsWith('wb') || d.id.startsWith('fg') || d.id === 'exRvr' || d.id === 'exHandler' || d.id === 'hcShroud' || d.id === 'hcDespair') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
-      else if (['pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (['guard', 'phGuard', 'pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }
       ui.path = null;
@@ -3773,12 +3791,22 @@ function handle(act, d) {
     }
     case 'popwp': {
       const m = ui.mode;
-      if (m?.kind !== 'move' || !m.wps?.length && !m.hatch) return render();
+      if (m?.kind !== 'move' || !m.wps?.length && !m.hatch && !m.breach) return render();
       if (m.hatch && m.hatch.at >= (m.wps?.length || 0) - 1) delete m.hatch; // (the hatchway goes first, then the waypoint it was opened at)
+      else if (m.breach && m.breach.at >= (m.wps?.length || 0) - 1) { delete m.breach; delete m.breachG; } // (likewise the Breach)
       else m.wps = m.wps.slice(0, -1);
       m.dest = null;
       const [ctx, octx] = routeCtxs(op, m.action);
-      ui.path = m.wps.length || m.hatch ? { ...routeThrough(ctx, op, null, octx), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') } : null;
+      ui.path = m.wps.length || m.hatch || m.breach ?{ ...routeThrough(ctx, op, null, octx), ok: false, r: radius(op), why: L('再點下一段的位置', 'Tap where the next leg goes') } : null;
+      return render();
+    }
+    case 'midbreach': {
+      // Breach part-way through a Charge or Reposition (Breacha Boy, 1 less AP): at the last waypoint (or where the move starts).
+      const m = ui.mode, at = (m?.wps?.length || 0) - 1, p = at >= 0 ? m.wps[at] : op;
+      if (m?.kind !== 'move' || m.hatch || m.breach || !midMoveBreach(g, op, m.action, p)) return render();
+      m.breach = { at }; m.dest = null;
+      const [ctx, octx] = routeCtxs(op, m.action);
+      ui.path = { ...routeThrough(ctx, op, null, octx), ok: false, r: radius(op), why: L('再點破口另一邊要走到的位置', 'Tap where to go through the breach') };
       return render();
     }
     case 'midhatch': {

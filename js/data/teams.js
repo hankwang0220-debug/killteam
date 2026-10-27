@@ -496,7 +496,7 @@ const plasmaPistolFGs = W('plasmaPistolFGs', '電漿手槍（標準）', 'Plasma
 const plasmaPistolFGx = W('plasmaPistolFGx', '電漿手槍（超載）', 'Plasma pistol (supercharge)', 'ranged', 4, 4, 4, 5, { range: 8, hot: true, lethal: 5, piercing: 1 }, 'plasmaPistolFG');
 const FG_PICKS = ['deathknell', 'fluxbray', 'gnarlscar', 'gorehorn', 'herdgoad', 'mangler', 'shaman', 'toxhorn', 'vandal', 'fgWarriorB', 'fgWarriorC'];
 const KS_PICKS = ['ksMedic', 'ksDemo', 'ksFlamer', 'ksGL', 'ksVolley', 'ksMelta', 'ksPlasma', 'ksRecon', 'ksSharpshooter', 'ksVox', 'ksTrooper'];
-const LG_PICKS = ['lgAnointed', 'lgBalefire', 'lgButcher', 'lgGunner', 'lgHeavy', 'lgIcon', 'lgShrivetalon', 'lgWarrior'];
+const LG_PICKS = ['lgAnointed', 'lgBalefire', 'lgButcher', 'lgGunner', 'lgHeavy', 'lgIcon', 'lgShrivetalon', 'lgWarrior', 'lgWarrior2'];
 const NV_PICKS = ['nvCondemnor', 'nvDialogus', 'nvDuellist', 'nvExactor', 'nvHospitaller', 'nvPenitent', 'nvPreceptor', 'nvPronatus', 'nvPurgatus', 'nvReliquarius', 'nvMilitantB', 'nvMilitantG'];
 const BC_PICKS = ['bcProxy', 'bcBreacher', 'bcMedic', 'bcGunBolter', 'bcGunArc', 'bcMelta', 'bcIgniter', 'bcPhosphor'];
 // Vicious Blows: Ceaseless when fighting (not when retaliating).
@@ -1965,6 +1965,7 @@ export const TEAMS = [
       op('lgGunner', '槍手', 'Legionary Gunner', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'tzeentch', loadouts: lgGunnerLoadouts }, lgGunnerLoadouts.plasma, 0),
       op('lgIcon', '聖像旗手', 'Legionary Icon Bearer', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'undivided', iconBearer: true, favouredGods: true, loadouts: lgWarriorLoadouts }, lgWarriorLoadouts.boltgun, 0),
       op('lgWarrior', '戰士', 'Legionary Warrior', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'undivided', infernalPact: true, loadouts: lgWarriorLoadouts }, lgWarriorLoadouts.boltgun, 0),
+      op('lgWarrior2', '戰士（另一套武器）', 'Legionary Warrior (second loadout)', { apl: 3, move: 6, save: 3, wounds: 14, base: 32, mark: 'undivided', infernalPact: true, loadouts: lgWarriorLoadouts }, lgWarriorLoadouts.chain, 0), // (so two Warriors can carry different weapons)
     ],
   },
   {

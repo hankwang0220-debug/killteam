@@ -75,13 +75,20 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
   assert(can(g, w, 'rvBurrow'));
   G.doSelfAction(g, w, 'rvBurrow');
   assert(w.underground && w.reserve && w.x < -50, 'underground');
-  assert.equal(w.ap, 2, 'costs 1AP');
+  // Burrow only once per activation: back up only in a later activation; with no Toxic Lunge target, the activation has nothing left.
   assert.deepEqual(G.availableActions(g, w).map((a) => a.id).sort(), ['rvBurrow', 'rvLunge'], 'underground: Burrow and Toxic Lunge only');
+  assert(!can(g, w, 'rvBurrow'), 'not a second Burrow this activation');
+  assert(!R.rvDoEmerge(g, w, { x: 6, y: 4 }), 'it cannot come back up at once');
+  assert.equal(w.ap, 0, 'nothing more it can do');
+  G.endActivation(g);
+  w.ready = true; g.turn = 0; G.activate(g, w);
+  assert.equal(w.ap, 3);
+  assert(can(g, w, 'rvBurrow'));
   assert(!R.rvEmergeCheck(g, w, { x: 4, y: 12 }).ok, 'must be on the tunnel');
   assert(R.rvDoEmerge(g, w, { x: 6, y: 4 }));
   assert(!w.underground && w.rvSlow && w.x === 6);
   assert.equal(G.moveStat(g, w), 5, 'Move -2"');
-  assert.equal(w.ap, 1);
+  assert.equal(w.ap, 2, "coming up costs 1AP");
   G.endActivation(g);
   assert(!w.rvSlow, 'Move is back to normal');
   // carrying a marker, or off the tunnel: no Burrow
@@ -93,6 +100,12 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
   place(p, 4, 4); p.ready = false; p.counteracted = false; p.order = 'engage'; p.counter = true; p.ap = 1; p.acted = {};
   g.active = p.uid; g.counter = true;
   assert.equal(G.actionCost(g, p, 'rvBurrow'), 0, 'a counteracting RAVENER can Burrow for free');
+  // Underground, counteracting: the free Burrow brings it up and it still has its 1AP action — but not a second Burrow.
+  p.underground = true; p.reserve = true; p.x = -99; p.y = -99;
+  assert(R.rvDoEmerge(g, p, { x: 6, y: 4 }));
+  assert.equal(p.ap, 1, 'the free Burrow costs nothing');
+  assert(!can(g, p, 'rvBurrow'), 'no second Burrow');
+  assert(can(g, p, 'reposition'));
 }
 
 // Predatory Instincts: two Fights per activation, and any order can counteract.

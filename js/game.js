@@ -42,7 +42,7 @@ import { xvChoices, isXV, xvSetup, xvStealth, xvFallBackCheap, xvRules, xvShootS
 import { isVS, vsSetup, vsReady, vsTargetOk, vsShootStart, vsReroll, vsWeapons, vsRules, vsNoPierce, vsCamo, vsHidden, vsAgility, vsExo, vsVenom, vsShootEnd, vsActivate, vsMoved, vsChargeOk, vsGate, vsMissionSpend, vsCommuneFree, vsActions, vsSelf, registerVespidActions } from './vespids.js';
 import { isVD, vdSetup, vdFill, vdActivate, vdEnd, vdRules, vdShootStart, vdShootEnd, vdPanoply, vdDefence, vdElusiveHidden, vdRoll, vdDomino, vdJest, vdCurtain, vdDeath, vdLuckFree, vdLuckUsed, vdLuckReroll, vdActions, vdFogged, registerVoidDancerActions } from './voiddancers.js';
 import { aqChoices, isAQ, aqSetup, aqReady, aqTPEnd, aqActivate, aqEnd, aqActions, aqSelf, aqWeapons, aqRules, aqDefence, aqDetectedBlock, aqStimms, aqControl, aqPloyBought, aqVetFree, aqVetUsed, aqVetReroll, aqVetRerollUsed, aqTrack, aqAfterShoot, aqDynamic, aqObscure, aqPlaceAuto, aqOverseerOk, aqUseOverseer, registerAquilonActions } from './aquilons.js';
-import { spChoices, isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
+import { spChoices, spFieldcraftPick, isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
 import { rvChoices, rvSensesOk, rvUseSenses, isRV, rvSetup, rvStart, rvActivate, rvEnd, rvActions, rvSelf, rvRules, rvShot, rvDefence, rvNoReroll, rvCrestExtra, rvCrestControl, rvLurkCover, rvChroma, rvCarapace, rvCrush, rvAcidBlood, rvHorror, rvDeath, rvPloyBought, rvAmbush, rvPoisonHit, rvPlaceAuto, rvEndBattle, rvFreeBurrow, registerRavenerActions } from './raveners.js';
 import { dkMoveChoices, dkChoices, dkSetup, dkFreeHas, dkAdaptiveFree, dkBeadsOn, dkBeadsTarget, dkLeadership, dkLifeShame, dkVeteranActivate, dkDeath, dkPloyBought, dkGasApl, dkReady, dkWeapons, dkActions, dkSelf, registerDeathKorpsActions, hasOrder } from './deathkorps.js';
 import { kfSetup, kfActions, kfSelf, kfActivate, kfQuickDraw, kfShootStart, kfShootEnd, kfRules, kfGatherFree, registerKinbandActions } from './kinband.js';
@@ -57,7 +57,7 @@ import { ncChoices, ncReturnBought, isNC, ncSetup, ncReady, ncTPEnd, ncPortent, 
 import { isWK, wkSetup, wkActionStart, wkRoll, wkKompetitive, wkActivate, shokked, wkMove, wkSaveBonus, wkReckless, wkRules, wkGlyphFree, wkPloyBought, wkReady, wkBoom, wkDetonate, wkSmash, wkPulsaShot, wkActions, wkSelf, registerWreckaActions } from './wrecka.js';
 import { isMurderwing, mwSetup, mwStrategy, mwActivation, mwActionStart, mwBoon, mwRules, mwDelay, mwFallBack, mwMoved, mwActions, mwSelf, mwHonour, registerMurderwingActions } from './murderwing.js';
 import { isMandrake, withinShadow, mdSetup, mdReady, mdStrategy, mdActivate, mdProjected, mdRules, mdRangedBonus, mdWeapons, mdShot, mdKill, mdDeath, mdFeast, mdActions, mdSelfAction, mdFallBack, mdInterrupt, mdEnd, registerMandrakeActions } from './mandrakes.js';
-import { isDeathwatch, dwSetup, dwCommandFree, dwConsumeCommand, dwSecondShotExtra, dwReduceDamage, dwRules, dwDefence, dwAuspexOn, dwTriangulation, dwActivate, dwBeforeActivation, dwApplyAmmo, dwAmmoWeapon, dwActions, dwSelfAction, dwMissionDone, dwDigital, dwAfterAction, dwBlocked, dwStrategy, registerDwActions } from './deathwatch.js';
+import { isDeathwatch, dwSetup, dwCommandFree, dwConsumeCommand, dwSecondShotExtra, dwReduceDamage, dwRules, dwDefence, dwAuspexOn, dwTriangulation, dwActivate, dwBeforeActivation, dwApplyAmmo, dwAmmoWeapon, dwActions, dwSelfAction, dwMissionDone, dwDigital, dwAfterAction, dwBlocked, dwStrategy, registerDwActions, guardPick, guardPassed } from './deathwatch.js';
 import { ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT } from './data/eldar.js';
 import { isCorsair, setupCorsair, corsairActivate, corsairCost, corsairSpend, corsairRules, corsairDefence, corsairStrategy, corsairShield, corsairEquip, registerCorsairActions, corsairPlunder, corsairAfterAction, slicingAttack } from './corsair.js';
 import { isArchon, setupArchon, archonWeapons, archonReady, archonActivate, archonRules, archonDefence, archonBeforeAttack, archonAfterAction, painSnapshot, archonDeath, stingerBurst, chainSnare, painRerollValues, painReroll, aiPain, gainPain } from './archon.js';
@@ -67,11 +67,11 @@ import { ADDITIONAL_EQUIPMENT, ADDITIONAL_EQUIPMENT_ITEMS } from './data/faction
 import { MISSIONS, MISSION_ACTIONS, TAC_OPS, npoTargetFor, tacOnKill, tacOnTPEnd, tacOnBattleEnd, tacOnStrategyEnd, scoutTargets } from './missions.js';
 import { dist, distPointRect, distPointSegment, segRect, pathLength, truncatePath, rectCorners, rectGap as rotatedRectGap } from './geometry.js';
 import { flatSight } from './sight.js';
-import { moveCtx, findPath, wholeInchPath } from './path.js'; // (Exodite Sprint, Goremonger Hunt for Blood; path.js imports this module too — only used at run time)
+import { climbHeight, moveCtx, findPath, wholeInchPath } from './path.js'; // (Exodite Sprint, Goremonger Hunt for Blood; path.js imports this module too — only used at run time)
 // Team rules split out of this file (js/rules/*.js); they call back into this module, which is fine because nothing runs at load time.
 import { hitWorse, psyOn, registerWarpcovenChoices, wcBanner, wcBoon, wcCabalOptions, wcEquip, wcFateBuy, wcFateRoll, wcFluxActivate, wcFluxEnd, wcFresh, wcHerdMates, wcHorn, wcMarkerDiscount, wcMarkerSpent, wcReach, wcRobes, wcScrollBoons, wcSelf, wcSetup, wcWeapons } from './rules/warpcoven.js';
 import { blCallousHits, blCallousOk, blCallousUse, bloodedOnDeath, disciplined, gainBlood, giveStimm, setGloryKill, underGaze, whollyIn } from './rules/blooded.js';
-import { daemonShell, grislyNear, lgEyes, lgFavoured, lgSelf, lgSetup, lgUnending, markOf, nurgleVigour, quick, registerLegionaryChoices, siphonLife } from './rules/legionaries.js';
+import { daemonShell, grislyNear, lgButcherEnd, lgEyes, lgFavoured, lgSelf, lgSetup, lgUnending, markOf, nurgleVigour, quick, registerLegionaryChoices, siphonLife } from './rules/legionaries.js';
 export { LG_MARKS } from './rules/legionaries.js';
 import { nvAdvanceN, nvBlaze, nvBlazeActivate, nvBlazeOut, nvBlinded, nvBlindingAura, nvDivine, nvMartyrdom, nvMilitantRefund, nvRelicSeeker, registerNovitiateChoices } from './rules/novitiates.js';
 import { braced, navyOrderNear, nbBreachwalled, nbHatchDiscount, nbHatchToWeld, nbHatchUsed, nbLocked, nbRebreathe, nbSelf, nbSlugsOk, nbSlugsUsed, nbStimms, nbTerrainNear, nbWeldExtra, placeNavyOrder } from './rules/navy.js';
@@ -116,6 +116,10 @@ export { netCands, seekerOptions, seekerMoveCheck, useSeeker } from './rules/bat
 
 export const BOARD = { w: 30, h: 22 };
 export const boardOf = (g) => g.board || BOARD;
+/** Close quarters rules (Killzone: Tomb World): the universal Guard action and point-blank shots. */
+export const closeQuarters = (g) => !!(g.map?.startsWith('tombworld-') || MISSIONS[g.mission]?.closeQuarters || g.closeQuarters);
+/** Guard and the rules that grant it (Vigilant Marksman, Storm-veiled Execution, Track Target): each is treated as a Shoot action. */
+const GUARD_IDS = ['guard', 'dwGuard', 'wsGuard', 'phGuard'];
 export const ER = 1;          // engagement range (inches, base edge to base edge)
 export const CONTROL = 1;     // objective control range
 export const OBJ_R = 0.4;     // objective marker radius
@@ -609,6 +613,31 @@ function hatchMidMove(g, op, kind, path) {
   doMissionAction(g, op, `twOpen_${id}`);
   op.x = x; op.y = y;
   return true;
+}
+
+// Breach during a Charge or Reposition (Kommando Breacha Boy, for 1 less AP): the marker goes down part-way and the move carries on through it.
+/** Can the Breacha Boy breach with its base at p, part-way through this move? */
+export function midMoveBreach(g, op, kind, p) {
+  if (!['reposition', 'charge'].includes(kind) || !tpl(op).kmBreacha || !p || op.acted.kmBreach) return false;
+  const { x, y } = op;
+  op.x = p.x; op.y = p.y; op.acted.kmMidBreach = true;
+  try { return availableActions(g, op).some((a) => a.id === 'kmBreach' && a.ok); } finally { op.x = x; op.y = y; delete op.acted.kmMidBreach; }
+}
+/** path.breach = { at }: breach with the base at path.pts[at]; the route up to there must be clear without the marker, the whole route with it. */
+function breachMidMove(g, op, kind, path) {
+  const { at } = path.breach, p = path.pts[at], end = path.pts.at(-1);
+  if (!p || !midMoveBreach(g, op, kind, p)) return false;
+  const before = moveCtx(g, op, kind);
+  if (!path.pts.slice(1, at + 1).every((q, i) => before.segFree(path.pts[i], q))) return false;
+  const { x, y } = op, n = (g.markers || []).length;
+  op.x = p.x; op.y = p.y; op.acted.kmMidBreach = true;
+  doSelfAction(g, op, 'kmBreach');
+  delete op.acted.kmMidBreach; op.x = x; op.y = y;
+  const after = moveCtx(g, op, kind), endOk = kind === 'charge' ? after.inEnemyER : (q) => !after.inEnemyER(q);
+  const checked = wholeInchPath(after, path, moveAllowance(g, op, kind), endOk);
+  if (checked && Math.hypot(checked.pts.at(-1).x - end.x, checked.pts.at(-1).y - end.y) <= 1e-6) return true;
+  g.markers.length = n; op.acted.kmBreach = 0; // (the route still doesn't work: no breach after all)
+  return false;
 }
 
 export function deployOk(g, op, p) {
@@ -1176,7 +1205,7 @@ export function activate(g, op) {
     if (g.netcounter) { op.netCounter = true; op.netWasReady = op.ready; if (g.netcounter.kind === 'control') op.ctlCounter = true; else { op.netTP = g.tp; op.orderSet = false; } }
     // (Incite Slaughter / Urgency, Chaos Cult: only that free action, and Charge / Dash up to 3".)
     op.ctlOnly = g.netcounter?.onlyActions || null; op.ctlMove = g.netcounter?.ctlMove || null;
-    op.ctlNoMove = !!g.netcounter?.noMove; if (g.netcounter?.ksSeize) spendFF(g, op.side, 'seizeInitiative'); // (Seize the Initiative: no moving; the CP is spent once one is picked)
+    op.ctlNoMove = !!g.netcounter?.noMove; if (g.netcounter?.ksSeize) spendFF(g, op.side, 'seizeInitiative'); if (g.netcounter?.spFC) spFieldcraftPick(g, op); if (g.netcounter?.butcher) op.order = 'engage'; if (g.netcounter?.guard) guardPick(g, op); // (Seize the Initiative: no moving; the CP is spent once one is picked)
     // Gorethirst (Goremonger firefight ploy): a Concealed one counteracts — Engage first, then only Charge, Shoot or Fight.
     if (!g.netcounter && isGM(op) && op.order === 'conceal' && ffReady(g, op.side, 'gorethirst') && ffArmed(g, op.side, 'gorethirst')) {
       spendFF(g, op.side, 'gorethirst'); op.order = 'engage'; op.ctlOnly = ['charge', 'shoot', 'fight'];
@@ -1269,11 +1298,12 @@ export function setOrder(g, op, order) {
 /** Expended, Engage-order operatives that haven't counteracted this TP (Astartes: any order). */
 export const counterCandidates = (g, side) => (g.netcounter?.side === side // Battleclade: NETWORK COUNTERACT (Canoptek Control: just the one picked)
   ? (g.netcounter.kind === 'control' ? living(g, side).filter((o) => g.netcounter.only.includes(o.uid)) : netCands(g, side))
-  : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o) || tpl(o).rvAnyCounter || xvCanCounter(g, o) || (isGM(o) && ffReady(g, side, 'gorethirst') && ffArmed(g, side, 'gorethirst'))) && !o.counteracted && !tpl(o).spBeacon && !dwBlocked(g, o) && o.dwReGuardTP !== g.tp));
+  : living(g, side).filter((o) => !o.ready && (o.order === 'engage' || isAstartes(o) || tpl(o).rvAnyCounter || xvCanCounter(g, o) || (isGM(o) && ffReady(g, side, 'gorethirst') && ffArmed(g, side, 'gorethirst'))) && !o.counteracted && !tpl(o).spBeacon && !dwBlocked(g, o) && o.dwReGuardTP !== g.tp && o.noCounterTP !== g.tp));
 
 export function endActivation(g) {
   const op = activeOp(g);
   g.nvBlind = null; // (Blinding Aura lasts for the activation)
+  if (op) { op.pointBlank = false; for (const o of g.ops) if (o.pbNoRetal === op.uid) o.pbNoRetal = null; } // (point-blank shot: no retaliating until the interrupted activation ends)
   g.ccManip = null; g.nodalOpen = null; g.phCommsOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); xvEnd(g, op); wsEnd(g, op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
@@ -1340,7 +1370,7 @@ export function endActivation(g) {
       if (dr) for (const k of Object.keys(dr.acted || {})) if (!['unseen', 'free', 'movedDist', 'accelerant'].includes(k) && !done.includes(k)) done.push(k);
     }
     if (back && !back.dead) { g.active = back.uid; g.turn = back.side; g.counter = net.resumeCounter; return; }
-    handOff(g, net.side); return;
+    handOff(g, net.handFrom ?? net.side); return; // (handFrom: the Butcher's Charge came at the end of an enemy activation)
   }
   // Transfer Power: after this activation, one other friendly servitor may NETWORK COUNTERACT first.
   if (op && !wasCounter && !wasNpo && count(op, 'transferPower')) {
@@ -1390,6 +1420,7 @@ export function endActivation(g) {
     else if (!hasReady(g, cur)) endTP(g);
     return;
   }
+  if (op && lgButcherEnd(g, op)) return; // Devastating Onslaught (Legionary Butcher): a free 2" Charge first
   handOff(g, cur);
 }
 
@@ -1445,6 +1476,7 @@ export function counterSwap(g, op) {
 
 /** Decline the chance to counteract. */
 export function passCounter(g) {
+  if (g.netcounter?.guard) guardPassed(g); // (on guard, close quarters: guards in the enemy's control range stand down)
   log(g, { zh: `${teamZh(g, g.turn)} 放棄反應`, en: `${team(g, g.turn).name.en} does not counteract` }, `side${g.turn}`);
   endActivation(g);
 }
@@ -1668,6 +1700,7 @@ export const ACTIONS = {
   hkUtility: { ap: 1, name: { zh: '瓦爾-3 多功能手雷', en: 'Vâyr-3 Utility Grenade' } },
   phComms: { ap: 0, name: { zh: '通訊陣列：更換策略計謀', en: 'Comms Array: change a strategy ploy' } },
   phGuard: { ap: 1, name: { zh: '追蹤目標：警戒', en: 'Track Target: Guard' } },
+  guard: { ap: 1, name: { zh: '警戒', en: 'Guard' } },
   nbBreach: { ap: 1, name: { zh: '破口', en: 'Breach Point' } },
   nbWeld: { ap: 1, name: { zh: '焊死', en: 'Weld Shut' } },
   nbRemote: { ap: 1, name: { zh: '遠端操控', en: 'Remote Control' } },
@@ -1764,6 +1797,12 @@ Object.assign(ACTIONS, {
   drugHypex: { ap: 1, name: { zh: '施用藥劑：亢奮劑', en: 'Administer Drug: Hypex' } },
 });
 
+/** Scout Terrain (Spectre Guide): once per activation (shared with the climb), Operate Hatch for 1 less AP on an access point in your territory or within 3" of the Guide. */
+export function spScoutHatch(g, op, id) {
+  if (op.side > 1 || op.team !== 'spectres' || op.acted?.spScoutUsed) return 0;
+  const d = accessPointsOf(g).find((x) => id.endsWith(`_${x.id}`)), guides = g.ops.filter((o) => !o.dead && o.side === op.side && o.x > -50 && tpl(o).spGuide);
+  return d && guides.length && (territoryOf(g, d) === op.side || guides.some((o) => dist(o, d) - radius(o) <= 3)) ? 1 : 0;
+}
 /** Breach (Tomb World): 2AP, or 1AP for an operative with 'breach marker', 'grenadier' or 'mine' on its datacard, or a Piercing 2 /
  * Piercing Crits 2 weapon without Blast or Torrent — but not in an activation in which it Charged or Shot. */
 const twBreacher = (g, op) => /grenadier/i.test(tpl(op).name.en) || Object.keys(tpl(op)).some((k) => /mine|breach/i.test(k) && tpl(op)[k])
@@ -1773,8 +1812,9 @@ export function actionCost(g, op, id) {
   if(id==='transferPower' && feAuto(g,op.side,'feCells')) return 0;
   if ((id === 'pickUp' || MISSION_ACTIONS[id] || id === 'placeMarker') && nvRelicSeeker(g, op, id, true)) return Math.max(0, actionCost(g, { ...op, acted: { ...op.acted, nvRelic: 1 } }, id) - 1); // Relic Seeker (Novitiate Pronatus)
   if (/^twBreach_/.test(id)) return twBreachCost(g, op); // Breach (Tomb World): 2AP, or 1AP for breachers
-  if (/^tw(Open|Close)_/.test(id)) return Math.max(0, 1 + nbWeldExtra(g, op, id) - nbHatchDiscount(g, op, id)); // (Weld Shut, System Override Device, Deck Hand: Navy Breachers)
+  if (/^tw(Open|Close)_/.test(id)) return Math.max(0, 1 + nbWeldExtra(g, op, id) - nbHatchDiscount(g, op, id) - spScoutHatch(g, op, id)); // (Weld Shut, System Override Device, Deck Hand: Navy Breachers)
   const raider = corsairCost(g, op, id); if (raider != null) return raider;
+  if (id === 'kmBreach' && op.acted?.kmMidBreach) return Math.max(0, ACTIONS.kmBreach.ap - 1); // Breacha Boy: Breach during a Charge or Reposition for 1 less AP
   if (id === 'medikit' && tpl(op).medikit0) return 0; // Kasrkin Combat Medic
   if (kfGatherFree(op, id)) return 0; // Gather (Kroot Hound): a free Pick Up Marker
   if ((id === 'pickUp' || MISSION_ACTIONS[id] || id === 'placeMarker') && op.acted?.aqExemplar) return Math.max(0, actionCost(g, { ...op, acted: { ...op.acted, aqExemplar: false } }, id) - 1); // Tempestus Exemplars (Aquilons)
@@ -2645,7 +2685,7 @@ export function availableActions(g, op) {
   const shots = weaponsFor(g, op).filter((w) => w.type === 'ranged').map((w) => shootWeapon(g, op, w));
   // Close Quarters Vigilance (Vigilant): may Shoot while engaged, unless it Charged this activation (counteracting is fine).
   // (Explosive: a Bomb Squig can set off its explosives within an enemy's control range.)
-  const shootEngaged = engaged && !tpl(op).quickTrigger && !op.acted.fgUncomp && !(tpl(op).vigilance && (op.counter || !count(op, 'charge')))
+  const shootEngaged = engaged && !op.pointBlank && !tpl(op).quickTrigger && !op.acted.fgUncomp && !(tpl(op).vigilance && (op.counter || !count(op, 'charge')))
     && !weaponsFor(g, op).some((w) => w.rules.wkExplosive && shootWeapon(g, op, w).ok);
   const shootWhy = shootEngaged ? ENG : !attackAllowed(op, 'shoot') ? DONE : (shots.find((s) => !s.ok)?.why || DONE);
   add('shoot', hasRanged && !shootEngaged && attackAllowed(op, 'shoot') && shots.some((s) => s.ok), shootWhy);
@@ -2866,6 +2906,8 @@ export function availableActions(g, op) {
     return list.filter((a) => core.includes(a.id));
   }
   dwActions(g, op, add, attackAllowed(op, 'shoot') && shots.some((a) => a.ok));
+  // Guard (close quarters, any operative): Engage order, not within an enemy's control range; treated as a Shoot action.
+  if (closeQuarters(g) && !list.some((a) => GUARD_IDS.includes(a.id))) add('guard', op.order === 'engage' && !engaged && !op.dwGuard && attackAllowed(op, 'shoot'), op.order !== 'engage' ? CONC : engaged ? ENG : DONE);
   mdActions(g, op, add);
   mwActions(g, op, add);
   wkActions(g, op, add); // Break Stuff (Wrecka Krew Fighter)
@@ -2945,6 +2987,7 @@ export function doSelfAction(g, op, id) {
   if (spSelf(g, op, id)) return; // Spectre Squad: Advanced Camouflage
   if (rvSelf(g, op, id)) return; // Raveners: Burrow (underground), Distend Dorsal Sac
   if (dwSelfAction(g, op, id)) { if (id === 'dwGuard') dwAfterAction(g, op); return; }
+  if (id === 'guard') { spend(g, op, id); op.dwGuard = true; log(g, { zh: `${opName(op, 'zh')} 進入警戒`, en: `${opName(op, 'en')} goes on guard` }, `side${op.side}`); dwAfterAction(g, op); return; }
   if (id === 'blinkToggle') { op.blinkOn = !op.blinkOn; return; }
   if (id === 'pistolBarrage') { spend(g, op, id); op.acted.barrage = { remaining: 2, used: [] }; return; }
   if (id === 'iaBarrage') { spend(g, op, id); op.acted.iaBar = { left: 2, used: [] }; log(g, { zh: `${opName(op, 'zh')} 手槍彈幕：電漿手槍與消音手槍各免費射擊一次`, en: `${opName(op, 'en')} Pistol Barrage: a free Shoot with each pistol` }, `side${op.side}`); return; }
@@ -3041,13 +3084,15 @@ export function doOptics(g, op) {
 export function spend(g, op, id, ap = actionCost(g, op, id)) {
   if (op.acted?.ksFellBack) op.acted.ksFellBack = false; // (Cover Retreat: only straight after the Fall Back)
   if (nvRelicSeeker(g, op, id, !!MISSION_ACTIONS[id])) op.acted.nvRelic = 1; // (Relic Seeker used)
+  if (/^tw(Open|Close)_/.test(id) && spScoutHatch(g, op, id)) op.acted.spScoutUsed = true; // (Scout Terrain used on a hatch)
   if (op.acted?.sprintJust) { edNomad(g, op, id); op.acted.sprintJust = false; } // (Nomad Executioner: a Shoot straight after a Sprint)
   if (id === 'phGuard' && hasUp(op, 'nexus')) op.nexusTP = g.tp; // (Nexus Sentinel: once per turning point)
   if(id==='transferPower' && ap===0 && feAuto(g,op.side,'feCells')) feUse(g,op.side,'feCells');
   if(MISSION_ACTIONS[id] && feAuto(g,op.side,'feSkull',1,true) && !g.seekerFree) feUse(g,op.side,'feSkull');
   if (g.seekerFree === op.uid) ap = 0;
   if (!['shoot', 'fight', 'mwBoostAction'].includes(id)) mwActionStart(g);
-  if (id !== 'dwGuard') op.dwGuard = false;
+  if (!GUARD_IDS.includes(id)) op.dwGuard = false; // (any other action ends being on guard)
+  else if (id !== 'dwGuard') op.acted.shoot = count(op, 'shoot') + 1; // (Guard is treated as a Shoot action)
   corsairSpend(g, op, id, ap);
   op.ap -= ap;
   if ((id === 'pickUp' || MISSION_ACTIONS[id]) && ap > 0 && intimidated(g, op)) spendFF(g, 1 - op.side, 'intimidatingPresence'); // (Inquisition)
@@ -3063,6 +3108,7 @@ export function spend(g, op, id, ap = actionCost(g, op, id)) {
 export function doMove(g, op, kind, path) {
   if (isMurderwing(op) && (!path?.pts?.length || path.len > moveAllowance(g, op, kind) + 0.01)) return false;
   if (path?.hatch && !hatchMidMove(g, op, kind, path)) return false; // (Operate Hatch part-way through the move)
+  if (path?.breach && !breachMidMove(g, op, kind, path)) return false; // (Breach part-way through the move: Breacha Boy)
   const ctx = moveCtx(g, op, kind);
   feActionStart(g,op);
   path = wholeInchPath(op.breachMove && !g.map?.startsWith('tombworld-') ? { ...ctx, segFree: () => true, extra: () => 0 } : ctx, path, moveAllowance(g, op, kind), kind === 'charge' ? ctx.inEnemyER : (p) => !ctx.inEnemyER(p));
@@ -3080,6 +3126,7 @@ export function doMove(g, op, kind, path) {
   if (kind === 'charge' && !vsChargeOk(g, op, dest)) return false;
   if (kind === 'charge' && !wsChargeEndOk(g, op, dest)) return false; // Elemental Storm (Wolf Scouts): a Concealed Charge ends wholly within the storm // Communion (Vespid Stingwings): the closest enemy unless a point is spent
   if (hasPloy(g, op.side, 'bound') && !op.acted.boundUsed && ctx.climbRaw?.(path.pts) > 0) op.acted.boundUsed = true; // Bound (Kinband): the first 2" of one climb was free
+  if (ctx.scoutUsed?.(path.pts)) op.acted.spScoutUsed = true; // (Scout Terrain, Spectre Guide: once per activation)
   if (kind === 'charge' && isMandrake(op) && op.order === 'conceal' && hasPloy(g, op.side, 'mdBladeDark') && !withinShadow(g, op) && !withinShadow(g, { ...op, ...dest })) return false;
   if (kind === 'charge') wkActionStart(g, op, 'charge'); // Tanked Up (Wrecka Krew): at the start of the Charge
   if (kind === 'fallBack' && !mdFallBack(g, op, d6, d3)) return false;
@@ -3303,6 +3350,12 @@ export function shootCheck(g, op, target, weapon, secondary = false) {
   // Explosive (Bomb Squig): no valid target is picked — the squig itself is always the primary target (no cover, not obscured).
   if (weapon.rules.wkExplosive) return target === op && shootWeapon(g, op, weapon).ok ? { ok: true, cover: false, obscured: false } : { ok: false };
   if (tpl(op).quickTrigger && isEngaged(g, op) && !inEngagement(op, target, g)) return { ok: false };
+  // Point-blank shot (on guard, close quarters): only an enemy within its control range, even one that wouldn't normally be a valid target.
+  if (op.pointBlank && isEngaged(g, op)) {
+    if (target.dead || target.side === op.side || !inEngagement(op, target, g) || !shootWeapon(g, op, weapon).ok) return { ok: false };
+    const v = visibility(g, op, target);
+    return { ok: true, cover: !!v.cover, obscured: !!v.obscured, defenceOptions: v.defenceOptions };
+  }
   if (target.dead || target.side === op.side) return { ok: false };
   if (weapon.rules.psychic && tpl(target).nullRodAura) return { ok: false }; // Null Rod: PSYCHIC weapons can't harm it
   if (!shootWeapon(g, op, weapon).ok) return { ok: false };
@@ -3879,6 +3932,7 @@ export const EQUIPMENT = {
   razorWire: { name: { zh: '鐵絲網', en: 'Razor Wire' }, desc: { zh: '暴露且阻礙：不提供掩護，特工越過它時移動距離多算 2"。放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。', en: 'Exposed and Obstructing: no cover, and crossing over it counts as 2" more. Wholly within your half (more than 2" from other equipment terrain and access points).' } },
   portableBarricade: { name: { zh: '可攜式路障', en: 'Portable Barricade' }, desc: { zh: '一道輕型、防護、可攜式地形（腳是微小且暴露）：放在自己的半區內（離其他裝備地形與訪問點 2" 以外）。防護：處於它的掩護中時，防禦者的 Save 屬性 -1（最低 2+）。連著它的特工可執行「隨路障移動」（1AP）：免費重新定位，但最多 Move -2"，路障隨之移動。', en: 'A Light, Protective, Portable terrain feature, set up wholly within your territory (more than 2" from other equipment terrain and access points). Protective: an operative in cover from it improves its Save by 1 (to 2+). A connected operative can perform Move With Barricade (1AP): a free Reposition of up to its Move -2", the barricade moving with it.' } },
   breachingCharge: { name: { zh: '破壞炸藥', en: 'Breaching Charge' }, desc: { zh: '整場一次：友方特工可以執行「破門」（1AP，即使它沒有破口標記能力），在控制範圍內的地形上放破口標記。', en: 'Once per battle a friendly operative can perform the Breach action (1AP) even without the ability, placing a Breach marker on terrain in its control range.' } },
+  ladders: { name: { zh: '梯子', en: 'Ladders' }, desc: { zh: '兩把梯子（不擋路、不提供掩護）：開戰前靠在己方領土內至少 2" 高的地形旁（離其他裝備地形 2" 以上、門口 1" 以上）。爬那塊地形時梯子全程在特工控制範圍內，向上的垂直距離只算 1"（每個動作一次）。', en: 'Two ladders (Insignificant, Exposed): set up before the battle wholly within your territory, upright against terrain at least 2" tall (more than 2" from other equipment terrain, more than 1" from doors and access points). Once per action, climbing the terrain a ladder is against with the ladder within control range the whole climb, the vertical distance counts as 1".' } },
 };
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
 Object.assign(EQUIPMENT, ADDITIONAL_EQUIPMENT_ITEMS);
@@ -3974,7 +4028,7 @@ export function clearSpot(g, p, r = 0.5) {
   return p;
 }
 /** Place one equipment item, then hand deployment to the other player. */
-const EQUIP_MARKERS = ['mine', 'tripwire', 'ammo', 'comms'];
+const EQUIP_MARKERS = ['mine', 'tripwire', 'ammo', 'comms', 'ladder'];
 export function equipmentPlacement(g, p, rotated = false) {
   const d = g.eqDeploy, entry = d && !d.done && d.queues[d.turn][0];
   if (!entry || g.phase !== 'deploy') return null;
@@ -3995,6 +4049,15 @@ export function equipmentPlacement(g, p, rotated = false) {
     return { type:'terrain', item:t };
   }
   if (p.x < .4 || p.y < .4 || p.x > boardOf(g).w-.4 || p.y > boardOf(g).h-.4 || territoryOf(g,p) !== side) return null;
+  // Ladders: upright against terrain at least 2" tall, wholly within your territory, more than 2" from other equipment terrain and 1" from access points.
+  if (source.kind === 'ladder') {
+    const against = g.terrain.find(t => climbHeight(t) >= 2 && t.kind !== 'wire' && distPointRect(p,t) <= .5 && distPointRect(p,t) > .05);
+    if (!against || g.terrain.some(t => t !== against && distPointRect(p,t) < .3)) return null;
+    if ([[.3,0],[-.3,0],[0,.3],[0,-.3]].some(([dx,dy]) => territoryOf(g,{x:p.x+dx,y:p.y+dy}) !== side)) return null;
+    if (g.terrain.some(t => t !== against && t.equip != null && distPointRect(p,t) <= 2) || accessPointsOf(g).some(a => dist(a,p) <= 1)) return null;
+    if ([...g.objectives,...g.markers].some(m => dist(p,m) < .8)) return null;
+    return { type:'marker', item:{ ...source, x:p.x,y:p.y,angle:0,id:g.markers.reduce((max,m)=>Math.max(max,typeof m.id === 'number' ? m.id : -1),-1)+1 } };
+  }
   const goreMarker=['goryTotem','bloodyCadaver'].includes(source.kind);
   // A marker can sit on equipment terrain (barricades, razor wire, either side's), not on the killzone's own terrain.
   if (g.terrain.some(t => t.equip == null && distPointRect(p,t) < .4) || [...g.objectives,...g.markers].some(m => goreMarker && m.owner===side && ['goryTotem','bloodyCadaver'].includes(m.kind) && m.kind!==source.kind ? false : source.kind === 'tripwire' || goreMarker ? dist(p,m) <= 2 : dist(p,m) < .8)) return null; // Special markers require more than 2 inches of spacing.
@@ -4009,7 +4072,7 @@ export function placeEquipment(g, p, rotated = false) {
   const d = g.eqDeploy, side = d.turn;
   (entry.type === 'terrain' ? g.terrain : g.markers).push(entry.item);
   d.queues[side].shift();
-  log(g,{zh:`${teamZh(g,side)} 部署${entry.type === 'terrain' ? ({heavy:'重掩體',light:'輕掩體',wire:'鐵絲網'}[entry.item.kind]) : (EQUIPMENT[{comms:'comms',mine:'mines',ammo:'ammo'}[entry.item.kind]]?.name.zh || entry.item.kind)}`,en:`${team(g,side).name.en} sets up ${entry.item.kind}`},`side${side}`);
+  log(g,{zh:`${teamZh(g,side)} 部署${entry.type === 'terrain' ? ({heavy:'重掩體',light:'輕掩體',wire:'鐵絲網'}[entry.item.kind]) : (EQUIPMENT[{comms:'comms',mine:'mines',ammo:'ammo',ladder:'ladders'}[entry.item.kind]]?.name.zh || entry.item.kind)}`,en:`${team(g,side).name.en} sets up ${entry.item.kind}`},`side${side}`);
   d.done = !d.queues.some(q=>q.length);
   d.turn = d.queues[1-side].length ? 1-side : side;
   if (d.done) log(g,{zh:'雙方裝備部署完成，開始輪流部署單位',en:'Equipment set up; begin operative deployment'},'tp');
@@ -4062,6 +4125,7 @@ function setupEquipment(g, side, ids) {
     if (id === 'comms') g.markers.push({ id: g.markers.length, kind: 'comms', owner: side, ...clearSpot(g, ownPoint(g, side, 9, 0.5)), carriedBy: null });
     if (id === 'mines' && !g.equip[side].includes('wbTraps')) g.markers.push({ id: g.markers.length, kind: 'mine', owner: side, ...clearSpot(g, ownPoint(g, side, 12.5, Math.random() < 0.5 ? 0.3 : 0.7)), carriedBy: null });
     if (id === 'wbTraps') for (const c of [0.3, 0.7]) g.markers.push({ id: g.markers.length, kind: 'mine', owner: side, wbTrap: true, ...clearSpot(g, ownPoint(g, side, 12.5, c)), carriedBy: null }); // Explosive Traps (Wyrmblade): two mines
+    if (id === 'ladders') for (const c of [0.3, 0.7]) g.markers.push({ id: g.markers.length, kind: 'ladder', owner: side, ...clearSpot(g, ownPoint(g, side, 8, c)), carriedBy: null }); // Ladders (universal equipment): two, placed against terrain
     if (id === 'ammo') g.markers.push({ id: g.markers.length, kind: 'ammo', owner: side, ...clearSpot(g, ownPoint(g, side, 7.5, 0.5)), carriedBy: null });
     if (id === 'ammo' && living(g, side).some((o) => tpl(o).wellStocked)) g.markers.push({ id: g.markers.length, kind: 'ammo', owner: side, ...clearSpot(g, ownPoint(g, side, 7.5, 0.5)), carriedBy: null }); // Well Stocked (Ratling Stashmaster): one more Ammo Cache
     if (id === 'utility') Object.assign(g.eqUses[side], { stun: 1, smoke: 1 });
@@ -5288,6 +5352,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // injured / Contagion / Mindburn; Quicksilver Speed: a Slaanesh Legionary that moved, shot from more than 6"
     hit += hitWorse(g, op, weapon) || (markOf(target) === 'slaanesh' && quick(g, target) && edgeDist(op, target) > 6) ? 1 : 0;
     if (shokked(g, op)) hit += 1;
+    if (op.pointBlank && isEngaged(g, op)) { hit += 1; op.pbNoRetal = op.pbActor; } // point-blank shot: Hit worsened by 1, and no retaliating until the interrupted activation ends
     if (rules.xvHit) hit -= 1; // Focused Markerlight (XV26 Designator) // Shokkwave (Wrecka Krew Pulsa marker): cumulative with being injured
     if (rules.mlHit && hit > 3) hit = Math.max(3, hit - 1);
     if (rules.slugs) hit -= 1; // Slugs (Navy Breachers equipment)
@@ -5951,6 +6016,7 @@ export function* fightFlow(g, op, weapon, target, interactive = false) {
     ? (() => { const re = rollPool(whip(o, atk(w, r)), hit, r.lethal || 6, r, post); for (const d of re.dice) if (!d.auto) d.rr = true; return re; })() : roll);
   aRoll = violent(op, aRoll, weapon, ar, aHit, aPost);
   dRoll = violent(target, dRoll, dWeapon, dr, dHit, bless(target));
+  if (target.pbNoRetal) dRoll = rollPool(0, dHit, 6, dr); // (it made a point-blank shot during this activation: it can't retaliate)
   archonPrey(g, op, target, aRoll);
   ncPrey(g, op, target, aRoll); ncPrey(g, target, op, dRoll); // Death to the False Emperor (Nemesis Claw)
   if (isDeathwatch(target)) archonPrey(g, target, op, dRoll);

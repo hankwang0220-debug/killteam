@@ -1,5 +1,7 @@
 // legionaries: team rules moved out of game.js (the engine hooks that call these stay in game.js).
-import { CHOICES, CONTROL, OBJ_R, applyDamage, autoFF, controller, d3, d6, edgeDist, getOp, hasPloy, living, log, needChoice, opName, radius, tpl, visibility } from '../game.js';
+import { CHOICES, CONTROL, OBJ_R, applyDamage, autoFF, controller, d3, d6, edgeDist, engagedEnemies, getOp, hasPloy, living, log, needChoice, opName, playerPicks, radius, tpl, visibility } from '../game.js';
+import { findPath, moveCtx } from '../path.js';
+import { stepTo } from '../sanctifiers.js';
 import { dist } from '../geometry.js';
 import { TEAM_MAP } from '../data/teams.js';
 
@@ -74,4 +76,31 @@ export function registerLegionaryChoices() {
     auto: (g, side, ctx) => (markOf(getOp(g, ctx.uid)) === 'khorne' ? 'tzeentch' : 'khorne'),
     apply(g, side, mark, ctx) { const o = getOp(g, ctx.uid); o.lgMark = mark; log(g, { zh: `地獄契約：${opName(o, 'zh')} 改為${LG_MARKS[mark].zh}印記`, en: `Infernal Pact: ${opName(o, 'en')} now bears the Mark of ${LG_MARKS[mark].en}` }, `side${side}`); },
   };
+}
+/** Devastating Onslaught (Butcher): at the end of an enemy activation, an enemy within 2" of it — a free Charge of up to 2" ending in its control range
+ * (it can change to Engage). A player is asked (they can pass); the computer charges when it can reach. True when the player's pick is pending. */
+export function lgButcherEnd(g, ended) {
+  if (!ended || ended.side > 1 || g.phase !== 'firefight') return false;
+  const side = 1 - ended.side;
+  for (const b of living(g, side).filter((o) => o.team === 'legionaries' && tpl(o).noAssistVs && o.x > -50 && !engagedEnemies(g, o).length)) {
+    const near = living(g, ended.side).filter((e) => e.x > -50 && edgeDist(b, e) <= 2);
+    if (!near.length) continue;
+    if (playerPicks(g, side)) {
+      g.netcounter = { side, only: [b.uid], resume: null, handFrom: ended.side, resumeCounter: false, kind: 'control', onlyActions: ['charge'], ctlMove: 2, butcher: true,
+        label: { title: { zh: '毀滅猛攻（屠夫）', en: 'Devastating Onslaught (Butcher)' }, hint: { zh: '敵人啟動結束：屠夫可以免費衝鋒（最多 2"，改為交戰指令），結束在 2" 內一名敵人的控制範圍內；也可以略過。', en: 'An enemy activation ended: the Butcher can make a free Charge (2" at most, now on Engage) ending in control range of an enemy within 2"; or pass.' } } };
+      g.turn = side; g.counter = true;
+      return true;
+    }
+    const ctx = moveCtx(g, b, 'charge');
+    for (const e of near) for (let a = 0; a < 16; a++) {
+      const d = radius(b) + radius(e) + 0.4, p = { x: e.x + Math.cos(a * Math.PI / 8) * d, y: e.y + Math.sin(a * Math.PI / 8) * d };
+      if (!ctx.free(p) || !ctx.inEnemyER(p)) continue;
+      const path = findPath(ctx, p);
+      if (!path || path.len > 2 + 1e-6) continue;
+      stepTo(g, b, p); b.order = 'engage';
+      log(g, { zh: `毀滅猛攻：${opName(b, 'zh')} 免費衝鋒到 ${opName(e, 'zh')} 身邊`, en: `Devastating Onslaught: ${opName(b, 'en')} charges ${opName(e, 'en')} for free` }, `side${side}`);
+      return false;
+    }
+  }
+  return false;
 }

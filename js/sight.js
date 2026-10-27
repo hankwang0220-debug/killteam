@@ -1,5 +1,5 @@
 // Flat-board approximation of head visibility, kept separate from base targeting lines.
-import { dist, segRect } from './geometry.js';
+import { dist, distPointRect, segRect } from './geometry.js';
 const EPS = 1e-7;
 const point = (c, r, a) => ({ x: c.x + r * Math.cos(a), y: c.y + r * Math.sin(a) });
 
@@ -87,6 +87,7 @@ export function flatSight(terrain, from, to, rf, rt, opts = {}) {
     let options = [{ cover: false, obscured: false }];
     for (const t of terrain) {
       if (t.kind === 'wire') continue;
+      if (t.portable && distPointRect(to, t) - rt > 1 + EPS) continue; // Portable Barricade: cover only for an operative connected to it
       const parts = clipRect(cone, t);
       if (!parts.length) continue;
       const cover = !close && !opts.ignoreAll && !(opts.ignoreLight && t.kind === 'light') && near(parts, to, rt + 1);

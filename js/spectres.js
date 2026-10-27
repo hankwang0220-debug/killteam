@@ -2,7 +2,7 @@
 // the ploys and the faction equipment. game.js calls these hooks; the team data is in data/spectres.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { CHOICES, needChoice, abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, autoFF, changeApl, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, handOff, hasPloy, ffArmed, isEngaged, living, log, opName, radius, shootCheck, team, tpl, visibility, weaponsFor, boardOf, deployZones, territoryOf, moveStat, aplNow } from './game.js';
+import { CHOICES, needChoice, abilityArmed, ffReady, playerPicks, ACTIONS, TARGET_ACTIONS, CONTROL, autoFF, changeApl, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, handOff, hasPloy, ffArmed, isEngaged, living, log, opName, radius, shootCheck, team, tpl, visibility, weaponsFor, boardOf, deployZones, territoryOf, moveStat, aplNow } from './game.js';
 import { dist, distPointRect } from './geometry.js';
 import { bestStep, stepTo } from './sanctifiers.js';
 import { SPECTRES_TEAM, SP_OVERWATCH, SP_EXTRA_EQUIPMENT, spectresRosterError } from './data/spectres.js';
@@ -69,6 +69,13 @@ export function spAfterAction(g, actor) {
   const cool = g.sp.used[side].cool !== g.tp && living(g, side).some((o) => tpl(o).spTrooper && !o.dead);
   if ((g.sp.fc[side] || 0) < 1 && !cool) return;
   const cands = living(g, side).filter((o) => real(o) && o.x > -50 && o.fcTP !== g.tp && (o.ready || o.spIssued === g.tp) && engagedEnemies(g, o).every((e) => e === actor));
+  // A player picks: one of these makes a free Shoot, Dash or Reposition (the point is spent once one is picked: spFieldcraftPick), or passes.
+  if (playerPicks(g, side) && cands.length && (actor.order === 'engage' || ffReady(g, side, 'spReact'))) {
+    g.netcounter = { side, only: cands.map((o) => o.uid), resume: actor.uid, resumeCounter: false, kind: 'control', onlyActions: ['shoot', 'dash', 'reposition'], ctlMove: 99, spFC: { actor: actor.uid, sharp: actor.order !== 'engage', cool },
+      label: { title: { zh: '野戰技巧：打斷', en: 'Elite Fieldcraft: interrupt' }, hint: { zh: `${opName(actor, 'zh')} 剛執行完動作。可以花 1 野戰點，選一名準備中的友方魅影免費射擊、衝刺或轉移；也可以略過。`, en: `${opName(actor, 'en')} has just performed an action. Spend 1 Fieldcraft point for a ready friendly SPECTRE to make a free Shoot, Dash or Reposition; or pass.` } } };
+    g.active = null; g.counter = true; g.turn = side;
+    return;
+  }
   let best = null;
   for (const o of cands) { const s = shotOptions(g, o, actor)[0]; if (s && (!best || s.e > best.s.e)) best = { o, s }; }
   if (!best) return;
@@ -286,3 +293,16 @@ export function spTvidUsed(g, op) { if (g.sp) g.sp.used[op.side].tvid = g.tp; }
 // ---------- the computer ----------
 /** The computer's Silent Killers / Patience and other bits are automatic; nothing else to decide. */
 export function spAiSkip(g, side) { return spPatienceOk(g, side) && living(g, side).filter((o) => o.ready).length >= 3 && Math.random() < 0.2 ? spPatience(g, side) : false; }
+
+/** Elite Fieldcraft, a player's pick: the interrupter pays (Cool-Headed first for a Trooper, else a point; Sharp Reactions when the enemy was Concealed). */
+export function spFieldcraftPick(g, o) {
+  const fc = g.netcounter?.spFC, side = o.side;
+  if (!fc) return;
+  const actor = getOp(g, fc.actor);
+  if (fc.sharp) autoFF(g, side, 'spReact');
+  if (fc.cool && tpl(o).spTrooper) g.sp.used[side].cool = g.tp; else if ((g.sp.fc[side] || 0) >= 1) g.sp.fc[side]--; else if (fc.cool) g.sp.used[side].cool = g.tp;
+  if (actor) actor.acted.spInterrupted = true;
+  o.fcTP = g.tp;
+  if (!o.ready) { o.noCounterTP = g.tp; o.counteracted = true; }
+  note(g, side, `野戰技巧：${opName(o, 'zh')} 打斷${actor ? ` ${opName(actor, 'zh')} 的啟動` : ''}`, `Elite Fieldcraft: ${opName(o, 'en')} interrupts${actor ? ` ${opName(actor, 'en')}'s activation` : ''}`);
+}

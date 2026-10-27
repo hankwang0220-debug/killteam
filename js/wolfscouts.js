@@ -3,7 +3,7 @@
 // the Haywire Mine, Pounce), the ploys and the faction equipment. game.js calls these hooks; the team data is in data/wolfscouts.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { abilityArmed, ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, ffOn, changeApl, d3, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, boardOf, applyDamage, resolveFight, bestMelee, doMove, mission, ployChooser } from './game.js';
+import { abilityArmed, closeQuarters, ACTIONS, TARGET_ACTIONS, CONTROL, spend, autoFF, ffOn, changeApl, d3, d6, edgeDist, foes, getOp, hasPloy, isEngaged, living, log, opName, radius, tpl, boardOf, applyDamage, resolveFight, bestMelee, doMove, mission, ployChooser } from './game.js';
 import { dist } from './geometry.js';
 import { moveCtx, findPath, wholeInchPath } from './path.js';
 import { WOLF_TEAM, wolfRosterError } from './data/wolfscouts.js';
@@ -210,7 +210,7 @@ export function wsFilter(g, op, list) {
 function guardOk(g, op) {
   if (op.counter || isEngaged(g, op) || op.dwGuard) return false;
   if (tpl(op).wsFrost && inStorm(g, op.side, op)) return true;
-  return op.order === 'engage' && !!(mission(g).closeQuarters || g.closeQuarters);
+  return op.order === 'engage' && closeQuarters(g);
 }
 
 // ---------- actions ----------
@@ -225,7 +225,7 @@ export function wsActions(g, op, add) {
     add('wsCallMove', !eng && !op.acted.wsCall, eng ? ENG : DONE);
     add('wsCallVeil', !eng && !op.acted.wsCall && TARGET_ACTIONS.wsCallVeil.targets(g, op).length > 0, eng ? ENG : op.acted.wsCall ? DONE : NONE);
   }
-  if (tpl(op).wsFrost || wolf(op) || mission(g).closeQuarters || g.closeQuarters) add('wsGuard', guardOk(g, op), { zh: '條件不符（霜眼要完全在風暴內；其他只在近距離戰鬥地圖、Engage 指令）', en: 'Not now (the Frosteye wholly within the storm; others only in Close Quarters with Engage)' });
+  if (tpl(op).wsFrost || wolf(op) || closeQuarters(g)) add('wsGuard', guardOk(g, op), { zh: '條件不符（霜眼要完全在風暴內；其他只在近距離戰鬥地圖、Engage 指令）', en: 'Not now (the Frosteye wholly within the storm; others only in Close Quarters with Engage)' });
   if (op.counter && !op.acted.wsOrder && inStorm(g, op.side, op)) add('wsOrder', true, DONE);
   const mine = (g.markers || []).find((m) => m.kind === 'wsMine' && m.carriedBy === op.uid);
   if (mine) add('wsPlaceMine', !op.acted.wsPlaceMine && !mineBlocked(g, op, op), { zh: '不能放在其他特工的控制範圍內', en: 'Not within another operative\'s control range' });

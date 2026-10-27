@@ -3,10 +3,11 @@ import {
   activate, activeOp, actionCost, availableActions, missionActionsFor, deployZones, weaponsFor, endProxy, setDoctrina, ffButtons, useFFButton, ffAttackOptions, ffToggle, ffClearPending, setSkills, counterCandidates, passCounter, avgDmg, bestMelee, buyPloy, controller, doMove, edgeDist, endActivation,
   netCands, engagedEnemies, statPenalty, isInjured, doFlail, flailTargets, doDakkaDash, setMark, fightTargets, living, moveAllowance, TARGET_ACTIONS, doTargetAction, mlLevel, radius, resolveShoot, shootCheck, startFight, team, tpl,
   foes, NPO, npoBegin, mission, doMissionAction, doPickUp, placeBid, canPickUpMarker, pickUpTargets, doOptics,
-  readyOps, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
+  readyOps, ffReady, animateBegin, animateMove, animateEnd, nodalChoose, nodeList, orderIssuer, chooseGuardOrder, eyeLeft, eyeOfAncestors, placeTactician, doSelfAction, scrambleTargets, omniScramble, assignBlood, setGaze, visibility,
   isMounted, sprintCheck, doSprint, doTurn, enterFromReserve, wbAiEmerge, moveStat,
   goreOf, sangOptions, useSang, bleedTargets, useBleed, canFavour, useFavour,
   resourceOptions, useResource,
+  MAX_TP, aplNow, CONTROL, OBJ_R, closeQuarters,
 } from './game.js';
 import { isMandrake, doShadowPassage, shadowPassageCheck } from './mandrakes.js';
 import { isArchon, painOptions, usePain } from './archon.js';
@@ -28,6 +29,54 @@ import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
 
+/** Benchmarks set legacy[side] to play that side with the previous AI (random ploys, no cover or objective planning). */
+export const aiTune = { legacy: [false, false] };
+
+/**
+ * How much a strategy ploy is worth right now, read from what its rules text talks about: shooting for a team
+ * that shoots, fighting when its fighters are close to the enemy, defence when the enemy can see it, objectives.
+ */
+function ployValue(g, side, p) {
+  const d = p.desc?.en || '';
+  const ops = living(g, side).filter((o) => !o.reserve && o.x > -50);
+  const enemies = living(g, 1 - side).filter((e) => e.x > -50);
+  if (!ops.length) return 0;
+  const share = (f) => ops.filter(f).length / ops.length;
+  const shooters = share((o) => !prefersMelee(o) && bestRanged(o, 0) > 0);
+  const fighters = share((o) => prefersMelee(o));
+  const near = (o, r) => enemies.some((e) => edgeDist(o, e) <= r);
+  const seen = share((o) => enemies.some((e) => bestRanged(e, 0) && visibility(g, e, o).visible));
+  let v = 0;
+  const shotAt = /is shot|being shot|shooting (?:at )?(?:it|them|that)|targets? (?:it|that)/i.test(d);
+  if (shotAt || /defence dice|save|damage .{0,30}(?:less|reduc)|ignore .{0,20}(?:injur|damage)/i.test(d)) v += 0.8 + seen * 1.5;
+  if (!shotAt && /ranged weapon|shooting|shoot/i.test(d)) {
+    // Range-limited: the share of enemies in (or out of) that range of a friendly shooter.
+    const within = d.match(/within (\d+)"/), beyond = d.match(/more than (\d+)"/);
+    let f = 1;
+    if (within && enemies.length) f = enemies.filter((e) => ops.some((o) => edgeDist(o, e) <= +within[1])).length / enemies.length;
+    else if (beyond && enemies.length) f = enemies.filter((e) => ops.every((o) => edgeDist(o, e) > +beyond[1])).length / enemies.length;
+    v += 2.2 * shooters * (0.3 + f);
+  }
+  if (/melee|fighting|Fight action|retaliat|Charge/i.test(d)) v += 2.2 * fighters * (0.3 + share((o) => near(o, 9)));
+  if (/objective|control|VP|mission action/i.test(d)) v += 1.2;
+  if (/\bDash|Reposition|Move stat|move/i.test(d)) v += 0.5;
+  if (/injur|incapacitat|wounds/i.test(d)) v += 0.3;
+  return v;
+}
+
+/**
+ * Strategy ploys: the most valuable one this turning point; a second when CP are left over (keeping 1 for
+ * firefight ploys and Command Re-rolls until the last turning point, when everything can be spent).
+ */
+function aiBuyPloys(g, side) {
+  const keep = g.tp >= MAX_TP ? 0 : 1;
+  for (let n = 0; n < 2; n++) {
+    const opts = team(g, side).ploys.map((p) => ({ p, v: ployValue(g, side, p) - p.cp * 0.3 })).filter((x) => x.v >= 0.6).sort((a, b) => b.v - a.v);
+    const cheap = (x) => g.cp[side] - x.p.cp >= keep + n || (!n && x.v >= 1.5); // (a strong one is worth the last CP)
+    if (!opts.some((x) => cheap(x) && buyPloy(g, side, x.p))) break;
+  }
+}
+
 export function aiStrategy(g, side) {
   scAiStrategy(g, side); // Scout Squad: Tactical Manoeuvre and Diversion gambits
   rtAiStrategy(g, side); // Ratlings: Target Designation
@@ -39,9 +88,9 @@ export function aiStrategy(g, side) {
   vdAiStrategy(g, side); // Void-dancer Troupe: Saedath
   xvAiStrategy(g, side); // XV26 Stealth Battlesuits: Drone Controller, Counter-Network Jammers
   wsAiStrategy(g, side, chargePath); // Wolf Scouts: the Storm marker, Pounce
-  for (const p of team(g, side).ploys) {
-    if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
-  }
+  if (aiTune.legacy[side]) {
+    for (const p of team(g, side).ploys) if (g.cp[side] >= p.cp + 1 && Math.random() < 0.6 && buyPloy(g, side, p)) break;
+  } else aiBuyPloys(g, side);
   // Call the Kill / Bring it Down!: mark the enemy with the most wounds.
   if ((team(g, side).justiceMark || living(g, side).some((o) => tpl(o).callTheKill || tpl(o).watchmaster)) && !g.mark?.[side]) {
     setMark(g, side, living(g, 1 - side).sort((a, b) => b.wounds - a.wounds)[0]);
@@ -94,6 +143,8 @@ function shootOptions(g, op) {
       let score = avgDmg(w, hitMod - (ml >= 2 ? 1 : 0)) * (1 - (7 - tpl(t).save) / 6 * 0.5) * (c.cover && !ml ? 0.75 : 1) * (c.obscured ? 0.6 : 1);
       if (score >= t.wounds) score += 10; // likely kill
       score += (1 - t.wounds / t.maxW) * 2;
+      // Smart: an enemy holding a marker, or carrying one, scores against us — shoot it first.
+      if (!aiTune.legacy[op.side] && t.side < 2) score += (holdingObj(g, t) ? 1.5 : 0) + ([...(g.objectives || []), ...(g.markers || [])].some((m) => m.carriedBy === t.uid) ? 2 : 0);
       opts.push({ w, t, score });
     }
   }
@@ -103,10 +154,78 @@ function shootOptions(g, op) {
 const bestRanged = (op, hitMod) => Math.max(0, ...tpl(op).weapons.filter((w) => w.type === 'ranged').map((w) => avgDmg(w, hitMod)));
 const prefersMelee = (op) => !!tpl(op).wkSquig || avgDmg(bestMelee(op)) > bestRanged(op, 0) * 1.1; // (a Bomb Squig runs at the enemy)
 
+// ---------- objectives ----------
+/** Would the operative (at p) be within control range of the marker? */
+const inControl = (op, m, p = op) => dist(p, m) - radius(op) - OBJ_R <= CONTROL;
+/** [friendly, enemy] APL within control range of a marker, from the operative's side, leaving out `skip`. */
+function objApl(g, side, m, skip) {
+  const s = [0, 0];
+  for (const o of living(g)) if (o.side < 2 && o !== skip && o.x > -50 && !o.reserve && inControl(o, m)) s[o.side === side ? 0 : 1] += aplNow(g, o);
+  return s;
+}
+const holdingObj = (g, t) => (g.objectives || []).some((m) => inControl(t, m));
+/** The objective the operative is needed on: within its control range, and the marker would be lost or contested without it. */
+const heldObjective = (g, op) => (g.objectives || []).find((m) => { if (!inControl(op, m) || mission(g).aiHold?.(g, op.side, m) === false) return false; const [f, e] = objApl(g, op.side, m, op); return f <= e; });
+/** Who is heading where this turning point, so two operatives don't both run for a marker one can take. */
+const claims = new WeakMap();
+function claimsOf(g, side) {
+  let c = claims.get(g);
+  if (!c || c.tp !== g.tp) claims.set(g, (c = { tp: g.tp, by: [new Map(), new Map()] }));
+  return c.by[side];
+}
+
+/**
+ * Where the operative should go (smart AI): stay on a marker it's needed on; fighters go for an enemy on (or
+ * near) a marker, or one they can soon reach; otherwise the marker where its APL is needed most for the
+ * least walking — markers the enemy holds or contests first, then ones nobody holds, then our own.
+ */
+function pickGoalSmart(g, op) {
+  const enemies = foes(g, op).filter((e) => e.x > -50 && !e.reserve);
+  const nearestEnemy = enemies.sort((a, b) => dist(op, a) - dist(op, b))[0];
+  const mine = claimsOf(g, op.side);
+  mine.delete(op.uid);
+  const held = heldObjective(g, op);
+  if (held) { mine.set(op.uid, held); return null; }
+  if (tpl(op).gheistskull && nearestEnemy) return nearestEnemy;
+  const mv = moveStat(g, op);
+  if (prefersMelee(op) && nearestEnemy) {
+    const reach = mv * 2 + 2;
+    const onObj = enemies.filter((e) => e.side !== NPO && holdingObj(g, e) && edgeDist(op, e) <= reach * 1.5).sort((a, b) => dist(op, a) - dist(op, b))[0];
+    if (onObj) return onObj;
+    if (edgeDist(op, nearestEnemy) <= reach) return nearestEnemy;
+  }
+  const tacMarker = (m) => (m.kind === 'banner' ? m.owner !== op.side : ['retrieval', 'intel'].includes(m.kind)) && canPickUpMarker(g, op, m);
+  const carrying = (g.markers || []).some((m) => m.carriedBy === op.uid);
+  const pickable = carrying ? [] : (g.markers || []).filter((m) => !m.carriedBy && (m.owner == null ? mission(g).canPickUp?.(g, op, m) : tacMarker(m)));
+  const left = MAX_TP - g.tp + 1; // turning points left, this one included
+  const myApl = Math.max(1, aplNow(g, op));
+  let best = null;
+  for (const m of [...g.objectives, ...pickable]) {
+    const [f, e] = objApl(g, op.side, m, op);
+    let coming = 0;
+    for (const [uid, c] of mine) if (c === m) { const o = g.ops.find((x) => x.uid === uid); if (o && !o.dead) coming += aplNow(g, o); }
+    const need = e - (f + coming) + 1; // APL still needed to take it
+    const value = g.objectives.includes(m) ? (need > 0 ? (need <= myApl ? 4 : 2.5) + (e > 0 ? 1 : 0) : 0.6) : 3;
+    const extra = g.objectives.includes(m) ? mission(g).aiObjValue?.(g, op.side, m) || 0 : 0; // (what the mission makes of it)
+    const walk = Math.max(0, dist(op, m) - radius(op) - OBJ_R - CONTROL);
+    const acts = walk / (mv + 2); // activations to get there (a Reposition and a bit of Dash each)
+    if (acts > left + 0.5) continue;
+    const s = value + extra - acts * 1.3;
+    if (!best || s > best.s) best = { m, s };
+  }
+  if (!best) return nearestEnemy;
+  if (g.objectives.includes(best.m)) {
+    if (inControl(op, best.m)) return null;
+    mine.set(op.uid, best.m);
+  }
+  return best.m;
+}
+
 function pickGoal(g, op) {
   // Envoy (Tac Op): head deep into enemy territory.
   const tac = g.tacOps?.[op.side];
   if (tac?.envoy?.tp === g.tp && tac.envoy.uid === op.uid) { const z = deployZones(g)[1 - op.side]; return { x: (z.x0 + z.x1) / 2, y: g.axis === 'y' ? (z.y0 + z.y1) / 2 : op.y }; }
+  if (!aiTune.legacy[op.side]) return pickGoalSmart(g, op);
   const enemies = foes(g, op);
   const nearestEnemy = enemies.sort((a, b) => dist(op, a) - dist(op, b))[0];
   if ((prefersMelee(op) || tpl(op).gheistskull) && nearestEnemy) return nearestEnemy; // the Gheistskull closes in to be detonated
@@ -162,29 +281,41 @@ function exposure(g, op, p, order) {
   return sum;
 }
 const isEngagedNear = (g, e) => engagedEnemies(g, e).length > 0;
+/** Run fn as if the operative had an Engage order. */
+const asEngage = (op, fn) => { const k = op.order; op.order = 'engage'; try { return fn(); } finally { op.order = k; } };
 
 /**
  * Cover-aware advance (melee operatives): among reachable end points, pick the one that best trades getting
  * closer to the goal against how much enemy fire it would draw, with a bonus for ending within charge reach.
  */
-function safeMove(g, op, kind, goal, order) {
+function safeMove(g, op, kind, goal, order, opts = {}) {
   const ctx = moveCtx(g, op, kind);
   const max = moveAllowance(g, op, kind);
-  const endOk = (q) => !ctx.inEnemyER(q);
+  // opts.keep: stay within control range of that marker; opts.shoot: a shooter that still wants a shot from where it ends.
+  const endOk = (q) => !ctx.inEnemyER(q) && (!opts.keep || inControl(op, opts.keep, q));
   const reach = moveAllowance(g, op, 'charge') + 0.5; // next activation's Charge
+  const melee = prefersMelee(op);
+  const obj = goal && (g.objectives || []).includes(goal) ? goal : null;
+  const risk = !aiTune.legacy[op.side] && g.tp >= MAX_TP ? 0.6 : 1; // (the last turning point: scoring matters more than staying alive)
+  const at = (p, fn) => { const k = { x: op.x, y: op.y }; op.x = p.x; op.y = p.y; try { return fn(); } finally { op.x = k.x; op.y = k.y; } };
   // Keep advancing, but give up to ~4" of progress to end where fewer enemies can shoot it.
   const score = (p, len) => {
-    const progress = dist(op, goal) - dist(p, goal);
-    const near = foes(g, op).some((e) => e.side !== NPO && edgeDist({ ...op, x: p.x, y: p.y }, e) <= reach);
-    return progress - Math.min(4, exposure(g, op, p, order) * 1.5) + (near ? 1.5 : 0) - len * 0.02;
+    const progress = goal ? dist(op, goal) - dist(p, goal) : 0;
+    const near = melee && foes(g, op).some((e) => e.side !== NPO && edgeDist({ ...op, x: p.x, y: p.y }, e) <= reach);
+    const onObj = obj && inControl(op, obj, p) ? 3.5 : 0; // ending on the marker it went for
+    const shot = opts.shoot && at(p, () => shootOptions(g, op).length) ? 2 : 0;
+    return progress - Math.min(4, exposure(g, op, p, order) * 1.5) * risk + (near ? 1.5 : 0) + onObj + shot - len * 0.02;
   };
   let best = { p: null, path: null, s: score(op, 0) - 1 }; // standing still must be clearly better
   const cands = [];
-  const direct = pathToward(g, op, kind, goal);
+  const direct = goal && pathToward(g, op, kind, goal);
   if (direct) cands.push(direct);
-  for (const f of [1, 0.66, 0.33]) {
+  const rings = opts.keep ? [] : [1, 0.66, 0.33].map((f) => [op, max * f]);
+  if (opts.keep) { const r = radius(op) + OBJ_R + CONTROL - 0.05; rings.push([opts.keep, r], [opts.keep, r * 0.6]); }
+  if (obj && !opts.keep) rings.push([obj, radius(op) + OBJ_R + CONTROL - 0.05]); // spots on the marker it's going for
+  for (const [c, rad] of rings) {
     for (let a = 0; a < 16; a++) {
-      const q = { x: op.x + Math.cos(a * Math.PI / 8) * max * f, y: op.y + Math.sin(a * Math.PI / 8) * max * f };
+      const q = { x: c.x + Math.cos(a * Math.PI / 8) * rad, y: c.y + Math.sin(a * Math.PI / 8) * rad };
       if (!ctx.free(q) || !endOk(q)) continue;
       if (ctx.segFree(op, q) && !ctx.climbs([op, q])) { const pts = [{ x: op.x, y: op.y }, q], len = dist(op, q) + ctx.extra(pts); if (len <= max + 0.01) cands.push({ pts, len }); continue; }
       const path = findPath(ctx, q);
@@ -317,7 +448,8 @@ export function aiAttack(g, decl) {
 // ---------- firefight ploys (交戰計謀) ----------
 /** Use a button ploy now? Spends CP only when the computer has some to spare (keeps 1 for Command Re-roll). */
 function aiButtonPloys(g, op) {
-  const spare = g.cp[op.side] >= 2;
+  // (from the third turning point the last CP goes too: CP left at the end of the battle are wasted)
+  const spare = g.cp[op.side] >= (!aiTune.legacy[op.side] && g.tp >= 3 ? 1 : 2);
   const ok = Object.fromEntries(ffButtons(g, op).map((b) => [b.id, b.ok]));
   const use = (id) => ok[id] && useFFButton(g, op, id);
   const fresh = !Object.keys(op.acted).some((k) => !['unseen', 'accelerant', 'free'].includes(k));
@@ -364,8 +496,13 @@ function aiPloysFor(g, op, decl) {
   // Free ones first (Blades of Khaine Aspect Techniques): one per activation, so take the first that fits.
   const free = ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target).find((o) => o.ok && o.cp === 0);
   if (free && !free.on && !g.ffPending?.ids.some((id) => ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target).find((x) => x.id === id && x.cp === 0))) ffToggle(g, op, free.id, decl.target);
-  if (g.cp[op.side] >= 2) {
-    for (const o of ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target)) if (o.ok && !o.on && g.cp[op.side] - (g.ffPending?.ids.length || 0) >= 2) ffToggle(g, op, o.id, decl.target);
+  // Paid ones while CP last (keeping 1 back) — or the last CP on an attack that matters: one that could take the
+  // target out, on a target holding an objective, or late in the battle.
+  const t = decl.target, smart = !aiTune.legacy[op.side];
+  const big = smart && t && t.side < 2 && (avgDmg(decl.weapon) >= t.wounds * 0.6 || g.tp >= 3 || holdingObj(g, t));
+  const floor = big ? 1 : 2;
+  if (g.cp[op.side] >= floor) {
+    for (const o of ffAttackOptions(g, op, decl.kind, decl.weapon, decl.target)) if (o.ok && !o.on && o.cp > 0 && g.cp[op.side] - (g.ffPending?.ids.length || 0) >= floor + (o.cp - 1)) ffToggle(g, op, o.id, decl.target);
   }
   return decl;
 }
@@ -391,15 +528,41 @@ export function aiStep(g) {
   if (!op) {
     const ready = readyOps(g, side);
     if (!ready.length) { endActivation(g); return null; }
+    if (ccAiAnimate(g, side)) return null; // Canoptek Circle: Animate Obelisk Nodes instead of activating
     // Melee operatives standing exposed get to move into cover first.
     const urgent = (o) => (prefersMelee(o) && !o.frenzy ? Math.min(4, exposure(g, o, o, o.order) * 1.5) : 0);
-    const score = (o) => (engagedEnemies(g, o).length ? 10 : 0) + (shootOptions(g, o)[0]?.score || 0) + urgent(o) + Math.random();
+    const smartSide = !aiTune.legacy[side];
+    // Smart: an operative that would only sit on a marker it's needed on waits (it scores at the end of the turning
+    // point wherever it is); one that can take a marker goes sooner; anyone standing exposed moves to cover first.
+    const plan = (o) => {
+      if (!smartSide) return 0;
+      const shot = asEngage(o, () => shootOptions(g, o)[0]?.score || 0);
+      // (but one that can do the mission's action on its marker does it first, before it can be shot off it)
+      const action = g.tp >= 2 && missionActionsFor(g, side).length && (g.objectives || []).some((m) => inControl(o, m) && controller(g, m) === side && mission(g).aiHold?.(g, side, m) !== false);
+      if (action) return 2.5;
+      if (!shot && !engagedEnemies(g, o).length && heldObjective(g, o)) return -2;
+      const exp = prefersMelee(o) ? 0 : Math.min(2, exposure(g, o, o, o.order) * 0.7);
+      return exp + (!holdingObj(g, o) && (g.objectives || []).some((m) => dist(o, m) - radius(o) - OBJ_R - CONTROL <= moveStat(g, o) + 2) ? 1.5 : 0);
+    };
+    const score = (o) => (engagedEnemies(g, o).length ? 10 : 0) + (shootOptions(g, o)[0]?.score || 0) + urgent(o) + plan(o) + Math.random();
     op = ready.sort((a, b) => score(b) - score(a))[0];
     activate(g, op);
     if (g.active !== op.uid) return null; // Mandrake activation interruption
+    ccAiNodal(g, op); // Canoptek Circle: Nodal Response — a strategy ploy now
     // Melee operatives stay Concealed while closing in, and only go Engage when they can Charge or fight now.
     const melee = prefersMelee(op) && !op.frenzy;
     op.order = !tpl(op).stoopid && melee && !engagedEnemies(g, op).length && !chargePath(g, op) && g.tp < 4 ? 'conceal' : 'engage'; // (Stoopid: always Engage)
+    // Smart: a shooter with nothing to shoot, here or where it's about to go, goes Conceal (in cover it can't be targeted then).
+    if (!aiTune.legacy[side] && !melee && !tpl(op).stoopid && !engagedEnemies(g, op).length && !op.frenzy) {
+      op.order = 'engage';
+      if (!shootOptions(g, op).length) {
+        const goal = pickGoal(g, op);
+        const p = goal && pathToward(g, op, 'reposition', goal);
+        const end = p?.pts.at(-1);
+        const later = end && asEngage(op, () => { const k = { x: op.x, y: op.y }; op.x = end.x; op.y = end.y; try { return shootOptions(g, op).length; } finally { op.x = k.x; op.y = k.y; } });
+        if (!later && !closeQuarters(g)) op.order = 'conceal'; // (close quarters: it stays Engage to go on guard)
+      }
+    }
     return null;
   }
   if (op.dead) { endActivation(g); return null; }
@@ -902,13 +1065,26 @@ export function aiStep(g) {
     const best = shootOptions(g, op)[0];
     if (best) return aiPloysFor(g, op, { kind: 'shoot', weapon: best.w, target: best.t });
   }
+  // Close quarters: nothing to shoot, and its last AP (or it stays where it is) — go on guard.
+  if (can.guard && !aiTune.legacy[op.side] && (op.ap <= 1 || !pickGoal(g, op))) { doSelfAction(g, op, 'guard'); return null; }
   const goal = pickGoal(g, op);
-  // Melee operatives advance from cover to cover instead of walking straight at the enemy.
-  const careful = prefersMelee(op) && !op.frenzy;
-  const move = (kind) => (careful ? safeMove(g, op, kind, goal, op.order) : pathToward(g, op, kind, goal));
+  const smart = !aiTune.legacy[op.side];
+  // Melee operatives advance from cover to cover instead of walking straight at the enemy (smart: everyone does,
+  // and a shooter that hasn't shot yet favours spots it can shoot from).
+  const careful = (smart || prefersMelee(op)) && !op.frenzy;
+  const wantShot = smart && !prefersMelee(op) && can.shoot && op.order === 'engage' && !count1(op, 'shoot');
+  const move = (kind) => (careful ? safeMove(g, op, kind, goal, op.order, { shoot: wantShot }) : pathToward(g, op, kind, goal));
+  // Smart: staying on a marker — shift within its control range to where fewer enemies can shoot it.
+  if (!goal && smart && can.reposition && !op.frenzy) {
+    const m = (g.objectives || []).find((x) => inControl(op, x));
+    if (m && exposure(g, op, op, op.order) > 0) {
+      const p = safeMove(g, op, 'reposition', null, op.order, { keep: m });
+      if (p) { doMove(g, op, 'reposition', p); return null; }
+    }
+  }
   // Heavy (Dash only) weapons: Dash first — it still covers the same ground with a Reposition after,
   // but leaves the weapon usable if a target comes into view.
-  if (goal && can.dash && !careful && weaponsFor(g, op).some((w) => w.type === 'ranged' && w.rules.heavy === 'dash')) {
+  if (goal && can.dash && !prefersMelee(op) && weaponsFor(g, op).some((w) => w.type === 'ranged' && w.rules.heavy === 'dash')) {
     const p = move('dash');
     if (p) { doMove(g, op, 'dash', p); return null; }
   }
@@ -920,6 +1096,40 @@ export function aiStep(g) {
     const p = move('dash');
     if (p) { doMove(g, op, 'dash', p); return null; }
   }
+  if (can.guard && !aiTune.legacy[op.side]) { doSelfAction(g, op, 'guard'); return null; }
   endActivation(g);
   return null;
 }
+
+// ---------- Canoptek Circle: the obelisk node firefight ploys ----------
+/** Animate Obelisk Nodes, instead of activating: only while waiting (the opponent has more operatives left to act), to put a node within 1" of
+ * an objective no enemy contests (an obelisk node controls it then). True when it did. */
+function ccAiAnimate(g, side) {
+  if (!team(g, side).obeliskNodes || !ffReady(g, side, 'animateNodes') || readyOps(g, 1 - side).length <= readyOps(g, side).length) return false;
+  const free = (o) => !living(g, 1 - side).some((e) => e.x > -50 && dist(e, o) - radius(e) - 0.4 <= 1);
+  for (const o of (g.objectives || []).filter((x) => controller(g, x) !== side && free(x))) {
+    for (const n of nodeList(g, side)) {
+      if (dist(n, o) <= 0.9) continue;
+      for (let a = 0; a < 12; a++) {
+        const p = { x: o.x + Math.cos(a * Math.PI / 6) * 0.8, y: o.y + Math.sin(a * Math.PI / 6) * 0.8 };
+        if (Math.ceil(dist(n, p) - 1e-6) > 6) continue;
+        if (!animateBegin(g, side)) return false;
+        if (!animateMove(g, side, n.id, p)) { for (let b = 0; b < 12 && !animateMove(g, side, n.id, { x: o.x + Math.cos(b * Math.PI / 6) * 0.95, y: o.y + Math.sin(b * Math.PI / 6) * 0.95 }); b++); }
+        animateEnd(g, side);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+/** Nodal Response: with CP to spare, buy a strategy ploy it hasn't used this turning point. */
+function ccAiNodal(g, op) {
+  const side = op.side;
+  if (!team(g, side).obeliskNodes || !ffReady(g, side, 'nodalResponse') || g.cp[side] < 2 || Math.random() < 0.5) return;
+  const b = ffButtons(g, op).find((x) => x.id === 'nodalResponse');
+  if (!b?.ok) return;
+  useFFButton(g, op, 'nodalResponse');
+  const ploy = team(g, side).ploys.find((p) => g.cp[side] >= p.cp && nodalChoose(g, side, p.id));
+  if (!ploy) g.nodalOpen = null;
+}
+export { pickGoal as aiGoal }; // (tests)

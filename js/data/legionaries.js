@@ -9,7 +9,7 @@ export const legionarySlots = (t, roster = {}) => t.ops.filter((o) => o.count).m
 export function legionariesRosterError(t, roster = {}) {
   const picks = legionarySlots(t, roster), T = (id) => t.ops.find((o) => o.id === id);
   const ids = picks.filter((p) => p.slot !== 'lgChosen').map((p) => p.id);
-  const dup = [...new Set(ids.filter((id, i) => id !== 'lgWarrior' && ids.indexOf(id) !== i))];
+  const dup = [...new Set(ids.filter((id, i) => id !== 'lgWarrior' && id !== 'lgWarrior2' && ids.indexOf(id) !== i))];
   if (dup.length) return B(`重複選了：${dup.map((id) => T(id).name.zh).join('、')}（除了戰士，每種特工只能選一次）`, `Picked more than once: ${dup.map((id) => T(id).name.en).join(', ')} (each only once, except Warriors)`);
   if (picks.some((p) => p.id === 'lgBalefire' && roster[`mark_${p.slot}`] === 'khorne')) return B('狂焰侍僧不能選恐虐印記', 'A Balefire Acolyte cannot bear the Mark of Khorne');
   return null;

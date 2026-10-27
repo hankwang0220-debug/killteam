@@ -1,7 +1,7 @@
 import { DW_AMMO, deathwatchRosterError } from './data/deathwatch.js';
 import { TEAM_MAP } from './data/teams.js';
 import { spAfterAction } from './spectres.js';
-import { abilityArmed, tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, equipmentLimitFor } from './game.js';
+import { abilityArmed, tpl, living, foes, edgeDist, visibility, hasPloy, radius, territoryOf, isEngaged, inEngagement, d6, log, opName, ACTIONS, spend, weaponsFor, shootCheck, resolveShoot, resolveFight, bestMelee, avgDmg, applyDamage, mission, equipmentLimitFor, playerPicks, closeQuarters } from './game.js';
 import { MISSION_ACTIONS } from './missions.js';
 export { DW_AMMO };
 export const isDeathwatch = (o) => o?.team === 'deathwatch';
@@ -152,26 +152,74 @@ export function dwDigital(g, o, target) {
     (g.dwDigitalTP ||= [0, 0])[o.side] = g.tp; applyDamage(g, o, target, 1);
   }
 }
+// ---------- On guard (close quarters; also Vigilant Marksman, Track Target, Storm-veiled Execution, Deathmark Ambush) ----------
+/** The guard's order while it attacks: Track Target / Deathmark Ambush go Engage. */
+const guardOrder = (o) => (tpl(o).phTrack || o.hcAmbush ? 'engage' : o.order);
+/** The attack an operative on guard could make on the actor: a Fight (it's in control range), a point-blank shot, or an ordinary shot. */
+function guardAttack(g, o, actor) {
+  const close = inEngagement(o, actor, g);
+  const keep = { ap: o.ap, acted: o.acted, order: o.order, pointBlank: o.pointBlank };
+  o.ap = 1; o.acted = { free: { shoot: 'any', fight: 'any' } }; o.order = guardOrder(o); o.pointBlank = close;
+  try {
+    const shots = weaponsFor(g, o).filter((w) => w.type === 'ranged' && shootCheck(g, o, actor, w).ok).map((w) => ({ kind: 'shoot', w, v: avgDmg(w, close ? 1 : 0) }));
+    const fight = close && bestMelee(o) ? [{ kind: 'fight', w: bestMelee(o), v: avgDmg(bestMelee(o)) * 1.1 }] : [];
+    return [...shots, ...fight].sort((a, b) => b.v - a.v)[0] || null;
+  } finally { Object.assign(o, keep); }
+}
+/** Nobody interrupted after that action: guards in the actor's control range stand down. */
+function guardsStandDown(g, actor) {
+  for (const o of living(g)) if (o.side !== actor.side && o.dwGuard && actor.x > -50 && inEngagement(o, actor, g)) {
+    o.dwGuard = false;
+    log(g, B(`${opName(o, 'zh')} 的警戒解除（${opName(actor, 'zh')} 在控制範圍內完成動作，沒有打斷）`, `${opName(o, 'en')} is no longer on guard (${opName(actor, 'en')} ended an action in its control range, not interrupted)`), `side${o.side}`);
+  }
+}
+/** Interrupting: the guard comes off guard, can't counteract this turning point, and fights / shoots (point-blank when in control range). */
+function guardStart(g, o, actor) {
+  actor.acted.dwGuardInterrupted = true;
+  o.dwGuard = false;
+  o.noCounterTP = g.tp; // (FAQ: an operative that interrupts on guard can't counteract during that turning point)
+  if (tpl(o).phTrack || o.hcAmbush) o.order = 'engage'; // (Track Target, Deathmark Ambush: a Concealed guard goes Engage to attack)
+  o.pointBlank = isEngaged(g, o); o.pbActor = actor.uid;
+  log(g, B(`${opName(o, 'zh')} 警戒：打斷 ${opName(actor, 'zh')} 的啟動${o.pointBlank ? '（零距離射擊：命中 -1，這次啟動不能反擊）' : ''}`, `${opName(o, 'en')} on guard interrupts ${opName(actor, 'en')}'s activation${o.pointBlank ? ' (point-blank: Hit worsened by 1, no retaliating this activation)' : ''}`), `side${o.side}`);
+}
+/** A player picked the operative on guard to interrupt with (it's activated for its free Shoot or Fight). */
+export function guardPick(g, o) {
+  const actor = g.netcounter?.guard && getOpIn(g, g.netcounter.guard.actor);
+  if (actor) guardStart(g, o, actor);
+}
+/** A player passed on interrupting. */
+export function guardPassed(g) {
+  const actor = getOpIn(g, g.netcounter.guard.actor);
+  if (actor && !actor.dead) guardsStandDown(g, actor);
+}
+const getOpIn = (g, uid) => g.ops.find((o) => o.uid === uid);
+/** After an enemy's action: once per activation, an operative on guard may interrupt with a free Shoot or Fight. */
 export function dwAfterAction(g, actor) {
   spAfterAction(g, actor); // Elite Fieldcraft (Spectre Squad): interrupts after an enemy's action
-  if (g.dwInterrupt || actor.counter || g.phase !== 'firefight' || actor.acted.dwGuardInterrupted) return;
+  if (g.dwInterrupt || g.phase !== 'firefight' || !actor || actor.side > 1 || actor.dead || g.netcounter) return;
+  if (actor.counter) { guardsStandDown(g, actor); return; } // (a counteraction isn't an activation: it can't be interrupted)
+  if (actor.acted.dwGuardInterrupted) return; // (once per activation; the guards it passed stay on guard)
+  const side = 1 - actor.side;
+  const cands = living(g, side).filter((o) => o.dwGuard && !dwBlocked(g, o)).map((o) => ({ o, a: guardAttack(g, o, actor) })).filter((x) => x.a);
+  if (!cands.length) { guardsStandDown(g, actor); return; }
+  // A player chooses whether to interrupt and with whom (Shoot or Fight for free), or passes.
+  if (playerPicks(g, side) && g.active === actor.uid) {
+    g.netcounter = { side, only: cands.map((x) => x.o.uid), resume: actor.uid, resumeCounter: false, kind: 'control', onlyActions: ['shoot', 'fight'], ctlMove: 0, guard: { actor: actor.uid },
+      label: { title: B('警戒：打斷', 'On guard: interrupt'), hint: B(`${opName(actor, 'zh')} 剛執行完動作。可以選一名警戒中的友方免費射擊或近戰（控制範圍內是零距離射擊：命中 -1）；打斷後它本回合不能反應。略過的話，${opName(actor, 'zh')} 控制範圍內的警戒會解除。`, `${opName(actor, 'en')} has just performed an action. Pick a friendly on guard to Shoot or Fight for free (point-blank within control range: Hit worsened by 1); it can't counteract this turning point. If you pass, guards within ${opName(actor, 'en')}'s control range stand down.`) } };
+    g.active = null; g.counter = true; g.turn = side;
+    return;
+  }
+  const { o, a } = cands.sort((x, y) => y.a.v - x.a.v)[0];
   g.dwInterrupt = true;
   try {
-    const guard = living(g).find((o) => o.side !== actor.side && o.dwGuard && !dwBlocked(g, o) && (isEngaged(g, o) && edgeDist(o, actor) <= 1 || weaponsFor(g, o).some((w) => w.type === 'ranged' && shootCheck(g, { ...o, ap: 1, acted: {}, order: tpl(o).phTrack || o.hcAmbush ? 'engage' : o.order }, actor, w).ok)));
-    if (!guard || actor.dead) return;
-    actor.acted.dwGuardInterrupted = true;
-    guard.dwGuard = false;
-    const keep = { acted: guard.acted, ap: guard.ap, active: g.active, fight: g.fight, ffAtk: g.ffAtk, ffPending: g.ffPending };
-    if (tpl(guard).phTrack || guard.hcAmbush) guard.order = 'engage'; // (Track Target, Phobos Incursor Marksman: a Concealed guard goes Engage to attack)
-    guard.acted = { free: { shoot: 'any', fight: 'any' } }; guard.ap = 1; g.active = guard.uid; g.ffPending = null;
-    log(g, B(`${opName(guard, 'zh')} 警戒攻擊`, `${opName(guard, 'en')} guard attack`), `side${guard.side}`);
+    const keep = { acted: o.acted, ap: o.ap, active: g.active, fight: g.fight, ffAtk: g.ffAtk, ffPending: g.ffPending };
+    guardStart(g, o, actor);
+    o.acted = { free: { shoot: 'any', fight: 'any' } }; o.ap = 1; g.active = o.uid; g.ffPending = null;
     try {
-      if (isEngaged(g, guard)) resolveFight(g, guard, bestMelee(guard), actor);
-      else {
-        const w = weaponsFor(g, guard).filter((w) => w.type === 'ranged' && shootCheck(g, guard, actor, w).ok).sort((a, b) => avgDmg(b) - avgDmg(a))[0];
-        if (w) resolveShoot(g, guard, w, actor);
-      }
-    } finally { guard.acted = keep.acted; guard.ap = keep.ap; g.active = keep.active; g.fight = keep.fight; g.ffAtk = keep.ffAtk; g.ffPending = keep.ffPending; }
-    if (!guard.dead && (mission(g).closeQuarters || g.closeQuarters) && guard.dwReGuardTP !== g.tp && !guard.counteracted) { guard.dwReGuardTP = g.tp; guard.dwGuard = true; }
+      if (a.kind === 'fight') resolveFight(g, o, a.w, actor);
+      else resolveShoot(g, o, a.w, actor);
+    } finally { o.acted = keep.acted; o.ap = keep.ap; g.active = keep.active; g.fight = keep.fight; g.ffAtk = keep.ffAtk; g.ffPending = keep.ffPending; o.pointBlank = false; }
+    // Vigilant Marksman: once per turning point, straight back on guard (then it can't counteract — already so after interrupting).
+    if (!o.dead && tpl(o).dwMarksman && closeQuarters(g) && o.dwReGuardTP !== g.tp && !o.counteracted) { o.dwReGuardTP = g.tp; o.dwGuard = true; }
   } finally { g.dwInterrupt = false; }
 }

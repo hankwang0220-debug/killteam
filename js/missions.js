@@ -658,6 +658,9 @@ const secure = approvedCrit('secure', 1, '確保', 'Secure',
   'Secure (1AP, TP2+): an objective you control is secured by you until your opponent secures it. Each TP end from TP2: +1VP if any objective is secured by you, +1VP if more are secured by you than by your opponent.',
   {
     actions: ['secure'],
+    // Computer: a marker it has secured stays secured without anyone on it; one the enemy secured is worth taking back.
+    aiObjValue: (g, side, o) => (o.secured === side ? -1.5 : o.secured != null ? 1.5 : 0.5),
+    aiHold: (g, side, o) => o.secured !== side,
     onTPEnd(g) {
       if (g.tp < 2) return;
       const n = (s) => g.objectives.filter((o) => o.secured === s).length;

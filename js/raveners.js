@@ -151,7 +151,10 @@ export const rvFreeBurrow = (g, op) => isRV(op) && !!op.counter && !op.acted?.rv
 export function rvActions(g, op, add) {
   if (!isRV(op) || op.side > 1) return;
   const eng = isEngaged(g, op), ENG = { zh: '處於交戰中', en: 'Engaged' };
-  if (op.underground) add('rvBurrow', rvTunnel(g, op.side).length > 0, { zh: '沒有隧道標記', en: 'No Tunnel markers' });
+  // Like any action, Burrow only once per activation / counteraction (going down and coming back up are both Burrow).
+  const DONE = { zh: '本次啟動已執行', en: 'Already done' };
+  if (op.acted?.rvBurrow) add('rvBurrow', false, DONE);
+  else if (op.underground) add('rvBurrow', rvTunnel(g, op.side).length > 0, { zh: '沒有隧道標記', en: 'No Tunnel markers' });
   else add('rvBurrow', rvOnTunnel(g, op) && !carrying(g, op), carrying(g, op) ? { zh: '攜帶著標記', en: 'Carrying a marker' } : { zh: '不在你的隧道上', en: 'Not on your TUNNEL' });
   if (tpl(op).rvFelltalon) add('rvLunge', TARGET_ACTIONS.rvLunge.targets(g, op).length > 0 && !op.acted.rvStrikeUsed, op.acted.rvStrikeUsed ? { zh: '本次啟動用過鑽地突襲', en: 'Burrowing Strike already used' } : { zh: '沒有可選的目標', en: 'No valid target' });
   if (tpl(op).rvVenomspitter && !op.underground) add('rvDistend', true, ENG);
@@ -164,7 +167,7 @@ export function rvSelf(g, op, id) {
     note(g, op.side, `${opName(op, 'zh')} 脹大背囊：毒液彈「致命 5+」、攻擊 +1，不再有射程限制`, `${opName(op, 'en')} Distend Dorsal Sac: its venom bolt has Lethal 5+, +1 Atk and no range limit`);
     return true;
   }
-  if (id !== 'rvBurrow' || op.underground) return false;
+  if (id !== 'rvBurrow' || op.underground || op.acted.rvBurrow) return false;
   // On the tunnel: go underground (Burrowing Strike first, before it is removed).
   const free = rvFreeBurrow(g, op);
   if (free) op.acted.rvFree = 1; else spend(g, op, id);
@@ -172,11 +175,15 @@ export function rvSelf(g, op, id) {
   burrowStrike(g, op);
   op.underground = true; op.reserve = true; op.x = -99; op.y = -99;
   note(g, op.side, `${opName(op, 'zh')} 鑽入地下`, `${opName(op, 'en')} burrows underground`);
+  // Underground it can only Burrow (done) — or a Felltalon's Toxic Lunge: otherwise its remaining AP are of no use.
+  const lunge = tpl(op).rvFelltalon && !op.acted.rvStrikeUsed && !op.acted.rvLunged && TARGET_ACTIONS.rvLunge.targets(g, op).length > 0;
+  if (!lunge) op.ap = 0;
   return true;
 }
 /** Emerging: the base must be on the tunnel and fit where it is put (it may be within enemy control range). */
 export function rvEmergeCheck(g, op, p) {
   if (!op.underground) return { ok: false, why: { zh: '不在地下', en: 'Not underground' } };
+  if (op.acted?.rvBurrow) return { ok: false, why: { zh: '本次啟動已鑽地過', en: 'Already Burrowed this activation' } };
   if (!rvOnTunnelAt(g, op.side, p, radius(op))) return { ok: false, why: { zh: '要放在你的隧道上', en: 'Must be set up on your TUNNEL' } };
   if (!moveCtx(g, { ...op, x: p.x, y: p.y, underground: false, reserve: false }, 'reposition').placement(p).ok) return { ok: false, why: { zh: '底盤放不下', en: 'The base does not fit' } };
   return { ok: true };
