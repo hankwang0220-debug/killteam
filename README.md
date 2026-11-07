@@ -4,7 +4,7 @@ A browser-based (PWA) Kill Team–style skirmish game. Two players can share one
 
 ## 連線對戰
 
-首頁「連線對戰」可交換邀請碼及回覆碼，在不同裝置共用 2D 棋盤。房主負責運算、擲骰及存檔，並透過頂端按鈕交接操作權。可直接部署於現有靜態網站；部分跨網路連線需要自備 TURN 中繼。詳見 [操作、網站更新與測試說明](docs/online.md)。
+首頁「連線對戰」可像 Kahoot 一樣用 6 位數房號（或邀請連結）配對，在不同裝置共用 2D 棋盤；配對服務連不上時仍可手動交換邀請碼及回覆碼。房主負責運算、擲骰及存檔，並透過頂端按鈕交接操作權。可直接部署於現有靜態網站；部分跨網路連線需要自備 TURN 中繼。詳見 [操作、網站更新與測試說明](docs/online.md)。
 
 > This is an unofficial fan project. The rules are a simplified version of Kill Team. Team statistics and weapon profiles follow the linked official online datacards; ability wording is summarised and implementation simplifications are documented below.
 

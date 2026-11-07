@@ -57,13 +57,18 @@ export class OnlinePeer {
   flush() {
     while (this.queue.length && this.channel?.readyState === 'open' && this.channel.bufferedAmount < 256 * 1024) this.channel.send(this.queue.shift());
   }
+  /** Wait for the connection addresses. Browsers can keep "gathering" long after the useful
+   * candidates arrived (slow interfaces, TCP probes), so settle 1.5s after the last new one. */
   async gathered() {
     if (this.pc.iceGatheringState === 'complete') return;
     await new Promise((resolve, reject) => {
-      const finish = error => { clearTimeout(timer); this.pc.removeEventListener('icegatheringstatechange', change); error ? reject(error) : resolve(); };
+      let quiet = null;
+      const finish = error => { clearTimeout(timer); clearTimeout(quiet); this.pc.removeEventListener('icegatheringstatechange', change); this.pc.removeEventListener('icecandidate', found); error ? reject(error) : resolve(); };
       const change = () => { if (this.pc.iceGatheringState === 'complete') finish(); };
-      const timer = setTimeout(() => finish(new Error('收集連線位址逾時，請重試或設定 TURN。')), 20000);
+      const found = e => { if (e.candidate) { clearTimeout(quiet); quiet = setTimeout(() => finish(), 1500); } };
+      const timer = setTimeout(() => finish(/a=candidate/.test(this.pc.localDescription?.sdp || '') ? null : new Error('收集連線位址逾時，請重試或設定 TURN。')), 20000);
       this.pc.addEventListener('icegatheringstatechange', change);
+      this.pc.addEventListener('icecandidate', found);
       change();
     });
   }

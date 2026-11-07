@@ -1,5 +1,7 @@
 // Optional real-browser integration: PLAYWRIGHT_PATH may point to playwright/index.mjs;
 // CHROME_PATH may point to an installed Chrome/Edge binary. No server deployment needed.
+// With the `peer` package installed (or PEER_PATH pointing to its dist/module.mjs) the room-number
+// flow runs against a local PeerJS signalling server; otherwise the manual connection codes are used.
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
@@ -13,30 +15,60 @@ const server = createServer(async (req, res) => {
   try { const bytes = await readFile(path); res.setHeader('Content-Type', ({'.js':'text/javascript','.css':'text/css','.html':'text/html','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'})[extname(path)]); res.end(bytes); } catch { res.writeHead(404).end(); }
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
+let PeerServer = null, signalling = null;
+try { ({PeerServer} = await import(process.env.PEER_PATH ? pathToFileURL(process.env.PEER_PATH).href : 'peer')); } catch { /* manual codes only */ }
+if (PeerServer) {
+  signalling = await new Promise(r => PeerServer({port:0, host:'127.0.0.1', path:'/', key:'kt-test', expire_timeout:2000}, r));
+}
 let browser;
 try {
   browser = await chromium.launch({headless:true, executablePath:process.env.CHROME_PATH || undefined});
   const hostContext = await browser.newContext(), guestContext = await browser.newContext();
   // Local loopback test: exercise real ICE/DTLS/SCTP without relying on public STUN uptime.
-  for (const context of [hostContext, guestContext]) await context.addInitScript(() => {
+  const signalUrl = signalling ? `ws://127.0.0.1:${signalling.address().port}/peerjs` : null;
+  for (const context of [hostContext, guestContext]) await context.addInitScript(url => {
     const Native = window.RTCPeerConnection;
     window.RTCPeerConnection = class extends Native { constructor() { super({iceServers:[]}); } };
-  });
+    if (url) window.KT_SIGNAL_SERVER = {url, key:'kt-test'};
+  }, signalUrl);
   const host = await hostContext.newPage(), guest = await guestContext.newPage();
   host.setDefaultTimeout(15000); guest.setDefaultTimeout(15000);
   const errors = [];
   for (const page of [host, guest]) page.on('pageerror', e => errors.push(e.message));
   const url = `http://127.0.0.1:${server.address().port}/`;
   await Promise.all([host.goto(url), guest.goto(url)]);
-  await host.locator('[data-act=online]').click(); await guest.locator('[data-act=online]').click();
-  await host.locator('[data-net=host]').click();
-  await host.waitForFunction(() => document.querySelector('[name=outgoing]').value.startsWith('KT1.'));
-  await guest.locator('[name=received]').fill(await host.locator('[name=outgoing]').inputValue());
-  await guest.locator('[data-net=join]').click();
-  await guest.waitForFunction(() => document.querySelector('[name=outgoing]').value.startsWith('KT1.'));
-  await host.locator('[name=received]').fill(await guest.locator('[name=outgoing]').inputValue());
-  await host.locator('[data-net=accept]').click();
+  await host.locator('[data-act=online]').click();
+  if (signalling) {
+    // Kahoot-style: the host gets a room number; a second guest with a wrong number is told so,
+    // and the invitation link joins without typing anything.
+    await host.locator('[data-net=room]').click();
+    await host.locator('[data-pin]').waitFor();
+    const room = (await host.locator('[data-pin] b').innerText()).replace(/\s/g, '');
+    assert.match(room, /^[1-9]\d{5}$/);
+    const stray = await guestContext.newPage();
+    await stray.goto(url); await stray.locator('[data-act=online]').click();
+    await stray.locator('[name=pin]').fill(room === '999999' ? '888888' : '999999');
+    await stray.locator('[data-net=enter]').click();
+    await stray.getByText(/找不到房號|沒有回應/).waitFor({timeout:30000});
+    await stray.close();
+    console.log('PASS unknown room number is reported');
+    await guest.goto(`${url}?join=${room}`);
+  } else {
+    await guest.locator('[data-act=online]').click();
+    await host.locator('summary', {hasText:'手動交換'}).click(); await guest.locator('summary', {hasText:'手動交換'}).click();
+    await host.locator('[data-net=host]').click();
+    await host.waitForFunction(() => document.querySelector('[name=outgoing]').value.startsWith('KT1.'));
+    await guest.locator('[name=received]').fill(await host.locator('[name=outgoing]').inputValue());
+    await guest.locator('[data-net=join]').click();
+    await guest.waitForFunction(() => document.querySelector('[name=outgoing]').value.startsWith('KT1.'));
+    await host.locator('[name=received]').fill(await guest.locator('[name=outgoing]').inputValue());
+    await host.locator('[data-net=accept]').click();
+  }
   await host.locator('[data-net=control]').waitFor(); await guest.locator('iframe.online-board').waitFor();
+  if (signalling) {
+    assert.equal(await host.locator('[data-pin]').isHidden(), true, 'the room number is released once connected');
+    console.log('PASS guest joined through the invitation link');
+  }
   await host.locator('[data-net=close]').click(); await guest.locator('[data-net=close]').click();
   const remote = guest.frameLocator('iframe.online-board');
   await remote.locator('[data-act=setupStep]').first().waitFor();
@@ -93,6 +125,8 @@ try {
   console.log('PASS control handoff, guest release, disconnect and browser errors');
 } finally {
   await browser?.close();
+  signalling?.closeAllConnections(); signalling?.close();
   server.closeAllConnections();
   await new Promise(r => server.close(r));
 }
+if (signalling) process.exit(0); // (the PeerJS server keeps its own timers running)

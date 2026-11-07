@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import {OnlinePeer, encodeSignal, decodeSignal} from '../js/online-peer.js';
+import {newRoomNumber, cleanRoomNumber, roomPeerId} from '../js/online-signal.js';
+for (let i = 0; i < 200; i++) assert.match(newRoomNumber(), /^[1-9]\d{5}$/, 'room numbers are six digits');
+assert.equal(cleanRoomNumber(' 482 913 '), '482913', 'spaces typed in a room number are ignored');
+assert.equal(cleanRoomNumber('482-913'), '482913');
+for (const bad of ['', '12345', '1234567', '012345', 'abcdef', null]) assert.equal(cleanRoomNumber(bad), null);
+assert.notEqual(roomPeerId('482913'), roomPeerId('482914'));
 const description = {type:'offer', sdp:'v=0\r\na=test\r\n'};
 assert.deepEqual(decodeSignal(encodeSignal(description), 'offer'), description);
 assert.throws(() => decodeSignal(encodeSignal(description), 'answer'), /種類/);
@@ -28,4 +34,4 @@ sender.channel.bufferedAmount = 0; sender.channel.onbufferedamountlow();
 assert.equal(sender.queue.length, 0);
 sender.channel.readyState = 'closed';
 assert.equal(sender.send({test:2}), false);
-console.log('Online signalling validation, chunking, Unicode and backpressure passed.');
+console.log('Online room numbers, signalling validation, chunking, Unicode and backpressure passed.');
