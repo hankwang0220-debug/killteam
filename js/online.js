@@ -203,7 +203,7 @@ export function createOnline({app, modal, onHost, onGuest, onLeave}) {
     } catch (error) { reset(); throw error; }
   }
   function open() {
-    if (!dialog.innerHTML) dialog.innerHTML = `<h2>連線對戰</h2>
+    if (!dialog.innerHTML) dialog.innerHTML = `<div class="online-head"><h2>連線對戰</h2><button class="online-close" data-net="close" aria-label="關閉" title="關閉">×</button></div>
       <p>兩人開啟同一版本網站：一人建立房間，另一人輸入房號即可。</p>
       <div class="online-rooms">
         <section><h3>開房（房主）</h3><button class="big" data-net="room">建立房間</button>
@@ -218,8 +218,7 @@ export function createOnline({app, modal, onHost, onGuest, onLeave}) {
       <label>收到的邀請碼或回覆碼<textarea name="received" rows="3" spellcheck="false"></textarea></label>
       <div class="online-actions"><button data-net="host">建立邀請碼</button><button data-net="join">加入並產生回覆碼</button><button data-net="accept">房主套用回覆碼</button></div>
       <label>傳給對方的碼<textarea name="outgoing" rows="3" readonly spellcheck="false"></textarea></label>
-      <button data-net="copy">複製給對方</button></details>
-      <button data-net="close">關閉視窗</button>`;
+      <button data-net="copy">複製給對方</button></details>`;
     drawPin();
     dialog.showModal();
   }
