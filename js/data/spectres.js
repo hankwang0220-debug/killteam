@@ -82,7 +82,7 @@ export const SPECTRES_TEAM = {
   firefight: [
     { id: 'spFieldcraft', cp: 0, name: B('菁英野戰技巧（自動打斷）', 'Elite Fieldcraft (automatic interrupt)'), desc: B('開啟時，敵人行動後自動用野戰點打斷（免費射擊）。關掉就不會自動使用。', 'When on, Elite Fieldcraft interrupts automatically (a free shot). Switch it off to stop it.') },
     P('spReact', '敏銳反應', 'Sharp Reactions', '擁有隱蔽指令的敵人在 8" 內的友方魅影旁完成動作後（自動）：可以用野戰技巧打斷，不論它的指令。', 'After an enemy with a Conceal order acts within 8" of a friendly SPECTRE SQUAD operative (automatic): Elite Fieldcraft can interrupt it whatever its order.'),
-    P('spPrepared', '預備防禦', 'Prepared Defence', '準備中或隱蔽指令的友方魅影反擊時（自動）：格擋一次可以擋兩個成功，且你可以先結算一個成功去格擋。打斷中的啟動不能用。', 'A ready or Concealed friendly SPECTRE SQUAD operative retaliating (automatic): its block can stop two successes. Not during an activation you interrupted with.'),
+    P('spPrepared', '預備防禦', 'Prepared Defence', '準備中或隱蔽指令的友方魅影反擊時（自動）：二選一。攻擊方的成功骰足以讓它殘廢時，先結算一顆成功骰去格擋；否則一次格擋可以擋兩個成功。打斷中的啟動不能用。', 'A ready or Concealed friendly SPECTRE SQUAD operative retaliating (automatic), one of: when the successes of the attacker could incapacitate it, it resolves one success first to block; otherwise one block stops two successes. Not during an activation you interrupted with.'),
     P('spDodge', '閃躲', 'Dodge', '友方魅影啟動中、行動前後使用：本次啟動撤退少 1AP。', 'During a friendly SPECTRE SQUAD operative\'s activation: Fall Back for 1 less AP.'),
     P('spSilent', '無聲殺手', 'Silent Killers', '友方魅影啟動中、行動前後，若它有隱蔽指令且不是有效目標：本次啟動隱蔽指令下也能衝鋒，第一次擊打額外 +3 傷害，但那次近戰不能結算其他成功。', 'A Concealed friendly SPECTRE SQUAD operative that isn\'t a valid target: it can Charge with the Conceal order this activation and its first strike deals 3 more damage, but it can\'t resolve any other success that sequence.'),
   ],

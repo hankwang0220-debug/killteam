@@ -112,6 +112,60 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
   assert(!hw.wbHidden && hw.x === 8 && G.availableActions(h, hw).find((a) => a.id === 'reposition').ok === false, 'counts as its Reposition');
 }
 
+// Quicksilver Strike (Locus, once per TP): after an enemy moves, a free Charge of up to 3" ending within its control range.
+{
+  const g = arena({ roster: { wbAgent2: 'locus' } }), l = get(g, 'locus'), e = foe(g);
+  for (const o of g.ops) if (o !== l && o !== e) place(o, o.side ? 29 : 1, o.y);
+  assert(l, 'the Locus is in the team');
+  place(l, 10, 10); place(e, 18, 10); l.order = 'conceal'; l.ready = false;
+  g.turn = 1; G.activate(g, e);
+  G.doMove(g, e, 'reposition', { pts: [{ x: 18, y: 10 }, { x: 13.5, y: 10 }] });
+  assert(G.edgeDist(l, e) <= 1.01, 'the computer Locus charged it');
+  assert.equal(l.order, 'engage', 'its order changed to Engage');
+  assert.equal(l.wbQuickTP, g.tp);
+  assert.equal(g.active, e.uid, 'the enemy activation goes on');
+  // a player is asked; out of reach, nothing happens
+  const g2 = arena({ roster: { wbAgent2: 'locus' } }), l2 = get(g2, 'locus'), e2 = foe(g2);
+  for (const o of g2.ops) if (o !== l2 && o !== e2) place(o, o.side ? 29 : 1, o.y);
+  g2.pick = [true, false]; place(l2, 10, 10); place(e2, 22, 10);
+  g2.turn = 1; G.activate(g2, e2);
+  G.doMove(g2, e2, 'reposition', { pts: [{ x: 22, y: 10 }, { x: 18, y: 10 }] });
+  assert(!g2.netcounter, 'too far: not offered');
+  G.doMove(g2, e2, 'dash', { pts: [{ x: 18, y: 10 }, { x: 15, y: 10 }] });
+  assert(g2.netcounter?.wbQuick === e2.uid, 'within reach: the player is asked');
+  G.activate(g2, l2);
+  assert(!G.doMove(g2, l2, 'charge', { pts: [{ x: 10, y: 10 }, { x: 10, y: 12.5 }] }), 'it must end within that enemy\'s control range');
+  const far = 15 - G.radius(e2) - G.radius(l2) - 0.5;
+  assert(G.doMove(g2, l2, 'charge', { pts: [{ x: 10, y: 10 }, { x: Math.max(far, 13), y: 10 }] }), 'charging it');
+  G.endActivation(g2);
+  assert.equal(g2.active, e2.uid);
+}
+// Divert and Disappear: a 3" Charge too, and an engaged Cult Agent Falls Back (-1 APL).
+{
+  const g = arena({ roster: { wbAgent2: 'locus' } }), l = get(g, 'locus'), n = g.ops.find((o) => o.side === 0 && G.tpl(o).neophyte), e = foe(g), e2 = foe(g, 1);
+  for (const o of g.ops) if (![l, n, e, e2].includes(o)) place(o, o.side ? 29 : 1, o.y);
+  place(n, 10, 4); place(e, 12.5, 4); place(l, 10, 14); place(e2, 10 + G.radius(l) + G.radius(e2) + 0.3, 14);
+  g.phase = 'strategy'; g.pick = [true, false];
+  G.needChoice(g, 0, 'wbDivert', { n: 3 });
+  const end = 12.5 - G.radius(e) - G.radius(n) - 0.4;
+  assert(G.resolveChoice(g, 0, { uid: n.uid, pts: [{ x: 10, y: 4 }, { x: end, y: 4 }] }), 'a Charge into control range');
+  assert(G.edgeDist(n, e) <= 1.01);
+  assert(G.resolveChoice(g, 0, { uid: l.uid, pts: [{ x: 10, y: 14 }, { x: 7.5, y: 14 }] }), 'the engaged Locus Falls Back');
+  assert(G.edgeDist(l, e2) > 1);
+  assert.equal(l.aplNext, -1, '-1 APL until the end of its next activation');
+}
+// Overthrow the Oppressors: a ready Neophyte falling near the Icon Bearer shoots for free first (when the ploy isn't made free).
+{
+  const g = arena({ tp: 2 }), icon = get(g, 'icon'), n = g.ops.find((o) => o.side === 0 && G.tpl(o).neophyte && o !== icon && G.tpl(o).weapons.some((w) => w.type === 'ranged')), e = foe(g);
+  for (const o of g.ops) if (![icon, n, e].includes(o)) place(o, o.side ? 29 : 1, o.y);
+  place(icon, 8, 10); place(n, 10, 10); place(e, 16, 10); e.wounds = 99; e.maxW = 99;
+  g.turn = 1; G.activate(g, e);
+  G.applyDamage(g, e, n, 99);
+  assert(n.dead);
+  assert(e.wounds < 99 || g.log.some((l) => /Overthrow the Oppressors: .* shoots/.test(JSON.stringify(l))), 'it shot first');
+  assert.equal(g.wbOverthrowTP?.[0], g.tp, 'once per turning point');
+}
+
 // AI vs AI full battles.
 for (const [a, b] of [['wyrmblade', 'kommandos'], ['angels', 'wyrmblade']]) {
   const wb = a === 'wyrmblade' ? 0 : 1, eq = [[], []]; eq[wb] = ['wbKnives', 'wbCharges', 'wbSpotlights', 'wbTraps'];

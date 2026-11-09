@@ -79,7 +79,7 @@ import { CHAOS_TEAMS, IMPERIUM_TEAMS, benediction, declinedVs, deedsSource, holy
 import { CULT_GIFTS, ctAbhorrentOk, cultStrategyEnd, hasGift, registerChaosCultChoices, isCult, isWarped, mutate, nightmareNear, ruinousIconDmg } from './rules/chaoscult.js';
 import { drakolitheSpeed, edMoonsong, edNomad, edPhantasm, edReflection, edSow, edSowControl, edSowOk, facingIn, hasUp, isEDM, isMounted, ridingMastery, ridingMasteryOk, speedOf, sprintsLeft } from './rules/exodite.js';
 import { bulwark, debilitated, deprecated, doctrina, huControlFree, huEdictPartners, neurostatic, optimised, radSaturated, registerHunterCladeChoices } from './rules/hunterclade.js';
-import { arrested, exBackups, exPattern, exPunish, exSelf, nuncioNear, registerExactionChoices, scrapNear } from './rules/exaction.js';
+import { arrested, exBackups, exOrderEnd, exOrderInterrupt, exOrderMark, exPattern, exPunish, exSelf, nuncioCheck, nuncioNear, registerExactionChoices, scrapNear } from './rules/exaction.js';
 import { doReanimate, endProxy, hcActivate, hcDespairNear, hcHas, hcMadBlocked, hcMadness, hcNanoNear, hcOn, hcSelf, hcShrouded, hcTimesplinterTo, interstitialTargets, isHierotek, livingMetal, magnifyRelay, readyReanimation, reanimTargets, registerHierotekChoices, startProxy } from './rules/hierotek.js';
 import { cursed, gpActivate, gpBellows, gpHumNear, gpHumOn, gpStockpile, gpVerminSetup } from './rules/gellerpox.js';
 import { banish, ccAwakenedFree, ccManipActivate, ccPhaseStart, ceaselessScuttling, geoPoint, inMatrix, isCC, matrixBetween, matrixCovers, nodesOf, placeNodes, souldrained } from './rules/canoptek.js';
@@ -93,7 +93,7 @@ import { achillan, battlecladeStrategyEnd, bcExorcise, bcExorciseWhat, bcSurroga
 import { CATAPULTS, bladesAfterFight, danceOfDeath, isBlade, shimmered } from './rules/blades.js';
 import { bbCoordFriend, bbInsidious, broodLeader, broodMark, broodRerolls, broodStrategyEnd, broodValid, broodguard, detonateExplosives, isBrood, loyalSwap, spiritual, uprising } from './rules/brood.js';
 import { absoluteAuthority, denounceOn, denounced, hexorcised, inquisitionPloy, intimidated, isIA, isIATeam, pickQuarry, quarryAuto, quarryOf, relentlessPursuit, scrivener, scryPost, tomeNear } from './rules/inquisition.js';
-import { isWB, registerWyrmbladeChoices, wbHiddenEnd, wbSelf, wbShadowFree, wbSoulOn, wbSpotlight, wbWeapons } from './rules/wyrmblade.js';
+import { isWB, registerWyrmbladeChoices, wbHiddenEnd, wbOverthrowShot, wbQuicksilver, wbSelf, wbShadowFree, wbSoulOn, wbSpotlight, wbWeapons } from './rules/wyrmblade.js';
 import { fgBloodsense, fgFlurryHits, fgSelf, registerFellgorChoices } from './rules/fellgor.js';
 export { cursed, gpHumOn, GP_VERMIN_DEFAULT } from './rules/gellerpox.js';
 export { PH_COMBAT_BLADE, phTacInitOk, phTacInit, phCommsOk, phCommsChoose, voxbroken, scrambleTargets, omniScramble } from './rules/phobos.js';
@@ -523,6 +523,7 @@ export const carriables = (g) => [...(g.markers || []), ...(mission(g).carryObje
 /** Can op pick this marker up (whatever the distance)? */
 export function canPickUpMarker(g, op, m) {
   if(m.kind==='bloodyCadaver') return m.owner===op.side && isGM(op);
+  if (m.kind === 'nuncio') return false; // (the Nuncio-aquila marker can't be picked up)
   if (m.kind === 'retrieval' || m.kind === 'intel') return m.owner === op.side; // Retrieval / Steal Intelligence tac ops
   if (m.kind === 'banner') return true; // Plant Banner tac op: either side
   if (m.kind === 'dkMine') return m.owner === op.side && !!tpl(op).dkSapper; // the Death Korps Mine marker: its Sapper
@@ -584,6 +585,7 @@ export function doMissionAction(g, op, id) {
   const msg = MISSION_ACTIONS[id].apply(g, op);
   if (msg) log(g, { zh: `${opName(op, 'zh')} ${msg.zh}`, en: `${opName(op, 'en')} ${msg.en}` }, `side${op.side}`); // (Scout)
   dwMissionDone(g, op, id);
+  if (!/^tw(Open|Close|Teleport)/.test(id)) exOrderMark(g, op); // Execution Order (Exaction Squad): after an enemy mission action (not Operate Hatch)
   nvDivine(g, op); // Divine Acquisition (Novitiate Pronatus)
   if (op.acted.bcRemote) op.acted.bcRemote = false; // (Remote Access: once)
   dwAfterAction(g, op);
@@ -1127,6 +1129,11 @@ export function readyOps(g, side) {
 export function passChain(g) {
   if (!g.chain || g.chain.must || g.active) return;
   const side = g.chain.side;
+  if (g.chain.kind === 'exOrder' && g.mdResume) { // (Execution Order not taken: the enemy activation goes on)
+    g.chain = null; const r = g.mdResume; g.mdResume = null; const next = getOp(g, r.uid); g.turn = r.side;
+    if (next && !next.dead && next.ready) activate(g, next); else handOff(g, side);
+    return;
+  }
   // Not using Breach and Clear: an Armsman's Group Activation still applies.
   const fb = (g.chain.fallback || []).filter((u) => canActivateOp(g, getOp(g, u)));
   if (fb.length) { g.chain = { side, uids: fb, must: true, by: g.chain.by }; return; }
@@ -1141,6 +1148,7 @@ export function activate(g, op) {
   if (!hcMadness(g, op)) return false; // Vision of Madness (Hierotek Psychomancer): the opponent must pick another operative
   g.ncScream = null;
   if (mdInterrupt(g, op, d6)) return false;
+  if (exOrderInterrupt(g, op)) return false; // Execution Order (Exaction Squad): a friendly activates first and must attack it
   for (const o of living(g, op.side)) o.mdWhisperTP = null;
   op.chained = !!g.chain; // activated through Group Activation / Directive: doesn't chain again
   op.orderPicked = false; // (see setOrder)
@@ -1154,6 +1162,7 @@ export function activate(g, op) {
   if (TEAM_MAP[op.team].breachAndClear && !g.counter && !g.chain && g.breachTP?.[op.side] !== g.tp) {
     op.breach = living(g, op.side).filter((o) => o !== op && o.ready && edgeDist(o, op) <= 3 && visibility(g, op, o).visible).map((o) => o.uid);
   }
+  if (g.chain?.kind === 'exOrder') op.mdFocusTarget = g.chain.target; // (Execution Order: it must shoot or fight that enemy before any other)
   g.chain = null;
   op.acted = {}; // (before Cult Ambush below records whether it started unseen)
   if (op.wbHidden) op.acted.wbFromHiding = true; // (Familiar Territory: a Warrior activated in hiding ignores Group Activation)
@@ -1205,7 +1214,7 @@ export function activate(g, op) {
     if (g.netcounter) { op.netCounter = true; op.netWasReady = op.ready; if (g.netcounter.kind === 'control') op.ctlCounter = true; else { op.netTP = g.tp; op.orderSet = false; } }
     // (Incite Slaughter / Urgency, Chaos Cult: only that free action, and Charge / Dash up to 3".)
     op.ctlOnly = g.netcounter?.onlyActions || null; op.ctlMove = g.netcounter?.ctlMove || null;
-    op.ctlNoMove = !!g.netcounter?.noMove; if (g.netcounter?.ksSeize) spendFF(g, op.side, 'seizeInitiative'); if (g.netcounter?.spFC) spFieldcraftPick(g, op); if (g.netcounter?.butcher) op.order = 'engage'; if (g.netcounter?.guard) guardPick(g, op); // (Seize the Initiative: no moving; the CP is spent once one is picked)
+    op.ctlNoMove = !!g.netcounter?.noMove; if (g.netcounter?.ksSeize) spendFF(g, op.side, 'seizeInitiative'); if (g.netcounter?.spFC) spFieldcraftPick(g, op); if (g.netcounter?.butcher) op.order = 'engage'; if (g.netcounter?.wbQuick) { op.order = 'engage'; op.wbChargeAt = g.netcounter.wbQuick; } if (g.netcounter?.guard) guardPick(g, op); // (Seize the Initiative: no moving; the CP is spent once one is picked)
     // Gorethirst (Goremonger firefight ploy): a Concealed one counteracts — Engage first, then only Charge, Shoot or Fight.
     if (!g.netcounter && isGM(op) && op.order === 'conceal' && ffReady(g, op.side, 'gorethirst') && ffArmed(g, op.side, 'gorethirst')) {
       spendFF(g, op.side, 'gorethirst'); op.order = 'engage'; op.ctlOnly = ['charge', 'shoot', 'fight'];
@@ -1303,7 +1312,7 @@ export const counterCandidates = (g, side) => (g.netcounter?.side === side // Ba
 export function endActivation(g) {
   const op = activeOp(g);
   g.nvBlind = null; // (Blinding Aura lasts for the activation)
-  if (op) { op.pointBlank = false; for (const o of g.ops) if (o.pbNoRetal === op.uid) o.pbNoRetal = null; } // (point-blank shot: no retaliating until the interrupted activation ends)
+  if (op) { op.pointBlank = false; op.medicDashTo = null; op.wbChargeAt = null; for (const o of g.ops) if (o.pbNoRetal === op.uid) o.pbNoRetal = null; } // (point-blank shot: no retaliating until the interrupted activation ends)
   g.ccManip = null; g.nodalOpen = null; g.phCommsOpen = null; if (op) { op.mvb = false; rvEnd(op); spEnd(op); aqEnd(g, op); vdEnd(op); xvEnd(g, op); wsEnd(g, op); }
   mdEnd(g, op, autoFF);
   ncPoisonCheck(g); // Poison Objective (Nemesis Claw): enemies now contesting a poisoned objective marker
@@ -1477,6 +1486,7 @@ export function counterSwap(g, op) {
 /** Decline the chance to counteract. */
 export function passCounter(g) {
   if (g.netcounter?.guard) guardPassed(g); // (on guard, close quarters: guards in the enemy's control range stand down)
+  for (const o of g.ops) o.medicDashTo = null; // (Medic!: the free Dash wasn't taken)
   log(g, { zh: `${teamZh(g, g.turn)} 放棄反應`, en: `${team(g, g.turn).name.en} does not counteract` }, `side${g.turn}`);
   endActivation(g);
 }
@@ -1531,6 +1541,7 @@ function endTP(g) {
   log(g, { zh: `第 ${g.tp} 回合結束`, en: `End of Turning Point ${g.tp}` }, 'tp');
   spTPEnd(g); // Spectre Squad: the Fieldcraft points are discarded
   aqTPEnd(g); // Tempestus Aquilons: more than half in the killzone after TP1; whoever is still above after TP2 falls
+  exOrderEnd(g); // Execution Order (Exaction Squad): an enemy controlling an objective
   ksGNGEnd(g); // Give No Ground (Kasrkin): at the end of the Firefight phase, before scoring
   edPhantasm(g); // Elusive Phantasm (Exodite Leystalker): a free Turn
   mission(g).onTPEnd?.(g);
@@ -1680,6 +1691,7 @@ export const ACTIONS = {
   nvBlazeOut: { ap: 0, name: { zh: '撲滅火焰（本次 APL -1）', en: 'Put out the flames (-1 APL)' } },
   edSow: { ap: 0, name: { zh: '播種（佔據目標）', en: 'Sow the Seeds' } },
   exRvr: { ap: 0, name: { zh: 'R-VR 指令（改變攻擊模式）', en: 'R-VR Command (change an Attack Pattern)' } },
+  exNuncio: { ap: 0, name: { zh: '部署使節天鷹', en: 'Deploy Nuncio-aquila' } },
   exHandler: { ap: 0, name: { zh: '馴犬師：獒犬一起啟動', en: 'Handler: the Cyber-mastiff activates with it' } },
   fgUncomp: { ap: 1, name: { zh: '毫不妥協的攻擊', en: 'Uncompromising Attack' } },
   fgFlurry: { ap: 2, name: { zh: '劈刀亂舞', en: 'Cleaver Flurry' } },
@@ -2760,6 +2772,7 @@ export function availableActions(g, op) {
   if (tpl(op).poxBomb) unique('stunGrenade');
   // Exaction Squad: R-VR Command (Leashmaster), Handler (when activated).
   if (tpl(op).rvrCommand) add('exRvr', !count(op, 'exRvr') && living(g, op.side).some((o) => tpl(o).attackPatterns), DONE);
+  if (tpl(op).nuncio && op.team === 'exaction') add('exNuncio', !count(op, 'exNuncio') && !engaged, engaged ? ENG : DONE); // Deploy Nuncio-aquila (Proctor-exactant)
   if (tpl(op).handler && !op.counter) add('exHandler', !op.acted.exHandler && !op.wcHerd && !Object.keys(op.acted).some((k) => ACTIONS[k]) && living(g, op.side).some((o) => tpl(o).attackPatterns && canActivateOp(g, o)), DONE);
   if (tpl(op).sanctus) unique('wbSoulsight'); // (Wyrmblade Sanctus)
   if (tpl(op).sanctus === 'sniper') add('wbVuln', !engaged && !count(op, 'wbVuln'), engaged ? ENG : DONE);
@@ -3123,6 +3136,9 @@ export function doMove(g, op, kind, path) {
   if (kind === 'fallBack' && !feManacles(g,op)) return false;
   const mwPursuers = kind === 'fallBack' ? foes(g, op).filter((e) => isMurderwing(e) && edgeDist(e, op) <= 1.01) : [];
   const dest = path?.pts?.at(-1);
+  if (kind === 'dash' && op.medicDashTo && !(getOp(g, op.medicDashTo) && edgeDist({ ...op, x: dest.x, y: dest.y }, getOp(g, op.medicDashTo)) <= CONTROL + 0.01)) return false; // (Medic!: the free Dash ends within the medic's control range)
+  if (kind === 'charge' && op.wbChargeAt && !(getOp(g, op.wbChargeAt) && edgeDist({ ...op, x: dest.x, y: dest.y }, getOp(g, op.wbChargeAt)) <= CONTROL + 0.01)) return false; // (Quicksilver Strike: ending within that enemy's control range)
+  if (kind === 'charge' && op.wbChargeAt) op.wbQuickTP = g.tp; // (Quicksilver Strike used)
   if (kind === 'charge' && !vsChargeOk(g, op, dest)) return false;
   if (kind === 'charge' && !wsChargeEndOk(g, op, dest)) return false; // Elemental Storm (Wolf Scouts): a Concealed Charge ends wholly within the storm // Communion (Vespid Stingwings): the closest enemy unless a point is spent
   if (hasPloy(g, op.side, 'bound') && !op.acted.boundUsed && ctx.climbRaw?.(path.pts) > 0) op.acted.boundUsed = true; // Bound (Kinband): the first 2" of one climb was free
@@ -3250,6 +3266,7 @@ export function doMove(g, op, kind, path) {
   if (kind === 'reposition') slicingAttack(g, op, seenBefore, path);
   corsairAfterAction(g, op, true);
   dwAfterAction(g, op);
+  wbQuicksilver(g, op); // Quicksilver Strike (Wyrmblade Locus): a free 3" Charge after an enemy moves
   if (kind === 'fallBack') op.fellBackTP = g.tp; // (Instinctive Behaviour: Raveners)
   if (kind === 'charge') op.chargedTP = g.tp; // (Suppressive Fire: Spectre Squad)
   op.vdMovedTP = g.tp; // (Prismatic Blur: Void-dancer Troupe)
@@ -4277,6 +4294,22 @@ export function freeMovePath(g, o, kind, max, pts) {
   const path = wholeInchPath(ctx, { pts: [{ x: o.x, y: o.y }, ...pts.filter((q, i) => i > 0 || Math.hypot(q.x - o.x, q.y - o.y) > 0.01)] }, max, kind === 'charge' ? ctx.inEnemyER : (q) => !ctx.inEnemyER(q));
   return path && path.len <= max + 0.01 ? path : null;
 }
+/** A free move's path along pts: the first of the choice's move kinds that fits (Divert and Disappear: a Dash, else a 3" Charge or a Cult Agent's Fall Back). */
+export function freeMoveTry(g, o, c, ctx, pts) {
+  for (const kind of c.kinds?.(g, o, ctx) || [c.moveKind(g, o, ctx)]) {
+    const max = c.max(g, o, ctx, kind), path = freeMovePath(g, o, kind, max, pts);
+    if (path) return { path, kind, max };
+  }
+  return null;
+}
+/** The same towards a point (the route found for each kind in turn). */
+export function freeMoveToward(g, o, c, ctx, goal) {
+  for (const kind of c.kinds?.(g, o, ctx) || [c.moveKind(g, o, ctx)]) {
+    const raw = findPath(moveCtx(g, o, kind), goal), max = c.max(g, o, ctx, kind), path = raw && freeMovePath(g, o, kind, max, raw.pts);
+    if (path) return { path, kind, max, raw };
+  }
+  return null;
+}
 /** One free move picked by the player ({ uid, pts }), 'auto' (the computer moves them all) or null (done). */
 function resolveMove(g, side, p, c, value) {
   const finish = () => { g.pending = g.pending.filter((x) => x !== p); afterPick(g, side); return true; };
@@ -4284,11 +4317,11 @@ function resolveMove(g, side, p, c, value) {
   if (value === 'auto') { if (p.ctx.done.length) return false; g.pending = g.pending.filter((x) => x !== p); c.autoAll(g, side, p.ctx); afterPick(g, side); return true; }
   const o = moversLeft(g, side, c, p.ctx).find((x) => x.uid === value.uid);
   if (!o) return false;
-  const path = freeMovePath(g, o, c.moveKind(g, o, p.ctx), c.max(g, o, p.ctx), value.pts);
+  const t = freeMoveTry(g, o, c, p.ctx, value.pts), path = t?.path;
   const end = path?.pts.at(-1);
   if (!end || (c.check && !c.check(g, side, o, end, p.ctx))) return false;
   stepTo(g, o, end);
-  c.after?.(g, side, o, p.ctx);
+  c.after?.(g, side, o, p.ctx, t.kind);
   p.ctx.done.push(o.uid);
   log(g, { zh: `${tx2(c.title, 'zh')}：${opName(o, 'zh')} 移動 ${path.len}"`, en: `${tx2(c.title, 'en')}: ${opName(o, 'en')} moves ${path.len}"` }, `side${side}`);
   if (!moversLeft(g, side, c, p.ctx).length || (p.ctx.n != null && p.ctx.done.length >= p.ctx.n)) return finish();
@@ -4587,6 +4620,7 @@ const FF = {
   // ---- Legionaries ----
   mutability: { kind: 'button', start: true, cond: (g, op) => (markOf(op) === 'tzeentch' ? null : { zh: '只有奸奇印記', en: 'Tzeentch only' }), apply(g, op) { op.ap += 1; } },
   malignantAura: { kind: 'attack', shoot: true, cond: (g, op, t) => (markOf(op) === 'nurgle' && t && edgeDist(op, t) <= 3 ? null : { zh: '納垢印記、目標在 3" 內', en: 'Nurgle, target within 3"' }) },
+  executionOrder: { kind: 'auto' }, // (Exaction Squad: exOrderMark / exOrderInterrupt)
   unendingBloodshed: { kind: 'auto' }, // (Legionaries: fightApply → lgUnending)
   // ---- Battleclade ----
   remoteAccess: { kind: 'button', cond: (g, op) => (tpl(op).techPriest && op.team === 'battleclade' && !op.acted.bcRemoteUsed ? null : { zh: '只有技術神甫、每次啟動一次', en: 'Tech-Priests only, once per activation' }), apply(g, op) { op.acted.bcRemote = true; op.acted.bcRemoteUsed = true; return { zh: '下一個任務動作或開關門可用 4" 內的目標／門口', en: 'its next mission action or Operate Hatch can use a marker / access point within 4"' }; } },
@@ -4949,7 +4983,7 @@ function bestBlock(ac, an, sc, sn, dn, dc) {
 /**
  * Medic!: the first time each turning point a friendly non-drone operative (Pathfinders, Death Korps) would be
  * incapacitated while visible to and within 3" of the medic (neither in enemy control range), it survives on 1
- * wound. Not usable if the medic is a target of the Shoot action being resolved. (The free Dash isn't modelled.)
+ * wound. Not usable if the medic is a target of the Shoot action being resolved. (The free Dash: medicDashAfter.)
  */
 function medicFor(g, target) {
   if (isDrone(target) || g.medicTP?.[target.side] === g.tp) return null;
@@ -4958,12 +4992,32 @@ function medicFor(g, target) {
   return living(g, target.side).find((m) => tpl(m).medic && m !== target && ((edgeDist(m, target) <= (tpl(m).medicRange || 3) && visibility(g, m, target).visible)
     || (tpl(m).matrixMedic && inMatrix(g, m.side, m) && inMatrix(g, m.side, target))) && !isEngaged(g, m) && !g.shotTargets?.includes(m.uid)) || null;
 }
+/** The teams whose Medic! rule adds the free Dash after the action (ending within the medic's control range). */
+const MEDIC_DASH = new Set(['battleclade', 'broodBrothers', 'deathKorps', 'elucidianStarstriders', 'exaction', 'hearthkyn', 'inquisitorialAgents', 'kasrkin', 'novitiates', 'tauPathfinders', 'phobos', 'spectres']);
+/**
+ * Medic!'s free Dash, after the action in which it was used: during its own activation it's a free Dash (the activation then ends);
+ * otherwise a player is asked (or passes) straight after that action. The computer doesn't take it.
+ */
+function medicDashAfter(g, actor) {
+  for (const o of g.ops) {
+    const m = o.medicDashFrom && getOp(g, o.medicDashFrom);
+    if (!o.medicDashFrom) continue;
+    o.medicDashFrom = null;
+    if (o.dead || !m || m.dead || o.side > 1) continue;
+    o.medicDashTo = m.uid;
+    if (g.active === o.uid) { o.acted.free = { ...(o.acted.free || {}), dash: 'medic' }; continue; }
+    if (!g.pick?.[o.side] || g.netcounter || !actor || g.active !== actor.uid || g.dwInterrupt || g.exPunishing) { o.medicDashTo = null; continue; } // (a player, even when the enemy attack was resolved without a dice window)
+    g.netcounter = { side: o.side, only: [o.uid], resume: actor.uid, resumeCounter: !!g.counter, kind: 'control', onlyActions: ['dash'], ctlMove: 3,
+      label: { title: { zh: '醫療兵！免費衝刺', en: 'Medic! free Dash' }, hint: { zh: `${opName(o, 'zh')} 被救回來了：可以免費衝刺，結束在 ${opName(m, 'zh')} 的控制範圍內；也可以略過。`, en: `${opName(o, 'en')} was saved: it can make a free Dash, ending within ${opName(m, 'en')}'s control range; or pass.` } } };
+    g.active = null; g.counter = true; g.turn = o.side;
+  }
+}
 
 export function applyDamage(g, src, target, dmg) {
   if(dmg>0 && src && src!==target && src.side!==target.side) src.feDamagedEnemy=true;
   const before = target.wounds;
   const killed = inflict(g, src, target, dmg);
-  if (killed) { mdDeath(g, target); wsDeath(g, target); } // (the Haywire Mine falls with its Trapmaster)
+  if (killed) { mdDeath(g, target); wsDeath(g, target); nuncioCheck(g); } // (the Nuncio-aquila marker goes with the Proctor) // (the Haywire Mine falls with its Trapmaster)
   grandfathersBlessing(g, target, before - Math.max(0, target.wounds));
   return killed;
 }
@@ -5031,6 +5085,7 @@ function inflict(g, src, target, dmg) {
     (g.medicTP ||= [0, 0])[target.side] = g.tp;
     if (!tpl(medic).medicNoApl) { changeApl(g, target, -1); changeApl(g, medic, -1); } // (Mechanosuture Array: no APL loss)
     if (g.active === target.uid) target.ap = 0; // used during its own activation: that activation ends
+    if (MEDIC_DASH.has(medic.team)) target.medicDashFrom = medic.uid; // (the free Dash after the action: medicDashAfter)
     log(g, { zh: `✚ ${opName(medic, 'zh')} 醫療兵！${opName(target, 'zh')} 以 ${target.wounds} 生命撐住`, en: `✚ ${opName(medic, 'en')} Medic! ${opName(target, 'en')} survives on ${target.wounds} wound(s)` }, `side${target.side}`);
     return false;
   }
@@ -5087,6 +5142,7 @@ function ffOnDeath(g, src, target) {
   const side = target.side;
   if (side > 1) return;
   hkWorthIt(g, target); // Worth It (Hearthkyn): a free mission action before it's removed
+  wbOverthrowShot(g, target); // Overthrow the Oppressors (Wyrmblade Icon Bearer): or a free Shoot
   if (src) fgBloodsense(g, src, target); // Bloodsense (Fellgor)
   lgEyes(g, src); // In the Eyes of the Gods (Legionary Aspiring Champion)
   if (src && g.fight && hasUp(src, 'moonsong')) src.acted.moonKill = true; // (Moonsong Cull: checked when the fight ends)
@@ -5352,7 +5408,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
     // injured / Contagion / Mindburn; Quicksilver Speed: a Slaanesh Legionary that moved, shot from more than 6"
     hit += hitWorse(g, op, weapon) || (markOf(target) === 'slaanesh' && quick(g, target) && edgeDist(op, target) > 6) ? 1 : 0;
     if (shokked(g, op)) hit += 1;
-    if (op.pointBlank && isEngaged(g, op)) { hit += 1; op.pbNoRetal = op.pbActor; } // point-blank shot: Hit worsened by 1, and no retaliating until the interrupted activation ends
+    if (op.pointBlank && isEngaged(g, op)) { hit += hasUp(op, 'nexus') ? 0 : 1; op.pbNoRetal = op.pbActor; } // point-blank shot: Hit worsened by 1 (not with Nexus Sentinel), and no retaliating until the interrupted activation ends
     if (rules.xvHit) hit -= 1; // Focused Markerlight (XV26 Designator) // Shokkwave (Wrecka Krew Pulsa marker): cumulative with being injured
     if (rules.mlHit && hit > 3) hit = Math.max(3, hit - 1);
     if (rules.slugs) hit -= 1; // Slugs (Navy Breachers equipment)
@@ -5882,6 +5938,7 @@ export function* shootFlow(g, op, weapon, target, interactive = false) {
   for (const o of g.ops) o.medicShield = false;
   rtAfterEnemyAction(g, op, false); // Ratlings: Evade after an enemy action
   exPunish(g, op, target); // Exact Punishment (Exaction Squad): the target shoots back
+  medicDashAfter(g, op); // (Medic!: the free Dash after the action)
   return { kind: 'shoot', attacker: op.uid, weapon, ap, ...main, extra, hot, suppressed: noReroll };
 }
 
@@ -6078,7 +6135,10 @@ export function* fightFlow(g, op, weapon, target, interactive = false) {
   if (tpl(target).aqPrecursor) g.fight.D.extraStrike = true;
   if (isAQ(target) && aqDetectedBlock(g, op, target)) g.fight.D.doubleOnce = true; // Eye Above (Aquilons): one block stops two successes
   if (isAQ(op) && aqDetectedBlock(g, target, op)) g.fight.A.doubleOnce = true;
-  if (isSP(target) && target.side < 2 && (target.ready || target.order === 'conceal') && !target.acted?.spInterrupted && autoFF(g, target.side, 'spPrepared')) g.fight.D.doubleBlock = true; // Prepared Defence (Spectre Squad)
+  if (isSP(target) && target.side < 2 && (target.ready || target.order === 'conceal') && !target.acted?.spInterrupted && autoFF(g, target.side, 'spPrepared')) { // Prepared Defence (Spectre Squad): block first when the attacker could take it out, else one block stops two
+    const A = g.fight.A, d = weapon.dmg;
+    if ((g.fight.D.c || g.fight.D.n) && A.c * d[1] + A.n * d[0] >= target.wounds) g.fight.D.blockFirst = true; else g.fight.D.doubleBlock = true;
+  }
   if (rtLieInWait(g, target)) g.fight.turn = 'D'; // Lie in Wait (Ratling Hardbit): it resolves the first dice when retaliating beside terrain
   // Survival Instincts (Ratlings firefight ploy, automatic): a small Ratling fighting — normal blocks may stop a critical, critical blocks stop two.
   for (const [k, o] of [['A', op], ['D', target]]) if (isSmall(o) && o.side < 2 && ffReady(g, o.side, 'rtSurvival') && ffArmed(g, o.side, 'rtSurvival')) g.fight[k].si = true;
@@ -6236,7 +6296,7 @@ export function fightOptions(g) {
   const f = g.fight;
   if (!f.stanceDone) {
     f.stanceDone = true;
-  for (const k of ['A', 'D']) if (tpl(fightOp(g, k)).bladedStance || tpl(fightOp(g, k)).dwAdaptiveSword || (hasUp(fightOp(g, k), 'bladed') && g.fight[k].w === 'edMoonblades')) { // (Bladed Stance upgrade: Exodite Clanblade with moonblades)
+  for (const k of ['A', 'D']) if (g.fight[k].blockFirst || tpl(fightOp(g, k)).bladedStance || (tpl(fightOp(g, k)).bladeWhirl && !fightOp(g, k).frenzy) || tpl(fightOp(g, k)).dwAdaptiveSword || (hasUp(fightOp(g, k), 'bladed') && g.fight[k].w === 'edMoonblades')) { // (Bladed Stance upgrade: Exodite Clanblade with moonblades)
     const me = g.fight[k], foe = g.fight[k === 'A' ? 'D' : 'A'];
     if (me.c && (foe.c || foe.n)) { me.c--; if (foe.c) foe.c--; else foe.n--; }
     else if (me.n && foe.n && !foe.brutal) { me.n--; foe.n--; }
@@ -6563,12 +6623,15 @@ export function endFight(g) {
   if (fa && g.fight) demolitionJob(g, fa, getOp(g, g.fight.D.uid)); // Demolition Job (Wrecka Krew)
   if (fa) aqDynamic(g, fa); // Dynamic (Aquilon Precursor): a free Dash after a Fight
   if (fa && g.fight) wsFightEnd(g, fa, getOp(g, g.fight.D.uid)); // Savage Fighters (Wolf Scouts)
+  const fd = fa && g.fight && getOp(g, g.fight.D.uid);
   g.fight = null;
+  if (fd) exPunish(g, fa, fd); // Exact Punishment (Exaction Squad): the friendly fought shoots or fights back
   // Chaos Cult: a Devotee that incapacitated its enemy in the fight mutates now that the fight is over.
   for (const uid of g.mutateQueue || []) mutate(g, getOp(g, uid), { zh: '使敵人殘廢', en: 'incapacitated an enemy' });
   g.mutateQueue = null;
   if (fa) rtAfterEnemyAction(g, fa, false); // Ratlings: Evade after an enemy Fight
   if (fa) wsAfterFight(g, fa); // Counterattack (Wolf Scouts)
+  if (fa) medicDashAfter(g, fa); // (Medic!: the free Dash after the action)
 }
 
 /** Computer choice for the current fight die. */

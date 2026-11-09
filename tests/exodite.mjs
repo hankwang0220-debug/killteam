@@ -127,4 +127,21 @@ for (const [a, b] of [['exoditeDragonMasters', 'angels'], ['kasrkin', 'exoditeDr
   const e = g.ops.find((o) => o.side === 1); e.x = m.x - 1.2; e.y = m.y;
   assert.equal(G.controller(g, m), 1, 'an enemy takes it'); assert.equal(g.sow[0], null);
 }
+// Nexus Sentinel: its point-blank shot on guard doesn't worsen the Hit.
+{
+  const hits = (up) => {
+    const g = arena(), r = get(g, 'edLeystalker'); r.loadout = up; r.x = 10; r.y = 10;
+    const e = g.ops.find((o) => o.side === 1); e.x = 10 + G.radius(r) + G.radius(e) + 0.3; e.y = 10; e.wounds = 99; e.maxW = 99;
+    for (const o of g.ops) if (o !== r && o !== e) o.x = o.side ? 29 : 1;
+    G.activate(g, r); r.pointBlank = true; r.pbActor = e.uid;
+    const w = G.weaponsFor(g, r).find((x) => x.type === 'ranged' && G.shootCheck(g, r, e, x).ok);
+    if (!w) return null;
+    const old = Math.random; let n = 0; Math.random = () => ((n++ < w.atk ? w.hit : 1) - 0.5) / 6;
+    try { G.resolveShoot(g, r, w, e); } finally { Math.random = old; }
+    return 99 - e.wounds;
+  };
+  const withNexus = hits('nexus+fated'), without = hits('nomad+fated');
+  assert(withNexus != null, 'it can make the point-blank shot');
+  assert(withNexus > without, 'rolls equal to its Hit still hit with Nexus Sentinel');
+}
 console.log('exodite ok');

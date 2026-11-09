@@ -105,6 +105,38 @@ const can = (g, o, id) => G.availableActions(g, o).find((a) => a.id === id)?.ok;
   const g4 = arena({ equip: ['vsAccelerant'] }), w4 = get(g4, 'vsWarrior'); G.activate(g4, w4); assert.equal(G.moveAllowance(g4, w4, 'dash'), 4, 'Accelerant Stimulant: +1"');
 }
 
+// Communion Helm, second option: spend a point, and a friendly within 3" performs a free 1AP mission action (paying its own point).
+{
+  const g = arena({ tp: 2 }); g.mission = 'secure'; g.vs.cp = [3, 0];
+  const l = get(g, 'vsLeader'), w = get(g, 'vsWarrior');
+  for (const o of foes(g)) place(o, 28, o.y);
+  place(l, 10, 10); place(w, 12, 10);
+  g.objectives = [{ id: 0, x: 12, y: 11 }];
+  G.activate(g, l);
+  assert(can(g, l, 'vsHelmOrder'), 'a friendly within 3" can Secure');
+  g.pick = [true, false];
+  G.doSelfAction(g, l, 'vsHelmOrder');
+  assert.equal(g.vs.cp[0], 2, 'one point for the Helm');
+  assert(g.netcounter?.only.includes(w.uid) && g.netcounter.onlyActions.includes('secure'));
+  G.activate(g, w);
+  G.doMissionAction(g, w, 'secure');
+  assert.equal(g.objectives[0].secured, 0, 'secured');
+  assert.equal(g.vs.cp[0], 1, 'and one for the mission action');
+  G.endActivation(g);
+  assert.equal(g.active, l.uid, 'back to the Strain Leader');
+  assert(!can(g, l, 'vsHelmOrder'), 'once per activation');
+}
+// The computer's Skytorch Assault: a landing spot whose torch zone catches enemies and no friendly.
+{
+  const g = arena(), s = get(g, 'vsSwarmguard');
+  for (const o of g.ops) if (o !== s) place(o, o.side ? 28 : 1, o.y);
+  const [e1, e2] = foes(g);
+  place(s, 6, 10); place(e1, 9, 10.2); place(e2, 10.5, 9.8);
+  const p = V.vsAiSkytorch(g, s);
+  assert(p, 'it finds a spot');
+  assert(Math.hypot(p.x - 6, p.y - 10) > 4.5, 'beyond both enemies');
+}
+
 // AI vs AI full battles.
 for (const [a, b] of [['vespids', 'angels'], ['kommandos', 'vespids'], ['vespids', 'voidDancers']]) {
   const g = G.newGame({ teams: [a, b], ai: null, equip: [a === 'vespids' ? ['vsNeuro', 'vsConvergence', 'vsAccelerant', 'vsAggression'] : [], b === 'vespids' ? ['vsNeuro', 'vsAggression'] : []] });

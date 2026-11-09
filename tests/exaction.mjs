@@ -72,6 +72,96 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
   assert(g.netcounter?.only[0] === s.uid && g.netcounter.onlyActions[0] === 'fight');
 }
 
+// Exact Punishment: fought in its control range and still standing, it fights back (free Fight against that enemy).
+{
+  const g = arena(), s = get(g, 'subductor'), e = foe(g);
+  for (const o of g.ops) if (o !== s && o !== e) o.dead = true;
+  place(s, 10, 10); place(e, 10 + G.radius(s) + G.radius(e) + 0.3, 10);
+  s.wounds = 99; s.maxW = 99; e.wounds = 99; e.maxW = 99;
+  g.turn = 1; G.activate(g, e);
+  const cp = g.cp[0];
+  G.resolveFight(g, e, G.bestMelee(e), s);
+  assert.equal(g.cp[0], cp - 1, 'Exact Punishment was used (1CP)');
+  assert(g.log.some((l) => /Exact Punishment: .* fights /.test(l.en || l.text?.en || JSON.stringify(l))), 'it fought back');
+}
+// Execution Order: an enemy performing a mission action is marked; when it would next activate, an Exaction operative goes first and
+// must attack it; then the enemy's activation goes on.
+{
+  const g = arena({ tp: 2 }), e = foe(g), v = get(g, 'vigilant');
+  for (const o of g.ops) if (o.side === 1 && o !== e) o.dead = true;
+  place(e, 15, 10); place(v, 9, 10);
+  g.objectives = [{ x: 15, y: 10, id: 0 }];
+  e.ready = false;
+  const { exOrderMark } = await import('../js/rules/exaction.js');
+  exOrderMark(g, e);
+  assert.equal(g.exOrder?.[0], e.uid, 'marked');
+  e.ready = true; g.turn = 1;
+  assert.equal(G.activate(g, e), false, 'its activation is interrupted');
+  assert.equal(g.turn, 0);
+  assert.equal(g.chain?.kind, 'exOrder');
+  assert(g.chain.uids.includes(v.uid));
+  G.activate(g, v);
+  assert.equal(v.mdFocusTarget, e.uid, 'it must attack that enemy first');
+  const other = g.ops.find((o) => o.side === 1 && o !== e); other.dead = false; place(other, 12, 14);
+  const w = G.weaponsFor(g, v).find((x) => x.type === 'ranged');
+  assert(!G.shootCheck(g, v, other, w).ok, 'not another enemy');
+  other.dead = true;
+  G.endActivation(g);
+  assert.equal(g.active, e.uid, 'then the enemy activation goes on');
+  assert(!g.exOrder[0]);
+}
+// Execution Order: a player passes, and the enemy activation goes on.
+{
+  const g = arena({ tp: 2 }), e = foe(g);
+  for (const o of g.ops) if (o.side === 1 && o !== e) o.dead = true;
+  place(e, 15, 10);
+  (g.exOrder = [e.uid, null]); g.turn = 1;
+  G.activate(g, e);
+  assert.equal(g.chain?.kind, 'exOrder');
+  G.passChain(g);
+  assert.equal(g.active, e.uid);
+}
+// Medic!: the saved operative can then make a free Dash ending within the Chirurgant's control range (a player is asked).
+{
+  const g = arena(), c = get(g, 'chirurgant'), s = get(g, 'subductor'), e = g.ops.find((o) => o.side === 1 && G.tpl(o).weapons.some((w) => w.type === 'ranged' && !w.rules?.range));
+  for (const o of g.ops) if (![c, s, e].includes(o)) o.dead = true;
+  g.pick = [true, false];
+  place(c, 8, 10); place(s, 10, 10); place(e, 18, 10);
+  g.turn = 1; G.activate(g, e);
+  s.wounds = 1;
+  G.applyDamage(g, e, s, 5);
+  assert(!s.dead && s.wounds === 1, 'saved by the Chirurgant');
+  const w = G.weaponsFor(g, e).find((x) => x.type === 'ranged' && G.shootCheck(g, e, s, x).ok);
+  assert(w, 'the enemy can shoot it');
+  s.wounds = 99; s.maxW = 99; // (it survives the shot below; the Dash comes after an action)
+  G.resolveShoot(g, e, w, s);
+  assert.equal(g.netcounter?.onlyActions?.[0], 'dash', 'a free Dash is offered');
+  G.activate(g, s);
+  assert(!G.doMove(g, s, 'dash', { pts: [{ x: s.x, y: s.y }, { x: s.x + 3, y: s.y }] }), 'not ending away from the medic');
+  assert(G.doMove(g, s, 'dash', { pts: [{ x: s.x, y: s.y }, { x: c.x + G.radius(c) + G.radius(s) + 0.5, y: s.y }] }), 'ending within its control range');
+  G.endActivation(g);
+  assert.equal(g.active, e.uid, 'back to the enemy activation');
+}
+// Deploy Nuncio-aquila: the marker goes within 6" of the Proctor; the +1AP / APL effects then count from the marker.
+{
+  const g = arena(), p = get(g, 'proctor'), e = foe(g);
+  place(p, 5, 10); place(e, 14, 10);
+  g.turn = 0; G.activate(g, p);
+  const before = G.actionCost(g, e, 'pickUp');
+  assert(G.availableActions(g, p).find((a) => a.id === 'exNuncio')?.ok);
+  g.pick = [true, false];
+  G.doSelfAction(g, p, 'exNuncio');
+  assert(!G.resolveChoice(g, 0, { x: 13, y: 10 }), 'not more than 6" away');
+  assert(G.resolveChoice(g, 0, { x: 10.5, y: 10 }));
+  assert(g.markers.some((m) => m.kind === 'nuncio' && m.owner === 0));
+  assert.equal(G.actionCost(g, e, 'pickUp'), before + 1, 'an enemy within 3" of the marker pays +1AP');
+  assert(!G.availableActions(g, p).find((a) => a.id === 'exNuncio')?.ok, 'once per activation');
+  p.dead = true; G.applyDamage(g, e, p, 0);
+  const { nuncioCheck } = await import('../js/rules/exaction.js');
+  nuncioCheck(g);
+  assert(!g.markers.some((m) => m.kind === 'nuncio'), 'removed with the Proctor');
+}
+
 // AI vs AI full battles.
 for (const [a, b] of [['exaction', 'kommandos'], ['angels', 'exaction']]) {
   const ex = a === 'exaction' ? 0 : 1;

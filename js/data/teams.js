@@ -1527,6 +1527,7 @@ export const TEAMS = [
       note: { zh: '2025 年已退出賽季：官方比賽不能使用，一般對戰或非官方比賽可以使用。', en: 'Rotated out of the season in 2025: not allowed in official events, fine for casual and unofficial games.' },
     },
     cultAmbush: true, // engine flag for the Cult Ambush faction rule
+    autoAbilities: [{ id: 'overthrow', name: { zh: '推翻壓迫者（自動免費射擊）', en: 'Overthrow the Oppressors (automatic free Shoot)' }, desc: { zh: '掌旗手 6" 內看得到的準備中新信徒殘廢時，倒下前自動免費射擊一次（世代籌劃之計沒有因此免費時）。', en: 'When a ready Neophyte visible within 6" of the Icon Bearer is incapacitated, it automatically shoots once for free before it is removed (when A Plan Generations in the Making was not made free by it).' } }],
     rule: {
       name: { zh: '教派伏擊・教派特工・熟悉的地盤', en: 'Cult Ambush · Cult Agent · Familiar Territory' },
       desc: {
@@ -1542,7 +1543,7 @@ export const TEAMS = [
       { id: 'oneWithShadows', cp: 1, name: { zh: '與暗影同在', en: 'One with the Shadows' },
         desc: { zh: '本回合隱蔽指令的友方被射擊時，若中間有輕型地形（且不在任一方 1" 內），視為被遮擋。', en: 'This TP, a Concealed friendly being shot is obscured by intervening Light terrain (unless it\'s within 1" of either operative).' } },
       { id: 'divertDisappear', cp: 1, name: { zh: '轉移與消失', en: 'Divert and Disappear' },
-        desc: { zh: '最多三名友方立刻免費衝刺（這裡只做衝刺；教派特工算兩名）。', en: 'Up to three friendlies immediately make a free Dash (here Dash only; a Cult Agent counts as two).' } },
+        desc: { zh: '最多三名友方立刻免費衝刺或衝鋒（衝鋒最多 3"；教派特工算兩名，也可以改為撤退最多 3"，之後到下次啟動結束 APL -1）。點的終點在敵人控制範圍外就是衝刺，在裡面就是衝鋒。', en: 'Up to three friendlies immediately make a free Dash or Charge (a Charge 3" at most; a Cult Agent counts as two, and can Fall Back 3" at most instead, then -1 APL until the end of its next activation). A destination outside enemy control range is a Dash, inside it a Charge.' } },
     ],
     // A Leader, two Cult Agent selections (packages below: each Cult Agent counts as two selections, or two Warriors instead)
     // and nine Neophyte selections, each copy picked on its own.
@@ -1551,7 +1552,7 @@ export const TEAMS = [
     ops: [
       op('leader', '新信徒領袖', 'Neophyte Leader', { apl: 2, move: 6, save: 5, wounds: 8, base: 25, neophyte: true, wbLeader: true, loadouts: WB_LEADER_LOADOUTS }, [mcAutopistol, powerMaul]),
       op('kelermorph', '克勒莫夫', 'Kelermorph', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoShoots: true, heroic: true }, [stubsHyper, stubsLong, stubsShort, kelKnife], 0),
-      op('locus', '基因護衛', 'Locus', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoFights: true, expertSwordsman: true }, [barbedTail, locusBlades], 0),
+      op('locus', '基因護衛', 'Locus', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, twoFights: true, expertSwordsman: true, bladedStance: true, quicksilverStrike: true }, [barbedTail, locusBlades], 0),
       op('wbSniper', '聖者狙擊手', 'Sanctus Sniper', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, sanctus: 'sniper' }, [sanctusMobile, sanctusStationary, sanctusFists], 0),
       op('wbTalon', '聖者利爪', 'Sanctus Talon', { apl: 3, move: 6, save: 4, wounds: 9, base: 32, cultAgent: true, sanctus: 'talon', creepingShadow: true }, [bioDagger], 0),
       op('gunnerFlamer', '槍手（火焰）', 'Neophyte Gunner (flamer)', { apl: 2, move: 6, save: 5, wounds: 7, base: 25, neophyte: true, wbGunner: true }, [flamerGSC, gunButtGSC]),
@@ -1664,7 +1665,7 @@ export const TEAMS = [
     ops: [
       op('ironhorn', '鐵角首領', 'Fellgor Ironhorn', { apl: 2, move: 6, save: 5, wounds: 11, base: 32, ironhorn: true, callAttack: true, loadouts: { corrupted: [corruptedPistol, corruptedChainsword], plasma: [plasmaPistolFGs, plasmaPistolFGx, bludgeon] } }, [corruptedPistol, corruptedChainsword]),
       op('deathknell', '喪鐘手', 'Fellgor Deathknell', { apl: 2, move: 6, save: 4, wounds: 10, base: 32, iconBearer: true, warGong: true, gongKnell: true }, [autopistolFG, bludgeon]),
-      op('fluxbray', '變異獸人', 'Fellgor Fluxbray', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, cleaverFlurry: true }, [tripleCleavers]),
+      op('fluxbray', '變異獸人', 'Fellgor Fluxbray', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, cleaverFlurry: true, bladeWhirl: true }, [tripleCleavers]),
       op('gnarlscar', '疤面獸人', 'Fellgor Gnarlscar', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, sagacious: true, uncompromising: true }, [autopistolFG, bionicFist]),
       op('gorehorn', '血角獸人', 'Fellgor Gorehorn', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, twoFights: true }, [autopistolFG, skullcleaver]),
       op('herdgoad', '驅群者', 'Fellgor Herd-goad', { apl: 2, move: 6, save: 5, wounds: 10, base: 32, whipControl: true, inciteFury: true }, [autopistolFG, whipRanged, whipMelee]),
@@ -2754,7 +2755,8 @@ const FIREFIGHT = {
   ],
   exaction: [
     ff('longArm', '帝皇律法之臂', 'Long Arm of the Emperor\'s Law', '射擊選武器時：有射程限制的武器射程 +3"。', 'When shooting with a Range x weapon: +3" to x.'),
-    ff('exactPunishment', '精確懲處', 'Exact Punishment', '自動：敵人射擊 6" 內的友方而它沒有殘廢時，那名友方立刻免費射擊那名敵人（只能射牠；免費近戰的選項沒有實作）。', 'Auto: after an enemy shoots a friendly within 6" of it and that friendly is not incapacitated, the friendly immediately makes a free Shoot against that enemy only (the free Fight option is not modelled).'),
+    ff('exactPunishment', '精確懲處', 'Exact Punishment', '自動：敵人在 6" 內射擊或近戰攻擊友方而它沒有殘廢時，那名友方立刻免費射擊或近戰那名敵人（只能打牠；彼此在控制範圍內且近戰較強時選近戰）。', 'Auto: after an enemy within 6" shoots or fights a friendly and that friendly is not incapacitated, the friendly immediately makes a free Shoot or Fight against that enemy only (a Fight when they are in each other\'s control range and its melee is stronger).'),
+    ff('executionOrder', '處決令', 'Execution Order', '自動：敵人執行任務動作後（開關門除外），或交戰階段結束時選一名控制目標的敵人，標記牠。牠下次要啟動時先打斷：一名能攻擊牠的準備中友方先啟動，必須先射擊或近戰牠（可略過），之後牠的啟動繼續。標記的敵人啟動或殘廢前不能再用。', 'Auto: after an enemy performs a mission action (not Operate Hatch), or at the end of the Firefight phase on an enemy controlling an objective, mark it. The next time it would activate, interrupt: a ready friendly that can attack it activates first and must shoot or fight it before any other (you may pass), then its activation goes on. Not again until the marked enemy activates or is incapacitated.'),
     ff('brutalBackup', '殘暴支援', 'Brutal Backup', '友方啟動中：另一名同樣在那名敵人控制範圍內的友方立刻免費近戰一次（只能打牠）。', 'During the activation of a friendly: another friendly within control range of that enemy makes a free Fight at once (against it only).'),
   ],
   fellgor: [
@@ -2839,6 +2841,7 @@ const FIREFIGHT = {
     ff('mutability', '變化無常', 'Mutability and Change', '奸奇印記的友方啟動時：本次 APL +1。', 'When a Tzeentch operative is activated: +1 APL this activation.'),
     ff('malignantAura', '惡毒光環', 'Malignant Aura', '納垢印記的友方射擊 3" 內的敵人：遠程「穿甲 1」。', 'A Nurgle operative shooting an enemy within 3": Piercing 1.'),
     ff('sickeningCaptivation', '令人作嘔的魅惑', 'Sickening Captivation', '色孽印記的友方啟動中：4" 內看得到的一名敵人下次 APL -1。', 'During a Slaanesh operative\'s activation: a visible enemy within 4" gets -1 APL next activation.'),
+    ff('unendingBloodshed', '無盡殺戮', 'Unending Bloodshed', '自動：恐虐印記的友方在近戰或反擊中殘廢時，被移除前用一顆未結算的成功骰打那名敵人。', 'Auto: when a Khorne operative is incapacitated while fighting or retaliating, it strikes that enemy with one unresolved success before it\'s removed.'),
   ],
   novitiates: [
     ff('blindingAura', '炫目光環', 'Blinding Aura', '自動：敵人射擊時選了一名友方為目標：本次啟動中，它離那名敵人超過 2" 時不能被選為目標（沒有其他目標的話，那次射擊直接結束）。', 'Auto: when an enemy selects a friendly as the target to shoot, for the rest of that activation it can\'t be selected while more than 2" from that enemy (if there\'s no other target, that Shoot action ends).'),

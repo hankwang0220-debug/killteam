@@ -62,6 +62,21 @@ const place = (o, x, y) => { o.x = x; o.y = y; return o; };
   assert.equal(g.cp[0], cp + 1); assert(g.tainted.includes(m.id));
 }
 
+// Unending Bloodshed is one of the team's firefight ploys (1CP, automatic): a Khorne operative falling in a fight strikes once more.
+{
+  assert(T.firefight.some((p) => p.id === 'unendingBloodshed'), 'listed with the firefight ploys');
+  const g = arena();
+  const k = g.ops.find((o) => o.side === 0 && markOf(o) === 'khorne') || g.ops.find((o) => o.side === 0);
+  k.lgMark = 'khorne';
+  assert(G.ffReady(g, 0, 'unendingBloodshed'), 'it can be used');
+  const { lgUnending } = await import('../js/rules/legionaries.js');
+  const e = g.ops.find((o) => o.side === 1); e.wounds = 20; e.maxW = 20;
+  const me = { c: 0, n: 1 };
+  lgUnending(g, k, me, e, G.bestMelee(k));
+  assert(e.wounds < 20, 'it strikes the enemy');
+  assert.equal(g.cp[0], 2, '1CP');
+}
+
 // AI vs AI full battles.
 for (const roster of [{}, { lgChosen: 'lgChampion', lgButcher: 'lgIcon', lgShrivetalon: 'lgWarrior', lgAnointed: 'lgGunner', mark_lgButcher: 'khorne' }]) {
   const g = G.newGame({ teams: ['legionaries', 'kommandos'], ai: null, equip: [[], []], roster: [roster, {}] });

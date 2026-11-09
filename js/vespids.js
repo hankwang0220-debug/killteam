@@ -3,8 +3,9 @@
 // game.js calls these hooks; the team data is in data/vespids.js.
 // (Careful: game.js and this module import each other, so nothing here may use a top-level const while the modules load —
 // everything is a function declaration, and register functions only use hoisted functions.)
-import { abilityArmed, ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, moveStat } from './game.js';
+import { abilityArmed, actionCost, availableActions, doMissionAction, ACTIONS, CONTROL, ffOn, applyDamage, autoFF, d6, edgeDist, engagedEnemies, foes, forcedShot, getOp, hasPloy, isEngaged, living, log, opName, radius, spend, tpl, visibility, boardOf, moveStat } from './game.js';
 import { dist, distPointSegment } from './geometry.js';
+import { MISSION_ACTIONS } from './missions.js';
 import { moveCtx } from './path.js';
 import { VESPIDS_TEAM, VS_SKYTORCH, VS_COMMUNE_PLOYS, vespidsRosterError } from './data/vespids.js';
 
@@ -216,9 +217,11 @@ export function vsActions(g, op, add) {
   if (!isVS(op) || op.side > 1) return;
   const eng = isEngaged(g, op), ENG = { zh: '處於交戰中', en: 'Engaged' };
   if (tpl(op).vsDrone) add('vsGuidance', !eng && !op.vsGuide, eng ? ENG : { zh: '已啟動', en: 'Already running' });
+  if (tpl(op).vsLeader && !op.counter) add('vsHelmOrder', !op.acted.vsHelm && vsPoints(g, op.side) >= 2 && helmFriends(g, op).length > 0, op.acted.vsHelm ? { zh: '本次啟動已用過交融頭盔', en: 'Communion Helm already used this activation' } : vsPoints(g, op.side) < 2 ? { zh: '需要 2 點交融點數', en: 'Needs 2 Communion points' } : { zh: '3" 內沒有能做任務動作的友方', en: 'No friendly within 3" can perform a mission action' });
   if (tpl(op).vsSwarmguard) add('vsSkytorch', !eng && op.order === 'engage' && !op.acted.reposition && !op.acted.shoot && !op.acted.charge && !op.acted.fallBack, eng ? ENG : op.order !== 'engage' ? { zh: '需要 Engage 指令', en: 'Needs an Engage order' } : { zh: '已經移動或射擊過', en: 'Already moved or shot' });
 }
 export function vsSelf(g, op, id) {
+  if (id === 'vsHelmOrder') return vsHelmOrder(g, op);
   if (id !== 'vsGuidance') return false;
   spend(g, op, id);
   op.vsGuide = true;
@@ -249,8 +252,57 @@ export function vsDoSkytorch(g, op, p) {
 export function registerVespidActions() {
   ACTIONS.vsGuidance = { ap: 1, name: { zh: '空中導引', en: 'Aerial Guidance' } };
   ACTIONS.vsSkytorch = { ap: 2, name: { zh: '天焰突擊', en: 'Skytorch Assault' } };
+  ACTIONS.vsHelmOrder = { ap: 0, name: { zh: '交融頭盔：友方任務動作', en: 'Communion Helm: a friendly mission action' } };
 }
 
 // ---------- the computer ----------
-/** Darting Flight and the rest are left to the player; the computer's Skytorch Assault isn't used. */
+/** Darting Flight and the rest are left to the player. */
 export function vsAiNothing() { return null; }
+/** The computer's Skytorch Assault: the landing spot whose torch zone catches the most enemy wounds-worth of damage and no friendly
+ * (at least one enemy; ending out of enemy control range, where few enemies can see it). Null when it isn't worth it. */
+export function vsAiSkytorch(g, op) {
+  const from = { x: op.x, y: op.y }, r = radius(op), max = moveStat(g, op) + 2;
+  let best = null;
+  for (let dx = -max; dx <= max; dx += 0.5) for (let dy = -max; dy <= max; dy += 0.5) {
+    const p = { x: from.x + dx, y: from.y + dy };
+    if (Math.hypot(dx, dy) < 1 || !vsSkytorchCheck(g, op, p).ok) continue;
+    const hit = g.ops.filter((o) => o !== op && !o.dead && o.x > -50 && distPointSegment(o, from, p) - radius(o) <= r);
+    if (hit.some((o) => o.side === op.side)) continue;
+    const enemies = hit.filter((o) => o.side !== op.side && o.side < 2);
+    if (!enemies.length) continue;
+    const exposed = foes(g, op).filter((e) => e.x > -50 && visibility(g, e, { ...op, x: p.x, y: p.y }).visible).length;
+    const v = enemies.reduce((s, e) => s + Math.min(1, 6 / Math.max(1, e.wounds)), 0) + enemies.length - exposed * 0.3;
+    if (!best || v > best.v) best = { p, v, n: enemies.length };
+  }
+  return best && (best.n >= 2 || best.v >= 1.5) ? best.p : null;
+}
+
+// ---------- Communion Helm, second option ----------
+/** The 1AP mission actions a friendly could perform now (as a free action). */
+function helmMissions(g, f) {
+  const keep = { ap: f.ap, acted: f.acted }; f.ap = 1; f.acted = {};
+  try { return availableActions(g, f).filter((a) => a.ok && MISSION_ACTIONS[a.id] && actionCost(g, f, a.id) <= 1).map((a) => a.id); } finally { f.ap = keep.ap; f.acted = keep.acted; }
+}
+/** Friendly Vespids within 3" of the Strain Leader that could perform one. */
+function helmFriends(g, op) { return living(g, op.side).filter((f) => f !== op && bound(f) && f.x > -50 && edgeDist(f, op) <= 3 && helmMissions(g, f).length); }
+/** Communion Helm (Strain Leader, once per activation): spend 1 Communion point, and a friendly within 3" performs a free 1AP mission action
+ * (paying its own Communion point as normal). A player picks the operative and the action; the computer does the first one it can. */
+function vsHelmOrder(g, op) {
+  const friends = helmFriends(g, op);
+  if (op.acted.vsHelm || vsPoints(g, op.side) < 2 || !friends.length) return false;
+  spend(g, op, 'vsHelmOrder');
+  op.acted.vsHelm = true; g.vs.cp[op.side]--;
+  note(g, op.side, `交融頭盔：花 1 點交融點數，3" 內一名友方免費執行任務動作（剩 ${g.vs.cp[op.side]}）`, `Communion Helm: spends a Communion point; a friendly within 3" performs a free mission action (${g.vs.cp[op.side]} left)`);
+  if (g.pick?.[op.side]) {
+    const ids = [...new Set(friends.flatMap((f) => helmMissions(g, f)))];
+    g.netcounter = { side: op.side, only: friends.map((f) => f.uid), resume: op.uid, resumeCounter: false, kind: 'control', onlyActions: ids, ctlMove: 0, noMove: true,
+      label: { title: { zh: '交融頭盔：友方任務動作', en: 'Communion Helm: a friendly mission action' }, hint: { zh: '選 3" 內一名友方，免費執行一個 1AP 任務動作（照常花交融點數）。', en: 'Pick a friendly within 3" to perform a free 1AP mission action (paying a Communion point as normal).' } } };
+    g.active = null; g.counter = true; g.turn = op.side;
+    return true;
+  }
+  const f = friends[0], id = helmMissions(g, f)[0];
+  const keep = { ap: f.ap, acted: f.acted, active: g.active };
+  f.ap = 1; f.acted = {}; g.active = f.uid;
+  try { doMissionAction(g, f, id); } finally { f.ap = keep.ap; f.acted = keep.acted; g.active = keep.active; }
+  return true;
+}

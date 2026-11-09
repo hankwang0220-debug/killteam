@@ -33,7 +33,7 @@ import { exactionRosterError } from './data/exaction.js';
 import { hierotekRosterError } from './data/hierotek.js';
 import { hunterCladeRosterError } from './data/hunterclade.js';
 import { wbCanHide, wbHide, wbEmergeCheck } from './game.js';
-import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, moversLeft } from './game.js';
+import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, freeMoveToward, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
@@ -2268,7 +2268,7 @@ const ABILITIES = {
   signal: () => ['信號', 'Signal', '1AP：6" 內可見的另一名友方下次啟動 APL +1。', '1AP: another visible friendly within 6" gets +1 APL next activation.'],
   systemJam: () => ['系統干擾', 'System Jam', '1AP（非隱蔽）：可見敵人下次啟動 APL -1。', '1AP (not Concealed): a visible enemy gets -1 APL next activation.'],
   medikit: () => ['醫療包', 'Medikit', '1AP：控制範圍內受傷的友方（無人機除外）回復 2D3 生命。', '1AP: a wounded friendly (not a drone) in control range regains 2D3 wounds.'],
-  medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將殘廢時改為剩 1 生命，雙方下次啟動 APL -1。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation.'],
+  medic: () => ['醫療兵！', 'Medic!', '每回合一次：3" 內可見的友方（無人機除外）將殘廢時改為剩 1 生命，雙方下次啟動 APL -1；多數隊伍之後還能免費衝刺，結束在醫療兵控制範圍內（玩家會被詢問）。', 'Once per TP: a visible friendly (not a drone) within 3" that would be incapacitated stays on 1 wound; both get -1 APL next activation; for most teams it can then make a free Dash ending within the medic control range (a player is asked).'],
   multiVision: () => ['多維視覺', 'Multi-dimensional Vision', '射擊時敵人不能被遮蔽。', 'Enemies cannot be obscured when it shoots.'],
   droneController: () => ['無人機操控員・遙控操作', 'Drone Controller · Remote Pilot', '在場時友方無人機 Move +2"。遙控操作 1AP（不在交戰中）：一架友方無人機立刻免費做一個動作（移動不超過 2"，可做無人機規則限制的動作）；可重複使用，但同一架無人機每次啟動不能做兩次相同的動作。', 'While it is in the killzone, friendly drones get +2" Move. Remote Pilot 1AP (not engaged): a friendly drone performs one free action (moving no more than 2", even one its Drone rule restricts); repeatable, but the same drone can\'t take the same free action twice in an activation.'],
   adaptiveOrders: () => ['適應性命令', 'Adaptive Orders', '看守長這回合沒有以策略謀略下達命令時，「鼓舞領導」在他啟動中 0CP。', 'If the Watchmaster doesn\'t issue an order as a strategic gambit, Inspirational Leadership costs 0CP during his activation.'],
@@ -2422,7 +2422,7 @@ const ABILITIES = {
   steadfast: () => ['堅定', 'Steadfast', '爭奪目標時 APL 一律算 3。', 'Counts as APL 3 when determining control of a marker.'],
   accelerate: () => ['加速', 'Accelerate', '1AP：6" 內可見的死亡標記或不朽者下次啟動 APL +1。', '1AP: a visible Deathmark or Immortal within 6" gets +1 APL next activation.'],
   reanimate: () => ['復甦', 'Reanimate', '1AP 擲 D6，3+ 讓 6" 內看得到的復甦標記上的友方復甦；花 2AP 則自動成功。這回合已行動過才殘廢的，復甦後是已行動狀態。', '1AP: roll a D6, on a 3+ the friendly of a Reanimation marker visible within 6" is REANIMATED; 2AP: automatic. One that had already acted this TP comes back expended.'],
-  nuncio: () => ['使節天鷹', 'Nuncio-aquila', '3" 內的敵人執行撿起標記與任務動作要多花 1AP；爭奪目標時，若有敵人在它 3" 內，對方 APL 總和 -1。（本版以隊長本身代替標記）', 'Enemies within 3" pay +1AP for Pick Up Marker and mission actions; when a marker is contested, the enemy total APL is 1 lower if one of them is within 3" of it. (The Proctor itself stands in for the marker.)'],
+  nuncio: () => ['使節天鷹', 'Nuncio-aquila', '部署使節天鷹（0AP，不在敵人控制範圍內）：把標記放在隊長 6" 內，或把它移動最多 6"。標記 3" 內的敵人（標記不在場上時以隊長為準）執行撿起標記與任務動作要多花 1AP；爭奪目標時，若有敵人在它 3" 內，對方 APL 總和 -1。', 'Deploy Nuncio-aquila (0AP, not in enemy control range): place the marker within 6" of it, or move it up to 6". Enemies within 3" of the marker (of the Proctor while it is not out) pay +1AP for Pick Up Marker and mission actions; when a marker is contested, the enemy total APL is 1 lower if one of them is within 3" of it.'],
   engenderedFocus: () => ['堅定專注', 'Engendered Focus', '無視自身數值的變化（豁免除外）：重傷不減 Move、命中，APL 不受影響。', 'Ignores changes to its stats (except Save): no injured Move/Hit penalty, APL unchanged.'],
   zealous: () => ['狂熱奉獻', 'Zealous Dedication', '受到 3 以上的傷害時擲 D6：5+ 傷害 -1。', 'Whenever an attack die inflicts 3+ damage on it, roll a D6: on a 5+, 1 less.'],
   arrest: () => ['懲戒者的逮捕', "Castigator's Arrest", '若它控制範圍內只有一名敵人，該敵人不能撤退。', 'If only one enemy is in its control range, that enemy cannot Fall Back.'],
@@ -2460,7 +2460,7 @@ const ABILITIES = {
   cultAgent: () => ['教派特工', 'Cult Agent', '被射擊時無視「穿甲」與「飽和」；能保留掩護豁免時多保留 1 顆，或把 1 顆當暴擊。', 'When shot, ignores Piercing and Saturate; with cover saves, retains one more or one as a critical.'],
   twoShoots: () => ['神槍手', 'Expert Gunslinger', '每次啟動可執行兩次射擊。', 'Can perform two Shoot actions per activation.'],
   heroic: () => ['英雄的鼓舞', 'Heroic Inspiration', '本回合使敵人殘廢過後，3" 內可見的友方新信徒武器「嚴厲」。', 'Once it has incapacitated an enemy this TP, friendly Neophytes visible within 3" of it have Severe.'],
-  twoFights: () => ['劍術大師', 'Expert Swordsman', '每次啟動可執行兩次近戰。（之後的 3" 免費衝鋒、閃電突擊、刃之架勢未實作）', 'Can perform two Fight actions per activation. (The free 3" Charge, Quicksilver Strike and Bladed Stance aren\'t modelled.)'],
+  twoFights: () => ['兩次近戰', 'Two Fights', '每次啟動可執行兩次近戰。', 'Can perform two Fight actions per activation.'],
   bipod: () => ['重武器腳架', 'Heavy Weapon Bipod', '本次啟動沒移動（或反應時）射擊：武器「無休」，已有無休則改為「毫不留情」。', 'Shooting without having moved this activation (or when counteracting): Ceaseless, or Relentless if it already has it.'],
   miasma: () => ['毒瘴', 'Poisonous Miasma', '1AP（靈能）：7" 內可見的敵人中毒；已中毒則受到 3 傷害。', '1AP (Psychic): an enemy visible within 7" is poisoned, or takes 3 damage if it already was.'],
   krumpin: () => ["揍人時間", "Krumpin' Time", '每次啟動可執行兩次近戰。', 'Can perform two Fight actions per activation.'],
@@ -2501,7 +2501,8 @@ const ABILITIES = {
   callAttack: () => ['號令進攻', 'Call the Attack', '策略階段（自己沒有狂暴標記時）：選 6" 內看得到的一名友方，它和它 2" 內看得到的友方免費衝刺。', 'Strategy phase (while it has no Frenzy token): pick a friendly visible within 6"; it and friendlies visible within 2" of it make free Dashes.'],
   sagacious: () => ['睿智', 'Sagacious', '啟動結束前可改變指令（這裡是啟動中做過動作後的一個按鈕）。', 'It can change its order at the end of its activation (here a button once it has acted).'],
   uncompromising: () => ['毫不妥協的攻擊', 'Uncompromising Attack', '1AP（交戰中）：免費近戰一次、免費用自動手槍射擊一次（可以射擊控制範圍內的敵人，即使有友方在那敵人控制範圍內）。', '1AP (engaged): a free Fight and a free autopistol Shoot (at an enemy in its control range, even with friendlies in that enemy\'s control range).'],
-  cleaverFlurry: () => ['劈刀亂舞', 'Cleaver Flurry', '2AP（不能隱蔽、不能交戰）：免費轉移，多 2"；經過的每名敵人控制範圍內各受 D3+1 傷害（刃之旋風沒有實作）。', '2AP (not Concealed, not engaged): a free Reposition 2" further; each enemy it moved within control range of takes D3+1 (Blade Whirl isn\'t modelled).'],
+  cleaverFlurry: () => ['劈刀亂舞', 'Cleaver Flurry', '2AP（不能隱蔽、不能交戰）：免費轉移，多 2"；經過的每名敵人控制範圍內各受 D3+1 傷害。', '2AP (not Concealed, not engaged): a free Reposition 2" further; each enemy it moved within control range of takes D3+1.'],
+  bladeWhirl: () => ['刃之旋風', 'Blade Whirl', '沒有狂暴標記時，近戰或反擊可以先結算一顆成功骰，那顆必須用來格擋。', 'Without a Frenzy token, fighting or retaliating it can resolve one success before the normal order; that success must block.'],
   poxBomb: () => ['瘟疫炸彈', 'Pox Bomb', '可以用震撼手雷（不算次數）；敵人擲震撼測試 3+ 時，另受骰值一半（進位）的傷害。', 'Can use stun grenades (not counting toward limited uses); an enemy rolling 3+ on its stun test also takes half the result (rounding up) as damage.'],
   warriorFrenzy: () => ['戰士狂暴', 'Warrior Frenzy', '有狂暴標記時不算重傷。', 'It isn\'t injured while it has a Frenzy token.'],
   fgWarrior: () => ['戰士', 'Warrior', '可以重複選。', 'Can be picked more than once.'],
@@ -2510,10 +2511,12 @@ const ABILITIES = {
   nameWhispered: () => ['血中低語之名', 'A Name Whispered in Blood', '第一回合的策略階段選一名敵人：射擊它時視為持有血祭標記且受諸神注視。', 'In the first Strategy phase, pick an enemy: when shooting it, this operative counts as having a Blooded token and the Gaze of the Gods.'],
   blTrooper: () => ['步兵', 'Trooper', '群體啟動；可以重複選。', 'Group Activation; can be picked more than once.'],
   wbLeader: () => ['暗影向量', 'Shadow Vector', '每回合一次：對它看得到的友方新信徒使用「遁入黑暗」或「盤蛇」0CP。', 'Once per turning point: Slink into Darkness or Coiled Serpent costs 0CP for a friendly Neophyte it can see.'],
-  expertSwordsman: () => ['劍術專家', 'Expert Swordsman', '每次啟動可兩次近戰；近戰結束後若已不在敵人控制範圍內，可免費衝鋒最多 3"（快銀突擊與刃之架勢沒有實作）。', 'Two Fights per activation; after a Fight, if no longer within enemy control range, a free Charge of up to 3" (Quicksilver Strike and Bladed Stance aren\'t modelled).'],
+  expertSwordsman: () => ['劍術專家', 'Expert Swordsman', '每次啟動可兩次近戰；近戰結束後若已不在敵人控制範圍內，可免費衝鋒最多 3"。', 'Two Fights per activation; after a Fight, if no longer within enemy control range, a free Charge of up to 3".'],
+  quicksilverStrike: () => ['快銀突擊', 'Quicksilver Strike', '每回合一次，敵人執行有移動或被放置的動作後：可打斷，免費衝鋒（可改為交戰指令），最多 3"，結束在那名敵人的控制範圍內。玩家會被詢問。', 'Once per turning point, after an enemy action in which it moves or is set up: interrupt with a free Charge (it can change to Engage) of up to 3", ending within the control range of that enemy. A player is asked.'],
+  bladedStance: () => ['刃之架勢', 'Bladed Stance', '近戰或反擊時，可以先結算一顆成功骰，那顆必須用來格擋。', 'Fighting or retaliating, it can resolve one success before the normal order; that success must block.'],
   sanctus: () => ['聖者', 'Sanctus', '使魔靈視（1AP）：看得到的敵人得到靈視標記——狙擊手對它射擊時狙擊槍「飽和」且它不會被遮擋；利爪對它近戰時生物匕首「殘暴」「平衡」。狙擊手另有鎖定弱點（1AP）：這次啟動定點狙擊「致命 5+」。', 'Familiar\'s Soulsight (1AP): a visible enemy gains a Soulsight token — the Sniper\'s rifle has Saturate against it and it can\'t be obscured; the Talon\'s bio-dagger has Brutal and Balanced against it. The Sniper also has Target Vulnerability (1AP): Lethal 5+ on the stationary profile this activation.'],
   creepingShadow: () => ['潛行之影', 'Creeping Shadow', '隱蔽指令也能衝鋒；每次近戰後可免費衝刺（之前做過什麼都可以）。刺殺（2AP，隱蔽、沒交戰、移動範圍內有看不到它的敵人）：免費衝鋒（不超過移動值）後免費近戰，第一次打擊後可再追加一次打擊（這裡不限定要打那名敵人）。', 'Can Charge with a Conceal order; after each Fight, a free Dash whatever it did before. Assassinate (2AP; Concealed, not engaged, an enemy within reach that can\'t see it): a free Charge (up to its Move) then a free Fight whose first strike is followed by another (here the target isn\'t restricted to that enemy).'],
-  overthrow: () => ['推翻壓迫者', 'Overthrow the Oppressors', '每回合一次：6" 內看得到的準備好的友方新信徒殘廢時，「世代籌劃之計」0CP（免費射擊的選項沒有實作）。', 'Once per turning point: when a ready friendly Neophyte visible within 6" is incapacitated, A Plan Generations in the Making costs 0CP (the free Shoot option isn\'t modelled).'],
+  overthrow: () => ['推翻壓迫者', 'Overthrow the Oppressors', '每回合一次：6" 內看得到的準備中友方新信徒殘廢時，倒下前可以免費射擊一次（可改為交戰指令），或「世代籌劃之計」0CP。', 'Once per turning point: when a ready friendly Neophyte visible within 6" is incapacitated, before it is removed it can shoot once for free (it can change to Engage), or A Plan Generations in the Making costs 0CP.'],
   tempyrion: () => ['時間之術', 'Tempyrion', '重組儀式（1AP，靈能，每回合全隊一次）：6" 內可見的友方回復最多 2D3 生命。時間通量（1AP，靈能）：在 6" 內可見友方旁放標記，它下次啟動結束時若完全在標記 6" 內，就回到標記處。', 'Reconstitution Ritual (1AP, Psychic, once per TP for the team): a friendly visible within 6" regains up to 2D3 wounds. Temporal Flux (1AP, Psychic): a marker by a friendly visible within 6"; at the end of its next activation, if wholly within 6" of the marker, it is set back up there.'],
   herdBanner: () => ['獸群旗幟', 'Herd Banner', '3" 內看得到的友方奸奇獸人受到 3 點以上的普通傷害時 -1。', 'Normal Dmg of 3+ on a friendly Tzaangor visible within 3" of it deals 1 less.'],
   brayhorn: () => ['號角', 'Brayhorn', '0AP：友方奸奇獸人移動 +1"，直到下個策略階段的準備步驟（不能在交戰中）。', '0AP: friendly Tzaangor have +1" Move until the next Strategy phase\'s Ready step (not while engaged).'],
@@ -2990,8 +2993,8 @@ function onBoardClick(evt) {
   if (g.phase === 'strategy' && !isAI(ployChooser(g)) && CHOICES[pendingChoice(g, ployChooser(g))?.id]?.kind === 'move') { // a ploy's free move: the destination
     const s = ployChooser(g), pc = pendingChoice(g, s), c = CHOICES[pc.id], o = moversLeft(g, s, c, pc.ctx).find((x) => x.uid === ui.moveUid);
     if (!o) { ui.notice = L('先在面板選一名特工。', 'Pick an operative in the panel first.'); return render(); }
-    const kind = c.moveKind(g, o, pc.ctx), max = c.max(g, o, pc.ctx), ctx = moveCtx(g, o, kind), raw = findPath(ctx, svgPoint(evt));
-    const path = raw && freeMovePath(g, o, kind, max, raw.pts), end = path?.pts.at(-1);
+    const goal = svgPoint(evt), t = freeMoveToward(g, o, c, pc.ctx, goal), kind = t?.kind || c.kinds?.(g, o, pc.ctx)?.[0] || c.moveKind(g, o, pc.ctx), max = t?.max ?? c.max(g, o, pc.ctx, kind);
+    const raw = t?.raw || findPath(moveCtx(g, o, kind), goal), path = t?.path || null, end = path?.pts.at(-1);
     const ok = !!end && (!c.check || c.check(g, s, o, end, pc.ctx));
     ui.path = raw ? { ...(path || raw), ok, r: radius(o), why: ok ? '' : !path ? L(`超過 ${max}"、或終點在敵人控制範圍內／不合法。`, `More than ${max}", or the end is in an enemy's control range / not allowed.`) : L('終點不符合這個計謀的條件。', 'The end point doesn\'t meet this ploy\'s condition.') } : null;
     if (!raw) ui.notice = L('到不了那個位置。', 'It cannot get there.');
@@ -2999,6 +3002,10 @@ function onBoardClick(evt) {
   }
   if (g.phase === 'strategy' && !isAI(ployChooser(g)) && CHOICES[pendingChoice(g, ployChooser(g))?.id]?.kind === 'point') { // a ploy / gambit pick: a point on the board
     if (!resolveChoice(g, ployChooser(g), svgPoint(evt))) ui.notice = L('這個位置不符合條件。', 'That spot isn\'t allowed.');
+    return afterChange();
+  }
+  if (g.phase === 'firefight' && activeOp(g) && !isAI(activeOp(g).side) && CHOICES[pendingChoice(g, activeOp(g).side)?.id]?.kind === 'point') { // a firefight action's pick: a point on the board (Deploy Nuncio-aquila)
+    if (!resolveChoice(g, activeOp(g).side, svgPoint(evt))) ui.notice = L('這個位置不符合條件。', 'That spot is not allowed.');
     return afterChange();
   }
   if (g.phase === 'strategy' && ui.stormMode && !isAI(ui.stormMode.side)) { // Wolf Scouts: placing the Storm marker
@@ -3756,7 +3763,7 @@ function handle(act, d) {
       else if (d.id === 'optics') { undoable(() => doOptics(g, op)); return afterChange(); }
       else if (d.id === 'flail') { undoable(() => doFlail(g, op)); return afterChange(); }
       else if (d.id === 'dakkaDash') { undoable(() => doDakkaDash(g, op)); return afterChange(); }
-      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate' || d.id.startsWith('wc') || d.id.startsWith('wb') || d.id.startsWith('fg') || d.id === 'exRvr' || d.id === 'exHandler' || d.id === 'hcShroud' || d.id === 'hcDespair') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
+      else if (d.id.startsWith('dw') || d.id.startsWith('mdSoul') || d.id.startsWith('mw') || d.id === 'wkBreak' || d.id === 'ncPremonition' || d.id === 'ncPoison' || d.id.startsWith('sf') || d.id === 'pfAccel' || d.id === 'kmBreach' || d.id === 'rvBurrow' || d.id === 'rvDistend' || d.id === 'aqExpend' || d.id === 'vsGuidance' || d.id === 'xvPlaceBeacon' || d.id.startsWith('ws') || d.id === 'mvBarricade' || d.id === 'kfGather' || d.id === 'dkPlaceMine' || d.id === 'dkDetonate' || d.id.startsWith('wc') || d.id.startsWith('wb') || d.id.startsWith('fg') || d.id === 'vsHelmOrder' || d.id === 'exRvr' || d.id === 'exNuncio' || d.id === 'exHandler' || d.id === 'hcShroud' || d.id === 'hcDespair') { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (['guard', 'phGuard', 'pistolBarrage', 'blinkToggle', 'energise', 'longSight', 'stealthAttack', 'boost', 'auspexScan', 'guerrilla', 'shieldingUp', 'actuation', 'gongKnell', 'mantle', 'sweepingBlow', 'mdVision', 'reanimate', 'reanimateSure', 'ammoResupply', 'meltaMine', 'grislyMark', 'unleashDaemon', 'transferPower', 'datacoronal', 'explosives', 'conspire', 'intoShadow', 'nullifyingRitual', 'ruinousInvig', 'ruinousDeter', 'calibCharge', 'calibField'].includes(d.id)) { undoable(() => doSelfAction(g, op, d.id)); return afterChange(); }
       else if (d.id === 'pickUp') { undoable(() => doPickUp(g, op)); return afterChange(); }
       else if (missionActionsFor(g, op.side).includes(d.id)) { undoable(() => doMissionAction(g, op, d.id)); return afterChange(); }

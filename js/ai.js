@@ -22,11 +22,12 @@ import { rvAiStrategy, rvAiUnderground, rvAiBurrow } from './raveners.js';
 import { spAiStrategy } from './spectres.js';
 import { aqAiStrategy, aqAiAbove } from './aquilons.js';
 import { vdAiStrategy } from './voiddancers.js';
-import { vsChargeAmong } from './vespids.js';
+import { vsAiSkytorch, vsChargeAmong, vsDoSkytorch } from './vespids.js';
 import { xvAiStrategy } from './stealthsuits.js';
 import { wsAiStrategy, wsAiAction, wsChargeEndOk } from './wolfscouts.js';
 import { npoTargetFor } from './missions.js';
 import { dist } from './geometry.js';
+import { nuncioWorth } from './rules/exaction.js';
 import { clampPath, findPath, moveCtx, wholeInchPath } from './path.js';
 
 /** Benchmarks set legacy[side] to play that side with the previous AI (random ploys, no cover or objective planning). */
@@ -716,6 +717,9 @@ export function aiStep(g) {
     }
   }
 
+  if (can.vsSkytorch && op.ap >= 2) { const p = vsAiSkytorch(g, op); if (p && vsDoSkytorch(g, op, p)) return null; } // Skytorch Assault (Vespid Swarmguard)
+  if (can.vsHelmOrder) { doSelfAction(g, op, 'vsHelmOrder'); return null; } // Communion Helm (Vespid Strain Leader): a friendly's free mission action
+  if (can.exNuncio && nuncioWorth(g, op)) { doSelfAction(g, op, 'exNuncio'); return null; } // Deploy Nuncio-aquila (Exaction Proctor)
   if (can.pistolBarrage && shootOptions(g, op).length) { doSelfAction(g, op, 'pistolBarrage'); return null; }
   if (can.dwCuffsHeal && op.maxW - op.wounds >= 2) { doSelfAction(g, op, 'dwCuffsHeal'); return null; }
   if (can.dwThrallUse && engagedEnemies(g, op).length && missionActionsFor(g, op.side).some((id) => !can[id])) { doSelfAction(g, op, 'dwThrallUse'); return null; }
