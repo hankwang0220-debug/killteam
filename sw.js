@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v110';
+const CACHE = 'killteam-v111';
 const ASSETS = [
   'js/models3d-refinements.js',
   'js/models3d-kommandos.js',
@@ -28,7 +28,7 @@ const ASSETS = [
   'js/models3d.js', 'js/models3d-teams.js', 'js/models3d-weapons.js', 'js/terrain3d.js', 'js/viewer3d.js', 'js/vendor/three.module.min.js',
   'js/murderwing.js', 'js/data/murderwing.js',
   'js/mandrakes.js', 'js/data/mandrakes.js',
-  './', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'css/style.css',
+  './', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'css/style.css', 'css/fun.css',
   'js/deathwatch.js', 'js/data/deathwatch.js', 'js/corsair.js', 'js/archon.js', 'js/data/eldar.js', 'js/main.js', 'js/game.js', 'js/board.js', 'js/path.js', 'js/ai.js', 'js/geometry.js', 'js/sight.js', 'js/i18n.js', 'js/help.js', 'js/replay.js', 'js/missions.js', 'js/data/teams.js',
 ];
 

@@ -32,7 +32,7 @@ import { battlecladeRosterError } from './data/battleclade.js';
 import { exactionRosterError } from './data/exaction.js';
 import { hierotekRosterError } from './data/hierotek.js';
 import { hunterCladeRosterError } from './data/hunterclade.js';
-import { wbCanHide, wbHide, wbEmergeCheck } from './game.js';
+import { wbCanHide, wbHide, wbEmergeCheck, equipmentItemName } from './game.js';
 import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, freeMoveToward, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';

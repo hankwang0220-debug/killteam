@@ -1,0 +1,194 @@
+/* ==========================================================================
+   Toy-box theme: the interface matches the chunky, silly miniatures.
+   Loaded after style.css and online.css; delete the <link> in index.html to get the plain look back.
+   Every colour is a token below, so the whole mood can be retuned in one place.
+   The board itself (mat, terrain, tokens) is left to style.css so it stays readable.
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Huninn&display=swap');
+
+:root {
+  --bg: #1c1530;          /* grape night */
+  --panel: #2a2146;
+  --panel2: #372c5a;
+  --line: #4a3d73;        /* soft dividers inside panels */
+  --ink: #0e0a1a;         /* cartoon outlines and hard shadows */
+  --text: #fff6e3;
+  --muted: #c4b9e0;
+  --brass: #ffcf3a;       /* banana yellow: the main accent */
+  --pop: #ff5fa2;         /* bubblegum: second accent */
+  --mint: #5ee3b5;
+  --ok: #62e38c;
+  --bad: #ff5d5d;
+  --fun-font: "Huninn", "jf-openhuninn", "Arial Rounded MT Bold", "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --stick: 0 3px 0 var(--ink);           /* the hard offset shadow every sticker has */
+  --stick-big: 0 5px 0 var(--ink);
+  --round: 14px;
+}
+
+body {
+  font-family: var(--fun-font);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, .055) 1.2px, transparent 1.6px) 0 0 / 18px 18px,
+    radial-gradient(1200px 600px at 50% -10%, #3a2766 0%, transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+h1, h2, h3, h4, h5 { letter-spacing: .02em; }
+::selection { background: var(--pop); color: #fff; }
+
+/* ---------- scrollbars ---------- */
+* { scrollbar-color: var(--pop) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--pop); border: 2px solid var(--ink); border-radius: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- buttons: chunky stickers that squash when pressed ---------- */
+button {
+  border: 2.5px solid var(--ink); border-radius: 12px; box-shadow: var(--stick);
+  font-weight: 700; transition: transform .12s cubic-bezier(.3, 1.6, .5, 1), box-shadow .12s, background .15s, filter .15s;
+}
+button:hover:not(:disabled) { border-color: var(--ink); transform: translateY(-2px) rotate(-1deg); box-shadow: 0 5px 0 var(--ink); filter: brightness(1.12); }
+button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); transition-duration: .04s; }
+button:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
+button.primary { background: var(--brass); color: var(--ink); border-color: var(--ink); font-weight: 800; }
+button.ghost { background: transparent; box-shadow: none; border-color: var(--line); }
+button.ghost:hover:not(:disabled) { border-color: var(--brass); box-shadow: none; }
+button.big { padding: 13px 26px; font-size: 1.15rem; border-radius: 16px; box-shadow: var(--stick-big); }
+button.big:hover:not(:disabled) { box-shadow: 0 7px 0 var(--ink); }
+button.big:active:not(:disabled) { box-shadow: 0 1px 0 var(--ink); transform: translateY(4px); }
+button:disabled { box-shadow: none; }
+/* Buttons that are really links or bare dice keep their own look. */
+.diebtn, .linklike, .diebtn:hover, .linklike:hover { box-shadow: none !important; transform: none !important; filter: none !important; }
+
+select, input[type="text"], input[type="search"], input[type="number"], textarea, .teamsearch {
+  border: 2.5px solid var(--ink) !important; border-radius: 10px !important; background: var(--panel2) !important; color: var(--text);
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, .25);
+}
+select:focus, input:focus, textarea:focus { outline: 3px solid var(--mint); outline-offset: 1px; }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--pop); }
+
+/* ---------- header ---------- */
+.top {
+  background: #140f24; border-bottom: 3px solid var(--ink);
+  box-shadow: 0 3px 0 var(--pop), 0 6px 0 var(--ink);
+}
+.brand { color: var(--brass); font-weight: 900; text-shadow: 2px 2px 0 var(--ink); display: inline-block; transform: rotate(-2deg); transition: transform .2s; }
+.brand:hover { transform: rotate(2deg) scale(1.05); }
+.game-settings summary { border: 2.5px solid var(--ink); border-radius: 12px; background: var(--panel2); box-shadow: var(--stick); }
+.settings-menu { border: 2.5px solid var(--ink); border-radius: var(--round); box-shadow: var(--stick-big); }
+.settings-menu button { box-shadow: none; }
+
+.turnstatus { border: 2.5px solid var(--ink); border-radius: 16px; box-shadow: var(--stick), 0 0 18px -6px var(--tc); }
+.tsbadge { border-right: 2.5px solid var(--ink); }
+.tsphase { text-shadow: 1px 1px 0 var(--ink); }
+.tswho b { color: var(--brass); }
+.score { border: 2.5px solid var(--ink); border-left: 6px solid var(--tc); border-radius: 10px; box-shadow: var(--stick); }
+.tp { text-shadow: 1px 1px 0 var(--ink); }
+
+/* ---------- home ---------- */
+.hero { padding: 44px 0 28px; }
+.hero h1 {
+  font-weight: 900; color: var(--brass); letter-spacing: .08em; line-height: 1.05;
+  -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill;
+  text-shadow: 4px 4px 0 var(--pop), 8px 8px 0 var(--ink);
+  display: inline-block; transform: rotate(-3deg);
+  animation: fun-drop .9s cubic-bezier(.2, 1.7, .4, 1) both, fun-bob 4s ease-in-out 1s infinite;
+}
+.hero h1 small {
+  display: table; margin: 14px auto 0; padding: 4px 16px; font-size: .3em; letter-spacing: .3em;
+  color: var(--ink); background: var(--mint); -webkit-text-stroke: 0; text-shadow: none;
+  border: 2.5px solid var(--ink); border-radius: 8px; box-shadow: var(--stick); transform: rotate(4deg);
+}
+.hero p { color: var(--muted); font-size: 1.02rem; }
+.herobtns { gap: 14px; }
+.herobtns button.primary { animation: fun-nudge 3s ease-in-out 1.6s infinite; }
+@keyframes fun-drop { from { opacity: 0; transform: translateY(-60px) rotate(-12deg) scale(.6); } to { opacity: 1; transform: rotate(-3deg); } }
+@keyframes fun-bob { 0%, 100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(-1.5deg) translateY(-6px); } }
+@keyframes fun-nudge { 0%, 86%, 100% { transform: none; } 90% { transform: rotate(-4deg) scale(1.05); } 94% { transform: rotate(4deg) scale(1.05); } 97% { transform: rotate(-2deg); } }
+
+/* ---------- cards and panels: thick outlines and a hard drop shadow ---------- */
+.card, .pick, .dialog, .hrow, .online-dialog, .m3d-info, .recentbox, .outcome, .unitpick {
+  border: 2.5px solid var(--ink); border-radius: var(--round); box-shadow: var(--stick-big);
+}
+.card h2, .pick h3, .dialog h2 { font-weight: 900; }
+.dialog h2 { color: var(--brass); text-shadow: 2px 2px 0 var(--ink); }
+/* Panels with a team colour keep it as a thick stripe. */
+.teamcard, .datacard, .turnbanner, .fside {
+  border-style: solid; border-width: 2.5px; border-color: var(--ink); border-top: 7px solid var(--tc);
+  border-radius: var(--round); box-shadow: var(--stick-big);
+}
+.teampick { border: 2.5px solid var(--ink); border-left: 8px solid var(--tc); }
+.teampick.on { border-color: var(--ink); border-left-color: var(--tc); box-shadow: inset 0 0 0 3px var(--brass), var(--stick); } /* (inside the scrolling list, so no outline that would be clipped) */
+.mapcard { border: 2.5px solid var(--ink); border-radius: var(--round); box-shadow: var(--stick-big); }
+.mapcard:hover:not(:disabled) { border-color: var(--ink); transform: translateY(-3px) rotate(-.7deg); box-shadow: 0 8px 0 var(--ink); }
+.mapcard.on { border-color: var(--ink); outline: 4px solid var(--brass); outline-offset: 2px; box-shadow: 0 5px 0 var(--ink); transform: rotate(-.7deg); }
+.setupsteps li { padding: 3px 10px; border-radius: 999px; border: 2px solid transparent; }
+.setupsteps li.on { color: var(--ink); background: var(--brass); border-color: var(--ink); box-shadow: var(--stick); }
+.inspect { border-radius: var(--round); box-shadow: 0 6px 0 var(--ink), 0 10px 30px rgba(0, 0, 0, .5); }
+.inspect .datacard { box-shadow: none; }
+.statline div { border: 2px solid var(--ink); border-radius: 10px; box-shadow: 0 2px 0 var(--ink); }
+.statline b { color: var(--brass); font-size: 1.15rem; }
+.flag { border: 2px solid var(--ink); font-weight: 700; }
+.mode { border: 2.5px dashed var(--brass); border-radius: 12px; }
+.ploys, .ffploys { border-left-width: 5px; border-radius: 4px; }
+.orders .on, .m3d-tabs button.on { background: var(--brass); color: var(--ink); border-color: var(--ink); }
+.boardviewbar .on, .battle3d-tools .on { background: var(--brass); color: var(--ink); border-color: var(--ink); }
+.ap { color: var(--brass); text-shadow: 1px 1px 0 var(--ink); font-weight: 900; }
+.pending { border: 2.5px solid var(--bad); border-radius: var(--round); box-shadow: 0 4px 0 #6b1d2a; }
+.placement-warning { border-width: 2.5px; border-radius: 12px; }
+.history h2 { text-shadow: 2px 2px 0 var(--ink); }
+.m3d-side { border-right: 3px solid var(--ink); }
+.m3d-ops li.on { border-radius: 8px; }
+
+/* Operative chips beside the board */
+.opchip { border: 2px solid var(--ink); border-radius: 10px; background: var(--panel); box-shadow: 0 2px 0 var(--ink); }
+.opchip:hover { border-color: var(--tc); transform: translateX(2px); filter: none; box-shadow: 0 2px 0 var(--ink); }
+.opchip.dead { background: #3a1626; border-color: #7a2a3f; }
+.chip-bar { height: 6px; border: 1.5px solid var(--ink); border-radius: 4px; }
+.oproster h4 { border-left-width: 6px; border-radius: 4px; background: var(--panel); }
+.boardtools.on { border-width: 2.5px; border-radius: 14px; }
+#board { border: 3px solid var(--ink); border-radius: 14px; box-shadow: var(--stick-big); }
+.battle3d-stage { border: 3px solid var(--ink); border-radius: 14px; box-shadow: var(--stick-big); }
+
+/* ---------- dice: chunky toy dice that bounce in ---------- */
+.die { border: 2.5px solid var(--ink); border-radius: 9px; box-shadow: 0 3px 0 var(--ink); font-weight: 900; animation-name: fun-roll; animation-timing-function: cubic-bezier(.2, 1.6, .4, 1); animation-duration: .45s; }
+.die.norm { background: #fffaf0; color: var(--ink); border-color: var(--ink); }
+.die.crit { background: var(--brass); color: var(--ink); border-color: var(--ink); box-shadow: 0 3px 0 var(--ink), 0 0 14px rgba(255, 207, 58, .7); }
+.die.small { box-shadow: 0 2px 0 var(--ink); }
+@keyframes fun-roll { 0% { transform: translateY(-26px) rotate(-200deg) scale(.4); opacity: 0; } 60% { transform: translateY(3px) rotate(12deg) scale(1.1); opacity: 1; } 100% { transform: none; } }
+.outcome b { text-shadow: 1px 1px 0 var(--ink); }
+
+/* ---------- pop-ups ---------- */
+.modal { background: rgba(20, 8, 40, .7); backdrop-filter: blur(2px); }
+.modal .dialog { animation: fun-pop .35s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes fun-pop { from { opacity: 0; transform: scale(.7) rotate(-3deg); } to { opacity: 1; transform: none; } }
+#terrain-hover { border: 2.5px solid var(--ink); border-radius: 12px; box-shadow: var(--stick); }
+
+/* ---------- turn banner: a comic strip slapped across the board ---------- */
+.turnanim > div {
+  border: 3px solid var(--ink); border-radius: 14px; transform: rotate(-2.5deg);
+  background: color-mix(in srgb, var(--tc) 70%, #1a1030); box-shadow: 0 6px 0 var(--ink);
+}
+.turnanim.theirs > div { background: color-mix(in srgb, var(--tc) 70%, #1a1030); transform: rotate(2.5deg); }
+.turnanim b { font-weight: 900; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--ink); }
+
+/* ---------- victory / defeat ---------- */
+.endtext h1 { font-weight: 900; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; }
+.endbanner.win h1 { background: none; color: var(--brass); text-shadow: 5px 5px 0 var(--pop), 10px 10px 0 var(--ink); filter: none; transform: rotate(-4deg); }
+.endbanner.lose h1 { color: var(--bad); text-shadow: 5px 5px 0 var(--ink); }
+.endbanner.draw h1 { color: var(--mint); text-shadow: 5px 5px 0 var(--ink); }
+.endsparks i { border: 2px solid var(--ink); width: 12px; height: 12px; margin: -6px; border-radius: 3px; }
+
+/* ---------- online ---------- */
+.online-bar { background: #1a1236; border-bottom: 3px solid var(--ink); box-shadow: 0 3px 0 var(--mint); }
+.online-dialog { background: var(--panel); color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero h1, .herobtns button.primary, .modal .dialog, .die { animation: none !important; }
+  button, .mapcard { transition: none; }
+  button:hover:not(:disabled), .mapcard:hover:not(:disabled), .opchip:hover { transform: none; }
+}
+@media (max-width: 600px) {
+  .hero h1 { -webkit-text-stroke: 2px var(--ink); text-shadow: 3px 3px 0 var(--pop), 6px 6px 0 var(--ink); }
+  button.big { padding: 11px 18px; }
+}
