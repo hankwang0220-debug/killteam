@@ -1,6 +1,6 @@
 // Live tabletop view. Picking is translated into the existing board's inch coordinates;
 // all actions and legality checks remain in the game engine and main.js.
-import { boardOf, deployZones, team, tpl, radius, opName, deployOk, canPlace, equipmentPlacement, equipmentItemName } from './game.js';
+import { boardOf, deployZones, team, tpl, radius, opName, deployOk, canPlace, equipmentPlacement, equipmentItemName, isInjured } from './game.js';
 import { accessPointsOf } from './tombworld-access.js';
 import { createModelKit } from './models3d.js';
 import { createTerrainKit } from './terrain3d.js';
@@ -122,12 +122,20 @@ function createView(T,initial) {
   function disposeGeometry(o){o?.traverse(n=>n.geometry?.dispose());}
   function disposeLabel(o){for(const n of [...o.children])if(n.userData.battleLabel){n.material.map?.dispose();n.material.dispose();o.remove(n);}}
   // A label over the model: compact (number and marks) unless it's selected, active or under the pointer; a team-coloured edge.
-  function label(o,text,color='#8aa',full=true) {
-    const key=`${text}|${color}|${full}`;if(o.userData.labelText===key)return;disposeLabel(o);o.userData.labelText=key;
+  // hp = {w, max, inj}: a health pill after the text, like the 2D board's health tag.
+  function label(o,text,color='#8aa',full=true,hp=null) {
+    const key=`${text}|${color}|${full}|${hp?`${hp.w}/${hp.max}${hp.inj}`:''}`;if(o.userData.labelText===key)return;disposeLabel(o);o.userData.labelText=key;
     const c=document.createElement('canvas'),ctx=c.getContext('2d');ctx.font='600 25px system-ui';
-    c.width=Math.ceil(ctx.measureText(text).width)+30;c.height=44;ctx.font='600 25px system-ui';
+    const tw=Math.ceil(ctx.measureText(text).width),pillW=hp?118:0;
+    c.width=tw+30+(hp?pillW+10:0);c.height=44;ctx.font='600 25px system-ui';
     ctx.fillStyle='rgba(10,14,20,.9)';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle=color;ctx.fillRect(0,0,8,c.height);
     ctx.fillStyle='#f0f5ff';ctx.textBaseline='middle';ctx.fillText(text,18,22);
+    if(hp){const x=tw+28,y=7,h=30,pct=Math.max(0,Math.min(1,hp.w/hp.max)),pill=()=>{ctx.beginPath();ctx.roundRect(x,y,pillW,h,h/2);};
+      pill();ctx.fillStyle='#1a1226';ctx.fill();
+      ctx.save();pill();ctx.clip();ctx.fillStyle=hp.inj?'#ff4d4d':'#4fd16a';ctx.fillRect(x,y,pillW*pct,h);ctx.restore();
+      pill();ctx.lineWidth=3;ctx.strokeStyle='#0e0a1a';ctx.stroke();
+      const t=`${hp.w}/${hp.max}`;ctx.font='900 22px system-ui';ctx.textAlign='center';ctx.lineWidth=5;ctx.lineJoin='round';
+      ctx.strokeText(t,x+pillW/2,y+h/2+1);ctx.fillStyle='#fff';ctx.fillText(t,x+pillW/2,y+h/2+1);ctx.textAlign='start';}
     const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;
     const s=new T.Sprite(new T.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
     const box=new T.Box3().setFromObject(o);s.position.y=Math.max(1.8,box.max.y-o.position.y+.35);
@@ -153,7 +161,7 @@ function createView(T,initial) {
       }
       o.position.set(spec.x,BASE_H,spec.z);o.rotation.y=spec.rotation; // (raised so its base shows: cover is judged from the base)
       const full=details||ui.sel===op.uid||ui.peek===op.uid||hoverUid===op.uid||g.active===op.uid,marks=`${op.order==='conceal'?'◈':'◆'}${op.ready?'●':'○'}`;
-      label(o,full?`${op.num} ${tpl(op).name[getLang()]||opName(op,getLang())}  ${op.wounds}/${op.maxW}  ${marks}`:`${op.num} ${marks}${op.wounds<op.maxW?` ${op.wounds}`:''}`,spec.team.color,full);
+      label(o,full?`${op.num} ${tpl(op).name[getLang()]||opName(op,getLang())}  ${marks}`:`${op.num} ${marks}`,spec.team.color,full,{w:op.wounds,max:op.maxW,inj:isInjured(op)});
     }
     for(const [uid,o]of models)if(!keep.has(uid)){disposeLabel(o);units.remove(o);models.delete(uid);}
     rings.clear(); // (shared geometry and materials: disposed in stop)

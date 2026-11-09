@@ -9,6 +9,21 @@ const f = (n) => +n.toFixed(3);
 const terrainTransform = (t) => `rotate(${t.angle || 0} ${t.x + t.w / 2} ${t.y + t.h / 2})`;
 
 /** Two-sided tabletop-style order marker; counteraction gets a separate marker. */
+/** A health tag like a tabletop wound tracker: a heart badge in the team colour, then the wounds left as a coloured bar with the number on it. */
+function healthTag(o, r, col) {
+  const w = 1.3, h = 0.34, pct = Math.max(0, Math.min(1, o.wounds / o.maxW)), y = Math.max(0.3, o.y - r - 0.34);
+  const x0 = -w / 2 + 0.12, bw = w / 2 - x0, id = `hp-${String(o.uid).replace(/[^\w-]/g, '')}`;
+  const bar = `x="${f(x0)}" y="${f(-h / 2)}" width="${f(bw)}" height="${f(h)}" rx="${f(h / 2)}"`;
+  return `<g class="hptag ${isInjured(o) ? 'inj' : ''}" transform="translate(${f(o.x + 0.15)} ${f(y)}) rotate(-9)">`
+    + `<clipPath id="${id}"><rect ${bar}/></clipPath>`
+    + `<rect ${bar} class="hp-bg"/>`
+    + `<rect x="${f(x0)}" y="${f(-h / 2)}" width="${f(bw * pct)}" height="${f(h)}" clip-path="url(#${id})" class="hp-fill"/>`
+    + `<rect ${bar} class="hp-edge"/>`
+    + `<text x="${f(x0 + bw / 2 + 0.07)}" y="0.095" class="hp-num">${o.wounds}<tspan class="hp-max">/${o.maxW}</tspan></text>`
+    + `<g transform="translate(${f(-w / 2 + 0.06)} 0)"><circle r="${f(h * 0.66)}" fill="${col}" class="hp-badge"/>`
+    + '<path d="M0 .1C-.13 0-.15-.1-.08-.13S0-.1 0-.06C0-.1.01-.16.08-.13S.13 0 0 .1Z" class="hp-heart"/></g></g>';
+}
+
 function operativeTokens(o) {
   const conceal = o.order === 'conceal', ready = !!o.ready;
   const order = getLang() === 'zh' ? (conceal ? '隱蔽' : '交戰') : (conceal ? 'Conceal' : 'Engage');
@@ -296,12 +311,10 @@ export function renderBoard(g, ui) {
     // Goremongers: two pips for the GORE TANK (empty / half / full) on the upper left of the base.
     if (o.side < 2 && team(g, o.side).goreTanks) { const gv = o.gore ?? 1; for (let i = 0; i < 2; i++) s.push(`<circle cx="${f(-r * 0.62 + i * 0.2)}" cy="${f(-r * 0.62)}" r="0.085" class="gorePip ${i < gv ? 'on' : ''}"/>`); }
     // Role icon in the middle, its number small in the lower right.
-    s.push(roleGlyph(roleOf(g, o), Math.min(0.26, r * 0.5)));
-    s.push(`<text x="${f(r * 0.55)}" y="${f(r * 0.78)}" class="opnum">${o.num}</text>`);
-    // wound bar
-    const w = r * 1.8, pct = o.wounds / o.maxW;
-    s.push(`<rect x="${f(-w / 2)}" y="${f(r + 0.08)}" width="${f(w)}" height="0.16" class="wbg"/>`);
-    s.push(`<rect x="${f(-w / 2)}" y="${f(r + 0.08)}" width="${f(w * pct)}" height="0.16" class="wfg ${isInjured(o) ? 'inj' : ''}"/>`);
+    // Its number big in the middle (to tell operatives apart at a glance), the role icon small in the lower right.
+    const fs = r * (String(o.num).length > 1 ? 0.78 : 0.95);
+    s.push(`<text y="${f(fs * 0.36)}" style="font-size:${f(fs)}px" class="opnum">${o.num}</text>`);
+    s.push(`<g transform="translate(${f(r * 0.6)} ${f(r * 0.6)})">${roleGlyph(roleOf(g, o), Math.min(0.13, r * 0.25))}</g>`);
     if (g.mark?.[1 - o.side] === o.uid) s.push(`<g class="killmark"><circle r="${f(r + 0.45)}"/><line x1="${f(-r - 0.6)}" y1="0" x2="${f(-r - 0.25)}" y2="0"/><line x1="${f(r + 0.25)}" y1="0" x2="${f(r + 0.6)}" y2="0"/></g>`); // Call the Kill
     if (o.poison) s.push(`<circle cx="${f(-r * 0.75)}" cy="${f(r * 0.55)}" r="0.16" class="poisontok"/>`); // Poison token
     if (o.frenzy) s.push(`<text x="${f(-r * 0.8)}" y="${f(-r * 0.45)}" class="badge">🔥</text>`); // Frenzy token
@@ -326,6 +339,8 @@ export function renderBoard(g, ui) {
     const y = Math.max(.4, Math.min(boardOf(g).h - (o.counteracted ? 1.35 : .45), o.y));
     s.push(`<g class="operative-tokens" data-token-for="${o.uid}" transform="translate(${f(Math.max(.45, x))} ${f(y)})">${operativeTokens(o)}</g>`);
   }
+  // Health tags: a tilted pill above each base (drawn over every base so neighbours can't hide them).
+  for (const o of g.ops) if (!o.dead && o.x > -50) s.push(healthTag(o, radius(o), team(g, o.side).color));
   // Name tags: who is activating, and in an attack who attacks and who is the target.
   const tags = [];
   const act = g.ops.find((o) => o.uid === g.active && !o.dead);

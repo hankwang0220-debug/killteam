@@ -458,6 +458,25 @@ const endDrag = (e) => {
 app.addEventListener('pointerup', endDrag);
 app.addEventListener('pointercancel', endDrag);
 
+// ---------- fullscreen ----------
+// The whole app goes fullscreen (the board and the panel beside it). Hidden where the browser can't (e.g. iPhone Safari).
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+const fsSupported = () => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+function toggleFullscreen() {
+  const d = document, el = d.documentElement;
+  const p = fsElement() ? (d.exitFullscreen || d.webkitExitFullscreen).call(d) : (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' });
+  p?.catch?.(() => {}); // (refused, e.g. not from a click: nothing to do)
+}
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => render());
+function fullscreenButton() {
+  if (!fsSupported()) return '';
+  const on = !!fsElement(), label = on ? L('離開全螢幕', 'Exit fullscreen') : L('全螢幕', 'Fullscreen');
+  return `<button class="ghost fsbtn" data-act="fullscreen" aria-pressed="${on}" title="${label}" aria-label="${label}">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        ${on ? '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>' : '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'}
+      </svg></button>`;
+}
+
 /** extra: the score bar (shown on the left); status: the turn status field (centre). */
 function topBar(extra = '', status = '') {
   const replayBtn = ui.screen === 'game' && g?.replay?.snaps.length
@@ -482,7 +501,7 @@ function topBar(extra = '', status = '') {
     </div>
     ${status || '<div></div>'}
     <div class="topbtns">
-      ${ui.screen === 'game' ? settings : tools}
+      ${fullscreenButton()}${ui.screen === 'game' ? settings : tools}
     </div>
   </header>`;
 }
@@ -3503,6 +3522,7 @@ function handle(act, d) {
       return render();
     }
     case 'help': ui.help = true; return render();
+    case 'fullscreen': return toggleFullscreen();
     case 'closehelp': ui.help = false; return render();
     case 'lang': setLang(getLang() === 'zh' ? 'en' : 'zh'); return render();
     case 'setup': ui.screen = 'setup'; ui.setup.step = 'mission'; return render();

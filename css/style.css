@@ -52,6 +52,7 @@ button.wide { width: 100%; margin-top: 10px; }
 .brand { font-weight: 700; letter-spacing: .04em; color: var(--brass); cursor: pointer; white-space: nowrap; }
 .topbtns { justify-self: end; display: flex; gap: 6px; }
 .topbtns button { padding: 5px 10px; }
+.topbtns .fsbtn { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; height: 40px; padding: 0 8px; }
 .game-settings { position: relative; flex-shrink: 0; }
 .game-settings summary {
   display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
@@ -258,9 +259,16 @@ button.wide { width: 100%; margin-top: 10px; }
 .token-key { display: inline-flex; align-items: center; gap: 5px; }
 .token-key svg { width: 22px; height: 22px; overflow: visible; }
 #board .optxt { font-size: .48px; font-weight: 700; text-anchor: middle; fill: #fff; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: .06px; }
-#board .wbg { fill: rgba(0,0,0,.6); }
-#board .wfg { fill: var(--ok); }
-#board .wfg.inj { fill: var(--bad); }
+/* Health tag above each base: heart badge in the team colour, wounds left as a bar with the number. */
+#board .hptag { pointer-events: none; }
+#board .hp-bg { fill: #1a1226; }
+#board .hp-fill { fill: #4fd16a; }
+#board .hptag.inj .hp-fill { fill: #ff4d4d; }
+#board .hp-edge { fill: none; stroke: #0e0a1a; stroke-width: .05; }
+#board .hp-badge { stroke: #0e0a1a; stroke-width: .05; }
+#board .hp-heart { fill: #fff; stroke: #0e0a1a; stroke-width: .025; }
+#board .hp-num { font-size: .27px; font-weight: 900; text-anchor: middle; fill: #fff; paint-order: stroke; stroke: #0e0a1a; stroke-width: .07px; stroke-linejoin: round; }
+#board .hp-max { font-size: .18px; fill: #e6dcff; }
 #board .badge { font-size: .42px; fill: #fff; text-anchor: middle; pointer-events: none; }
 #board .mark { fill: #ff3b30; stroke: #fff; stroke-width: .04; }
 #board .poisontok { fill: #8fd14f; stroke: #1b1b1b; stroke-width: .04; }
@@ -487,7 +495,7 @@ table.weapons td:first-child, table.final td:first-child { text-align: left; }
 .role-glyph .rg-fill { fill: #fff; stroke: rgba(0,0,0,.55); stroke-width: var(--rgw); paint-order: stroke; stroke-linejoin: round; }
 .role-glyph .rg-line { fill: none; stroke: #fff; stroke-width: var(--rgw); stroke-linecap: round; }
 .role-key .rk-bg { fill: #3a4048; }
-#board .opnum { font-size: .27px; font-weight: 800; text-anchor: middle; fill: #fff; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.75); stroke-width: .07px; }
+#board .opnum { font-size: .27px; font-weight: 900; text-anchor: middle; fill: #fff; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.8); stroke-width: .09px; stroke-linejoin: round; }
 .role-legend { padding-top: 0; }
 .role-key { width: 18px; height: 18px; overflow: visible; }
 
