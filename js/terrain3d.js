@@ -247,22 +247,22 @@ export function createTerrainKit(THREE) {
   }
 
   /** A whole killzone: mat, grid, drop zones, terrain, objectives, teleport pads, Tomb World lintels. */
-  function buildBoard({ board, terrain, objectives = [], deploy = [], pads = [], access = [], markers = [], tombWorld = false }) {
+  function buildBoard({ board, terrain, objectives = [], deploy = [], pads = [], access = [], markers = [], tombWorld = false, phase }) {
     const root = new THREE.Group();
-    const matCol = tombWorld ? '#2b302e' : '#3a3f36';
+    const matCol = tombWorld ? '#303635' : '#414442';
     add(root, box(board.w, 0.2, board.h, mat(matCol, { rough: 1 }), board.w / 2, -0.1, board.h / 2));
-    const grid = new THREE.Group(), gm = new THREE.LineBasicMaterial({ color: tombWorld ? '#3f5048' : '#4a5044', transparent: true, opacity: 0.8 });
+    const grid = new THREE.Group(), gm = new THREE.LineBasicMaterial({ color: '#82918c', transparent: true, opacity: 0.18 });
     const step = board.grid || 1, pts = [];
     for (let x = step; x < board.w; x += step) pts.push(V(x, 0.005, 0), V(x, 0.005, board.h));
     for (let y = step; y < board.h; y += step) pts.push(V(0, 0.005, y), V(board.w, 0.005, y));
     grid.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), gm));
     add(root, grid);
-    deploy.forEach((z, i) => add(root, box((z.x1 - z.x0), 0.01, ((z.y1 ?? board.h) - (z.y0 ?? 0)), mat(i ? '#e59b69' : '#75a8b7', { opacity: 0.22 }), (z.x0 + z.x1) / 2, 0.006, ((z.y0 ?? 0) + (z.y1 ?? board.h)) / 2)));
+    if(phase==='deploy')deploy.forEach((z, i) => add(root, box((z.x1 - z.x0), 0.01, ((z.y1 ?? board.h) - (z.y0 ?? 0)), mat(i ? '#c2947e' : '#7aa4b3', { opacity: 0.12 }), (z.x0 + z.x1) / 2, 0.006, ((z.y0 ?? 0) + (z.y1 ?? board.h)) / 2)));
     for (const t of terrain) add(root, buildPiece(t));
     for (const d of access) add(root, lintel(d, HEIGHTS.heavy, 2));
     pads.forEach((p) => add(root, teleportPad(p)));
     objectives.forEach((o, i) => add(root, objectiveMarker(o, i)));
-    for (const m of markers) add(root, m.kind === 'ammo' ? ammoCache(m.x, m.y) : m.kind === 'mine' ? mine(m.x, m.y) : commsDevice(m.x, m.y));
+    for (const m of markers) add(root, m.kind === 'ladder' ? ladder(m.x,m.y,m.height??3,.25,-(m.angle||0)*Math.PI/180) : m.kind === 'ammo' ? ammoCache(m.x, m.y) : m.kind === 'mine' ? mine(m.x, m.y) : commsDevice(m.x, m.y));
     root.position.set(-board.w / 2, 0, -board.h / 2);
     return root;
   }

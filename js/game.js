@@ -1,6 +1,8 @@
 import { TOMB_WORLD_MAPS, tombWorldTerrain, initialHatches } from './tombworld-maps.js';
 import { wallAllowsControl, hatchwayFightAccess, accessPointsOf, hatchActionId, nearHatch } from './tombworld-access.js';
 import { DEATHWATCH_EQUIPMENT } from './data/deathwatch.js';
+import { KILLZONE_RULES } from './data/killzone-rules.js';
+import { ERRATA, applyErrata } from './data/errata.js';
 import { MANDRAKES_EQUIPMENT } from './data/mandrakes.js';
 import { MURDERWING_EQUIPMENT } from './data/murderwing.js';
 import { WRECKA_EQUIPMENT } from './data/wrecka.js';
@@ -123,7 +125,7 @@ const GUARD_IDS = ['guard', 'dwGuard', 'wsGuard', 'phGuard'];
 export const ER = 1;          // engagement range (inches, base edge to base edge)
 export const CONTROL = 1;     // objective control range
 export const OBJ_R = 0.4;     // objective marker radius
-export const MAX_TP = 4;
+export const MAX_TP = KILLZONE_RULES.core.turningPoints; // (official numbers: js/data/killzone-rules.js)
 export const DEPLOY = [{ x0: 0, x1: 6, y0: 0, y1: 22 }, { x0: 24, x1: 30, y0: 0, y1: 22 }];
 /** Side index for non-player operatives (mission NPOs), hostile to both players. */
 export const NPO = 2;
@@ -1819,7 +1821,7 @@ export function spScoutHatch(g, op, id) {
  * Piercing Crits 2 weapon without Blast or Torrent — but not in an activation in which it Charged or Shot. */
 const twBreacher = (g, op) => /grenadier/i.test(tpl(op).name.en) || Object.keys(tpl(op)).some((k) => /mine|breach/i.test(k) && tpl(op)[k])
   || weaponsFor(g, op).some((w) => (w.rules.piercing >= 2 || w.rules.piercingCrits >= 2) && !w.rules.blast && !w.rules.torrent);
-export const twBreachCost = (g, op) => (twBreacher(g, op) && !count(op, 'shoot') && !count(op, 'charge') ? 1 : 2);
+export const twBreachCost = (g, op) => (twBreacher(g, op) && !count(op, 'shoot') && !count(op, 'charge') ? KILLZONE_RULES.tombWorld.breacherBreachAP : KILLZONE_RULES.tombWorld.breachAP);
 export function actionCost(g, op, id) {
   if(id==='transferPower' && feAuto(g,op.side,'feCells')) return 0;
   if ((id === 'pickUp' || MISSION_ACTIONS[id] || id === 'placeMarker') && nvRelicSeeker(g, op, id, true)) return Math.max(0, actionCost(g, { ...op, acted: { ...op.acted, nvRelic: 1 } }, id) - 1); // Relic Seeker (Novitiate Pronatus)
@@ -3954,7 +3956,9 @@ export const EQUIPMENT = {
 export const EQUIP_IDS = Object.keys(EQUIPMENT);
 Object.assign(EQUIPMENT, ADDITIONAL_EQUIPMENT_ITEMS);
 Object.assign(EQUIPMENT, WOLF_EQUIPMENT, STEALTH_EQUIPMENT, VESPIDS_EQUIPMENT, VOIDDANCERS_EQUIPMENT, AQUILONS_EQUIPMENT, SPECTRES_EQUIPMENT, RAVENERS_EQUIPMENT, CANOPTEK_EQUIPMENT, ARCHON_EQUIPMENT, CORSAIR_EQUIPMENT, DEATHWATCH_EQUIPMENT, MANDRAKES_EQUIPMENT, MURDERWING_EQUIPMENT, WRECKA_EQUIPMENT, NIGHTLORDS_EQUIPMENT, SCOUTS_EQUIPMENT, RATLINGS_EQUIPMENT, SANCTIFIERS_EQUIPMENT, PATHFINDERS_EQUIPMENT, ANGELS_EQUIPMENT, PLAGUE_EQUIPMENT, KOMMANDOS_EQUIPMENT, KINBAND_EQUIPMENT, DEATHKORPS_EQUIPMENT, GELLERPOX_EQUIPMENT, HEARTHKYN_EQUIPMENT, NAVY_EQUIPMENT, PHOBOS_EQUIPMENT, WARPCOVEN_EQUIPMENT, WYRMBLADE_EQUIPMENT);
-export const EQUIPMENT_LIMIT = 4;
+export const EQUIPMENT_LIMIT = KILLZONE_RULES.core.equipmentOptions;
+// Official equipment text updates (js/data/errata.js), now that the table is complete.
+export const EQUIPMENT_ERRATA_PROBLEMS = applyErrata(TEAM_MAP, EQUIPMENT, ERRATA.filter((e) => 'equipment' in e));
 /** The cap on equipment options: 4, or 5 for the Ratlings (their Fixer's Munitorum Contacts, and the Fixer is always in the team). */
 export const equipmentLimitFor = (teamId) => (teamId === 'ratlings' || teamId === 'spectres' || teamId === 'hearthkyn' ? EQUIPMENT_LIMIT + 1 : EQUIPMENT_LIMIT); // (Hearthkyn: the Lugger's Well Supplied) // (Spectres: the Guide's Prepared Killzone adds an Ammo Cache or terrain option)
 const FACTION_EQUIPMENT = {
@@ -4046,6 +4050,13 @@ export function clearSpot(g, p, r = 0.5) {
 }
 /** Place one equipment item, then hand deployment to the other player. */
 const EQUIP_MARKERS = ['mine', 'tripwire', 'ammo', 'comms', 'ladder'];
+/** The name of an equipment item being set up (the 2D deployment panel and the 3D hint). */
+const EQUIP_ITEM_NAMES = {
+  heavy: { zh: '重掩體', en: 'Heavy barricade' }, light: { zh: '輕掩體', en: 'Light barricade' }, wire: { zh: '鐵絲網', en: 'Razor wire' },
+  comms: { zh: '通訊裝置', en: 'Comms device' }, mine: { zh: '地雷', en: 'Mine' }, ammo: { zh: '彈藥箱', en: 'Ammo cache' },
+  goryTotem: { zh: '血腥圖騰', en: 'Gory Totem' }, bloodyCadaver: { zh: '血屍', en: 'Bloody Cadaver' }, ladder: { zh: '梯子', en: 'Ladder' }, tripwire: { zh: '絆線', en: 'Tripwire' },
+};
+export const equipmentItemName = (item) => (item?.portable ? { zh: '可攜式路障', en: 'Portable barricade' } : EQUIP_ITEM_NAMES[item?.kind]) || { zh: item?.kind || '', en: item?.kind || '' };
 export function equipmentPlacement(g, p, rotated = false) {
   const d = g.eqDeploy, entry = d && !d.done && d.queues[d.turn][0];
   if (!entry || g.phase !== 'deploy') return null;

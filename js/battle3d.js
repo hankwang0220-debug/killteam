@@ -1,12 +1,13 @@
 // Live tabletop view. Picking is translated into the existing board's inch coordinates;
 // all actions and legality checks remain in the game engine and main.js.
-import { boardOf, deployZones, team, tpl, radius, opName, deployOk, canPlace, equipmentPlacement } from './game.js';
+import { boardOf, deployZones, team, tpl, radius, opName, deployOk, canPlace, equipmentPlacement, equipmentItemName } from './game.js';
 import { accessPointsOf } from './tombworld-access.js';
 import { createModelKit } from './models3d.js';
 import { createTerrainKit } from './terrain3d.js';
 import { handleRotation, rectCorners } from './geometry.js';
 import { L, getLang } from './i18n.js';
 import { TEAM_MAP } from './data/teams.js';
+import { climbHeight } from './path.js';
 
 /** Height of a model's base (inches): the model kit builds it below y = 0, so models stand this high to show it — cover is judged from the base. */
 const BASE_H = .12;
@@ -29,12 +30,13 @@ export function battleModelSpec(g,o) {
 }
 export function battleBoardData(g) {
   return {board:boardOf(g),terrain:g.terrain,objectives:g.objectives,deploy:deployZones(g),pads:g.pads||[],access:accessPointsOf(g),
-    markers:(g.markers||[]).filter(m=>!m.carriedBy && ['ammo','mine','comms'].includes(m.kind)),tombWorld:!!g.map?.startsWith('tombworld-')};
+    markers:(g.markers||[]).filter(m=>!m.carriedBy && ['ammo','mine','comms','ladder'].includes(m.kind)),tombWorld:!!g.map?.startsWith('tombworld-'),phase:g.phase};
 }
 export function battle3dMarkup(svg) {
   return `<div class="battle3d-stage"><div class="battle3d-source" aria-hidden="true">${svg}</div>
     <div class="battle3d-host"></div><p class="battle3d-status" role="status">${L('載入 3D 對戰…','Loading the 3D battlefield…')}</p>
-    <div class="battle3d-tools"><button data-act="3dreset">${L('重設視角','Reset view')}</button><button data-act="3dtop">${L('俯視','Top view')}</button><button data-act="3dcover">${L('淡化地形','Fade terrain')}</button></div>
+    <div class="battle3d-tools" aria-label="${L('地圖顯示','Map display')}"><button data-act="3dreset">${L('全圖','Whole map')}</button><button data-act="3dtop">${L('俯視','Top view')}</button><button data-act="3doblique">${L('斜視','Oblique')}</button><button data-act="3dfocus">${L('聚焦棋子','Focus unit')}</button><button data-act="3dcover" aria-pressed="false">${L('淡化地形','Fade terrain')}</button><button data-act="3dlabels" aria-pressed="false">${L('完整資訊','Full details')}</button><button data-act="3dterrain" aria-pressed="false">${L('地形標示','Terrain labels')}</button></div>
+    <div class="battle3d-context" role="status" hidden></div>
     <p class="battle3d-hint">${L('點模型選取／點地面操作 · WASD／方向鍵平移 · 拖空白或右鍵旋轉 · 中鍵平移 · 滾輪縮放 · 雙指縮放／平移','Click models / ground to play · WASD / arrow keys to pan · drag empty space or right-drag to orbit · middle-drag to pan · wheel to zoom · two fingers to zoom/pan')}</p></div>`;
 }
 export async function mountBattle3d(root,g,ui,callbacks) {
@@ -50,7 +52,6 @@ export async function mountBattle3d(root,g,ui,callbacks) {
   }catch(e){console.error('3D battlefield',e);unmountBattle3d();root.querySelector('.battle3d-status').textContent=L('無法啟用 3D，請切回 2D 繼續。','3D is unavailable. Switch to 2D to continue.');}
 }
 export function unmountBattle3d() {generation++;if(live){remembered={...live.pose,target:live.pose.target.clone()};live.stop();live=null;}}
-export function battle3dControl(action) {live?.control(action);}
 
 function createView(T,initial) {
   const canvas=document.createElement('canvas');canvas.className='battle3d-canvas';
@@ -58,15 +59,25 @@ function createView(T,initial) {
   const renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false});
   renderer.setPixelRatio(Math.min(1.75,window.devicePixelRatio||1));renderer.outputColorSpace=T.SRGBColorSpace;
   renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false; // (redrawn only when something moves: see shadowsDirty)
   const scene=new T.Scene();scene.background=new T.Color('#10151d');
   scene.add(new T.HemisphereLight('#dce8ff','#55503c',2));
   const sun=new T.DirectionalLight('#fff1d7',3);sun.position.set(-8,24,16);scene.add(sun);
+  sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.0003;sun.shadow.normalBias=.035;
+  let shadowsDirty=true;
+  /** Fit the shadow camera to the board (its bounding circle, plus room for tall terrain). */
+  function fitShadows(b){const extent=Math.hypot(b.w,b.h)/2+3;Object.assign(sun.shadow.camera,{left:-extent,right:extent,top:extent,bottom:-extent,near:.5,far:100});sun.shadow.camera.updateProjectionMatrix();shadowsDirty=true;}
+  fitShadows(boardOf(initial));
   const rim=new T.DirectionalLight('#86acff',1.3);rim.position.set(12,9,-12);scene.add(rim);
   const camera=new T.PerspectiveCamera(42,1,.1,250),ray=new T.Raycaster(),floor=new T.Plane(new T.Vector3(0,1,0),0);
   const kit=createModelKit(T),tkit=createTerrainKit(T),templates=new Map(),models=new Map(),materials=new Set();
   const units=new T.Group();scene.add(units);
   const rings=new T.Group();scene.add(rings);
   const preview=new T.Group();scene.add(preview);
+  const terrainLabels=new T.Group(),silhouettes=new T.Group();scene.add(terrainLabels,silhouettes);
+  const ringGeos=new Map(),ringMats=new Map(),outlines=new Map();
+  let labelsDirty=true,labelView='',terrainLabelsKey=null;
+  const outlineMaterial=new T.MeshBasicMaterial({color:'#ffe08a',side:T.BackSide,depthTest:true,depthWrite:false,transparent:true,opacity:.8});
   const overlay=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1}));
   overlay.rotation.x=-Math.PI/2;overlay.position.y=.025;overlay.renderOrder=1;scene.add(overlay);
   // Live hints (move range, route, attack line, measuring…) above the bases, always visible; the floor under them is dimmed.
@@ -75,7 +86,7 @@ function createView(T,initial) {
   hintLayer.rotation.x=-Math.PI/2;hintLayer.position.y=BASE_H+.03;hintLayer.renderOrder=6;hintLayer.visible=false;scene.add(hintLayer);
   let hoverUid=null,terrain=null,terrainKey='',root=null,g=initial,ui={},callbacks={},raf=0,stopped=false,textureSeq=0,refreshTimer=null;
   const pose=remembered?{...remembered,target:remembered.target.clone()}:{theta:0,phi:.7,distance:45,target:new T.Vector3()};
-  let faded=false,drag=null,pieceMats=[],hidden=new Set(),lastFade=0;
+  let faded=false,details=false,showTerrain=false,drag=null,pieceMats=[],hidden=new Set(),lastFade=0;
   const fadeRay=new T.Raycaster();
   const pointers=new Map();
   const keys=new Set(),keyDirections={KeyW:[0,-1],ArrowUp:[0,-1],KeyS:[0,1],ArrowDown:[0,1],KeyA:[-1,0],ArrowLeft:[-1,0],KeyD:[1,0],ArrowRight:[1,0]};
@@ -120,10 +131,14 @@ function createView(T,initial) {
     const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;
     const s=new T.Sprite(new T.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
     const box=new T.Box3().setFromObject(o);s.position.y=Math.max(1.8,box.max.y-o.position.y+.35);
-    const h=full?.55:.4;s.scale.set(c.width/c.height*h,h,1);s.renderOrder=20;s.userData.battleLabel=true;o.add(s);
+    const h=full?.55:.4;s.scale.set(c.width/c.height*h,h,1);s.renderOrder=20;s.userData={battleLabel:true,ratio:c.width/c.height,pixels:full?22:16};o.add(s);labelsDirty=true;
   }
+  // Rings share one geometry per radius and one material per colour (they're rebuilt whenever the selection or hover changes).
   function ring(x,y,r,color,opacity=.9){
-    const m=new T.Mesh(new T.RingGeometry(r,r+.10,40),new T.MeshBasicMaterial({color,transparent:true,opacity,side:T.DoubleSide,depthTest:false}));
+    const gk=r.toFixed(3),mk=`${color}|${opacity}`;
+    if(!ringGeos.has(gk))ringGeos.set(gk,new T.RingGeometry(r,r+.10,40));
+    if(!ringMats.has(mk))ringMats.set(mk,new T.MeshBasicMaterial({color,transparent:true,opacity,side:T.DoubleSide,depthTest:false}));
+    const m=new T.Mesh(ringGeos.get(gk),ringMats.get(mk));
     m.rotation.x=-Math.PI/2;m.position.set(x-boardOf(g).w/2,BASE_H+.02,y-boardOf(g).h/2);m.renderOrder=5;rings.add(m);
   }
   function clearDynamic(group){group.traverse(o=>{o.geometry?.dispose();if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});group.clear();}
@@ -134,17 +149,29 @@ function createView(T,initial) {
       if(!o || o.userData.modelKey!==spec.key){
         if(o){disposeLabel(o);units.remove(o);}
         if(!templates.has(spec.key)) {const model=kit.buildOperative(spec.team,spec.template,spec.loadout);templates.set(spec.key,model);collect(model);}
-        o=templates.get(spec.key).clone(true);o.userData={uid:op.uid,modelKey:spec.key};units.add(o);models.set(op.uid,o);
+        o=templates.get(spec.key).clone(true);o.userData={uid:op.uid,modelKey:spec.key};o.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;}});units.add(o);models.set(op.uid,o);
       }
       o.position.set(spec.x,BASE_H,spec.z);o.rotation.y=spec.rotation; // (raised so its base shows: cover is judged from the base)
-      const full=ui.sel===op.uid||hoverUid===op.uid||g.active===op.uid,marks=`${op.order==='conceal'?'◈':'◆'}${op.ready?'●':'○'}`;
+      const full=details||ui.sel===op.uid||ui.peek===op.uid||hoverUid===op.uid||g.active===op.uid,marks=`${op.order==='conceal'?'◈':'◆'}${op.ready?'●':'○'}`;
       label(o,full?`${op.num} ${tpl(op).name[getLang()]||opName(op,getLang())}  ${op.wounds}/${op.maxW}  ${marks}`:`${op.num} ${marks}${op.wounds<op.maxW?` ${op.wounds}`:''}`,spec.team.color,full);
     }
     for(const [uid,o]of models)if(!keep.has(uid)){disposeLabel(o);units.remove(o);models.delete(uid);}
-    clearDynamic(rings);
-    for(const op of g.ops){if(!keep.has(op.uid))continue;const selected=ui.sel===op.uid,highlight=ui.highlight?.get(op.uid);
+    rings.clear(); // (shared geometry and materials: disposed in stop)
+    shadowsDirty=labelsDirty=true; // (models may have moved)
+    for(const op of g.ops){if(!keep.has(op.uid))continue;const selected=(ui.sel===op.uid||ui.peek===op.uid),highlight=ui.highlight?.get(op.uid);
+      ring(op.x,op.y,radius(op)+.025,team(g,op.side).color,.4);
       if(selected||highlight)ring(op.x,op.y,radius(op)+.10,selected?'#ffe08a':highlight.includes('target')?'#ff6c6c':'#f0ad55');
     }
+    // Outlines: one shell per model, built once and moved with it.
+    silhouettes.clear();
+    for(const [uid,c]of outlines)if(!models.has(uid)||models.get(uid).userData.modelKey!==c.key)outlines.delete(uid);
+    for(const uid of new Set([ui.sel,ui.peek,hoverUid,g.active])){const model=models.get(uid);if(!model)continue;
+      let c=outlines.get(uid);
+      if(!c){const shell=new T.Group(),inverse=new T.Matrix4();model.updateMatrixWorld(true);inverse.copy(model.matrixWorld).invert();
+        model.traverse(n=>{if(!n.isMesh)return;const mesh=new T.Mesh(n.geometry,outlineMaterial);mesh.applyMatrix4(inverse.clone().multiply(n.matrixWorld));mesh.scale.multiplyScalar(1.035);mesh.renderOrder=3;shell.add(mesh);});
+        c={key:model.userData.modelKey,shell};outlines.set(uid,c);}
+      c.shell.position.copy(model.position);c.shell.rotation.copy(model.rotation);silhouettes.add(c.shell);}
+    syncContext();
   }
   function syncTerrain() {
     const key=JSON.stringify(battleBoardData(g));if(key===terrainKey)return;terrainKey=key;
@@ -155,8 +182,21 @@ function createView(T,initial) {
     terrain.traverse(o=>{if(o.isMesh && o.position.y>.12){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();pieceMats.push(...[o.material].flat());o.userData.fadeable=true;}});
     fadeTerrain();
     const b=boardOf(g);overlay.scale.set(b.w,b.h,1);hintLayer.scale.set(b.w,b.h,1);
+    fitShadows(b);
+    if(showTerrain)buildTerrainLabels();
   }
-  const setFade=(o,on)=>{for(const m of [o.material].flat()){m.transparent=on;m.opacity=on?.28:1;m.depthWrite=!on;}};
+  /** Terrain labels: built when they're switched on (and again when the terrain changes while they're on). */
+  function buildTerrainLabels(){
+    if(terrainLabelsKey===terrainKey)return;terrainLabelsKey=terrainKey;
+    const b=boardOf(g);
+    for(const o of terrainLabels.children)disposeLabel(o);terrainLabels.clear();
+    for(const t of g.terrain){const anchor=new T.Group();anchor.position.set(t.x+t.w/2-b.w/2,t.kind==='wire'?.6:climbHeight(t),t.y+t.h/2-b.h/2);terrainLabels.add(anchor); // (the same height the engine climbs)
+      const kind=t.kind==='heavy'?L('重型地形','Heavy terrain'):t.kind==='wire'?L('鐵絲網','Razor wire'):L('輕型掩體','Light cover');
+      label(anchor,`${kind}${t.kind!=='wire'?` · ${climbHeight(t)}″${!t.twWall?L(' 可攀越',' climbable'):''}`:''}`,t.kind==='heavy'?'#d9aa76':'#87c9c1',false);anchor.children[0].position.y=.35;}
+    for(const m of g.markers||[]){if(m.kind!=='ladder'||m.carriedBy)continue;const anchor=new T.Group();anchor.position.set(m.x-b.w/2,.1,m.y-b.h/2);terrainLabels.add(anchor);label(anchor,L('梯子 · 攀爬輔助','Ladder · climbing aid'),'#a4c9ff',false);}
+    terrainLabels.visible=showTerrain;labelsDirty=true;
+  }
+  const setFade=(o,on)=>{for(const m of [o.material].flat()){if(m.transparent!==on){m.transparent=on;m.needsUpdate=true;}m.opacity=on?.22:1;m.depthWrite=!on;}if(o.castShadow===on){o.castShadow=!on;shadowsDirty=true;}};
   function fadeTerrain(){terrain?.traverse(o=>{if(o.userData.fadeable)setFade(o,faded||hidden.has(pieceOf(o)));});}
   /** The terrain piece (a direct child of the board) a mesh belongs to. */
   function pieceOf(o){while(o.parent && o.parent!==terrain)o=o.parent;return o;}
@@ -165,9 +205,10 @@ function createView(T,initial) {
     if(!terrain || now-lastFade<120)return;lastFade=now;
     const next=new Set(),eye=camera.position,to=new T.Vector3();
     for(const o of models.values()){
-      to.set(o.position.x,o.position.y+.9,o.position.z);const d=eye.distanceTo(to);
-      fadeRay.set(eye,to.clone().sub(eye).normalize());fadeRay.far=d-.2;
-      for(const hit of fadeRay.intersectObject(terrain,true))if(hit.object.userData.fadeable)next.add(pieceOf(hit.object));
+      if(![ui.sel,ui.peek,hoverUid,g.active].includes(o.userData.uid))continue;
+      for(const height of [.15,.9,1.5]){to.set(o.position.x,o.position.y+height,o.position.z);const d=eye.distanceTo(to);
+        fadeRay.set(eye,to.sub(eye).normalize());fadeRay.far=d-.2;
+        for(const hit of fadeRay.intersectObject(terrain,true))if(hit.object.userData.fadeable)next.add(pieceOf(hit.object));}
     }
     if(next.size===hidden.size && [...next].every(p=>hidden.has(p)))return;
     hidden=next;fadeTerrain();
@@ -182,12 +223,15 @@ function createView(T,initial) {
     clone.querySelectorAll('.op,.equipment-preview,.equipment-rotation-handles').forEach(n=>n.remove());
     // The 3D scene shows the terrain, hatchways and teleport pads itself: the floor keeps only zones, grid, objectives, markers and the live overlays.
     clone.querySelectorAll(FLOOR_DROP).forEach(n=>n.remove());
+    clone.querySelectorAll('.mat,rect[fill="url(#grid)"]').forEach(n=>n.remove());
     const b=boardOf(g);clone.setAttribute('viewBox',`0 0 ${b.w} ${b.h}`);clone.setAttribute('width',String(b.w*48));clone.setAttribute('height',String(b.h*48));
     clone.removeAttribute('id');clone.style.width=`${b.w*48}px`;clone.style.height=`${b.h*48}px`;clone.style.maxHeight='none';clone.style.display='block';
     // Two layers: the floor (decorations dimmed, old move trails faint) and the live hints, drawn glowing above the bases.
     const floor=clone.cloneNode(true),hints=clone;
     floor.querySelectorAll(HINTS).forEach(n=>n.remove());
     floor.querySelectorAll('.trailg,.trailghost,.trail').forEach(n=>n.style.setProperty('opacity','.35'));
+    floor.querySelectorAll('.grid').forEach(n=>n.style.setProperty('opacity','.2'));
+    hints.querySelectorAll('.ring').forEach(n=>{n.style.setProperty('fill','rgba(120,190,220,.045)');n.style.setProperty('stroke','rgba(170,215,240,.65)');});
     const keep=new Set();
     hints.querySelectorAll(HINTS).forEach(n=>{for(let p=n;p&&p!==hints;p=p.parentNode)keep.add(p);n.querySelectorAll('*').forEach(c=>keep.add(c));});
     [...hints.querySelectorAll('*')].forEach(n=>{if(!keep.has(n)&&!n.closest('defs'))n.remove();});
@@ -209,6 +253,7 @@ function createView(T,initial) {
   // Measurements can change without a full application render (touch taps and Esc included).
   const measureObserver=new MutationObserver(scheduleOverlay);
   function syncPreview(angleOverride=null) {
+    shadowsDirty=true; // (the preview piece casts shadows)
     clearDynamic(preview);const e=ui.equipmentPreview;if(!e)return;
     const angle=angleOverride ?? e.angle,b=boardOf(g),entry=equipmentPlacement(g,e.p,angle),color=entry?'#37d995':'#ff6262';
     if(e.source.type==='terrain'){
@@ -221,10 +266,52 @@ function createView(T,initial) {
     }else{
       const m=new T.Mesh(new T.CylinderGeometry(.4,.4,.15,24),new T.MeshBasicMaterial({color,transparent:true,opacity:.7}));m.position.set(e.p.x-b.w/2,.2,e.p.y-b.h/2);preview.add(m);
     }
-    if(angleOverride!=null)status(`${L('裝備角度','Equipment angle')} ${angle}° · ${entry?L('位置合法，放開滑鼠後按右側確認','Legal; release, then confirm on the right'):L('位置不合法','Illegal position')}`);
+    syncContext(angle);
   }
+  function syncContext(angle=ui.equipmentPreview?.angle){
+    const el=root?.querySelector('.battle3d-context');if(!el)return;let text='';
+    const pending=g.phase==='deploy'&&!g.eqDeploy?.done?g.eqDeploy?.queues[g.eqDeploy.turn]?.[0]:null;
+    if(pending){const n=equipmentItemName(pending.item),name=L(n.zh,n.en);
+      text=`${L('正在部署：','Deploying: ')}${name} · ${ui.equipmentPreview?`${angle}° · ${equipmentPlacement(g,ui.equipmentPreview.p,angle)?L('位置合法，請按右側「確認部署」','Legal; press Confirm deployment on the right'):L('位置不合法，請調整','Illegal position; adjust preview')}`:L('點地面預覽位置','Click ground to preview')}`;
+    }else if(ui.path){text=`${L('移動預覽','Move preview')} · ${Math.ceil(ui.path.len-1e-6)}″ · ${ui.path.ok?L('可移動','Legal move'):L('無法移動至此','Invalid destination')}${ui.path.climb?` · ${L('含攀爬','Includes climbing')} ${ui.path.climb}″`:''}`;
+    }else if(ui.ring){text=L('淡色圈為移動距離參考；指向地面檢查實際路徑與落點。','The faint ring is a distance guide; point at the ground to check the actual route and destination.');
+    }else{const op=g.ops.find(o=>o.uid===(hoverUid||ui.peek||ui.sel));if(op){const spec=tpl(op),weapons=spec.loadouts?.[op.loadout]||spec.weapons||[];const gear=[...new Set(weapons.map(w=>w.name?.[getLang()]||w.name?.en).filter(Boolean))].join(' / ');text=`${opName(op,getLang())} · ${op.wounds}/${op.maxW} ${L('生命','wounds')}${gear?` · ${gear}`:''}`;}}
+    el.textContent=text;el.hidden=!text;
+  }
+  function syncTools(){for(const [action,on]of [['3dcover',faded],['3dlabels',details],['3dterrain',showTerrain]]){const button=root?.querySelector(`[data-act="${action}"]`);button?.classList.toggle('on',on);button?.setAttribute('aria-pressed',String(on));}const focus=root?.querySelector('[data-act="3dfocus"]');if(focus)focus.disabled=!models.has(ui.peek||ui.sel||g.active);}
   function status(text=''){const el=root?.querySelector('.battle3d-status');if(el){el.textContent=text;el.hidden=!text;}}
   function updateCamera(){camera.position.set(pose.target.x+pose.distance*Math.sin(pose.phi)*Math.sin(pose.theta),pose.distance*Math.cos(pose.phi),pose.target.z+pose.distance*Math.sin(pose.phi)*Math.cos(pose.theta));camera.lookAt(pose.target);camera.updateMatrixWorld();}
+  function control(action){
+    if(action==='3dcover'){faded=!faded;fadeTerrain();}
+    else if(action==='3dlabels'){details=!details;syncModels();}
+    else if(action==='3dterrain'){showTerrain=!showTerrain;if(showTerrain)buildTerrainLabels();terrainLabels.visible=showTerrain;labelsDirty=true;}
+    else if(action==='3dfocus'){const model=models.get(ui.peek||ui.sel||g.active);if(!model)return;pose.target.set(model.position.x,0,model.position.z);pose.distance=12;}
+    else if(action==='3doblique'){pose.phi=.8;}
+    else if(action==='3dtop'){pose.phi=.06;}
+    else if(action==='3dreset'){pose.target.set(0,0,0);pose.theta=0;pose.phi=.7;const b=boardOf(g),aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);pose.distance=Math.max(b.h,b.w/Math.min(aspect,1.5))*1.7;}
+    syncTools();updateCamera();
+  }
+  const toolClick=e=>{const button=e.target.closest('.battle3d-tools button');if(button){e.stopPropagation();control(button.dataset.act);}};
+  // Labels retain legible screen size while zooming; optional terrain labels yield to unit labels.
+  // Only when the view or the labels changed (not every frame).
+  const labelPos=new T.Vector3(),labelView3=new T.Vector3();
+  function layoutLabels(){
+    const height=Math.max(1,canvas.clientHeight),width=canvas.clientWidth;
+    const view=`${pose.theta.toFixed(4)}|${pose.phi.toFixed(4)}|${pose.distance.toFixed(3)}|${pose.target.x.toFixed(3)}|${pose.target.z.toFixed(3)}|${width}|${height}`;
+    if(!labelsDirty&&view===labelView)return;labelsDirty=false;labelView=view;
+    const occupied=[],position=labelPos;
+    scene.updateMatrixWorld();
+    for(const parent of [...models.values(),...(showTerrain?terrainLabels.children:[])])for(const sprite of parent.children){if(!sprite.userData.battleLabel)continue;
+      sprite.getWorldPosition(position);const depth=-labelView3.copy(position).applyMatrix4(camera.matrixWorldInverse).z;
+      const pixels=sprite.userData.pixels,worldHeight=2*Math.tan(camera.fov*Math.PI/360)*depth*pixels/height;
+      sprite.scale.set(worldHeight*sprite.userData.ratio,worldHeight,1);position.project(camera);
+      const x=(position.x+1)*width/2,y=(1-position.y)*height/2,w=pixels*sprite.userData.ratio;
+      const rect={l:x-w/2,r:x+w/2,t:y-pixels/2,b:y+pixels/2};
+      const isTerrain=parent.parent===terrainLabels;
+      sprite.visible=depth>0&&position.z<=1&&(!isTerrain||!occupied.some(r=>rect.l<r.r+4&&rect.r>r.l-4&&rect.t<r.b+4&&rect.b>r.t-4));
+      if(sprite.visible)occupied.push(rect);
+    }
+  }
   function cast(e) {const r=canvas.getBoundingClientRect();ray.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),camera);}
   function point(e){cast(e);const p=ray.ray.intersectPlane(floor,new T.Vector3());return p?worldToBoard(g,p):null;}
   function pick(e){cast(e);scene.updateMatrixWorld(true);
@@ -246,7 +333,7 @@ function createView(T,initial) {
     if(!drag.moved && Math.hypot(e.clientX-drag.start.x,e.clientY-drag.start.y)<4)return;drag.moved=true;
     const dx=e.clientX-drag.last.x,dy=e.clientY-drag.last.y;drag.last={x:e.clientX,y:e.clientY};
     if(drag.mode==='rotate'){const p=point(e);if(p&&drag.p){drag.angleNow=handleRotation(ui.equipmentPreview.p,drag.p,p,drag.angle,e.shiftKey);syncPreview(drag.angleNow);}}
-    else if(drag.mode==='unit'){const p=point(e),o=g.ops.find(o=>o.uid===drag.hit.uid);if(p&&o){drag.dest=p;models.get(o.uid)?.position.set(p.x-boardOf(g).w/2,BASE_H,p.y-boardOf(g).h/2);clearDynamic(rings);ring(p.x,p.y,radius(o)+.1,deployOk(g,o,p)?'#37d995':'#ff6262');}}
+    else if(drag.mode==='unit'){const p=point(e),o=g.ops.find(o=>o.uid===drag.hit.uid);if(p&&o){drag.dest=p;models.get(o.uid)?.position.set(p.x-boardOf(g).w/2,BASE_H,p.y-boardOf(g).h/2);rings.clear();shadowsDirty=labelsDirty=true;ring(p.x,p.y,radius(o)+.1,deployOk(g,o,p)?'#37d995':'#ff6262');}}
     else if(drag.mode==='pan')pan(dx,dy);
     else {const direction=drag.reverseOrbit?-1:1;pose.theta-=dx*.008*direction;pose.phi=Math.max(.06,Math.min(1.35,pose.phi+dy*.006*direction));}
     updateCamera();
@@ -260,15 +347,16 @@ function createView(T,initial) {
     if(!d.moved && e.button===0){const p=point(e);if(p)callbacks.click(p,d.hit.uid,e);}
   }
   canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);canvas.addEventListener('pointerup',e=>up(e));canvas.addEventListener('pointercancel',e=>up(e,true));
+  canvas.addEventListener('pointerleave',()=>{if(!drag&&hoverUid){hoverUid=null;syncModels();}});
   canvas.addEventListener('lostpointercapture',e=>{if(drag?.id===e.pointerId)up(e,true);});
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
   canvas.addEventListener('wheel',e=>{e.preventDefault();pose.distance=Math.max(8,Math.min(95,pose.distance*Math.exp(e.deltaY*.001)));updateCamera();},{passive:false});
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();status(L('3D 顯示暫停，請切回 2D 繼續。','3D display paused; switch to 2D to continue.'));});
-  function frame(now){if(stopped)return;const dt=previousFrame?Math.min(.05,(now-previousFrame)/1000):0;previousFrame=now;const w=canvas.clientWidth,h=canvas.clientHeight;if(w&&h){keyboardPan(dt);const ratio=renderer.getPixelRatio();if(canvas.width!==Math.floor(w*ratio)||canvas.height!==Math.floor(h*ratio)){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}updateCamera();autoFade(now);renderer.render(scene,camera);}raf=requestAnimationFrame(frame);}
+  function frame(now){if(stopped)return;const dt=previousFrame?Math.min(.05,(now-previousFrame)/1000):0;previousFrame=now;const w=canvas.clientWidth,h=canvas.clientHeight;if(w&&h){keyboardPan(dt);const ratio=renderer.getPixelRatio();if(canvas.width!==Math.floor(w*ratio)||canvas.height!==Math.floor(h*ratio)){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}updateCamera();autoFade(now);layoutLabels();if(shadowsDirty){renderer.shadowMap.needsUpdate=true;shadowsDirty=false;}renderer.render(scene,camera);}raf=requestAnimationFrame(frame);}
   raf=requestAnimationFrame(frame);
   return {pose,
-    attach(el,state,bui,cb){measureObserver.disconnect();root=el;g=state;ui=bui;callbacks=cb;root.querySelector('.battle3d-host').append(canvas);const measurement=root.querySelector('#measure');if(measurement)measureObserver.observe(measurement,{childList:true,subtree:true});status();syncTerrain();syncModels();syncPreview();refreshOverlay();updateCamera();},
-    control(action){if(action==='3dcover'){faded=!faded;fadeTerrain();root?.querySelector('[data-act="3dcover"]')?.classList.toggle('on',faded);return;}pose.target.set(0,0,0);pose.theta=0;pose.phi=action==='3dtop'?.06:.7;pose.distance=Math.max(boardOf(g).w,boardOf(g).h)*1.5;updateCamera();},
-    stop(){stopped=true;textureSeq++;clearKeys();document.removeEventListener('keydown',keyDown);document.removeEventListener('keyup',keyUp);document.removeEventListener('focusin',focusChanged);document.removeEventListener('visibilitychange',clearKeys);window.removeEventListener('blur',clearKeys);measureObserver.disconnect();clearTimeout(refreshTimer);cancelAnimationFrame(raf);for(const o of models.values())disposeLabel(o);for(const o of templates.values())disposeGeometry(o);disposeGeometry(terrain);clearDynamic(rings);clearDynamic(preview);overlay.material.map?.dispose();overlay.geometry.dispose();overlay.material.dispose();hintLayer.material.map?.dispose();hintLayer.geometry.dispose();hintLayer.material.dispose();materials.forEach(m=>m.dispose());pieceMats.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();canvas.remove();},
+    attach(el,state,bui,cb){measureObserver.disconnect();root?.removeEventListener('click',toolClick);root=el;root.addEventListener('click',toolClick);g=state;ui=bui;callbacks=cb;root.querySelector('.battle3d-host').append(canvas);const measurement=root.querySelector('#measure');if(measurement)measureObserver.observe(measurement,{childList:true,subtree:true});status();syncTerrain();syncModels();syncPreview();syncTools();refreshOverlay();updateCamera();},
+    control,
+    stop(){stopped=true;textureSeq++;clearKeys();root?.removeEventListener('click',toolClick);for(const o of terrainLabels.children)disposeLabel(o);terrainLabels.clear();silhouettes.clear();outlineMaterial.dispose();ringGeos.forEach(x=>x.dispose());ringMats.forEach(x=>x.dispose());outlines.clear();rings.clear();sun.shadow.map?.dispose();document.removeEventListener('keydown',keyDown);document.removeEventListener('keyup',keyUp);document.removeEventListener('focusin',focusChanged);document.removeEventListener('visibilitychange',clearKeys);window.removeEventListener('blur',clearKeys);measureObserver.disconnect();clearTimeout(refreshTimer);cancelAnimationFrame(raf);for(const o of models.values())disposeLabel(o);for(const o of templates.values())disposeGeometry(o);disposeGeometry(terrain);clearDynamic(rings);clearDynamic(preview);overlay.material.map?.dispose();overlay.geometry.dispose();overlay.material.dispose();hintLayer.material.map?.dispose();hintLayer.geometry.dispose();hintLayer.material.dispose();materials.forEach(m=>m.dispose());pieceMats.forEach(m=>m.dispose());renderer.dispose();renderer.forceContextLoss();canvas.remove();},
   };
 }

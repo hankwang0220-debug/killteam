@@ -1,6 +1,7 @@
 // Missions: map, drop zones, markers, NPOs, mission actions and scoring.
 // Maps are rebuilt in 2D from the official mission-pack maps (1 grid square = 1"): walls of
 // strongholds and ruins are Heavy terrain, rubble is Heavy or Light, upper floors are left out.
+import { KILLZONE_RULES } from './data/killzone-rules.js';
 import {
   boardOf, CONTROL, NPO, OBJ_R, addVP, aplNow, applyDamage, contests, controller, d6, deployZones, edgeDist, getOp, isEngaged, missionEngaged, living, log, opName, radius,
   spawnNpo, team, territoryOf, tpl, twBreachCost, visibility,
@@ -306,10 +307,10 @@ export function tombWorldTeleportDestination(g, op) {
 
 export const MISSION_ACTIONS = {
   ...Object.fromEntries([...new Set(TOMB_WORLD_MAPS.flatMap(m=>tombWorldAccessPoints(m).filter(d=>d.kind === 'hatchway').flatMap(d=>[`twOpen_${d.id}`,`twClose_${d.id}`])))].map(id=>[id,{
-    ap:1,name:{zh:id.startsWith('twOpen_') ? '開門':'關門',en:id.startsWith('twOpen_') ? 'Open hatch':'Close hatch'},
+    ap:KILLZONE_RULES.tombWorld.hatchAP,name:{zh:id.startsWith('twOpen_') ? '開門':'關門',en:id.startsWith('twOpen_') ? 'Open hatch':'Close hatch'},
     cond(g,op) {
       const d=accessPointsOf(g).find(d=>d.kind === 'hatchway' && hatchActionId(d) === id);
-      if(!d || !nearHatch(g,op,d,radius(op),op.acted?.bcRemote ? 4 : 1)) return {zh:'門口須在底座 1 吋內',en:'Door must be within 1 inch of the base'};
+      if(!d || !nearHatch(g,op,d,radius(op),op.acted?.bcRemote ? 4 : KILLZONE_RULES.tombWorld.hatchReach)) return {zh:`門口須在底座 ${KILLZONE_RULES.tombWorld.hatchReach} 吋內`,en:`Door must be within ${KILLZONE_RULES.tombWorld.hatchReach} inch of the base`};
       if(isEngaged(g,op)) return {zh:'交戰中不能開關門',en:'Cannot operate a hatch while engaged'};
       if(d.state === 'open' && living(g).some(o=>o.uid !== op.uid && (distPointRect(o,accessRect(d)) < radius(o)-.001 || o.side !== op.side && nearHatch(g,o,d,radius(o))))) return {zh:'門口被底座占用或在敵人控制範圍內，不能關門',en:'Cannot close an occupied hatch or one within enemy control range'};
       if(d.state === 'open' && distPointRect(op,accessRect(d)) < radius(op)-.001) return {zh:'自己的底座占用門口，不能關門',en:'Your base occupies the hatch'};
@@ -319,31 +320,31 @@ export const MISSION_ACTIONS = {
       const d=accessPointsOf(g).find(d=>d.kind === 'hatchway' && hatchActionId(d) === id);
       if(!d) return;
       const opening=id.startsWith('twOpen_');setHatchState(g,d.id,opening ? 'open':'closed');
-      return {zh:`花費 1AP ${opening ? '開啟':'關閉'} ${d.component} 門 ${Number(d.id.split('-')[1])+1}`,en:`spends 1AP to ${opening ? 'open':'close'} ${d.component} hatch ${Number(d.id.split('-')[1])+1}`};
+      return {zh:`花費 ${KILLZONE_RULES.tombWorld.hatchAP}AP ${opening ? '開啟':'關閉'} ${d.component} 門 ${Number(d.id.split('-')[1])+1}`,en:`spends ${KILLZONE_RULES.tombWorld.hatchAP}AP to ${opening ? 'open':'close'} ${d.component} hatch ${Number(d.id.split('-')[1])+1}`};
     },
   }])),
   // Breach (Tomb World, 2AP; 1AP for breachers, see twBreachCost): opens a closed breach point for good. Each operative on the other side
   // with the access point within its control range rolls a D6 — on a 4+, -1 APL until the end of its next activation and damage equal to half the roll (rounding up).
   ...Object.fromEntries([...new Set(TOMB_WORLD_MAPS.flatMap(m=>tombWorldAccessPoints(m).filter(d=>d.kind === 'breachPoint').map(d=>`twBreach_${d.id}`)))].map(id=>[id,{
-    ap:2,name:{zh:'破拆',en:'Breach'},
+    ap:KILLZONE_RULES.tombWorld.breachAP,name:{zh:'破拆',en:'Breach'},
     cond(g,op) {
       const d=accessPointsOf(g).find(d=>d.kind === 'breachPoint' && `twBreach_${d.id}` === id);
       if(!d || d.state === 'open') return {zh:'破口已經打開',en:'The breach point is already open'};
-      if(!nearHatch(g,op,d,radius(op))) return {zh:'破口須在底座 1 吋內',en:'The access point must be within 1 inch of the base'};
+      if(!nearHatch(g,op,d,radius(op),KILLZONE_RULES.tombWorld.hatchReach)) return {zh:`破口須在底座 ${KILLZONE_RULES.tombWorld.hatchReach} 吋內`,en:`The access point must be within ${KILLZONE_RULES.tombWorld.hatchReach} inch of the base`};
       if(isEngaged(g,op)) return {zh:'交戰中不能破拆',en:'Cannot breach while engaged'};
       return null;
     },
     apply(g,op) {
       const d=accessPointsOf(g).find(d=>d.kind === 'breachPoint' && `twBreach_${d.id}` === id);
       if(!d) return;
-      if(twBreachCost(g,op) < 2) op.acted.twBreachCheap = true; // (then no Shoot or Charge this activation)
+      if(twBreachCost(g,op) < KILLZONE_RULES.tombWorld.breachAP) op.acted.twBreachCheap = true; // (then no Shoot or Charge this activation)
       const mine=Math.sign(op[d.axis]-d[d.axis]);
       const across=living(g).filter(o=>o.uid !== op.uid && o.x > -50 && Math.sign(o[d.axis]-d[d.axis]) === -mine && distPointRect(o,accessRect(d))-radius(o) <= CONTROL+.001);
       setHatchState(g,d.id,'open');
       for(const o of across) {
         const roll=d6();
-        if(roll < 4) { log(g,{zh:`破拆：${opName(o,'zh')} 擲 ${roll}，沒事`,en:`Breach: ${opName(o,'en')} rolls ${roll}, unharmed`},`side${op.side}`); continue; }
-        const dmg=Math.ceil(roll/2); o.aplNext=(o.aplNext || 0)-1;
+        if(roll < KILLZONE_RULES.tombWorld.breachRoll) { log(g,{zh:`破拆：${opName(o,'zh')} 擲 ${roll}，沒事`,en:`Breach: ${opName(o,'en')} rolls ${roll}, unharmed`},`side${op.side}`); continue; }
+        const dmg=Math.ceil(roll/2); o.aplNext=(o.aplNext || 0)-KILLZONE_RULES.tombWorld.breachAplLoss;
         log(g,{zh:`破拆：${opName(o,'zh')} 擲 ${roll}，受到 ${dmg} 傷害，下次啟動結束前 APL -1`,en:`Breach: ${opName(o,'en')} rolls ${roll} — ${dmg} damage and -1 APL until the end of its next activation`},`side${op.side}`);
         applyDamage(g,op,o,dmg);
       }

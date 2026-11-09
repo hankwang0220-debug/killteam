@@ -88,6 +88,17 @@ Every landing base must clear both Heavy and Light cover and all living operativ
 | `js/main.js` | UI and interaction |
 | `js/help.js` | Rules reference text |
 | `sw.js` / `manifest.webmanifest` | PWA offline support and installation |
+| `js/data/errata.js` | Official updates to team data (stats, weapons, ploys, equipment text, team info) as dated entries |
+| `js/data/killzone-rules.js` | Core and killzone numbers set by the official documents (turning points, equipment options, Tomb World hatch / Breach) |
+
+## 官方規則更新
+
+官方調整數值或文字時，不必在各隊的檔案裡找：
+
+- **隊伍資料**（特工數值、武器、計謀 CP 或說明、裝備說明、隊伍資訊）：在 `js/data/errata.js` 的 `ERRATA` 加一筆，寫上日期和來源文件，例如 `{ date: '2026-12', source: 'Exaction Squad 1.3', team: 'exaction', weapon: 'shotpistolPE', set: { atk: 5 } }`。遊戲載入時套用；`node tests/errata.mjs` 會檢查每一筆都找得到對象（id 打錯或改名會失敗）。武器規則設成 `null` 就是移除。
+- **地圖與核心數字**（回合數、裝備數量、Tomb World 開門／破拆的 AP、破拆的擲骰門檻）：改 `js/data/killzone-rules.js`，引擎直接讀這裡。
+- 改變運作方式的規則（不只是數字或文字）仍要改程式；在 `ERRATA` 記一筆並加 `code: true`，更新紀錄就集中在一處。
+- `.monitor/kill-team/` 的監看程式會比對官方 PDF 是否更新（`baseline.json`），有變動時照上面兩個檔案調整。
 
 ## Wrecka Krew
 
@@ -318,3 +329,5 @@ Weapons are built in `js/models3d-weapons.js`, shaped after each faction's offic
 最後一批補齊 XV26 隱形戰鬥服、狼偵查小隊與異端審判庭特務：感測面板與機甲外殼、鬍鬚毛皮與芬里斯狼、分型特務與寂靜修女。異端審判庭徵召盟軍沿用各自陣營精修。48 隊現均具專屬模型精修，原版／改良試作／並排對照仍可切換，對戰仍沿用原版。
 
 XV26 改良版依 Warhammer Community 2025-10-03 官方模型照片重建輪廓：一體式蛋形頭胸甲、紅框單眼、下垂肩甲、黑色機械四肢、小型腿甲、分趾腳掌與前臂掛載武器。專家裝備安置於手臂或腰側，底盤及武器選擇不變。參考：https://www.warhammer-community.com/en-gb/articles/zhqmtpi6/wolf-scouts-and-stealth-battlesuits-fight-as-quietly-as-possible-in-kill-team-dead-silence/
+
+3D 對戰地圖新增低彩度地板、柔邊陰影、隊伍底盤色環及選取輪廓；遮擋目前選取、查看或指向棋子的地形會局部半透明。工具列提供全圖、俯視、斜視、聚焦棋子、完整資訊與地形標示。標籤維持螢幕文字大小，地形標示會避讓；輕／重地形顯示引擎的攀爬高度，墓穴牆不標為可攀越，梯子標為攀爬輔助。移動圈是距離參考，實際路徑與合法落點沿用規則判定。部署提示會顯示裝備種類、角度與合法性，仍須右側確認才放置。獨立顯示測試：tests/battle3d-display.html；資料回歸：node tests/battle3d-display.mjs。

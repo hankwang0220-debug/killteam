@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D 地圖顯示測試</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>body{padding:12px}nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.battle3d-stage{height:75vh}#result{padding:8px}</style>
+<h1>3D 地圖顯示測試</h1>
+<p>獨立測試場景，不讀寫對戰存檔。移動使用固定示例，部署預覽採用既有引擎判定。</p>
+<nav><button id="units">棋子與遮擋</button><button id="move">移動預覽</button><button id="equipment">裝備部署</button><button id="tomb">墓穴世界</button></nav>
+<div id="stage"></div><p id="result" role="status"></p>
+<script type="module">
+import {newGame, equipmentPlacement} from '../js/game.js';
+import {renderBoard} from '../js/board.js';
+import {battle3dMarkup,mountBattle3d,unmountBattle3d} from '../js/battle3d.js';
+let g,ui,scenario;
+const host=document.querySelector('#stage'),result=document.querySelector('#result');
+function reset(kind){
+  unmountBattle3d();scenario=kind;
+  g=newGame({teams:['angels','kommandos'],ai:null,map:kind==='tomb'?'tombworld-1':'default'});
+  g.phase='firefight';g.eqDeploy=null;g.ops=g.ops.slice(0,3);
+  g.ops.forEach((o,i)=>Object.assign(o,{placed:true,x:12+i*2,y:10,wounds:o.maxW-(i===1?3:0)}));
+  if(kind!=='tomb')g.terrain=[{x:10,y:12,w:7,h:.5,kind:'heavy'},{x:19,y:8,w:3,h:.5,kind:'light'}];
+  g.markers=[{kind:'ladder',x:18,y:8,angle:90}];
+  ui={sel:g.ops[0].uid};
+  if(kind==='move'){ui.ring={x:12,y:10,r:6};ui.path={pts:[{x:12,y:10},{x:12,y:7},{x:15,y:7}],r:.63,len:6,ok:true};}
+  if(kind==='equipment'){g.phase='deploy';g.eqDeploy={done:false,turn:0,queues:[[{type:'terrain',item:{kind:'light',w:3,h:.5,equip:0}}],[]]};}
+  result.textContent='';render();
+}
+async function render(){host.innerHTML=battle3dMarkup(renderBoard(g,ui));await mountBattle3d(host.firstElementChild,g,ui,{
+  measuring:()=>false,
+  click(p,uid){if(scenario==='equipment'){const source=g.eqDeploy.queues[0][0];ui.equipmentPreview={source,p,angle:0,entry:equipmentPlacement(g,p,0)};result.textContent='預覽尚未放置：裝備佇列仍有 '+g.eqDeploy.queues[0].length+' 件。';}else ui.sel=uid||null;render();},
+  hover(){},angle(angle){ui.equipmentPreview.angle=angle;render();},deploy(){}
+});}
+for(const id of ['units','move','equipment','tomb'])document.getElementById(id).onclick=()=>reset(id);
+reset('units');
+</script>

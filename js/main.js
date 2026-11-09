@@ -81,7 +81,7 @@ import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices, setReboot } from './missions.js';
 import { HELP } from './help.js';
 import { modelsView, mountModels, unmountModels } from './viewer3d.js';
-import { battle3dMarkup, mountBattle3d, unmountBattle3d, battle3dControl } from './battle3d.js';
+import { battle3dMarkup, mountBattle3d, unmountBattle3d } from './battle3d.js';
 import { archiveGame, deleteHistory, loadHistory, recordStep, resetRecorder, rewindRecorder, stepNotes, trailsAt, viewAt } from './replay.js';
 import { createOnline } from './online.js';
 
@@ -1345,7 +1345,7 @@ function deployPanel() {
   }
   if (g.eqDeploy && !g.eqDeploy.done) {
     const d = g.eqDeploy, e = d.queues[d.turn][0], kind = e.item.kind;
-    const name = e.item.portable ? L('可攜式路障','Portable barricade') : {heavy:L('重掩體','Heavy barricade'),light:L('輕掩體','Light barricade'),wire:L('鐵絲網','Razor wire'),comms:L('通訊裝置','Comms device'),mine:L('地雷','Mine'),ammo:L('彈藥箱','Ammo cache'),goryTotem:L('血腥圖騰','Gory Totem'),bloodyCadaver:L('血屍','Bloody Cadaver'),ladder:L('梯子（靠在至少 2" 高的地形旁）','Ladder (against terrain 2" tall or more)'),tripwire:L('絆線','Tripwire')}[kind] || kind;
+    const name = kind === 'ladder' && !e.item.portable ? L('梯子（靠在至少 2" 高的地形旁）','Ladder (against terrain 2" tall or more)') : bi(equipmentItemName(e.item));
     const valid = ui.eqPoint && equipmentPlacement(g, ui.eqPoint, ui.eqAngle || 0);
     return `<section class="card"><h2>${L('通用裝備部署', 'Equipment deployment')}</h2><h3>${esc(bi(team(g,d.turn).name))} · ${name}</h3>
       <p><b>${L('正在部署：','Deploying: ')}${name}</b></p>
@@ -3492,7 +3492,6 @@ function handle(act, d) {
   switch (act) {
     case 'online': return online.open();
     case 'boardview': ui.boardView=d.view==='3d'?'3d':'2d';try{localStorage.setItem('kt.boardView',ui.boardView);}catch{}return render();
-    case '3dreset': case '3dtop': case '3dcover': return battle3dControl(act);
     case 'home': history.replaceState(null, '', location.pathname + location.search); ui.screen = 'home'; return render();
     case 'tombworld': location.hash = 'tombworld'; ui.screen = 'tombworld'; return render();
     case 'models': if (ui.screen !== 'models') ui.modelsFrom = ui.screen; location.hash = 'models'; ui.screen = 'models'; return render();

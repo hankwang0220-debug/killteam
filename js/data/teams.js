@@ -1,4 +1,5 @@
 import { ELDAR_TEAMS } from './eldar.js';
+import { applyErrata } from './errata.js';
 import { DEATHWATCH_TEAM } from './deathwatch.js';
 import { MANDRAKES_TEAM } from './mandrakes.js';
 import { MURDERWING_TEAM } from './murderwing.js';
@@ -2971,6 +2972,8 @@ TEAMS.find((t) => t.id === 'bladesOfKhaine').techniques = [
 for (const t of TEAMS) t.techniques ||= [];
 
 export const TEAM_MAP = Object.fromEntries([...TEAMS, NPO_TEAM].map((t) => [t.id, t]));
+/** Official updates (js/data/errata.js) that couldn't be applied: tests/errata.mjs fails on any. */
+export const ERRATA_PROBLEMS = applyErrata(TEAM_MAP);
 
 export const RULE_LABELS = {
   soulstrike: { zh: '靈魂打擊（防禦骰 ≤ APL；1 暴擊）', en: 'Soulstrike (defence ≤ APL; 1 critical)' },

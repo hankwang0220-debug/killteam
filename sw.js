@@ -1,5 +1,5 @@
 // Network-first service worker: always fresh when online, works offline from cache.
-const CACHE = 'killteam-v109';
+const CACHE = 'killteam-v110';
 const ASSETS = [
   'js/models3d-refinements.js',
   'js/models3d-kommandos.js',
