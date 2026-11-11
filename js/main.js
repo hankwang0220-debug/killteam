@@ -80,6 +80,7 @@ import { findPath, moveCtx, wholeInchPath } from './path.js';
 import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices, setReboot } from './missions.js';
 import { HELP } from './help.js';
+import { explainShot, analyserWeapons, CIS } from './sightcheck.js';
 import { modelsView, mountModels, unmountModels } from './viewer3d.js';
 import { battle3dMarkup, mountBattle3d, unmountBattle3d } from './battle3d.js';
 import { archiveGame, deleteHistory, loadHistory, recordStep, resetRecorder, rewindRecorder, stepNotes, trailsAt, viewAt } from './replay.js';
@@ -161,7 +162,7 @@ const nm = (op) => esc(opName(op, lang()));
 function render() {
   if (online?.guest) return;
   document.getElementById('terrain-hover')?.remove();
-  if (ui.screen !== 'game' && ui.screen !== 'replay') { measure.pts = []; measure.cursor = null; measure.mode = false; angle.pts = []; angle.cursor = null; angle.mode = false; }
+  if (ui.screen !== 'game' && ui.screen !== 'replay') { measure.pts = []; measure.cursor = null; measure.mode = false; angle.pts = []; angle.cursor = null; angle.mode = false; sightTool.mode = false; }
   if (ui.screen === 'game') noteTurn();
   if (ui.screen === 'home') app.innerHTML = homeView();
   else if (ui.screen === 'setup') app.innerHTML = setupView();
@@ -176,7 +177,7 @@ function render() {
     mountBattle3d(app.querySelector('.battle3d-stage'),g,boardUi(),{
       click:(p,uid,e)=>dispatch3dBoardEvent('click',p,uid,e),
       hover:(p,uid,e)=>dispatch3dBoardEvent('pointermove',p,uid,e),
-      measuring:()=>measure.mode||angle.mode||measure.pts.length>0,
+      measuring:()=>measure.mode||angle.mode||sightTool.mode||measure.pts.length>0,
       angle:a=>{ui.eqAngle=a;render();},
       deploy:(uid,p)=>{const o=getOp(g,uid);if(o && !isAI(o.side) && placeOp(g,o,p)){ui.sel=uid;afterChange();}else{ui.notice=L('這個部署位置不合法。','Illegal deployment position.');render();}},
     });
@@ -268,8 +269,9 @@ function drawAngle() {
 
 function measureBar() {
   if (angle.mode) return angleBar();
+  if (sightTool.mode) return sightBar();
   if (!measure.mode) {
-    return `<div class="boardtools"><button class="ghost" data-act="mstart">📏 ${L('測量距離', 'Measure')}</button>${angleOn() ? `<button class="ghost" data-act="astart">📐 ${L('測量角度', 'Angle')}</button>` : ''}</div>`;
+    return `<div class="boardtools"><button class="ghost sightbtn" data-act="sstart" title="${L('隨時查看：誰能射誰、為什麼有掩護／遮擋、為什麼不能射', 'Any time: who can shoot whom, and why there is cover / obscuring or no shot')}">🎯 ${L('射擊判讀', 'Can I shoot?')}</button><button class="ghost" data-act="mstart">📏 ${L('測量距離', 'Measure')}</button>${angleOn() ? `<button class="ghost" data-act="astart">📐 ${L('測量角度', 'Angle')}</button>` : ''}</div>`;
   }
   // Board labels are tiny on a phone, so the toolbar repeats the numbers.
   const segs = measure.pts.slice(1).map((p, i) => segLen(measure.pts[i], p));
@@ -305,6 +307,7 @@ function drawMeasure() {
   const bar = document.querySelector('.boardtools');
   if (bar) bar.outerHTML = measureBar();
   if (angle.mode) { layer.innerHTML = drawAngle(); return; }
+  if (sightTool.mode) { layer.innerHTML = drawSight(); return; }
   if (!measure.pts.length) { layer.innerHTML = ''; return; }
   const last = measure.pts[measure.pts.length - 1], c = measure.cursor;
   const pts = c && Math.hypot(c.x - last.x, c.y - last.y) > 0.05 ? [...measure.pts, c] : measure.pts;
@@ -325,6 +328,90 @@ function drawMeasure() {
 }
 
 function clearMeasure() { measure.pts = []; measure.cursor = null; drawMeasure(); }
+
+// ---------- shot analyser (beginner aid) ----------
+// Usable at any time, on either player's operatives: tap a shooter, then a target. The board shows the
+// targeting-line fan and the terrain parts it crosses; the panel walks through visible → intervening →
+// cover → valid target → melee → range → obscured, each with a link to the Can I Shoot It? page.
+const sightTool = { mode: false, a: null, b: null, wi: 0 };
+
+function sightStart(a = null, b = null, wid = null) {
+  measure.mode = false; measure.pts = []; measure.cursor = null; angle.mode = false;
+  const st = shownState();
+  const act = st && activeOp(st);
+  sightTool.mode = true;
+  sightTool.a = a || (act && !act.dead ? act.uid : null);
+  sightTool.b = b;
+  const ws = sightTool.a ? analyserWeapons(st, getOp(st, sightTool.a)) : [];
+  const want = wid || (ui.mode?.kind === 'shoot' && ui.mode.weapon?.id);
+  sightTool.wi = Math.max(0, ws.findIndex((w) => w.id === want));
+}
+
+function sightPick(evt) {
+  const st = shownState(), el = evt.target.closest?.('[data-uid]');
+  const op = el && st ? getOp(st, el.dataset.uid) : null;
+  if (!op || op.dead) return;
+  const a = sightTool.a && getOp(st, sightTool.a);
+  if (!a || a.dead || op.uid === a.uid) { sightTool.a = op.uid; sightTool.b = null; sightTool.wi = 0; return; }
+  if (op.side === a.side) { sightTool.a = op.uid; sightTool.b = null; sightTool.wi = 0; return; } // another friendly: it becomes the shooter
+  sightTool.b = op.uid;
+}
+
+function sightData() {
+  const st = shownState();
+  const a = st && sightTool.a && getOp(st, sightTool.a), b = st && sightTool.b && getOp(st, sightTool.b);
+  if (!a || a.dead) return { st };
+  const ws = analyserWeapons(st, a), w = ws[sightTool.wi] || ws[0] || null;
+  if (!b || b.dead) return { st, a, ws, w };
+  return { st, a, b, ws, w, r: explainShot(st, a, b, w) };
+}
+
+const SIGHT_ICON = { ok: '✅', bad: '❌', warn: '🛡', info: 'ℹ️' };
+function sightSteps(r, only) {
+  const steps = only ? r.steps.filter((s) => s.state === 'bad' || s.id === 'special') : r.steps;
+  return `<ol class="sightsteps">${steps.map((s) => `<li class="st-${s.state}"><b>${SIGHT_ICON[s.state]} ${esc(tx(s.title))}</b><span>${esc(tx(s.text))}</span>${s.link ? `<a href="${s.link}" target="_blank" rel="noopener">📖 Can I Shoot It?</a>` : ''}</li>`).join('')}</ol>`;
+}
+
+function sightBar() {
+  const { a, b, ws, w, r } = sightData();
+  let info;
+  if (!a) info = L('① 點一名特工當<b>射手</b>（雙方都可以，隨時都能用）', '① Tap an operative as the <b>shooter</b> (either side, any time)');
+  else if (!b) info = L(`射手：<b>${nm(a)}</b> · ② 再點一名<b>敵人</b>當目標`, `Shooter: <b>${nm(a)}</b> · ② now tap an <b>enemy</b> as the target`);
+  else info = `<b class="${r.verdict.ok ? 'sv-ok' : 'sv-bad'}">${r.verdict.ok ? '✅' : '❌'} ${esc(tx(r.verdict.title))}</b> <small>${nm(a)} → ${nm(b)} · ${esc(tx(r.verdict.text))}</small>`;
+  const wsel = a && ws?.length > 1 ? `<select data-act="sweapon" aria-label="${L('武器', 'Weapon')}">${ws.map((x, i) => `<option value="${i}" ${x === w ? 'selected' : ''}>${esc(tx(x.name))}${x.rules.range ? ` (${x.rules.range}")` : ''}</option>`).join('')}</select>`
+    : a && w ? `<small class="sweapon">${esc(tx(w.name))}</small>` : '';
+  const legend = r ? `<div class="sightlegend"><span class="lg-cone">${L('射線範圍', 'Targeting lines')}</span><span class="lg-cover">${L('掩護（目標 1" 內）', 'Cover (within 1" of target)')}</span><span class="lg-obsc">${L('遮擋（重型，離雙方 >1"）', 'Obscuring (heavy, >1" from both)')}</span><span class="lg-plain">${L('介於其間但無效果', 'Intervening, no effect')}</span></div>` : '';
+  return `<div class="boardtools on sighttools">
+    <span>🎯 ${info}</span>
+    ${wsel}
+    <button data-act="sswap" ${b ? '' : 'disabled'}>⇄ ${L('對調', 'Swap')}</button>
+    <button data-act="sclear" ${a ? '' : 'disabled'}>${L('重選', 'Reset')}</button>
+    <button class="primary" data-act="send">✕ ${L('結束', 'Done')}</button>
+    ${r ? `${legend}${sightSteps(r)}<p class="sightnote">${L('依 Kill Team 規則與 <a href="https://canishoot.it/" target="_blank" rel="noopener">Can I Shoot It?</a> 的說明整理；本遊戲為平面棋盤，尚未模擬高度與樓層。', 'Based on the Kill Team rules as explained by <a href="https://canishoot.it/" target="_blank" rel="noopener">Can I Shoot It?</a>; this board is flat — no heights or floors yet.')}</p>` : ''}
+  </div>`;
+}
+
+function drawSight() {
+  const { a, b, r } = sightData();
+  if (!a) return '';
+  const f = (n) => +n.toFixed(3), s = [];
+  const ring = (o, rr, cls) => `<circle cx="${f(o.x)}" cy="${f(o.y)}" r="${f(rr)}" class="${cls}"/>`;
+  const poly = (pts, cls) => `<polygon points="${pts.map((p) => `${f(p.x)},${f(p.y)}`).join(' ')}" class="${cls}"/>`;
+  if (r) {
+    const g0 = r.geo;
+    if (!g0.visible) {
+      for (const t of g0.blockers || []) s.push(`<rect transform="${t.angle ? `rotate(${t.angle} ${f(t.x + t.w / 2)} ${f(t.y + t.h / 2)})` : ''}" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" class="sg-block"/>`);
+      s.push(`<line x1="${f(a.x)}" y1="${f(a.y)}" x2="${f(b.x)}" y2="${f(b.y)}" class="sg-noline"/>`);
+    }
+    if (g0.cone) s.push(poly(g0.cone, 'sg-cone'));
+    for (const p of g0.parts || []) s.push(poly(p.poly, p.kind === 'heavy' && p.farBoth ? 'sg-part sg-obsc' : p.nearTarget && r.steps.some((x) => x.id === 'cover' && x.state === 'warn') ? 'sg-part sg-cover' : 'sg-part'));
+    if (g0.rings) { s.push(ring(a, g0.a.r + 1, 'sg-ring')); s.push(ring(b, g0.b.r + 1, 'sg-ring')); }
+    if (g0.origin) s.push(ring(g0.origin, 0.12, 'sg-origin'));
+    s.push(ring(b, g0.b.r + 0.14, `sg-target ${r.verdict.ok ? 'ok' : 'bad'}`));
+  }
+  s.push(ring(a, radius(a) + 0.14, 'sg-shooter'));
+  return s.join('');
+}
 
 app.addEventListener('contextmenu', (e) => {
   if (!e.target.closest('#board')) return;
@@ -356,6 +443,13 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('click', (e) => {
   if (e.button !== 0) return;
   if(e.target.closest('.battle3d-stage') && !e.target.closest('#board'))return;
+  if (sightTool.mode) {
+    if (!e.target.closest('#board')) return;
+    e.stopPropagation();
+    sightPick(e);
+    drawMeasure();
+    return;
+  }
   if (angle.mode) {
     if (!e.target.closest('#board')) return;
     e.stopPropagation();
@@ -2108,7 +2202,10 @@ function modeView(op) {
       : m.weapon.rules.blast ? L(`爆炸：也會射擊主要目標 ${m.weapon.rules.blast}" 內所有可見的特工（包括己方）。`, ` Blast: also shoots every operative visible within ${m.weapon.rules.blast}" of the first — friends included.`) : '';
     const attacker = shooter(op), candidates = m.weapon.rules.detonate ? living(g, attacker.side).filter((o) => tpl(o).gheistskull) : m.weapon.rules.wkExplosive ? [attacker] : foes(g, attacker);
     const hasTarget = candidates.some((t) => shootCheck(g, attacker, t, m.weapon).ok);
-    return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${hasTarget ? L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save).') : L('沒有可攻擊的目標。請更換武器或取消射擊。', 'No valid targets. Choose another weapon or cancel the shot.')}${area}</p>${aim}<div class="row">${cancel}</div></div>`;
+    const whyT = ui.shotWhy?.w === m.weapon.id && getOp(g, ui.shotWhy.uid);
+    const whyR = whyT && !whyT.dead && !shootCheck(g, attacker, whyT, m.weapon).ok ? explainShot(g, attacker, whyT, m.weapon) : null;
+    const why = whyR ? `<div class="shotwhy"><h4>❌ ${L(`為什麼不能射 ${nm(whyT)}？`, `Why can't I shoot ${nm(whyT)}?`)}</h4>${sightSteps(whyR, true)}<button class="ghost" data-act="swhy" data-a="${attacker.uid}" data-b="${whyT.uid}" data-w="${m.weapon.id}">🎯 ${L('在棋盤上看射線與完整說明', 'Show the lines and full explanation')}</button></div>` : '';
+    return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${hasTarget ? L('點擊紅圈標示的敵人射擊。🛡 = 目標在掩護中（保留 1 顆豁免）。點沒有紅圈的敵人可以看為什麼不能射。', 'Tap a highlighted enemy. 🛡 = target in cover (retains a save). Tap an unmarked enemy to see why it can\'t be shot.') : L('沒有可攻擊的目標。請更換武器或取消射擊；點任一敵人可以看原因。', 'No valid targets. Choose another weapon or cancel the shot; tap any enemy to see why.')}${area}</p>${why}${aim}<div class="row">${cancel}</div></div>`;
   }
   if (m.kind === 'fight') return `<div class="mode"><h3>${esc(bi(m.weapon.name))}</h3><p class="hint">${L('點擊交戰中的敵人，或門另一側的合法門間近戰目標（底座接觸門口，目標距門口 2 吋內）。', 'Tap an engaged enemy, or a legal Hatchway Fight target across an access point you touch, within 2 inches of it.')}</p><div class="row">${cancel}</div></div>`;
   if (m.kind === 'target') {
@@ -3137,6 +3234,8 @@ function onBoardClick(evt) {
     if (clicked && m.kind === 'target' && TARGET_ACTIONS[m.action].targets(g, op).includes(clicked)) {
       let complete; undoable(() => { complete = doTargetAction(g, op, m.action, clicked); }); if (complete !== false) ui.mode = null; return afterChange();
     }
+    // Tapping an enemy that can't be shot explains why, right in the shoot panel.
+    if (clicked && m.kind === 'shoot' && m.weapon && clicked.side !== op.side) ui.shotWhy = { uid: clicked.uid, w: m.weapon.id };
     if (clicked) { ui.sel = clicked.uid; render(); }
     return;
   }
@@ -3357,7 +3456,7 @@ app.addEventListener('pointermove', (e) => {
     if (v.obscured) lines.push(L('遮蔽（攻擊暴擊變普通成功，再棄掉 1 顆成功骰；武器例外另計）', 'Obscured (attack crits become normal, then discard 1 success; weapon exceptions apply)'));
     if (v.cover && v.obscured && v.defenceOptions?.length && !v.defenceOptions.some(o => o.cover && o.obscured)) lines.push(L('掩護與遮蔽需擇一，不能同時套用', 'Choose cover or obscuring; cannot apply both'));
     if (!v.cover && !v.obscured) lines.push(L('無射擊地形防護（靠近地形不代表這個射擊方向有掩護）', 'No terrain protection for this shot (proximity alone does not grant cover)'));
-    if (!check.ok) lines.push(L('目前不是合法射擊目標', 'Not a valid shooting target'));
+    if (!check.ok) lines.push(`${L('目前不是合法射擊目標', 'Not a valid shooting target')}：${tx(explainShot(g, attacker, target, ui.mode.weapon).verdict.text)}${L('（點它看詳細原因）', ' (tap it for details)')}`);
   }
   tip.innerHTML = `<b>${nm(target)}</b>${lines.map(line => `<div>${esc(line)}</div>`).join('')}`;
   const bounds = tip.getBoundingClientRect();
@@ -3376,6 +3475,7 @@ modalRoot.addEventListener('click', (e) => {
   if (b) handle(b.dataset.act, b.dataset, e);
 });
 app.addEventListener('change', (e) => {
+  if (e.target.dataset.act === 'sweapon') { sightTool.wi = Number(e.target.value) || 0; return drawMeasure(); }
   if (e.target.dataset.act === 'eqangle') { const n = Number(e.target.value); ui.eqAngle = Number.isFinite(n) ? ((n % 360) + 360) % 360 : 0; return render(); }
   if(e.target.dataset.act==='seekerorder'){ui.seeker={...(ui.seeker||{}),order:e.target.value};return;}
   if (e.target.dataset.act === 'map') { ui.setup.map = e.target.value; return render(); }
@@ -3689,11 +3789,16 @@ function handle(act, d) {
     case 'activate': return doActivate(getOp(g, d.uid));
     case 'closeinspect': if (ui.peek) ui.peek = null; else ui.sel = null; return render();
     case 'peek': ui.peek = ui.peek === d.uid ? null : d.uid; return render(); // operative lists beside the board: show / hide its datacard
-    case 'mstart': measure.mode = true; measure.pts = []; measure.cursor = null; return drawMeasure();
+    case 'sstart': sightStart(); return drawMeasure();
+    case 'send': sightTool.mode = false; return drawMeasure();
+    case 'sswap': if (sightTool.a && sightTool.b) [sightTool.a, sightTool.b] = [sightTool.b, sightTool.a]; sightTool.wi = 0; return drawMeasure();
+    case 'sclear': sightTool.a = sightTool.b = null; sightTool.wi = 0; return drawMeasure();
+    case 'swhy': sightStart(d.a, d.b, d.w); render(); return document.querySelector('.sighttools')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    case 'mstart': sightTool.mode = false; measure.mode = true; measure.pts = []; measure.cursor = null; return drawMeasure();
     case 'mundo': measure.pts.pop(); return drawMeasure();
     case 'mclear': measure.pts = []; return drawMeasure();
     case 'mend': measure.mode = false; measure.pts = []; measure.cursor = null; return drawMeasure();
-    case 'astart': angle.mode = true; angle.pts = []; angle.cursor = null; measure.pts = []; measure.cursor = null; return drawMeasure();
+    case 'astart': sightTool.mode = false; angle.mode = true; angle.pts = []; angle.cursor = null; measure.pts = []; measure.cursor = null; return drawMeasure();
     case 'aundo': angle.pts.pop(); angle.cursor = null; return drawMeasure();
     case 'aclear': angle.pts = []; angle.cursor = null; return drawMeasure();
     case 'aend': angle.mode = false; angle.pts = []; angle.cursor = null; return drawMeasure();

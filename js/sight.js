@@ -71,6 +71,29 @@ function farFromBoth(poly, a, ra, b, rb) {
   return false;
 }
 
+/**
+ * Geometry behind one flatSight answer, for teaching: from a chosen origin on the shooter's base,
+ * the cone of targeting lines to the facing half of the target's base, and every terrain part inside it
+ * (whether that part is within 1" of the target — cover — and whether some of it is more than 1" from both — obscuring).
+ */
+export function sightParts(terrain, origin, from, to, rf, rt) {
+  const cone = facingCone(origin, to, rt);
+  const parts = [];
+  for (const t of terrain) {
+    if (t.kind === 'wire') continue;
+    if (t.portable && distPointRect(to, t) - rt > 1 + EPS) continue;
+    const poly = clipRect(cone, t);
+    if (!poly.length) continue;
+    parts.push({ t, poly, nearTarget: near(poly, to, rt + 1), farBoth: farFromBoth(poly, from, rf + 1, to, rt + 1) });
+  }
+  return { cone, parts, close: dist(from, to) - rf - rt <= 2 + EPS };
+}
+
+/** Opaque heavy terrain crossing the straight line between two operatives' centres (why one can't see the other). */
+export function sightBlockers(terrain, from, to) {
+  return terrain.filter(t => t.kind === 'heavy' && t.blocksSight !== false && segRect(from, to, t));
+}
+
 export function flatSight(terrain, from, to, rf, rt, opts = {}) {
   // Solid heavy walls occlude models. Heavy features with openings may set
   // blocksSight:false: they still provide cover/obscuring, but not opaque walls.

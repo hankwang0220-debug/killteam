@@ -341,6 +341,38 @@ button.wide { width: 100%; margin-top: 10px; }
 .boardtools.on span small { color: var(--muted); }
 .boardtools.on button { flex: 1; }
 @media (min-width: 600px) { .boardtools.on span { flex: 1 1 auto; } .boardtools.on button { flex: 0 0 auto; } }
+/* Shot analyser (🎯): board overlay + step-by-step panel */
+#board .sg-cone { fill: rgba(255, 255, 255, .13); stroke: #fff; stroke-width: .04; stroke-dasharray: .18 .1; }
+#board .sg-part { fill: rgba(190, 190, 200, .55); stroke: #fff; stroke-width: .05; }
+#board .sg-part.sg-cover { fill: rgba(90, 209, 255, .7); stroke: #5ad1ff; }
+#board .sg-part.sg-obsc { fill: rgba(255, 150, 50, .75); stroke: #ff9632; }
+#board .sg-ring { fill: none; stroke: #ff9632; stroke-width: .05; stroke-dasharray: .2 .12; }
+#board .sg-origin { fill: #fff; stroke: #000; stroke-width: .04; }
+#board .sg-shooter { fill: none; stroke: #5ad1ff; stroke-width: .1; }
+#board .sg-target { fill: none; stroke-width: .1; }
+#board .sg-target.ok { stroke: #62e38c; } #board .sg-target.bad { stroke: #ff5d5d; }
+#board .sg-noline { stroke: #ff5d5d; stroke-width: .07; stroke-dasharray: .25 .15; }
+#board .sg-block { fill: rgba(255, 93, 93, .45); stroke: #ff5d5d; stroke-width: .08; }
+.boardtools.sighttools select { min-height: 40px; max-width: 100%; }
+.boardtools.sighttools .sv-ok { color: var(--ok, #62e38c); } .boardtools.sighttools .sv-bad { color: var(--bad, #ff5d5d); }
+.boardtools .sweapon { color: var(--muted); }
+.sightlegend { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .78rem; color: var(--muted); }
+.boardtools.on .sightlegend span { flex: 0 0 auto; color: var(--muted); font-size: .78rem; }
+.sightlegend span::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; border-radius: 3px; border: 1px solid #fff; }
+.sightlegend .lg-cone::before { background: rgba(255, 255, 255, .2); border-style: dashed; }
+.sightlegend .lg-cover::before { background: #5ad1ff; } .sightlegend .lg-obsc::before { background: #ff9632; } .sightlegend .lg-plain::before { background: #bebec8; }
+.sightsteps { flex: 1 1 100%; margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; text-align: left; }
+.sightsteps li { background: rgba(0, 0, 0, .18); border-left: 4px solid var(--muted); border-radius: 6px; padding: 6px 8px; font-size: .86rem; line-height: 1.45; }
+.sightsteps li b { display: block; margin-bottom: 2px; }
+.boardtools.on .sightsteps li span, .shotwhy .sightsteps li span { display: block; flex: none; color: var(--text); font-size: .86rem; }
+.sightsteps li a { font-size: .8rem; color: #5ad1ff; }
+.sightsteps li.st-ok { border-left-color: #62e38c; } .sightsteps li.st-bad { border-left-color: #ff5d5d; }
+.sightsteps li.st-warn { border-left-color: #5ad1ff; } .sightsteps li.st-info { border-left-color: #bebec8; }
+.sightnote { flex: 1 1 100%; margin: 2px 0 0; font-size: .75rem; color: var(--muted); }
+.sightnote a { color: #5ad1ff; }
+.shotwhy { margin: 6px 0; padding: 6px 8px; border: 1px solid var(--bad, #ff5d5d); border-radius: 8px; background: rgba(255, 80, 80, .07); }
+.shotwhy h4 { margin: 0 0 4px; }
+.shotwhy button { margin-top: 6px; width: 100%; }
 .inspect { position: absolute; width: min(300px, 64%); max-height: 94%; overflow-y: auto; z-index: 3; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.6); }
 .inspect.left { left: 8px; } .inspect.right { right: 8px; }
 .inspect.top { top: 8px; } .inspect.bottom { bottom: 8px; }
