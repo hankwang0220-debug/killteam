@@ -33,7 +33,9 @@ export function vsReady(g) {
     const drone = living(g, side).some((o) => tpl(o).vsDrone && o.x > -50);
     g.vs.cp[side] = roll.v + (drone ? 1 : 0);
     g.vs.used[side].convergence = 0;
-    note(g, side, `交融點數：擲 ${a.r}${b ? `、${b.r}` : ''} → ${roll.v}${drone ? ' +1（監視無人機）' : ''}，共 ${g.vs.cp[side]} 點`, `Communion points: rolled ${a.r}${b ? `, ${b.r}` : ''} → ${roll.v}${drone ? ' +1 (Oversight Drone)' : ''}, ${g.vs.cp[side]} in all`);
+    (g.vs.roll ||= [null, null])[side] = { tp: g.tp, dice: b ? [a.v, b.v] : [a.v], used: roll.v, drone, total: g.vs.cp[side] };
+    if (b) note(g, side, `神經興奮劑：擲兩顆 D3（${a.r}、${b.r} → ${a.v}、${b.v}），用較高的 ${roll.v}${drone ? ' +1（監視無人機）' : ''}，交融點數共 ${g.vs.cp[side]} 點`, `Neurostimulant: two D3 (${a.r}, ${b.r} → ${a.v}, ${b.v}), uses the higher ${roll.v}${drone ? ' +1 (Oversight Drone)' : ''}: ${g.vs.cp[side]} Communion points`);
+    else note(g, side, `交融點數：擲 ${a.r} → ${roll.v}${drone ? ' +1（監視無人機）' : ''}，共 ${g.vs.cp[side]} 點`, `Communion points: rolled ${a.r} → ${roll.v}${drone ? ' +1 (Oversight Drone)' : ''}, ${g.vs.cp[side]} in all`);
   }
 }
 export const vsPoints = (g, side) => (g.vs?.cp?.[side] || 0);
@@ -67,7 +69,22 @@ export function vsShootStart(g, op, weapon, target) {
   if (!bound(op) || !target) return;
   if (!vsFreeTargets(g, op).includes(target) && vsSpend(g, op, { zh: '選擇非最近的目標', en: 'a target other than the closest' })) op.vsSpentSeq = true;
 }
-/** Spend one point to re-roll one attack die (only when two or more are left, and not for a Warrior relying on Warrior Instincts). */
+/** A player's Communion re-roll: can this shooter still spend a point to re-roll one of these attack dice? */
+export function vsRerollOk(g, op, pool) {
+  return bound(op) && !!pool && !op.vsRerolled && vsCanSpend(g, op) && pool.dice.some((d) => !d.auto && !d.rr && !d.locked);
+}
+/** A player spends a Communion point to re-roll the attack die they tapped (once per shooting sequence). */
+export function vsRerollDie(g, op, pool, index, retally) {
+  const die = pool?.dice[index];
+  if (!vsRerollOk(g, op, pool) || !die || die.auto || die.rr || die.locked) return false;
+  if (!vsSpend(g, op, { zh: '重擲一顆攻擊骰', en: 're-roll an attack die' })) return false;
+  op.vsSpentSeq = true; op.vsRerolled = true; // (no Warrior Instincts once a point is spent)
+  const old = die.v; die.v = d6(); die.rr = true;
+  retally(pool);
+  note(g, op.side, `交融重擲：${old} → ${die.v}`, `Communion re-roll: ${old} → ${die.v}`);
+  return true;
+}
+/** The computer: spend one point to re-roll one attack die (only when two or more are left, and not for a Warrior relying on Warrior Instincts). */
 export function vsReroll(g, op, pool, retally) {
   if (!bound(op) || !pool || tpl(op).vsWarrior || vsPoints(g, op.side) < 2 || op.vsRerolled) return;
   const m = pool.dice.find((d) => !d.auto && !d.rr && !d.locked && d.res === 'miss');

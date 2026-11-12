@@ -37,6 +37,8 @@ const can = (g, o, id) => G.availableActions(g, o).find((a) => a.id === id)?.ok;
   const g = arena(); g.vs.cp = [0, 0];
   dice([3], () => V.vsReady(g)); assert.equal(g.vs.cp[0], 3, 'a D6 of 3 → 2, +1 for the Drone');
   const n = arena({ equip: ['vsNeuro'] }); n.vs.cp = [0, 0]; dice([1, 6], () => V.vsReady(n)); assert.equal(n.vs.cp[0], 4, 'the better of two D3, +1');
+  assert.match(n.log.at(-1).msg.zh, /神經興奮劑/, 'the log names Neurostimulant');
+  assert.deepEqual(n.vs.roll[0].dice.length, 2, 'both D3 are kept for the Strategy panel');
 }
 
 // Shooting: only the closest enemy within 8" unless a point is spent; the point is paid when shooting.
@@ -155,3 +157,24 @@ for (const [a, b] of [['vespids', 'angels'], ['kommandos', 'vespids'], ['vespids
   console.log(`${a} vs ${b}: ${G.totalVP(g, 0)} : ${G.totalVP(g, 1)} (TP ${g.tp})`);
 }
 console.log('vespids ok');
+
+// Communion re-roll chosen by a player: spend a point on the attack die they tap, once per shooting sequence.
+{
+  const g = G.newGame({ teams: ['vespids', 'angels'], ai: null });
+  g.phase = 'firefight'; g.tp = 1;
+  const op = g.ops.find((o) => o.side === 0 && o.tplId === 'vsLongsting');
+  g.vs.cp[0] = 1;
+  const pool = { dice: [{ v: 1 }, { v: 5 }, { v: 2, rr: true }], success: 3, critOn: 6, rules: {}, crits: 0, norms: 1 };
+  const seq = { op: op.uid, a: pool };
+  op.vsRerolled = false;
+  assert.equal(G.vsCommunionOk(g, seq), true, 'a point left: the player may re-roll');
+  assert.equal(G.vsCommunionReroll(g, seq, 2), false, 'not a die that was already re-rolled');
+  assert.equal(G.vsCommunionReroll(g, seq, 0), true);
+  assert.equal(pool.dice[0].rr, true); assert.equal(V.vsPoints(g, 0), 0, 'the point is spent');
+  assert.equal(G.vsCommunionOk(g, seq), false, 'once per shooting sequence');
+  op.vsRerolled = false;
+  assert.equal(G.vsCommunionOk(g, seq), false, 'no points left');
+  const drone = g.ops.find((o) => o.side === 0 && o.tplId === 'vsDrone'); g.vs.cp[0] = 3;
+  assert.equal(G.vsCommunionOk(g, { op: drone.uid, a: { dice: [{ v: 1 }] } }), false, 'the Oversight Drone has no Communion');
+  console.log('Communion re-roll (player) ok');
+}

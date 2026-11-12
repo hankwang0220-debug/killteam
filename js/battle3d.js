@@ -13,7 +13,7 @@ import { climbHeight } from './path.js';
 const BASE_H = .12;
 /** 2D board parts left off the 3D floor (the 3D terrain shows them): footprints, 重／輕／網 badges, the 1" cover ranges, door labels, pads. */
 /** Live hints, drawn on their own glowing layer above the bases: move range, route, ghost base, start point, sprint cone, attack line, placement warnings, measuring. */
-const HINTS = '.ring,.path,.ghost,.pathlen,.move-anchor,.los,.placement-block,.placement-edge,.placement-base,.placement-cross,.placement-label,#measure,[class^="sprint"]';
+const HINTS = '.ring,.path,.ghost,.pathlen,.move-anchor,.los,.losfan,.placement-block,.placement-edge,.placement-base,.placement-cross,.placement-label,#measure,[class^="sprint"]';
 const FLOOR_DROP = 'rect.heavy,rect.light,rect.wire,.tlabel,.cover-ranges,.tw-access,.tw-pad';
 
 let live=null, load=null, generation=0;

@@ -41,7 +41,7 @@ import { STEALTH_EQUIPMENT } from './data/stealthsuits.js';
 import { WOLF_EQUIPMENT } from './data/wolfscouts.js';
 import { isWS, wsSetup, wsActivate, wsEnd, wsRules, wsActions, wsSelf, wsWeapons, wsObscure, wsChirurgy, wsConcealCharge, wsChargeEndOk, wsMoved, wsSecondShot, wsNoObscure, wsCharms, wsTeeth, wsDefence, wsTranshumanOk, wsLokyar, wsBite, wsTrophy, wsFightEnd, wsAfterFight, wsRuneFree, wsRuneUsed, wsGuileOk, wsUseGuile, wsCanPickUp, wsDeath, wsFilter, registerWolfActions } from './wolfscouts.js';
 import { xvChoices, isXV, xvSetup, xvStealth, xvFallBackCheap, xvRules, xvShootStart, xvShootEnd, xvHolowave, xvChaffStart, xvChaffOn, xvChaffEnd, xvObscure, xvSwap, xvRetro, xvActivate, xvEnd, xvCanCounter, xvFilter, xvActions, xvSelf, xvActionCost, xvAfterPickUp, xvReady, xvPloyBought, xvJamControl, registerStealthActions } from './stealthsuits.js';
-import { isVS, vsSetup, vsReady, vsTargetOk, vsShootStart, vsReroll, vsWeapons, vsRules, vsNoPierce, vsCamo, vsHidden, vsAgility, vsExo, vsVenom, vsShootEnd, vsActivate, vsMoved, vsChargeOk, vsGate, vsMissionSpend, vsCommuneFree, vsActions, vsSelf, registerVespidActions } from './vespids.js';
+import { isVS, vsSetup, vsReady, vsTargetOk, vsShootStart, vsReroll, vsRerollOk, vsRerollDie, vsWeapons, vsRules, vsNoPierce, vsCamo, vsHidden, vsAgility, vsExo, vsVenom, vsShootEnd, vsActivate, vsMoved, vsChargeOk, vsGate, vsMissionSpend, vsCommuneFree, vsActions, vsSelf, registerVespidActions } from './vespids.js';
 import { isVD, vdSetup, vdFill, vdActivate, vdEnd, vdRules, vdShootStart, vdShootEnd, vdPanoply, vdDefence, vdElusiveHidden, vdRoll, vdDomino, vdJest, vdCurtain, vdDeath, vdLuckFree, vdLuckUsed, vdLuckReroll, vdActions, vdFogged, registerVoidDancerActions } from './voiddancers.js';
 import { aqChoices, isAQ, aqSetup, aqReady, aqTPEnd, aqActivate, aqEnd, aqActions, aqSelf, aqWeapons, aqRules, aqDefence, aqDetectedBlock, aqStimms, aqControl, aqPloyBought, aqVetFree, aqVetUsed, aqVetReroll, aqVetRerollUsed, aqTrack, aqAfterShoot, aqDynamic, aqObscure, aqPlaceAuto, aqOverseerOk, aqUseOverseer, registerAquilonActions } from './aquilons.js';
 import { spChoices, spFieldcraftPick, isSP, spSetup, spReady, spTPEnd, spActions, spSelf, spActivate, spEnd, spWeapons, spRules, spPloyBought, spBeaconOk, spPlaceAuto, spTvid, spTvidUsed, spTrimEquipment, spCamoHidden, spPatience, spPatienceOk, spStarshell, spStarshellOk, registerSpectreActions } from './spectres.js';
@@ -477,7 +477,7 @@ export function activateNpo(g, op, apl, fights = 1) {
   op.ap = apl;
   op.orderSet = true;
   op.actTP = (op.actTP || 0) + 1;
-  (g.recent ||= [null, null])[op.side] = { uid: op.uid, tp: g.tp, trails: [] };
+  (g.recent ||= [null, null])[op.side] = { uid: op.uid, tp: g.tp, trails: [], act: (g.actSeq = (g.actSeq || 0) + 1) };
   if (tpl(op).nemesis) op.order = 'engage';
   log(g, { zh: `${opName(op, 'zh')} 啟動（APL ${apl}）`, en: `${opName(op, 'en')} activates (APL ${apl})` }, 'npo');
   // Rad-Maggot Symbiosis (Ambull): regains APL+1 wounds whenever it's activated.
@@ -1205,7 +1205,7 @@ export function activate(g, op) {
     op.directive = living(g, op.side).filter((o) => o !== op && o.ready && sameTeam(o, op) && edgeDist(o, op) <= 6 && visibility(g, op, o).visible).map((o) => o.uid);
   }
   // Each side's latest activated operative and its movement this activation, shown on the board.
-  (g.recent ||= [null, null])[op.side] = { uid: op.uid, tp: g.tp, trails: [] };
+  (g.recent ||= [null, null])[op.side] = { uid: op.uid, tp: g.tp, trails: [], act: (g.actSeq = (g.actSeq || 0) + 1) };
   if (g.counter) {
     // Counteract: an expended Engage operative performs one 1AP action for free; order unchanged.
     op.counter = true;
@@ -3204,9 +3204,9 @@ export function doMove(g, op, kind, path) {
   const rec = g.recent?.[op.side];
   const pts = path.pts.map((p) => ({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 }));
   if (rec?.uid === op.uid) rec.trails.push(pts);
-  // Every move this turning point stays on the board for the players to review (older ones fade).
+  // Moves are logged with their activation; the board shows only the activation in progress.
   const log_ = (g.trailLog ||= []);
-  log_.push({ uid: op.uid, side: op.side, tp: g.tp, kind, len: path.len, pts });
+  log_.push({ uid: op.uid, side: op.side, tp: g.tp, kind, len: path.len, pts, act: rec?.uid === op.uid ? rec.act : null });
   if (log_.length > 60) log_.shift();
   op.acted.movedDist = (op.acted.movedDist || 0) + path.len; // Lumbering Death
   if (['charge', 'fallBack', 'reposition'].includes(kind)) op.bigMoveTP = g.tp; // Brace for Counterattack
@@ -5442,7 +5442,7 @@ function* shootSequence(g, op, weapon, target, vis, noReroll = false, poisonedAt
   rtEquipRoll(g, op, weapon, a, tally); // Ratlings equipment: Purloined Rations, Lucky Round
   sfRoll(g, op, a, tally); // Sanctifiers equipment: Purity Seals
   vdRoll(g, op, a, tally); // Wraithbone Talisman (Void-dancer Troupe)
-  vsReroll(g, op, a, tally); // Communion: a point to re-roll one attack die
+  if (!playerPicks(g, op.side)) vsReroll(g, op, a, tally); // Communion: a point to re-roll one attack die (a player picks the die in the dice window)
   adRoll(g, op, a, tally); // Purity Seals (Angels of Death)
   phRoll(g, op, a, tally); // Purity Seals (Phobos)
   feRoll(g,op,a);
@@ -6218,6 +6218,9 @@ export function archonFightReroll(g, k, value) { if (!g.fight?.rrOpen?.[k]) retu
 export function archonAutoReroll(g, op, holder, which) { aiPain(g, op, holder, which, tally); }
 
 /** Balanced, used by a player: re-roll one of the pool's dice for free (a die that wasn't re-rolled yet). */
+/** Communion (Vespid Stingwings), used by a player: can a point re-roll one of these attack dice, and re-roll the tapped one. */
+export const vsCommunionOk = (g, seq) => vsRerollOk(g, getOp(g, seq.op), seq.a);
+export const vsCommunionReroll = (g, seq, index) => vsRerollDie(g, getOp(g, seq.op), seq.a, index, tally);
 export function balancedReroll(g, holder, which, index) {
   const pool = holder?.[which === 'a' ? 'a' : 'd'], die = pool?.dice[index];
   if (!pool?.balancedLeft || !die || die.auto || die.rr || die.locked || (pool.noReroll1 && die.v === 1)) return false;
