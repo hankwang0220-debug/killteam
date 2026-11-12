@@ -155,3 +155,24 @@ for (const [a, b] of [['vespids', 'angels'], ['kommandos', 'vespids'], ['vespids
   console.log(`${a} vs ${b}: ${G.totalVP(g, 0)} : ${G.totalVP(g, 1)} (TP ${g.tp})`);
 }
 console.log('vespids ok');
+
+// Communion re-roll chosen by a player: spend a point on the attack die they tap, once per shooting sequence.
+{
+  const g = G.newGame({ teams: ['vespids', 'angels'], ai: null });
+  g.phase = 'firefight'; g.tp = 1;
+  const op = g.ops.find((o) => o.side === 0 && o.tplId === 'vsLongsting');
+  g.vs.cp[0] = 1;
+  const pool = { dice: [{ v: 1 }, { v: 5 }, { v: 2, rr: true }], success: 3, critOn: 6, rules: {}, crits: 0, norms: 1 };
+  const seq = { op: op.uid, a: pool };
+  op.vsRerolled = false;
+  assert.equal(G.vsCommunionOk(g, seq), true, 'a point left: the player may re-roll');
+  assert.equal(G.vsCommunionReroll(g, seq, 2), false, 'not a die that was already re-rolled');
+  assert.equal(G.vsCommunionReroll(g, seq, 0), true);
+  assert.equal(pool.dice[0].rr, true); assert.equal(V.vsPoints(g, 0), 0, 'the point is spent');
+  assert.equal(G.vsCommunionOk(g, seq), false, 'once per shooting sequence');
+  op.vsRerolled = false;
+  assert.equal(G.vsCommunionOk(g, seq), false, 'no points left');
+  const drone = g.ops.find((o) => o.side === 0 && o.tplId === 'vsDrone'); g.vs.cp[0] = 3;
+  assert.equal(G.vsCommunionOk(g, { op: drone.uid, a: { dice: [{ v: 1 }] } }), false, 'the Oversight Drone has no Communion');
+  console.log('Communion re-roll (player) ok');
+}

@@ -205,7 +205,12 @@ button.wide { width: 100%; margin-top: 10px; }
 .equipment-group { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line, #343b46); }
 .equipment-group h5 { margin: 0 0 10px; font-size: 1rem; }
 .equipment-group h5 .hint { display: block; margin-top: 4px; font-size: .8rem; font-weight: normal; }
-.tactics select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
+.ploypick { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin: 4px 0; }
+.ploypick select { flex: 0 0 auto; max-width: 100%; }
+.ploydesc { flex: 1 1 220px; min-width: 0; padding: 6px 10px; border-left: 4px solid var(--brass, #ffcf3a); border-radius: 6px; background: rgba(0, 0, 0, .2); font-size: .85rem; line-height: 1.45; color: var(--text); }
+.ploydesc b { display: block; margin-bottom: 2px; }
+.ploydesc .cp { margin-left: 6px; font-size: .78rem; color: var(--muted); }
+.tactics select {background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
 .setupbar { display: flex; justify-content: space-between; margin-top: 16px; }
 
 /* ---------- game ---------- */
@@ -302,6 +307,12 @@ button.wide { width: 100%; margin-top: 10px; }
 #board .killmark circle { fill: none; stroke: #ff3b30; stroke-width: .05; }
 #board .killmark line { stroke: #ff3b30; stroke-width: .06; }
 #board .los { stroke: var(--bad); stroke-width: .08; stroke-dasharray: .35 .15; }
+#board .losfill { fill: rgba(255, 93, 93, .12); stroke: none; }
+#board .losedge { stroke: var(--bad); stroke-width: .07; stroke-dasharray: .3 .12; }
+#board .losorigin { fill: #fff; stroke: var(--bad); stroke-width: .05; }
+#board .lospart { fill: rgba(190, 190, 200, .55); stroke: #fff; stroke-width: .04; }
+#board .lospart.cover { fill: rgba(90, 209, 255, .7); stroke: #5ad1ff; }
+#board .lospart.obsc { fill: rgba(255, 150, 50, .75); stroke: #ff9632; }
 #board .tgt { fill: rgba(224, 86, 79, .18); stroke: var(--bad); stroke-width: .08; animation: pulse 1s ease-in-out infinite; }
 #board .tgt.cover { stroke-dasharray: .2 .1; }
 #board .tgt.obscured { stroke-dasharray: .08 .12; }

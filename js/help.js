@@ -70,7 +70,7 @@ export const HELP = {
   <h3>宣告攻擊與回復動作</h3>
   <p>射擊或近戰選好目標後，棋盤會先畫出攻擊線並顯示「宣告攻擊」，按「🎲 擲骰」才擲骰；擲骰前可「收回」。電腦的攻擊也一樣，要按「擲骰」才會結算。</p>
   <p>交戰階段中，你的動作只要沒有擲骰（移動、選擇特工、指令、標記光等），都可以按「↶ 回復上一動作」退回，方便像實體遊戲一樣先移動看看能做什麼。擲過骰的動作與結束啟動後就不能回復。</p>
-  <p>上方會顯示雙方本回合正在（或剛剛）啟動的特工，棋盤上以名牌「▶ 啟動中」標出；本回合所有移動都留在棋盤上（箭頭加距離，舊的會變淡）。攻擊時，攻擊者與目標各有名牌與圈圈，並畫出攻擊線。擲骰結果會依序揭曉：攻擊骰、防禦骰、最後才是結果與傷害，電腦選好特工後也會停一下再行動。</p>
+  <p>上方會顯示雙方本回合正在（或剛剛）啟動的特工，棋盤上以名牌「▶ 啟動中」標出；正在啟動的特工這次啟動的移動會留在棋盤上（箭頭加距離），啟動結束就清掉。攻擊時，攻擊者與目標各有名牌與圈圈；近戰畫一條攻擊線，射擊則畫出射線範圍：從射手底座的一點連到目標底座朝向射手的兩側邊緣，射線穿過的地形會上色（藍＝掩護、橘＝遮擋、灰＝介於其間但無效果）。擲骰結果會依序揭曉：攻擊骰、防禦骰、最後才是結果與傷害，電腦選好特工後也會停一下再行動。</p>
   <h3>複盤</h3>
   <p>遊戲中按上方「📜 複盤」可檢視目前為止的每一步；結束的對戰會保存在首頁「對戰紀錄」（最近 10 場）。可逐步前後切換、拖動進度條或自動播放，並查看每一步的紀錄、擲骰與移動軌跡。</p>
   <h3>武器規則</h3>
@@ -176,7 +176,7 @@ export const HELP = {
   <h3>Declaring attacks & undo</h3>
   <p>After picking a Shoot or Fight target, the board shows the attack line and an "Attack declared" card; the dice are only rolled when you press "🎲 Roll", and you can take it back before that. The computer's attacks also wait for "Roll".</p>
   <p>In the Firefight phase, any of your actions that rolled no dice (moving, picking an operative, orders, Markerlight…) can be taken back with "↶ Undo last action" — move a model to see what it could do, just like on the tabletop. Actions that rolled dice, and ending an activation, can't be undone.</p>
-  <p>The panel shows which operative each side is activating (or activated last) this turning point, with a "▶ Activating" tag on the board. Every move this turning point stays on the board (an arrow with its distance; older ones fade). In an attack the attacker and the target each get a tag and a ring, with an attack line. Dice results are revealed in order — attack dice, defence dice, then the outcome and damage — and the computer pauses after choosing an operative before it acts.</p>
+  <p>The panel shows which operative each side is activating (or activated last) this turning point, with a "▶ Activating" tag on the board. The activating operative's moves this activation stay on the board (an arrow with its distance) and are cleared when the activation ends. In an attack the attacker and the target each get a tag and a ring; a fight draws an attack line, and a shot draws its targeting lines — from one point of the shooter's base to both edges of the part of the target's base facing it — with the terrain they cross coloured (blue = cover, orange = obscuring, grey = intervening, no effect). Dice results are revealed in order — attack dice, defence dice, then the outcome and damage — and the computer pauses after choosing an operative before it acts.</p>
   <h3>Replay</h3>
   <p>During a game, tap "📜 Replay" at the top to review every step so far. Finished games are kept under "Past Games" on the home screen (last 10). Step back and forth, drag the slider or auto-play, and see each step's log, dice and movement trails.</p>
   <h3>Weapon rules</h3>

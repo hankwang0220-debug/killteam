@@ -262,7 +262,16 @@ export function renderBoard(g, ui) {
     s.push(`<line x1="${f(t.from.x)}" y1="${f(t.from.y)}" x2="${f(t.to.x)}" y2="${f(t.to.y)}" class="trail" stroke="${team(g, op.side).color}" pointer-events="none"/>`);
   }
 
-  if (ui.los) {
+  if (ui.los?.cone) {
+    // A shot: the targeting lines, from one point of the shooter's base to the part of the target's base facing it,
+    // with the terrain they cross coloured by what it does (cover / obscuring / nothing).
+    const c = ui.los.cone, o = c[0], e1 = c[1], e2 = c[c.length - 1];
+    const pts = (p) => p.map((q) => `${f(q.x)},${f(q.y)}`).join(' ');
+    s.push(`<g class="losfan" pointer-events="none"><polygon points="${pts(c)}" class="losfill"/>`);
+    for (const p of ui.los.parts || []) s.push(`<polygon points="${pts(p.poly)}" class="lospart ${p.cls}"/>`);
+    s.push(`<line x1="${f(o.x)}" y1="${f(o.y)}" x2="${f(e1.x)}" y2="${f(e1.y)}" class="losedge"/><line x1="${f(o.x)}" y1="${f(o.y)}" x2="${f(e2.x)}" y2="${f(e2.y)}" class="losedge"/>`);
+    s.push(`<circle cx="${f(o.x)}" cy="${f(o.y)}" r=".13" class="losorigin"/></g>`);
+  } else if (ui.los) {
     s.push(`<line x1="${f(ui.los.a.x)}" y1="${f(ui.los.a.y)}" x2="${f(ui.los.b.x)}" y2="${f(ui.los.b.y)}" class="los" pointer-events="none"/>`);
   }
 

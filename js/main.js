@@ -33,7 +33,7 @@ import { exactionRosterError } from './data/exaction.js';
 import { hierotekRosterError } from './data/hierotek.js';
 import { hunterCladeRosterError } from './data/hunterclade.js';
 import { wbCanHide, wbHide, wbEmergeCheck, equipmentItemName } from './game.js';
-import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, freeMoveToward, moversLeft } from './game.js';
+import { ceaselessReroll, relentlessReroll, fightCeaseless, fightRelentless, digInReroll, voidReroll, balancedReroll, vsCommunionOk, vsCommunionReroll, fightBalanced, abilityArmed, abilityToggle, CHOICES, pendingChoice, resolveChoice, freeMovePath, freeMoveToward, moversLeft } from './game.js';
 import { wsCallStormAt, wsStormOk, wsPlaceStorm, wsBestStorm, wsPounceOk, wsPouncePath, wsPounce, wsGuileOk, wsUseGuile } from './wolfscouts.js';
 import { xvDroneOk, xvDrone, xvJamOk, xvJammers } from './stealthsuits.js';
 import { vsPoints, vsSkytorchCheck, vsDoSkytorch } from './vespids.js';
@@ -81,6 +81,7 @@ import { aiAttack, aiBid, aiStep, aiStrategy } from './ai.js';
 import { MISSIONS, MISSION_LIST, TAC_OPS, setClaim, claimChoices, setEnvoy, envoyChoices, setReboot } from './missions.js';
 import { HELP } from './help.js';
 import { explainShot, analyserWeapons, CIS } from './sightcheck.js';
+import { flatSight, sightParts } from './sight.js';
 import { modelsView, mountModels, unmountModels } from './viewer3d.js';
 import { battle3dMarkup, mountBattle3d, unmountBattle3d } from './battle3d.js';
 import { archiveGame, deleteHistory, loadHistory, recordStep, resetRecorder, rewindRecorder, stepNotes, trailsAt, viewAt } from './replay.js';
@@ -370,6 +371,14 @@ const SIGHT_ICON = { ok: '✅', bad: '❌', warn: '🛡', info: 'ℹ️' };
 function sightSteps(r, only) {
   const steps = only ? r.steps.filter((s) => s.state === 'bad' || s.id === 'special') : r.steps;
   return `<ol class="sightsteps">${steps.map((s) => `<li class="st-${s.state}"><b>${SIGHT_ICON[s.state]} ${esc(tx(s.title))}</b><span>${esc(tx(s.text))}</span>${s.link ? `<a href="${s.link}" target="_blank" rel="noopener">📖 Can I Shoot It?</a>` : ''}</li>`).join('')}</ol>`;
+}
+
+/** The targeting-line fan for a declared or resolving shot (empty when the target can't be seen, e.g. a forced shot). */
+function shotFan(st, a, t) {
+  const ra = radius(a), rt = radius(t), v = flatSight(st.terrain, a, t, ra, rt, {});
+  if (!v.visible || !v.origin) return {};
+  const sp = sightParts(st.terrain, v.origin, a, t, ra, rt);
+  return { cone: sp.cone, parts: sp.parts.map((p) => ({ poly: p.poly, cls: p.t.kind === 'heavy' && p.farBoth ? 'obsc' : p.nearTarget && !sp.close ? 'cover' : 'plain' })) };
 }
 
 function sightBar() {
@@ -891,7 +900,7 @@ function vsCommunePick(side) {
   if (ui.setup.teams[side] !== 'vespids' || (side === 1 && ui.setup.ai === 1)) return '';
   const t = TEAM_MAP.vespids, cur = VS_COMMUNE_PLOYS.includes(ui.setup.vsCommune?.[side]) ? ui.setup.vsCommune[side] : 'vsPredators';
   return `<div class="tactics"><h4>${L('交融（首領在場上且沒交戰時 0CP 的策略計謀）', 'Commune (a strategy ploy that costs 0CP while the Strain Leader is in the killzone and not engaged)')}</h4>
-    <select data-act="vscommune" data-side="${side}">${t.ploys.filter((p) => VS_COMMUNE_PLOYS.includes(p.id)).map((p) => `<option value="${p.id}" ${p.id === cur ? 'selected' : ''}>${esc(tx(p.name))}</option>`).join('')}</select></div>`;
+    ${ploySelect(`data-act="vscommune" data-side="${side}"`, t.ploys.filter((p) => VS_COMMUNE_PLOYS.includes(p.id)), cur)}</div>`;
 }
 function dkFreePick(side) {
   if (ui.setup.teams[side] !== 'deathKorps' || (side === 1 && ui.setup.ai === 1)) return '';
@@ -941,6 +950,17 @@ function tacOpPick(side) {
   return `<div class="tactics"><h4>${L('戰術行動（Tac Op，對手看不到）', 'Tac Op (secret from the opponent)')}</h4>
     <select data-act="tacop" data-side="${side}">${ids.map((id) => `<option value="${id}" ${id === cur ? 'selected' : ''}>${esc(tx(TAC_OPS[id].name))}（${esc(TAC_OPS[id].arch)}）</option>`).join('')}</select>
     <p class="hint small">${esc(tx(TAC_OPS[cur].desc))}</p></div>`;
+}
+
+/**
+ * A ploy dropdown with the chosen ploy's rules shown beside it, so new players can see what each one does.
+ * Every option carries its text; a change updates the box right away, even where the screen isn't redrawn.
+ */
+function ploySelect(attrs, ploys, cur, prefix = '') {
+  const pick = ploys.find((p) => p.id === cur) || ploys[0];
+  const line = (p) => (p ? `<b>${esc(tx(p.name))}${p.cp != null ? ` <span class="cp">${p.cp}CP</span>` : ''}</b>${esc(tx(p.desc))}` : '');
+  return `<div class="ploypick"><select ${attrs}>${ploys.map((p) => `<option value="${p.id}" ${p === pick ? 'selected' : ''} title="${esc(tx(p.desc))}" data-desc="${esc(line(p))}">${prefix}${esc(tx(p.name))}</option>`).join('')}</select>
+    <div class="ploydesc" aria-live="polite">${line(pick)}</div></div>`;
 }
 
 function tacticsPick(side) {
@@ -1357,9 +1377,10 @@ function boardUi() {
   else if (ui.result?.attacker) atk = { a: ui.result.attacker, t: ui.result.target, kind: ui.result.kind || 'shoot' };
   else if (g.fight) atk = { a: g.fight.A.uid, t: g.fight.D.uid, kind: 'fight' };
   const A = atk && getOp(g, atk.a), Tg = atk && getOp(g, atk.t);
-  if (A && Tg) { b.attack = atk; b.los = { a: A, b: Tg }; if (!g.fight) b.highlight = new Map([[Tg.uid, 'target']]); }
-  // This turning point's moves, and the latest activation of each side.
-  if (g.phase === 'firefight') { b.recent = (g.recent || []).filter((r) => r && r.tp === g.tp); b.trailLog = (g.trailLog || []).filter((e) => e.tp === g.tp); }
+  if (A && Tg) { b.attack = atk; b.los = { a: A, b: Tg, ...(atk.kind === 'shoot' ? shotFan(g, A, Tg) : {}) }; if (!g.fight) b.highlight = new Map([[Tg.uid, 'target']]); }
+  // Move trails stay only while the operative that made them is still activating; once it ends they're cleared.
+  const nowRec = g.phase === 'firefight' && g.active ? (g.recent || []).find((r) => r && r.uid === g.active && r.tp === g.tp && r.act != null) : null;
+  if (nowRec) { b.recent = [nowRec]; b.trailLog = (g.trailLog || []).filter((e) => e.act === nowRec.act); }
   return b;
 }
 
@@ -1908,7 +1929,7 @@ function advanceFlow(choice) {
       if (i >= 0) commandReroll(g, side, seq, which, i);
       continue;
     }
-    if ((which === 'a' ? seq.a : seq.d)?.balancedLeft || (which === 'a' ? seq.a : seq.d)?.ceaselessLeft || (which === 'a' ? seq.a : seq.d)?.relentlessLeft || (which === 'a' ? seq.a : seq.d)?.digInLeft || (which === 'a' ? seq.a : seq.d)?.rerollLeft || canCommandReroll(g, side, seq, which) || painRerollValues(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which).length) { F.step = { stage, seq, side }; return render(); }
+    if ((which === 'a' ? seq.a : seq.d)?.balancedLeft || (which === 'a' ? seq.a : seq.d)?.ceaselessLeft || (which === 'a' ? seq.a : seq.d)?.relentlessLeft || (which === 'a' ? seq.a : seq.d)?.digInLeft || (which === 'a' ? seq.a : seq.d)?.rerollLeft || canCommandReroll(g, side, seq, which) || (which === 'a' && vsCommunionOk(g, seq)) || painRerollValues(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which).length) { F.step = { stage, seq, side }; return render(); }
   }
 }
 
@@ -1937,15 +1958,16 @@ function flowView() {
   const pool = which === 'a' ? seq.a : seq.d, tm = team(g, side);
   const used = !canCommandReroll(g, side, seq, which), bal = !!pool.balancedLeft, vd = pool.rerollLeft || 0;
   const values = [...new Set(pool.dice.filter((d) => !d.auto && !d.rr && !d.locked).map((d) => d.v))].sort((x, y) => x - y);
+  const vsOk = which === 'a' && vsCommunionOk(g, seq), vsArm = vsOk && ui.vsArm;
   const dig = pool.digInLeft && values.length ? `<div class="row"><span class="flag mk">⛨ ${L('可重擲某一點數的所有骰（固守等）', 'Re-roll every die of one result (Dig In! etc.)')}</span>${values.map((v) => `<button data-act="digin" data-v="${v}">${L(`重擲所有 ${v}`, `Re-roll all ${v}s`)}</button>`).join('')}</div>` : '';
-  const dice = pool.dice.map((d, i) => (d.auto ? die(d, i) : bal ? `<button class="diebtn" ${d.rr ? 'disabled' : ''} data-act="balancedie" data-i="${i}" title="${L('平衡：免費重擲這顆骰', 'Balanced: re-roll this die for free')}">${die(d, i)}</button>`
+  const dice = pool.dice.map((d, i) => (d.auto ? die(d, i) : vsArm ? `<button class="diebtn" ${d.rr || d.locked ? 'disabled' : ''} data-act="vsdie" data-i="${i}" title="${L('交融：花 1 點交融點數重擲這顆骰', 'Communion: spend a Communion point to re-roll this die')}">${die(d, i)}</button>` : bal ? `<button class="diebtn" ${d.rr ? 'disabled' : ''} data-act="balancedie" data-i="${i}" title="${L('平衡：免費重擲這顆骰', 'Balanced: re-roll this die for free')}">${die(d, i)}</button>`
     : vd ? `<button class="diebtn" ${d.rr ? 'disabled' : ''} data-act="voiddie" data-i="${i}" title="${L('虛空護甲：免費重擲這顆骰', 'Void Armour: re-roll this die for free')}">${die(d, i)}</button>`
     : `<button class="diebtn" ${used ? 'disabled' : ''} data-act="rerolldie" data-i="${i}" title="${L('指揮重擲這顆骰（1CP）', 'Command Re-roll this die (1CP)')}">${die(d, i)}</button>`)).join('');
   return `<h2>⌖ ${stage === 'attack' ? L('攻擊骰', 'Attack dice') : L('防禦骰', 'Defence dice')}</h2>
     <p><b style="color:${team(g, a.side).color}">${nm(a)}</b> → <b style="color:${team(g, t.side).color}">${nm(t)}</b> · ${esc(bi(seq.weapon.name))}</p>
     <div class="dicerow"><label>${stage === 'attack' ? `${L('攻擊', 'Attack')} (${seq.hit}+)` : `${L('防禦', 'Defence')} (${seq.save}+)`}</label>${dice}
       <em>${L(`${pool.crits} 暴擊 / ${pool.norms} 成功`, `${pool.crits} crit / ${pool.norms} success`)}</em>${bal ? ` <span class="flag mk">⚖ ${L('可平衡：免費重擲一顆', 'Balanced: one free re-roll')}</span>` : ''}${vd ? ` <span class="flag mk">🛡 ${L(`虛空護甲：可免費重擲 ${vd} 顆`, `Void Armour: ${vd} free re-roll(s)`)}</span>` : ''}</div>
-    ${dig}${rerollRows(pool, 'flow', '')}${vd && !bal ? `<p class="hint small">${L(`被爆炸或洪流武器射擊，「虛空護甲」可以免費重擲 ${vd} 顆防禦骰（點骰子；不用也可以直接繼續）。用完後再點才是指揮重擲。`, `Shot by a Blast or Torrent weapon: Void Armour lets you re-roll ${vd} defence dice for free (tap them, or just continue). After that, a tap is a Command Re-roll.`)}</p>` : ''}${pool.digInLeft ? `<p class="hint small">${L('這次防禦可以「重擲某一點數的所有骰子」（固守！、防禦命令、皇帝庇佑、預警或超能護盾）：選一個點數，或不用直接繼續。', 'This defence can re-roll every die of one result (Dig In!, Defence Order, The Emperor Protects, Forewarned or Hypershielding): pick a result, or just continue.')}</p>` : ''}
+    ${vsOk ? `<div class="row vscomm"><button class="${vsArm ? 'primary' : ''}" data-act="vsarm">🐝 ${vsArm ? L('點一顆骰子用交融重擲（再按取消）', 'Tap a die to re-roll it with Communion (press again to cancel)') : L(`交融重擲：花 1 點交融點數重擲一顆攻擊骰（剩 ${vsPoints(g, a.side)} 點）`, `Communion re-roll: spend 1 Communion point to re-roll an attack die (${vsPoints(g, a.side)} left)`)}</button></div>` : ''}${dig}${rerollRows(pool, 'flow', '')}${vd && !bal ? `<p class="hint small">${L(`被爆炸或洪流武器射擊，「虛空護甲」可以免費重擲 ${vd} 顆防禦骰（點骰子；不用也可以直接繼續）。用完後再點才是指揮重擲。`, `Shot by a Blast or Torrent weapon: Void Armour lets you re-roll ${vd} defence dice for free (tap them, or just continue). After that, a tap is a Command Re-roll.`)}</p>` : ''}${pool.digInLeft ? `<p class="hint small">${L('這次防禦可以「重擲某一點數的所有骰子」（固守！、防禦命令、皇帝庇佑、預警或超能護盾）：選一個點數，或不用直接繼續。', 'This defence can re-roll every die of one result (Dig In!, Defence Order, The Emperor Protects, Forewarned or Hypershielding): pick a result, or just continue.')}</p>` : ''}
     ${bal ? `<p class="hint small">${L('這次擲骰有「平衡」：可以免費重擲一顆骰（點該骰子；不想用就直接繼續）。用過之後再點骰子才是花 1CP 的指揮重擲。', 'This roll has Balanced: you can re-roll one die for free (tap it; or just continue). After that, tapping a die is a 1CP Command Re-roll.')}</p>` : ''}
     <p class="hint small">${L(`<b style="color:${tm.color}">${esc(tx(tm.name))}</b> 有 ${g.cp[side]} CP：可花 1CP「指揮重擲」一顆骰（點該骰子）。`,
     `<b style="color:${tm.color}">${esc(tx(tm.name))}</b> has ${g.cp[side]}CP: spend 1CP on a Command Re-roll of one die (tap it).`)}${used && !seq.rerolled?.[which] ? ` ${L('（此時不能重擲）', '(not allowed now)')}` : ''}</p>
@@ -2107,7 +2129,7 @@ function firefightPanel() {
     }
     if (g.phCommsOpen === op.side) { // Comms Array (Phobos): swap a strategy ploy used this turning point for another, free
       const used = g.ploys[op.side].filter((id) => team(g, op.side).ploys.some((p) => p.id === id));
-      html += `<div class="ffploys"><h4>${L('通訊陣列', 'Comms Array')}</h4><div class="row"><select id="phCommsOld">${used.map((id) => `<option value="${id}">${L('改掉：', 'Change: ')}${esc(tx(team(g, op.side).ploys.find((p) => p.id === id).name))}</option>`).join('')}</select><select id="phCommsNew">${team(g, op.side).ploys.filter((p) => !used.includes(p.id)).map((p) => `<option value="${p.id}">${esc(tx(p.name))}</option>`).join('')}</select><button data-act="phcomms">${L('確定', 'Confirm')}</button></div></div>`;
+      html += `<div class="ffploys"><h4>${L('通訊陣列', 'Comms Array')}</h4>${ploySelect('id="phCommsOld"', used.map((id) => team(g, op.side).ploys.find((p) => p.id === id)), used[0], L('改掉：', 'Change: '))}${ploySelect('id="phCommsNew"', team(g, op.side).ploys.filter((p) => !used.includes(p.id)), null, L('換成：', 'To: '))}<div class="row"><button data-act="phcomms">${L('確定', 'Confirm')}</button></div></div>`;
     }
     if (g.nodalOpen === op.side) {
       const used = g.ploys[op.side].filter((id) => team(g, op.side).ploys.some((p) => p.id === id));
@@ -3475,6 +3497,8 @@ modalRoot.addEventListener('click', (e) => {
   if (b) handle(b.dataset.act, b.dataset, e);
 });
 app.addEventListener('change', (e) => {
+  const pp = e.target.closest?.('.ploypick');
+  if (pp) { const box = pp.querySelector('.ploydesc'); if (box) box.innerHTML = e.target.selectedOptions[0]?.dataset.desc || ''; }
   if (e.target.dataset.act === 'sweapon') { sightTool.wi = Number(e.target.value) || 0; return drawMeasure(); }
   if (e.target.dataset.act === 'eqangle') { const n = Number(e.target.value); ui.eqAngle = Number.isFinite(n) ? ((n % 360) + 360) % 360 : 0; return render(); }
   if(e.target.dataset.act==='seekerorder'){ui.seeker={...(ui.seeker||{}),order:e.target.value};return;}
@@ -3830,6 +3854,8 @@ function handle(act, d) {
     case 'relgo': { if (d.where === 'fight') fightRelentless(g, d.k, ui.relSel || []); else { const s = ui.flow?.step; if (s) relentlessReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', ui.relSel || []); } ui.relSel = []; return render(); }
     case 'digin': { const s = ui.flow?.step; if (s) digInReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.v); return render(); }
     case 'voiddie': { const s = ui.flow?.step; if (s) voidReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.i); return render(); }
+    case 'vsarm': ui.vsArm = !ui.vsArm; return render();
+    case 'vsdie': { const s = ui.flow?.step; if (s) vsCommunionReroll(g, s.seq, +d.i); ui.vsArm = false; return render(); }
     case 'balancedie': { const s = ui.flow?.step; if (s) balancedReroll(g, s.seq, s.stage === 'attack' ? 'a' : 'd', +d.i); return render(); }
     case 'fightbal': fightBalanced(g, d.k, +d.i); return render();
     case 'rerolldie': {
@@ -3838,7 +3864,7 @@ function handle(act, d) {
       return render();
     }
     case 'attackchoice': return advanceFlow(d.id);
-    case 'flowgo': ui.flow.step = null; return advanceFlow();
+    case 'flowgo': ui.vsArm = false; ui.flow.step = null; return advanceFlow();
     case 'fightrr': fightCommandReroll(g, d.k, +d.i); return render();
     case 'fightrrdone': fightRerollDone(g); return afterChange();
     case 'bid': {
