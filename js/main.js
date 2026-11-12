@@ -952,6 +952,16 @@ function tacOpPick(side) {
     <p class="hint small">${esc(tx(TAC_OPS[cur].desc))}</p></div>`;
 }
 
+/** Vespid Stingwings: this turning point's Communion roll in the Strategy phase, naming Neurostimulant when it was used. */
+function vsRollLine(side) {
+  const r = g.teams[side] === 'vespids' && g.vs?.roll?.[side];
+  if (!r || r.tp !== g.tp) return '';
+  const drone = r.drone ? L(' +1（監視無人機）', ' +1 (Oversight Drone)') : '';
+  return `<p class="hint small">🐝 ${r.dice.length > 1
+    ? L(`<b>神經興奮劑</b>：擲兩顆 D3 得 ${r.dice.join('、')}，用較高的 ${r.used}${drone} → 交融點數 ${r.total}`, `<b>Neurostimulant</b>: two D3 rolled ${r.dice.join(', ')}, the higher ${r.used} is used${drone} → ${r.total} Communion points`)
+    : L(`交融點數：擲 D3 得 ${r.used}${drone} → ${r.total}`, `Communion points: D3 rolled ${r.used}${drone} → ${r.total}`)}</p>`;
+}
+
 /**
  * A ploy dropdown with the chosen ploy's rules shown beside it, so new players can see what each one does.
  * Every option carries its text; a change updates the box right away, even where the screen isn't redrawn.
@@ -1532,7 +1542,7 @@ function strategyPanel() {
     const t = team(g, s);
     const state = s === cur ? L('選擇中…', 'choosing…') : L('等待中', 'waiting');
     return `<div class="ploys" style="--tc:${t.color}"><h3>${esc(bi(t.name))}${g.ai === s ? ' 🤖' : ''} · CP ${g.cp[s]}${g.teams[s] === 'vespids' ? ` · ${L('交融', 'Communion')} ${vsPoints(g, s)}` : ''} <small>${state}</small></h3>
-      <p class="hint">${chosen(s)}</p></div>`;
+      <p class="hint">${chosen(s)}</p>${vsRollLine(s)}</div>`;
   };
   const t = team(g, cur);
   const picker = g.ai === cur
@@ -1927,8 +1937,12 @@ function advanceFlow(choice) {
       archonAutoReroll(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which);
       const i = aiRerollChoice(g, side, seq, which);
       if (i >= 0) commandReroll(g, side, seq, which, i);
+      // The computer's attack dice are final now: a human defender sees them before rolling defence.
+      if (which === 'a' && !isAI(getOp(g, seq.target).side)) { F.step = { stage, seq, side, readonly: true }; return render(); }
       continue;
     }
+    // A human's attack dice are always shown (and settled) before the defender rolls.
+    if (which === 'a') { F.step = { stage, seq, side }; return render(); }
     if ((which === 'a' ? seq.a : seq.d)?.balancedLeft || (which === 'a' ? seq.a : seq.d)?.ceaselessLeft || (which === 'a' ? seq.a : seq.d)?.relentlessLeft || (which === 'a' ? seq.a : seq.d)?.digInLeft || (which === 'a' ? seq.a : seq.d)?.rerollLeft || canCommandReroll(g, side, seq, which) || (which === 'a' && vsCommunionOk(g, seq)) || painRerollValues(g, getOp(g, which === 'a' ? seq.op : seq.target), seq, which).length) { F.step = { stage, seq, side }; return render(); }
   }
 }
@@ -1953,8 +1967,16 @@ function flowView() {
     const { side, title, options } = ui.flow.step;
     return `<h2>${esc(tx(title))}</h2><p style="color:${team(g, side).color}">${esc(tx(team(g, side).name))}</p><div class="row">${options.map((o) => `<button data-act="attackchoice" data-id="${esc(o.id)}">${esc(tx(o.label))}</button>`).join('')}</div>`;
   }
-  const { stage, seq, side } = ui.flow.step;
+  const { stage, seq, side, readonly } = ui.flow.step;
   const a = getOp(g, seq.op), t = getOp(g, seq.target), which = stage === 'attack' ? 'a' : 'd';
+  if (readonly) { // the computer's settled attack dice, shown to the human defender before they roll
+    const p = seq.a;
+    return `<h2>⌖ ${L('對方的攻擊骰', 'Their attack dice')}</h2>
+      <p><b style="color:${team(g, a.side).color}">${nm(a)}</b> → <b style="color:${team(g, t.side).color}">${nm(t)}</b> · ${esc(bi(seq.weapon.name))}</p>
+      <div class="dicerow"><label>${L('攻擊', 'Attack')} (${seq.hit}+)</label>${p.dice.map((d, i) => die(d, i)).join('')}<em>${L(`${p.crits} 暴擊 / ${p.norms} 成功`, `${p.crits} crit / ${p.norms} success`)}</em></div>
+      <p class="hint small">${L('對方的攻擊骰已經確定（重擲都做完了）。接著由你擲防禦骰：普通成功擋普通命中，兩個普通成功或一個暴擊成功擋一個暴擊。', 'Their attack dice are settled (all re-rolls done). Now you roll defence: a normal save blocks a normal hit; two normal saves or one critical save block a critical hit.')}</p>
+      <button class="primary wide" data-act="flowgo">🎲 ${L('擲防禦骰 ▶', 'Roll defence ▶')}</button>`;
+  }
   const pool = which === 'a' ? seq.a : seq.d, tm = team(g, side);
   const used = !canCommandReroll(g, side, seq, which), bal = !!pool.balancedLeft, vd = pool.rerollLeft || 0;
   const values = [...new Set(pool.dice.filter((d) => !d.auto && !d.rr && !d.locked).map((d) => d.v))].sort((x, y) => x - y);

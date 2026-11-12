@@ -37,6 +37,8 @@ const can = (g, o, id) => G.availableActions(g, o).find((a) => a.id === id)?.ok;
   const g = arena(); g.vs.cp = [0, 0];
   dice([3], () => V.vsReady(g)); assert.equal(g.vs.cp[0], 3, 'a D6 of 3 → 2, +1 for the Drone');
   const n = arena({ equip: ['vsNeuro'] }); n.vs.cp = [0, 0]; dice([1, 6], () => V.vsReady(n)); assert.equal(n.vs.cp[0], 4, 'the better of two D3, +1');
+  assert.match(n.log.at(-1).msg.zh, /神經興奮劑/, 'the log names Neurostimulant');
+  assert.deepEqual(n.vs.roll[0].dice.length, 2, 'both D3 are kept for the Strategy panel');
 }
 
 // Shooting: only the closest enemy within 8" unless a point is spent; the point is paid when shooting.
